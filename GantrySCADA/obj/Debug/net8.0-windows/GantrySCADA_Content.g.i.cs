@@ -9,9 +9,15 @@
 //------------------------------------------------------------------------------
 
 [assembly: System.Windows.Resources.AssemblyAssociatedContentFileAttribute("wwwroot/index.html")]
+[assembly: System.Windows.Resources.AssemblyAssociatedContentFileAttribute("stitch-skills-main/skills/react-components/package-lock.json")]
+[assembly: System.Windows.Resources.AssemblyAssociatedContentFileAttribute("stitch-skills-main/skills/react-components/package.json")]
+[assembly: System.Windows.Resources.AssemblyAssociatedContentFileAttribute("stitch-skills-main/skills/react-components/resources/style-guide.json")]
+[assembly: System.Windows.Resources.AssemblyAssociatedContentFileAttribute("stitch-skills-main/skills/remotion/examples/screens.json")]
+[assembly: System.Windows.Resources.AssemblyAssociatedContentFileAttribute("stitch-skills-main/skills/stitch-design/examples/metadata.json")]
 [assembly: System.Windows.Resources.AssemblyAssociatedContentFileAttribute("blazorapp.razor")]
 [assembly: System.Windows.Resources.AssemblyAssociatedContentFileAttribute("mainlayout.razor")]
 [assembly: System.Windows.Resources.AssemblyAssociatedContentFileAttribute("pages/dashboard.razor")]
+[assembly: System.Windows.Resources.AssemblyAssociatedContentFileAttribute("pages/telemetry.razor")]
 [assembly: System.Windows.Resources.AssemblyAssociatedContentFileAttribute("_imports.razor")]
 
 

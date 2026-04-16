@@ -16,6 +16,7 @@
 [assembly: System.Windows.Resources.AssemblyAssociatedContentFileAttribute("blazorapp.razor")]
 [assembly: System.Windows.Resources.AssemblyAssociatedContentFileAttribute("mainlayout.razor")]
 [assembly: System.Windows.Resources.AssemblyAssociatedContentFileAttribute("pages/dashboard.razor")]
+[assembly: System.Windows.Resources.AssemblyAssociatedContentFileAttribute("pages/telemetry.razor")]
 [assembly: System.Windows.Resources.AssemblyAssociatedContentFileAttribute("_imports.razor")]
 
 

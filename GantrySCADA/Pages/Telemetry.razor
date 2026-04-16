@@ -1,0 +1,502 @@
+@page "/telemetry"
+@inject WPF_Test_PLC20260124.MainViewModel ViewModel
+@using System.Timers
+
+<style>
+    @@keyframes value-flash {
+        0%   { background-color: rgba(0, 80, 203, 0.12); }
+        100% { background-color: transparent; }
+    }
+    .value-updated {
+        animation: value-flash 1.2s ease-out;
+    }
+    @@keyframes pulse-dot {
+        0%, 100% { opacity: 1; transform: scale(1); }
+        50%       { opacity: 0.4; transform: scale(0.7); }
+    }
+    .live-dot { animation: pulse-dot 1.4s ease-in-out infinite; }
+</style>
+
+<div class="space-y-8">
+
+    <!-- ═══════════════════════════════════════════════════════════
+         TOP ROW: Read Monitor (40%) + Write Control (60%)
+    ═══════════════════════════════════════════════════════════ -->
+    <div class="grid grid-cols-12 gap-6">
+
+        <!-- ── LEFT: REAL-TIME MONITOR ─────────────────────────── -->
+        <section class="col-span-12 lg:col-span-5 bg-surface-container-low rounded-lg p-6 space-y-5">
+
+            <!-- Header -->
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full bg-secondary live-dot"></span>
+                    <h2 class="font-label text-xs font-bold uppercase tracking-[0.05em] text-on-surface-variant">
+                        Real-Time Monitor
+                    </h2>
+                </div>
+                <div class="flex items-center gap-3">
+                    <button @onclick="ToggleAutoRefresh"
+                            class="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all
+                                   @(autoRefresh ? "bg-secondary-container text-on-secondary-container" : "bg-surface-container-highest text-outline")">
+                        <span class="w-1.5 h-1.5 rounded-full @(autoRefresh ? "bg-secondary" : "bg-outline")"></span>
+                        @(autoRefresh ? "Auto ON" : "Auto OFF")
+                    </button>
+                </div>
+            </div>
+
+            <!-- Address Entry List -->
+            <div class="space-y-3">
+                @foreach (var entry in readEntries)
+                {
+                    <div class="relative bg-surface-container-lowest rounded-lg flex items-center gap-0 overflow-hidden shadow-sm
+                                @(entry.JustUpdated ? "value-updated" : "") transition-colors group">
+                        <!-- Accent Bar -->
+                        <div class="w-1 self-stretch" style="background-color: @GetTypeColor(entry.AddrType);"></div>
+
+                        <div class="flex-1 flex items-center justify-between px-4 py-3">
+                            <div class="flex items-center gap-3">
+                                <!-- Address Type Badge -->
+                                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase font-label tracking-wider text-white"
+                                      style="background-color: @GetTypeColor(entry.AddrType);">
+                                    @entry.AddrType
+                                </span>
+                                <!-- Address Index -->
+                                <span class="font-mono text-sm font-bold text-on-surface">
+                                    @entry.AddrType@entry.AddrIndex
+                                </span>
+                            </div>
+                            <div class="text-right">
+                                <div class="font-headline text-2xl font-bold text-on-surface">@entry.Value</div>
+                                <div class="text-[10px] font-body text-outline">upd @entry.UpdatedMs ms ago</div>
+                            </div>
+                        </div>
+
+                        <!-- Remove button -->
+                        <button @onclick="() => RemoveReadEntry(entry)"
+                                class="mr-2 p-1 text-outline hover:text-tertiary transition-colors opacity-0 group-hover:opacity-100">
+                            <span class="material-symbols-outlined text-sm">close</span>
+                        </button>
+                    </div>
+                }
+            </div>
+
+            <!-- Add Address Row -->
+            @if (showAddRead)
+            {
+                <div class="flex gap-2 bg-surface-container-lowest rounded-lg p-3 shadow-sm">
+                    <select @bind="newReadType"
+                            class="bg-surface-container-highest text-on-surface font-label text-xs font-bold uppercase rounded px-2 py-2 focus:outline-none focus:ring-2 focus:ring-primary/30">
+                        <option>D</option><option>M</option><option>X</option><option>Y</option>
+                    </select>
+                    <input type="number" @bind="newReadIndex" placeholder="Address"
+                           class="flex-1 bg-surface-container-highest text-on-surface font-mono text-sm px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                    <button @onclick="AddReadEntry"
+                            class="bg-gradient-to-r from-primary to-primary-container text-on-primary px-4 py-2 rounded font-label text-xs font-bold uppercase">
+                        Add
+                    </button>
+                    <button @onclick="() => showAddRead = false"
+                            class="text-outline hover:text-on-surface px-2 py-2">
+                        <span class="material-symbols-outlined text-sm">close</span>
+                    </button>
+                </div>
+            }
+
+            <div class="flex gap-3 pt-1">
+                <button @onclick="() => showAddRead = true"
+                        class="flex items-center gap-1 border border-outline-variant/40 text-primary font-label text-xs font-bold uppercase tracking-wider px-4 py-2 rounded hover:bg-surface-container transition-all">
+                    <span class="material-symbols-outlined text-sm">add</span> Add Address
+                </button>
+                <button @onclick="ManualRefresh"
+                        class="flex items-center gap-1 border border-outline-variant/40 text-on-surface-variant font-label text-xs font-bold uppercase tracking-wider px-4 py-2 rounded hover:bg-surface-container transition-all">
+                    <span class="material-symbols-outlined text-sm">refresh</span> Refresh All
+                </button>
+            </div>
+        </section>
+
+        <!-- ── RIGHT: WRITE CONTROL ────────────────────────────── -->
+        <section class="col-span-12 lg:col-span-7 bg-surface-container-low rounded-lg p-6 space-y-5">
+
+            <!-- Header -->
+            <div class="flex items-center gap-2">
+                <span class="material-symbols-outlined text-base text-tertiary">warning</span>
+                <h2 class="font-label text-xs font-bold uppercase tracking-[0.05em] text-on-surface-variant">
+                    Write Control
+                </h2>
+            </div>
+
+            <!-- Write Entry List -->
+            <div class="space-y-3">
+                @foreach (var entry in writeEntries)
+                {
+                    <div class="bg-surface-container-lowest rounded-lg p-4 shadow-sm group">
+                        <div class="flex items-center gap-3">
+                            <!-- Type Selector -->
+                            <select @bind="entry.AddrType"
+                                    class="bg-surface-container-highest text-on-surface font-label text-xs font-bold uppercase rounded px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-primary/30 w-20">
+                                <option>D</option><option>M</option><option>X</option><option>Y</option>
+                            </select>
+
+                            <!-- Address Index -->
+                            <div class="flex-shrink-0 w-28">
+                                <input type="number" @bind="entry.AddrIndex" placeholder="Address"
+                                       class="w-full bg-surface-container-highest text-on-surface font-mono text-sm px-3 py-2.5 rounded focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                            </div>
+
+                            <!-- Value Input -->
+                            <div class="flex-1">
+                                <input type="number" @bind="entry.WriteValue" placeholder="Value (0–65535)"
+                                       class="w-full bg-surface-container-highest text-on-surface font-mono text-sm px-3 py-2.5 rounded focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                            </div>
+
+                            <!-- Write Button -->
+                            <button @onclick="() => ExecuteWrite(entry)"
+                                    class="flex items-center gap-1.5 bg-gradient-to-r from-primary to-primary-container text-on-primary font-label text-xs font-bold uppercase px-4 py-2.5 rounded hover:brightness-110 transition-all">
+                                <span class="material-symbols-outlined text-sm">upload</span>
+                                Write
+                            </button>
+
+                            <!-- Status Chip -->
+                            @if (entry.Status == WriteStatus.OK)
+                            {
+                                <span class="flex items-center gap-1 px-2 py-1 bg-secondary-container text-on-secondary-container rounded-full text-[10px] font-bold font-label uppercase whitespace-nowrap">
+                                    <span class="material-symbols-outlined text-xs">check_circle</span> OK
+                                </span>
+                            }
+                            else if (entry.Status == WriteStatus.ERR)
+                            {
+                                <span class="flex items-center gap-1 px-2 py-1 bg-error-container text-on-error-container rounded-full text-[10px] font-bold font-label uppercase whitespace-nowrap">
+                                    <span class="material-symbols-outlined text-xs">cancel</span> ERR
+                                </span>
+                            }
+                            else
+                            {
+                                <span class="w-14 h-6"></span>
+                            }
+
+                            <!-- Remove -->
+                            <button @onclick="() => RemoveWriteEntry(entry)"
+                                    class="text-outline hover:text-tertiary transition-colors opacity-0 group-hover:opacity-100 ml-1">
+                                <span class="material-symbols-outlined text-sm">delete_outline</span>
+                            </button>
+                        </div>
+
+                        @if (!string.IsNullOrEmpty(entry.ErrorMessage))
+                        {
+                            <p class="mt-2 text-xs font-body text-tertiary pl-1">⚠ @entry.ErrorMessage</p>
+                        }
+                    </div>
+                }
+            </div>
+
+            <button @onclick="AddWriteEntry"
+                    class="flex items-center gap-1 border border-outline-variant/40 text-primary font-label text-xs font-bold uppercase tracking-wider px-4 py-2 rounded hover:bg-surface-container transition-all">
+                <span class="material-symbols-outlined text-sm">add</span> Add Write Entry
+            </button>
+        </section>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════
+         BOTTOM: ACTION HISTORY LOG
+    ═══════════════════════════════════════════════════════════ -->
+    <section class="bg-surface-container-lowest rounded-lg overflow-hidden shadow-sm">
+
+        <!-- Log Header -->
+        <div class="px-6 py-4 flex justify-between items-center bg-surface-container-low">
+            <div class="flex items-center gap-3">
+                <h2 class="font-label text-xs font-bold uppercase tracking-[0.05em] text-on-surface-variant">
+                    Action History
+                </h2>
+                <span class="bg-primary text-on-primary text-[10px] font-bold font-label px-2 py-0.5 rounded-full">
+                    @actionLog.Count
+                </span>
+            </div>
+            <button @onclick="ClearLog"
+                    class="flex items-center gap-1 text-outline hover:text-tertiary font-label text-xs uppercase tracking-wider transition-colors">
+                <span class="material-symbols-outlined text-sm">delete_sweep</span> Clear Log
+            </button>
+        </div>
+
+        <!-- Log Table -->
+        <div class="bg-inverse-surface overflow-y-auto max-h-64 relative">
+            <!-- Fade gradients -->
+            <div class="sticky top-0 h-6 bg-gradient-to-b from-inverse-surface to-transparent pointer-events-none z-10"></div>
+
+            @if (actionLog.Count == 0)
+            {
+                <div class="flex flex-col items-center justify-center py-12 text-outline gap-2">
+                    <span class="material-symbols-outlined text-3xl">terminal</span>
+                    <span class="font-label text-xs uppercase tracking-widest">No actions yet...</span>
+                </div>
+            }
+            else
+            {
+                <table class="w-full text-xs font-mono">
+                    <thead>
+                        <tr class="text-outline-variant/60 font-label uppercase tracking-wider text-[10px]">
+                            <th class="px-5 py-2 text-left">Timestamp</th>
+                            <th class="px-3 py-2 text-left">Type</th>
+                            <th class="px-3 py-2 text-left">Address</th>
+                            <th class="px-3 py-2 text-right">Value</th>
+                            <th class="px-5 py-2 text-center">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var log in actionLog.AsEnumerable().Reverse().Take(50))
+                        {
+                            <tr class="border-t border-inverse-on-surface/10 hover:bg-inverse-on-surface/10 transition-colors">
+                                <td class="px-5 py-2 text-outline-variant whitespace-nowrap">@log.Timestamp.ToString("HH:mm:ss.fff")</td>
+                                <td class="px-3 py-2">
+                                    @if (log.Type == "READ")
+                                    {
+                                        <span class="px-2 py-0.5 rounded border border-primary-fixed-dim text-primary-fixed-dim font-label font-bold text-[10px] uppercase">READ</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 font-label font-bold text-[10px] uppercase">WRITE</span>
+                                    }
+                                </td>
+                                <td class="px-3 py-2 font-bold text-inverse-on-surface">@log.Address</td>
+                                <td class="px-3 py-2 text-right text-primary-fixed-dim font-bold">@log.Value</td>
+                                <td class="px-5 py-2 text-center">
+                                    @if (log.Success)
+                                    {
+                                        <span class="material-symbols-outlined text-secondary-fixed-dim text-sm">check_circle</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="material-symbols-outlined text-tertiary-fixed-dim text-sm">cancel</span>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+
+            <div class="sticky bottom-0 h-6 bg-gradient-to-t from-inverse-surface to-transparent pointer-events-none z-10"></div>
+        </div>
+    </section>
+
+</div>
+
+@code {
+    // ─── Models ────────────────────────────────────────────────────
+    public class ReadEntry
+    {
+        public string AddrType { get; set; } = "D";
+        public int AddrIndex { get; set; }
+        public int Value { get; set; }
+        public long UpdatedMs { get; set; }
+        public bool JustUpdated { get; set; }
+        public int PrevValue { get; set; }
+    }
+
+    public enum WriteStatus { None, OK, ERR }
+    public class PlcWriteItem
+    {
+        public string AddrType { get; set; } = "D";
+        public int AddrIndex { get; set; }
+        public int WriteValue { get; set; }
+        public WriteStatus Status { get; set; } = WriteStatus.None;
+        public string ErrorMessage { get; set; } = "";
+    }
+
+    public class LogEntry
+    {
+        public DateTime Timestamp { get; set; }
+        public string Type { get; set; } = "";
+        public string Address { get; set; } = "";
+        public int Value { get; set; }
+        public bool Success { get; set; }
+    }
+
+    // ─── State ─────────────────────────────────────────────────────
+    List<ReadEntry> readEntries = new()
+    {
+        new() { AddrType = "D", AddrIndex = 4000 },
+        new() { AddrType = "D", AddrIndex = 4001 },
+        new() { AddrType = "D", AddrIndex = 4002 },
+        new() { AddrType = "M", AddrIndex = 0 },
+    };
+
+    List<PlcWriteItem> writeEntries = new()
+    {
+        new() { AddrType = "D", AddrIndex = 5000 },
+        new() { AddrType = "D", AddrIndex = 5001 },
+        new() { AddrType = "M", AddrIndex = 0 },
+    };
+
+    List<LogEntry> actionLog = new();
+
+    bool autoRefresh = true;
+    bool showAddRead = false;
+    string newReadType = "D";
+    int newReadIndex = 0;
+
+    System.Timers.Timer? _timer;
+
+    // ─── Lifecycle ─────────────────────────────────────────────────
+    protected override void OnInitialized()
+    {
+        ViewModel.PropertyChanged += OnViewModelChanged;
+        _timer = new System.Timers.Timer(250);
+        _timer.Elapsed += OnTimerTick;
+        _timer.AutoReset = true;
+        _timer.Start();
+    }
+
+    void OnViewModelChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        // Refresh when PLC data changes
+        if (autoRefresh)
+            InvokeAsync(() => { UpdateReadValues(); StateHasChanged(); });
+    }
+
+    async void OnTimerTick(object? sender, ElapsedEventArgs e)
+    {
+        if (autoRefresh)
+            await InvokeAsync(() => { UpdateReadValues(); StateHasChanged(); });
+    }
+
+    // ─── Read Logic ────────────────────────────────────────────────
+    void UpdateReadValues()
+    {
+        if (!ViewModel.Status || ViewModel.arr_R_V == null) return;
+        long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+
+        foreach (var entry in readEntries)
+        {
+            if (entry.AddrType != "D") continue;
+            int offset = entry.AddrIndex - ViewModel.D_R_V;
+            if (offset < 0 || offset >= ViewModel.arr_R_V.Length) continue;
+
+            int newVal = ViewModel.arr_R_V[offset];
+            if (newVal != entry.PrevValue)
+            {
+                entry.PrevValue = newVal;
+                entry.Value = newVal;
+                entry.JustUpdated = true;
+                entry.UpdatedMs = 0;
+                AddLog("READ", $"{entry.AddrType}{entry.AddrIndex}", newVal, true);
+            }
+            else
+            {
+                entry.JustUpdated = false;
+            }
+        }
+    }
+
+    void ManualRefresh()
+    {
+        UpdateReadValues();
+        StateHasChanged();
+    }
+
+    void ToggleAutoRefresh()
+    {
+        autoRefresh = !autoRefresh;
+    }
+
+    void AddReadEntry()
+    {
+        readEntries.Add(new ReadEntry { AddrType = newReadType, AddrIndex = newReadIndex });
+        showAddRead = false;
+        newReadIndex = 0;
+    }
+
+    void RemoveReadEntry(ReadEntry e) => readEntries.Remove(e);
+
+    // ─── Write Logic ───────────────────────────────────────────────
+    void ExecuteWrite(PlcWriteItem entry)
+    {
+        entry.ErrorMessage = "";
+
+        // Validate
+        if (entry.WriteValue < 0 || entry.WriteValue > 65535)
+        {
+            entry.Status = WriteStatus.ERR;
+            entry.ErrorMessage = "Value must be 0 – 65535 for a 16-bit word register.";
+            AddLog("WRITE", $"{entry.AddrType}{entry.AddrIndex}", entry.WriteValue, false);
+            return;
+        }
+
+        if (!ViewModel.Status)
+        {
+            entry.Status = WriteStatus.ERR;
+            entry.ErrorMessage = "PLC not connected.";
+            AddLog("WRITE", $"{entry.AddrType}{entry.AddrIndex}", entry.WriteValue, false);
+            return;
+        }
+
+        try
+        {
+            if (entry.AddrType == "D")
+            {
+                int offset = entry.AddrIndex - ViewModel.D_W_V;
+                if (offset >= 0 && offset < ViewModel.arr_W_V.Length)
+                {
+                    ViewModel.arr_W_V[offset] = entry.WriteValue;
+                    entry.Status = WriteStatus.OK;
+                    AddLog("WRITE", $"{entry.AddrType}{entry.AddrIndex}", entry.WriteValue, true);
+                }
+                else
+                {
+                    entry.Status = WriteStatus.ERR;
+                    entry.ErrorMessage = $"Address D{entry.AddrIndex} is outside the writable range D{ViewModel.D_W_V}–D{ViewModel.D_W_V + ViewModel.arr_W_V.Length - 1}.";
+                    AddLog("WRITE", $"{entry.AddrType}{entry.AddrIndex}", entry.WriteValue, false);
+                }
+            }
+            else
+            {
+                // M/X/Y direct bit write not implemented — placeholder
+                entry.Status = WriteStatus.ERR;
+                entry.ErrorMessage = $"Write to {entry.AddrType} registers not yet implemented.";
+                AddLog("WRITE", $"{entry.AddrType}{entry.AddrIndex}", entry.WriteValue, false);
+            }
+        }
+        catch (Exception ex)
+        {
+            entry.Status = WriteStatus.ERR;
+            entry.ErrorMessage = ex.Message;
+            AddLog("WRITE", $"{entry.AddrType}{entry.AddrIndex}", entry.WriteValue, false);
+        }
+    }
+
+    void AddWriteEntry() => writeEntries.Add(new PlcWriteItem());
+    void RemoveWriteEntry(PlcWriteItem e) => writeEntries.Remove(e);
+
+    // ─── Log ───────────────────────────────────────────────────────
+    void AddLog(string type, string addr, int value, bool success)
+    {
+        actionLog.Add(new LogEntry
+        {
+            Timestamp = DateTime.Now,
+            Type = type,
+            Address = addr,
+            Value = value,
+            Success = success,
+        });
+        // Keep max 200 entries
+        if (actionLog.Count > 200) actionLog.RemoveAt(0);
+    }
+
+    void ClearLog() => actionLog.Clear();
+
+    // ─── Helpers ───────────────────────────────────────────────────
+    string GetTypeColor(string type) => type switch
+    {
+        "D" => "#0050cb",
+        "M" => "#006c49",
+        "X" => "#b45309",
+        "Y" => "#7c3aed",
+        _   => "#727687"
+    };
+
+    public void Dispose()
+    {
+        _timer?.Stop();
+        _timer?.Dispose();
+        ViewModel.PropertyChanged -= OnViewModelChanged;
+    }
+}
