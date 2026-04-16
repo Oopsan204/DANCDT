@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -24,6 +24,30 @@ namespace WPF_Test_PLC20260124
         {
             InitializeComponent();
             DataContext = new MainViewModel();
+        }
+
+        private void JogBtn_PreviewMouseDown(object sender, MouseButtonEventArgs e)
+        {
+            if (sender is Button btn && btn.Tag != null && DataContext is MainViewModel vm)
+            {
+                vm.SetMBit(btn.Tag.ToString(), true);
+            }
+        }
+
+        private void JogBtn_PreviewMouseUp(object sender, MouseButtonEventArgs e)
+        {
+            if (sender is Button btn && btn.Tag != null && DataContext is MainViewModel vm)
+            {
+                vm.SetMBit(btn.Tag.ToString(), false);
+            }
+        }
+
+        private void JogBtn_MouseLeave(object sender, MouseEventArgs e)
+        {
+            if (e.LeftButton == MouseButtonState.Pressed && sender is Button btn && btn.Tag != null && DataContext is MainViewModel vm)
+            {
+                vm.SetMBit(btn.Tag.ToString(), false);
+            }
         }
     }
 }

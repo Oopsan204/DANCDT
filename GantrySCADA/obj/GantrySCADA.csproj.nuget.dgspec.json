@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "E:\\hoctap\\nam4_ky3\\1.DO-AN-CDT\\APP\\DANCDT\\WPF_Test_PLC20260124\\GantrySCADA\\GantrySCADA.csproj": {}
+    "E:\\hoctap\\nam4_ky3\\1.DO-AN-CDT\\APP\\DANCDT\\GantrySCADA\\GantrySCADA.csproj": {}
   },
   "projects": {
-    "E:\\hoctap\\nam4_ky3\\1.DO-AN-CDT\\APP\\DANCDT\\WPF_Test_PLC20260124\\GantrySCADA\\GantrySCADA.csproj": {
+    "E:\\hoctap\\nam4_ky3\\1.DO-AN-CDT\\APP\\DANCDT\\GantrySCADA\\GantrySCADA.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "E:\\hoctap\\nam4_ky3\\1.DO-AN-CDT\\APP\\DANCDT\\WPF_Test_PLC20260124\\GantrySCADA\\GantrySCADA.csproj",
+        "projectUniqueName": "E:\\hoctap\\nam4_ky3\\1.DO-AN-CDT\\APP\\DANCDT\\GantrySCADA\\GantrySCADA.csproj",
         "projectName": "GantrySCADA",
-        "projectPath": "E:\\hoctap\\nam4_ky3\\1.DO-AN-CDT\\APP\\DANCDT\\WPF_Test_PLC20260124\\GantrySCADA\\GantrySCADA.csproj",
+        "projectPath": "E:\\hoctap\\nam4_ky3\\1.DO-AN-CDT\\APP\\DANCDT\\GantrySCADA\\GantrySCADA.csproj",
         "packagesPath": "C:\\Users\\Opposan1112\\.nuget\\packages\\",
-        "outputPath": "E:\\hoctap\\nam4_ky3\\1.DO-AN-CDT\\APP\\DANCDT\\WPF_Test_PLC20260124\\GantrySCADA\\obj\\",
+        "outputPath": "E:\\hoctap\\nam4_ky3\\1.DO-AN-CDT\\APP\\DANCDT\\GantrySCADA\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
           "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"

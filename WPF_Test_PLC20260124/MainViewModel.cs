@@ -1,4 +1,4 @@
-﻿using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using NVKProject.PLC;
 using System;
@@ -15,407 +15,243 @@ namespace WPF_Test_PLC20260124
     {
         #region Fields
         private ePLCControl ePLC;
-        private int _ValuePLC = 1;
-        private int _Length = 99;
-        private int _StartAddress = 700;
         private string ipAddress = "192.168.3.39";
         private int port = 3000;
         private int networkNo = 0;
         private int stationNo = 0;
         private int stationPLCNo = 255;
         private bool status;
-
-
-        public int D_R_V = 4000;
-        public int D_W_V = 5000;
-        public int D_W_P = 3000;
-
-        // New: addresses to read as 32-bit (pairs)
-        // Default pairs: D1000+D1001, D1002+D1003, D1004+D1005, D2000+D2001, D2002+D2003, D2004+D2005
-        private int[] _arr_R32 = new int[6];
-
-        public int[] arr_W_Position = new int[99];
-        public int[] arr_R_V = new int[99];
-        public int[] arr_W_V = new int[99];
         #endregion
-        #region Propeties
-        public int ValuePLC
-        {
-            get { return _ValuePLC; }
-            set { _ValuePLC = value; }
-        }
-        public int Length
-        {
-            get { return _Length; }
-            set { _Length = value; OnPropertyChanged(); }
-        }
-        public int StartAddress
-        {
-            get { return _StartAddress; }
-            set { _StartAddress = value; OnPropertyChanged(); }
-        }
-        public string IpAddress
-        {
-            get { return ipAddress; }
-            set { ipAddress = value; OnPropertyChanged(); }
-        }
-        public int Port
-        {
-            get { return port; }
-            set { port = value; OnPropertyChanged(); }
-        }
-        public int NetworkNo
-        {
-            get { return networkNo; }
-            set { networkNo = value; }
-        }
-        public int StationNo
-        {
-            get { return stationNo; }
-            set { stationNo = value; OnPropertyChanged(); }
-        }
-        public int StationPLCNo
-        {
-            get { return stationPLCNo; }
-            set { stationPLCNo = value; OnPropertyChanged(); }
-        }
-        public bool Status
-        {
-            get { return status; }
-            set { status = value; OnPropertyChanged(); }
-        }
 
-        // New: expose arr_R32 as property so UI can bind and get notifications
-        public int[] arr_R32
-        {
-            get { return _arr_R32; }
-            set { SetProperty(ref _arr_R32, value); }
-        }
-
-        // New: configurable base addresses and enable flag for 32-bit reads
-        private int _d32Base1 = 1000;
-        public int D32Base1
-        {
-            get { return _d32Base1; }
-            set { _d32Base1 = value; OnPropertyChanged(); }
-        }
-
-        private int _d32Base2 = 2000;
-        public int D32Base2
-        {
-            get { return _d32Base2; }
-            set { _d32Base2 = value; OnPropertyChanged(); }
-        }
-
-        // Address of the enable flag (default D3000)
-        private int _dReadEnable = 3000;
-        public int DReadEnable
-        {
-            get { return _dReadEnable; }
-            set { _dReadEnable = value; OnPropertyChanged(); }
-        }
+        #region Connection Properties
+        public string IpAddress { get => ipAddress; set { ipAddress = value; OnPropertyChanged(); } }
+        public int Port { get => port; set { port = value; OnPropertyChanged(); } }
+        public int NetworkNo { get => networkNo; set { networkNo = value; } }
+        public int StationNo { get => stationNo; set { stationNo = value; OnPropertyChanged(); } }
+        public int StationPLCNo { get => stationPLCNo; set { stationPLCNo = value; OnPropertyChanged(); } }
+        public bool Status { get => status; set { SetProperty(ref status, value); } }
         #endregion
+
+        #region Display Properties (Read from PLC)
+        private int _currentSpeed;
+        public int CurrentSpeed { get => _currentSpeed; set => SetProperty(ref _currentSpeed, value); }
+
+        private double _currentPosX;
+        public double CurrentPosX { get => _currentPosX; set => SetProperty(ref _currentPosX, value); }
+
+        private double _currentPosY;
+        public double CurrentPosY { get => _currentPosY; set => SetProperty(ref _currentPosY, value); }
+
+        private bool _m3000_XPlus;
+        public bool M3000_XPlus { get => _m3000_XPlus; set => SetProperty(ref _m3000_XPlus, value); }
+
+        private bool _m3001_XMinus;
+        public bool M3001_XMinus { get => _m3001_XMinus; set => SetProperty(ref _m3001_XMinus, value); }
+
+        private bool _m3002_YPlus;
+        public bool M3002_YPlus { get => _m3002_YPlus; set => SetProperty(ref _m3002_YPlus, value); }
+
+        private bool _m3003_YMinus;
+        public bool M3003_YMinus { get => _m3003_YMinus; set => SetProperty(ref _m3003_YMinus, value); }
+
+        private bool _m3004_ZPlus;
+        public bool M3004_ZPlus { get => _m3004_ZPlus; set => SetProperty(ref _m3004_ZPlus, value); }
+
+        private bool _m3005_ZMinus;
+        public bool M3005_ZMinus { get => _m3005_ZMinus; set => SetProperty(ref _m3005_ZMinus, value); }
+        #endregion
+
+        #region User Variables (Write to PLC)
+        private int _setSpeed = 1000;
+        public int SetSpeed { get => _setSpeed; set => SetProperty(ref _setSpeed, value); }
+
+        private int _setPosX;
+        public int SetPosX { get => _setPosX; set => SetProperty(ref _setPosX, value); }
+
+        private int _setPosY;
+        public int SetPosY { get => _setPosY; set => SetProperty(ref _setPosY, value); }
+        #endregion
+
+        #region Telemetry Properties
+        private string _telemetryReadDeviceTypeStr = "D";
+        public string TelemetryReadDeviceTypeStr { get => _telemetryReadDeviceTypeStr; set => SetProperty(ref _telemetryReadDeviceTypeStr, value); }
+        private string _telemetryReadAddress = "100";
+        public string TelemetryReadAddress { get => _telemetryReadAddress; set => SetProperty(ref _telemetryReadAddress, value); }
+        private string _telemetryReadValue = "0";
+        public string TelemetryReadValue { get => _telemetryReadValue; set => SetProperty(ref _telemetryReadValue, value); }
+
+        private string _telemetryWriteDeviceTypeStr = "D";
+        public string TelemetryWriteDeviceTypeStr { get => _telemetryWriteDeviceTypeStr; set => SetProperty(ref _telemetryWriteDeviceTypeStr, value); }
+        private string _telemetryWriteAddress = "100";
+        public string TelemetryWriteAddress { get => _telemetryWriteAddress; set => SetProperty(ref _telemetryWriteAddress, value); }
+        private string _telemetryWriteValue = "0";
+        public string TelemetryWriteValue { get => _telemetryWriteValue; set => SetProperty(ref _telemetryWriteValue, value); }
+        #endregion
+
         #region Commands
         public ICommand ConnectCommand { get; set; }
-        public ICommand TestReadCommand { get; set; }
-        public ICommand TestWriteCommand { get; set; }
-        public ICommand TestBit { get; set; }
+        public ICommand DisconnectCommand { get; set; }
+        public ICommand WriteDataCommand { get; set; }
+        public ICommand WriteTelemetryCommand { get; set; }
         #endregion
-    }
-    public partial class MainViewModel : ObservableObject
-    {
+
         public MainViewModel()
         {
             ConnectCommand = new RelayCommand(ConnectPLC);
-            TestReadCommand = new RelayCommand(new Action(() => { }));
-            TestWriteCommand = new RelayCommand(new Action(() => { }));
-
+            DisconnectCommand = new RelayCommand(DisconnectPLC);
+            WriteDataCommand = new RelayCommand(WriteDataToPLC);
+            WriteTelemetryCommand = new RelayCommand(WriteTelemetryToPLC);
         }
+
         private void ConnectPLC()
         {
             ePLC = new ePLCControl();
-             ePLC.SetPLCProperties(IpAddress, Port, NetworkNo, StationPLCNo, StationNo);
+            ePLC.SetPLCProperties(IpAddress, Port, NetworkNo, StationPLCNo, StationNo);
             ePLC.Open();
             Status = ePLC.IsConnected;
 
-            Thread t1 = new Thread(Monitor);
-            t1.IsBackground = true;
-            t1.Start();
+            if (Status)
+            {
+                Thread t1 = new Thread(Monitor);
+                t1.IsBackground = true;
+                t1.Start();
+            }
+        }
+
+        private void DisconnectPLC()
+        {
+            Status = false;
+            if (ePLC != null && ePLC.IsConnected)
+            {
+                ePLC.Close();
+            }
         }
 
         private void Monitor()
         {
             while (Status)
             {
-                Thread.Sleep(10);
-                Status = ePLC.IsConnected;
+                Thread.Sleep(50); // Mức độ cập nhật 50ms là đủ nhanh cho UI
+                
+                if (ePLC != null) 
+                {
+                    Status = ePLC.IsConnected;
+                }
+                
                 if (Status)
                 {
                     Read();
-                    Write();
                 }
             }
         }
-        private void Write()
-        {
 
-            ePLC.WriteDeviceBlock(ePLCControl.SubCommand.Word, ePLCControl.DeviceName.D, $"{D_W_V}", arr_W_V);
-            ePLC.WriteDeviceBlock(ePLCControl.SubCommand.Word, ePLCControl.DeviceName.D, $"{D_W_P}", arr_W_Position);
-        }
         private void Read()
         {
-            // Read enable flag at configurable address (DReadEnable). If non-zero -> proceed; otherwise skip reading 32-bit values.
             try
             {
-                int[] flag = ePLC.ReadDeviceBlock(ePLCControl.SubCommand.Word, ePLCControl.DeviceName.D, $"{DReadEnable}", 1);
-                if (flag == null || flag.Length == 0)
+                // Read Speed (D1000)
+                int[] speedArr = ePLC.ReadDeviceBlock(ePLCControl.SubCommand.Word, ePLCControl.DeviceName.D, "1000", 1);
+                if (speedArr != null && speedArr.Length > 0) 
+                    CurrentSpeed = speedArr[0];
+
+                // Read POS_X (D2000 - 32 bit)
+                int[] posxArr = ePLC.ReadDeviceBlock(ePLCControl.SubCommand.Word, ePLCControl.DeviceName.D, "2000", 2);
+                if (posxArr != null && posxArr.Length > 1) 
+                    CurrentPosX = posxArr[0] | (posxArr[1] << 16);
+
+                // Read POS_Y (D3000 - 32 bit)
+                int[] posyArr = ePLC.ReadDeviceBlock(ePLCControl.SubCommand.Word, ePLCControl.DeviceName.D, "3000", 2);
+                if (posyArr != null && posyArr.Length > 1) 
+                    CurrentPosY = posyArr[0] | (posyArr[1] << 16);
+
+                // Read M state
+                int[] mArr = ePLC.ReadDeviceBlock(ePLCControl.SubCommand.Bit, ePLCControl.DeviceName.M, "3000", 6);
+                if (mArr != null && mArr.Length >= 6)
                 {
-                    // fallback: still read default block
-                    arr_R_V = ePLC.ReadDeviceBlock(ePLCControl.SubCommand.Word, ePLCControl.DeviceName.D, $"{D_R_V}", Length);
-                    return;
+                    M3000_XPlus = mArr[0] == 1;
+                    M3001_XMinus = mArr[1] == 1;
+                    M3002_YPlus = mArr[2] == 1;
+                    M3003_YMinus = mArr[3] == 1;
+                    M3004_ZPlus = mArr[4] == 1;
+                    M3005_ZMinus = mArr[5] == 1;
                 }
 
-                if (flag[0] != 0)
+                // Telemetry Continuous Read
+                if (!string.IsNullOrEmpty(TelemetryReadAddress))
                 {
-                    // Read normal block (if still needed)
-                    arr_R_V = ePLC.ReadDeviceBlock(ePLCControl.SubCommand.Word, ePLCControl.DeviceName.D, $"{D_R_V}", Length);
-
-                    // Read blocks for 32-bit values using configurable bases
-                    int[] b1 = ePLC.ReadDeviceBlock(ePLCControl.SubCommand.Word, ePLCControl.DeviceName.D, $"{D32Base1}", 6);
-                    int[] b2 = ePLC.ReadDeviceBlock(ePLCControl.SubCommand.Word, ePLCControl.DeviceName.D, $"{D32Base2}", 6);
-
-                    if (b1 != null && b1.Length >= 6)
+                    try 
                     {
-                        // combine pairs: (0,1), (2,3), (4,5)
-                        for (int i = 0; i < 3; i++)
+                        var dt = (ePLCControl.DeviceName)Enum.Parse(typeof(ePLCControl.DeviceName), TelemetryReadDeviceTypeStr);
+                        var subCmd = dt == ePLCControl.DeviceName.D || dt == ePLCControl.DeviceName.W ? ePLCControl.SubCommand.Word : ePLCControl.SubCommand.Bit;
+                        int[] tResult = ePLC.ReadDeviceBlock(subCmd, dt, TelemetryReadAddress, 1);
+                        if (tResult != null && tResult.Length > 0)
                         {
-                            int low = b1[i * 2];
-                            int high = b1[i * 2 + 1];
-                            _arr_R32[i] = low | (high << 16);
+                            TelemetryReadValue = tResult[0].ToString();
                         }
-                    }
-
-                    if (b2 != null && b2.Length >= 6)
-                    {
-                        for (int i = 0; i < 3; i++)
-                        {
-                            int low = b2[i * 2];
-                            int high = b2[i * 2 + 1];
-                            _arr_R32[3 + i] = low | (high << 16);
-                        }
-                    }
-
-                    // notify property change if bound in UI
-                    OnPropertyChanged(nameof(arr_R32));
+                    } 
+                    catch { /* Fallback to not crashing loop on bad address */ }
                 }
-                else
-                {
-                    // If flag is 0, still update arr_R_V (optional) or skip reading arr_R32
-                    arr_R_V = ePLC.ReadDeviceBlock(ePLCControl.SubCommand.Word, ePLCControl.DeviceName.D, $"{D_R_V}", Length);
-                }
+
             }
             catch (Exception)
             {
-                // on exception, try to read fallback block
-                try { arr_R_V = ePLC.ReadDeviceBlock(ePLCControl.SubCommand.Word, ePLCControl.DeviceName.D, $"{D_R_V}", Length); } catch { }
+                // Handle read exception (ignore to keep loop running or mark status disconnected if fatal)
             }
         }
-        private bool ReadDevice(int iAddress)
+
+        private void WriteTelemetryToPLC()
         {
-            if ((iAddress - D_R_V) > 0 && (iAddress - D_R_V) < arr_R_V.Length)
+            if (!Status || ePLC == null || string.IsNullOrEmpty(TelemetryWriteAddress)) return;
+            try 
             {
-                return arr_R_V[iAddress - D_R_V] == 0 ? false : true;
-            }
-            else
+                var dt = (ePLCControl.DeviceName)Enum.Parse(typeof(ePLCControl.DeviceName), TelemetryWriteDeviceTypeStr);
+                var subCmd = dt == ePLCControl.DeviceName.D || dt == ePLCControl.DeviceName.W ? ePLCControl.SubCommand.Word : ePLCControl.SubCommand.Bit;
+                if (int.TryParse(TelemetryWriteValue, out int val))
+                {
+                    ePLC.WriteDeviceBlock(subCmd, dt, TelemetryWriteAddress, new int[] { val });
+                }
+            } 
+            catch { }
+        }
+
+        private void WriteDataToPLC()
+        {
+            if (!Status || ePLC == null) return;
+            
+            try
             {
-                return false;
+                // Write Speed (D1000)
+                ePLC.WriteDeviceBlock(ePLCControl.SubCommand.Word, ePLCControl.DeviceName.D, "1000", new int[] { SetSpeed });
+                
+                // Write POS_X (D2000)
+                int[] posXArr = new int[2];
+                posXArr[0] = SetPosX & 0xFFFF;
+                posXArr[1] = (SetPosX >> 16) & 0xFFFF;
+                ePLC.WriteDeviceBlock(ePLCControl.SubCommand.Word, ePLCControl.DeviceName.D, "2000", posXArr);
+
+                // Write POS_Y (D3000)
+                int[] posYArr = new int[2];
+                posYArr[0] = SetPosY & 0xFFFF;
+                posYArr[1] = (SetPosY >> 16) & 0xFFFF;
+                ePLC.WriteDeviceBlock(ePLCControl.SubCommand.Word, ePLCControl.DeviceName.D, "3000", posYArr);
             }
+            catch (Exception) { }
         }
-        private void WriteDevice(int iAddress, bool value)
+
+        // Method used by View (MainWindow) on MouseDown / MouseUp to jog axes
+        public void SetMBit(string addressStr, bool state)
         {
-            if ((iAddress - D_W_V) >= 0 && (iAddress - D_W_V) < arr_W_V.Length)
+            if (Status && ePLC != null && ePLC.IsConnected)
             {
-                arr_W_V[iAddress - D_W_V] = value ? 1 : 0;
+                if (int.TryParse(addressStr, out int address))
+                {
+                    try
+                    {
+                        ePLC.WriteDeviceBlock(ePLCControl.SubCommand.Bit, ePLCControl.DeviceName.M, address.ToString(), new int[] { state ? 1 : 0 });
+                    }
+                    catch { }
+                }
             }
-        }
-
-        public void SetPosition(int iAddress, double value)
-        {
-            if ((iAddress - D_W_P) >= 0 && (iAddress - D_W_P + 1) < arr_W_Position.Length)
-            {
-                int index = iAddress - D_W_P;
-                SetCurrentPosition(arr_W_Position, index, value);
-            }
-        }
-        public double GetCurrentPosition(int[] arr, int index)
-        {
-            return arr[index] + (arr[index + 1] << 16);
-        }
-        public void SetCurrentPosition(int[] arr, int index, double value)
-        {
-            int v = (int)value;
-            arr[index] = v & 0xFFFF;
-            arr[index + 1] = (v >> 16) & 0xFFFF;
-        }
-        private int[] GetDataValue(int[] arr, int index)
-        {
-            if (arr.Length == 0)
-            {
-                return null;
-            }
-            int iVal = arr[index];
-            return ePLC.WordToBit(iVal).ToList().Select(x => int.Parse(x.ToString())).ToArray();
-        }
-        public bool GetBit(int word, int bit)
-        {
-            return ((word >> bit) & 1) == 1;
-        }
-
-        public int SetBit(int word, int bit, bool value)
-        {
-            if (value) return word | (1 << bit);
-            else return word & ~(1 << bit);
-        }
-        private int[] GetDataValue_(int[] arr, int index)
-        {
-            if (arr == null || index < 0 || index >= arr.Length)
-                return null;
-
-            int word = arr[index];
-            int[] bits = new int[16];
-
-            for (int i = 0; i < 16; i++)
-                bits[i] = (word >> i) & 1;
-
-            return bits;
-        }
-        private void SetDataValue_(int[] arr, int index, int[] bits)
-        {
-            if (arr == null || bits == null)
-                return;
-
-            if (index < 0 || index >= arr.Length)
-                return;
-
-            if (bits.Length < 16)
-                throw new ArgumentException("Bits must have at least 16 elements");
-
-            int word = 0;
-
-            for (int i = 0; i < 16; i++)
-            {
-                if (bits[i] == 1)
-                    word |= (1 << i);
-            }
-
-            arr[index] = word;
         }
     }
-    public static class PlcBitHelper
-    {
-        public static int[] BoolArrayToIntArray(bool[] bits)
-        {
-            if (bits == null) return null;
-
-            int[] arr = new int[bits.Length];
-            for (int i = 0; i < bits.Length; i++)
-                arr[i] = bits[i] ? 1 : 0;
-
-            return arr;
-        }
-        public static bool[] IntArrayToBoolArray(int[] arr)
-        {
-            bool[] bits = new bool[arr.Length];
-            for (int i = 0; i < arr.Length; i++)
-                bits[i] = arr[i] != 0;
-            return bits;
-        }
-        public static bool[] WordToBits(int word)
-        {
-            bool[] bits = new bool[16];
-            for (int i = 0; i < 16; i++)
-                bits[i] = ((word >> i) & 1) == 1;
-            return bits;
-        }
-
-        /// <summary>
-        /// Convert bool[16] -> word (LSB first)
-        /// </summary>
-        public static int BitsToWord(bool[] bits)
-        {
-            if (bits == null) return 0;
-            int word = 0;
-            for (int i = 0; i < bits.Length && i < 16; i++)
-                if (bits[i]) word |= (1 << i);
-            return word;
-        }
-
-        // ================================
-        // STRING BIT (DEBUG ONLY)
-        // ================================
-
-        /// <summary>
-        /// Word -> bit string (LSB first)
-        /// </summary>
-        public static string WordToBitString(int word)
-        {
-            word &= 0xFFFF;
-            char[] bits = new char[16];
-            for (int i = 0; i < 16; i++)
-                bits[i] = ((word >> i) & 1) == 1 ? '1' : '0';
-            return new string(bits);
-        }
-
-        /// <summary>
-        /// Bit string -> word (LSB first)
-        /// </summary>
-        public static int BitStringToWord(string bits)
-        {
-            if (string.IsNullOrEmpty(bits)) return 0;
-            int word = 0;
-            for (int i = 0; i < bits.Length && i < 16; i++)
-                if (bits[i] == '1')
-                    word |= (1 << i);
-            return word;
-        }
-
-        // ================================
-        // BIT GET / SET
-        // ================================
-
-        public static bool GetBit(int word, int bitIndex)
-        {
-            return ((word >> bitIndex) & 1) == 1;
-        }
-
-        public static int SetBit(int word, int bitIndex, bool value)
-        {
-            if (value)
-                return word | (1 << bitIndex);
-            else
-                return word & ~(1 << bitIndex);
-        }
-
-        // ================================
-        // 32-BIT POSITION (2 WORDS PLC)
-        // ================================
-
-        /// <summary>
-        /// Get 32-bit position from 2 PLC registers
-        /// </summary>
-        public static int GetCurrentPosition(int[] arr, int index)
-        {
-            return arr[index] | (arr[index + 1] << 16);
-        }
-
-        /// <summary>
-        /// Set 32-bit position into 2 PLC registers
-        /// </summary>
-        public static void SetCurrentPosition(int[] arr, int index, int value)
-        {
-            arr[index] = value & 0xFFFF;        // Low word
-            arr[index + 1] = (value >> 16) & 0xFFFF; // High word
-        }
-    }
-
 }
