@@ -1,0 +1,29 @@
+{
+  "Files": [
+    {
+      "Id": "E:\\hoctap\\nam4_ky3\\1.DO-AN-CDT\\APP\\DANCDT\\GantrySCADA\\wwwroot\\index.html",
+      "PackagePath": "staticwebassets\\index.html"
+    },
+    {
+      "Id": "obj\\Release\\net8.0-windows\\staticwebassets\\msbuild.GantrySCADA.Microsoft.AspNetCore.StaticWebAssetEndpoints.props",
+      "PackagePath": "build\\Microsoft.AspNetCore.StaticWebAssetEndpoints.props"
+    },
+    {
+      "Id": "obj\\Release\\net8.0-windows\\staticwebassets\\msbuild.GantrySCADA.Microsoft.AspNetCore.StaticWebAssets.props",
+      "PackagePath": "build\\Microsoft.AspNetCore.StaticWebAssets.props"
+    },
+    {
+      "Id": "obj\\Release\\net8.0-windows\\staticwebassets\\msbuild.build.GantrySCADA.props",
+      "PackagePath": "build\\GantrySCADA.props"
+    },
+    {
+      "Id": "obj\\Release\\net8.0-windows\\staticwebassets\\msbuild.buildMultiTargeting.GantrySCADA.props",
+      "PackagePath": "buildMultiTargeting\\GantrySCADA.props"
+    },
+    {
+      "Id": "obj\\Release\\net8.0-windows\\staticwebassets\\msbuild.buildTransitive.GantrySCADA.props",
+      "PackagePath": "buildTransitive\\GantrySCADA.props"
+    }
+  ],
+  "ElementsToRemove": []
+}

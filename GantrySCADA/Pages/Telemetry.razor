@@ -339,6 +339,7 @@
     // ─── Lifecycle ─────────────────────────────────────────────────
     protected override void OnInitialized()
     {
+        ViewModel.AddLog("UI", "info", "Telemetry page loaded");
         ViewModel.PropertyChanged += OnViewModelChanged;
         _timer = new System.Timers.Timer(250);
         _timer.Elapsed += OnTimerTick;

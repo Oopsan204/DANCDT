@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html class="light" lang="en">
+<html class="light" lang="en" id="html-root">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -20,53 +20,53 @@
           theme: {
             extend: {
               "colors": {
-                      "on-secondary-fixed-variant": "#005236",
-                      "on-primary-container": "#f8f7ff",
-                      "surface-tint": "#0054d6",
-                      "on-surface": "#0d1c2e",
-                      "on-primary-fixed": "#001849",
-                      "tertiary": "#b21320",
-                      "on-surface-variant": "#424656",
-                      "on-background": "#0d1c2e",
-                      "on-tertiary-fixed-variant": "#930013",
-                      "inverse-on-surface": "#eaf1ff",
-                      "on-primary-fixed-variant": "#003fa4",
-                      "primary-fixed": "#dae1ff",
-                      "on-secondary-fixed": "#002113",
-                      "inverse-primary": "#b3c5ff",
-                      "secondary": "#006c49",
-                      "on-primary": "#ffffff",
-                      "secondary-fixed": "#6ffbbe",
-                      "background": "#f8f9ff",
-                      "tertiary-container": "#d63135",
-                      "error-container": "#ffdad6",
-                      "surface-bright": "#f8f9ff",
-                      "outline": "#727687",
-                      "surface-dim": "#ccdbf3",
-                      "primary-fixed-dim": "#b3c5ff",
-                      "tertiary-fixed-dim": "#ffb3ad",
-                      "tertiary-fixed": "#ffdad7",
-                      "on-tertiary-fixed": "#410004",
-                      "on-error": "#ffffff",
-                      "surface-container-high": "#dce9ff",
-                      "on-secondary-container": "#00714d",
-                      "inverse-surface": "#233144",
-                      "surface-container-lowest": "#ffffff",
-                      "surface-variant": "#d5e3fc",
-                      "surface-container-highest": "#d5e3fc",
-                      "surface-container-low": "#eff4ff",
-                      "primary-container": "#0066ff",
-                      "secondary-container": "#6cf8bb",
-                      "error": "#ba1a1a",
-                      "surface": "#f8f9ff",
-                      "on-secondary": "#ffffff",
-                      "on-error-container": "#93000a",
-                      "surface-container": "#e6eeff",
-                      "outline-variant": "#c2c6d8",
-                      "on-tertiary": "#ffffff",
-                      "primary": "#0050cb",
-                      "secondary-fixed-dim": "#4edea3",
-                      "on-tertiary-container": "#fff6f5"
+                      "on-secondary-fixed-variant": "var(--c-on-secondary-fixed-variant)",
+                      "on-primary-container": "var(--c-on-primary-container)",
+                      "surface-tint": "var(--c-surface-tint)",
+                      "on-surface": "var(--c-on-surface)",
+                      "on-primary-fixed": "var(--c-on-primary-fixed)",
+                      "tertiary": "var(--c-tertiary)",
+                      "on-surface-variant": "var(--c-on-surface-variant)",
+                      "on-background": "var(--c-on-background)",
+                      "on-tertiary-fixed-variant": "var(--c-on-tertiary-fixed-variant)",
+                      "inverse-on-surface": "var(--c-inverse-on-surface)",
+                      "on-primary-fixed-variant": "var(--c-on-primary-fixed-variant)",
+                      "primary-fixed": "var(--c-primary-fixed)",
+                      "on-secondary-fixed": "var(--c-on-secondary-fixed)",
+                      "inverse-primary": "var(--c-inverse-primary)",
+                      "secondary": "var(--c-secondary)",
+                      "on-primary": "var(--c-on-primary)",
+                      "secondary-fixed": "var(--c-secondary-fixed)",
+                      "background": "var(--c-background)",
+                      "tertiary-container": "var(--c-tertiary-container)",
+                      "error-container": "var(--c-error-container)",
+                      "surface-bright": "var(--c-surface-bright)",
+                      "outline": "var(--c-outline)",
+                      "surface-dim": "var(--c-surface-dim)",
+                      "primary-fixed-dim": "var(--c-primary-fixed-dim)",
+                      "tertiary-fixed-dim": "var(--c-tertiary-fixed-dim)",
+                      "tertiary-fixed": "var(--c-tertiary-fixed)",
+                      "on-tertiary-fixed": "var(--c-on-tertiary-fixed)",
+                      "on-error": "var(--c-on-error)",
+                      "surface-container-high": "var(--c-surface-container-high)",
+                      "on-secondary-container": "var(--c-on-secondary-container)",
+                      "inverse-surface": "var(--c-inverse-surface)",
+                      "surface-container-lowest": "var(--c-surface-container-lowest)",
+                      "surface-variant": "var(--c-surface-variant)",
+                      "surface-container-highest": "var(--c-surface-container-highest)",
+                      "surface-container-low": "var(--c-surface-container-low)",
+                      "primary-container": "var(--c-primary-container)",
+                      "secondary-container": "var(--c-secondary-container)",
+                      "error": "var(--c-error)",
+                      "surface": "var(--c-surface)",
+                      "on-secondary": "var(--c-on-secondary)",
+                      "on-error-container": "var(--c-on-error-container)",
+                      "surface-container": "var(--c-surface-container)",
+                      "outline-variant": "var(--c-outline-variant)",
+                      "on-tertiary": "var(--c-on-tertiary)",
+                      "primary": "var(--c-primary)",
+                      "secondary-fixed-dim": "var(--c-secondary-fixed-dim)",
+                      "on-tertiary-container": "var(--c-on-tertiary-container)"
               },
               "borderRadius": {
                       "DEFAULT": "0.125rem",
@@ -83,21 +83,188 @@
           },
         }
     </script>
+
     <style>
+        /* ═══════════════════════════════════════════════════
+           LIGHT MODE — Material Design tokens (default)
+           ═══════════════════════════════════════════════════ */
+        :root,
+        html.light {
+            --c-on-secondary-fixed-variant: #005236;
+            --c-on-primary-container:       #f8f7ff;
+            --c-surface-tint:               #0054d6;
+            --c-on-surface:                 #0d1c2e;
+            --c-on-primary-fixed:           #001849;
+            --c-tertiary:                   #b21320;
+            --c-on-surface-variant:         #424656;
+            --c-on-background:              #0d1c2e;
+            --c-on-tertiary-fixed-variant:  #930013;
+            --c-inverse-on-surface:         #eaf1ff;
+            --c-on-primary-fixed-variant:   #003fa4;
+            --c-primary-fixed:              #dae1ff;
+            --c-on-secondary-fixed:         #002113;
+            --c-inverse-primary:            #b3c5ff;
+            --c-secondary:                  #006c49;
+            --c-on-primary:                 #ffffff;
+            --c-secondary-fixed:            #6ffbbe;
+            --c-background:                 #f8f9ff;
+            --c-tertiary-container:         #d63135;
+            --c-error-container:            #ffdad6;
+            --c-surface-bright:             #f8f9ff;
+            --c-outline:                    #727687;
+            --c-surface-dim:                #ccdbf3;
+            --c-primary-fixed-dim:          #b3c5ff;
+            --c-tertiary-fixed-dim:         #ffb3ad;
+            --c-tertiary-fixed:             #ffdad7;
+            --c-on-tertiary-fixed:          #410004;
+            --c-on-error:                   #ffffff;
+            --c-surface-container-high:     #dce9ff;
+            --c-on-secondary-container:     #00714d;
+            --c-inverse-surface:            #233144;
+            --c-surface-container-lowest:   #ffffff;
+            --c-surface-variant:            #d5e3fc;
+            --c-surface-container-highest:  #d5e3fc;
+            --c-surface-container-low:      #eff4ff;
+            --c-primary-container:          #0066ff;
+            --c-secondary-container:        #6cf8bb;
+            --c-error:                      #ba1a1a;
+            --c-surface:                    #f8f9ff;
+            --c-on-secondary:               #ffffff;
+            --c-on-error-container:         #93000a;
+            --c-surface-container:          #e6eeff;
+            --c-outline-variant:            #c2c6d8;
+            --c-on-tertiary:                #ffffff;
+            --c-primary:                    #0050cb;
+            --c-secondary-fixed-dim:        #4edea3;
+            --c-on-tertiary-container:      #fff6f5;
+
+            /* layout chrome */
+            --nav-bg:       #f8f9ff;
+            --sidebar-bg:   #f1f5f9;
+            --border-color: #c2c6d8;
+            color-scheme: light;
+        }
+
+        /* ═══════════════════════════════════════════════════
+           DARK MODE — Stitch "Aetheric Industrial" tokens
+           Generated from Stitch project 1791471876100289666
+           ═══════════════════════════════════════════════════ */
+        html.dark {
+            --c-on-secondary-fixed-variant: #81d8ad;
+            --c-on-primary-container:       #002e6a;
+            --c-surface-tint:               #adc6ff;
+            --c-on-surface:                 #e2e8f4;
+            --c-on-primary-fixed:           #001a42;
+            --c-tertiary:                   #ef4444;
+            --c-on-surface-variant:         #94a3b8;
+            --c-on-background:              #e2e8f4;
+            --c-on-tertiary-fixed-variant:  #f87171;
+            --c-inverse-on-surface:         #1e2d4a;
+            --c-on-primary-fixed-variant:   #adc6ff;
+            --c-primary-fixed:              #1e3a5f;
+            --c-on-secondary-fixed:         #002113;
+            --c-inverse-primary:            #0050cb;
+            --c-secondary:                  #34d399;
+            --c-on-primary:                 #ffffff;
+            --c-secondary-fixed:            #065f46;
+            --c-background:                 #0a0f1e;
+            --c-tertiary-container:         #7f1d1d;
+            --c-error-container:            #450a0a;
+            --c-surface-bright:             #1e2d4a;
+            --c-outline:                    #475569;
+            --c-surface-dim:                #0d1428;
+            --c-primary-fixed-dim:          #3b82f6;
+            --c-tertiary-fixed-dim:         #fca5a5;
+            --c-tertiary-fixed:             #fee2e2;
+            --c-on-tertiary-fixed:          #7f1d1d;
+            --c-on-error:                   #ffffff;
+            --c-surface-container-high:     #1a2440;
+            --c-on-secondary-container:     #34d399;
+            --c-inverse-surface:            #e2e8f4;
+            --c-surface-container-lowest:   #070c18;
+            --c-surface-variant:            #1e2d4a;
+            --c-surface-container-highest:  #243352;
+            --c-surface-container-low:      #0f1a2e;
+            --c-primary-container:          #1d4ed8;
+            --c-secondary-container:        #064e3b;
+            --c-error:                      #ef4444;
+            --c-surface:                    #0a0f1e;
+            --c-on-secondary:               #ffffff;
+            --c-on-error-container:         #fca5a5;
+            --c-surface-container:          #111827;
+            --c-outline-variant:            #1e2d4a;
+            --c-on-tertiary:                #ffffff;
+            --c-primary:                    #3b82f6;
+            --c-secondary-fixed-dim:        #10b981;
+            --c-on-tertiary-container:      #fecaca;
+
+            /* layout chrome */
+            --nav-bg:       #0d1428;
+            --sidebar-bg:   #0d1428;
+            --border-color: #1e2d4a;
+            color-scheme: dark;
+        }
+
+        /* ═══════ Global ═══════════════════════════════════ */
+        *, *::before, *::after { transition: background-color 0.25s ease, border-color 0.25s ease, color 0.15s ease; }
+
         .material-symbols-outlined {
             font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
         }
-        .tonal-layering {
-            transition: background-color 0.2s ease;
-        }
+        .tonal-layering { transition: background-color 0.2s ease; }
         .glass-panel {
             background: rgba(213, 227, 252, 0.7);
             backdrop-filter: blur(12px);
         }
-        .no-scrollbar::-webkit-scrollbar {
-            display: none;
+        html.dark .glass-panel {
+            background: rgba(30, 45, 74, 0.7);
+        }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+
+        /* ═══════ Theme toggle button ══════════════════════ */
+        #theme-toggle {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 36px; height: 36px;
+            border-radius: 8px;
+            background: transparent;
+            border: 1px solid var(--border-color);
+            cursor: pointer;
+            transition: background 0.18s, border-color 0.18s;
+            color: var(--c-on-surface-variant);
+        }
+        #theme-toggle:hover {
+            background: var(--c-surface-container-low);
+        }
+
+        /* ═══════ Scrollbar dark ════════════════════════════ */
+        html.dark ::-webkit-scrollbar { width: 5px; height: 5px; }
+        html.dark ::-webkit-scrollbar-track { background: #0a0f1e; }
+        html.dark ::-webkit-scrollbar-thumb { background: #1e2d4a; border-radius: 3px; }
+        html.dark ::-webkit-scrollbar-thumb:hover { background: #3b82f6; }
+
+        /* ═══════ Focus ring ════════════════════════════════ */
+        html.dark input:focus, html.dark select:focus, html.dark textarea:focus {
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(59,130,246,0.35);
+        }
+
+        /* ═══════ Blazor error panel ════════════════════════ */
+        html.dark #blazor-error-ui {
+            background: #1a0000;
+            color: #fca5a5;
+            border-color: #ef4444;
         }
     </style>
+
+    <!-- Theme persistence: apply saved theme before paint to avoid FOUC -->
+    <script>
+        (function() {
+            var saved = localStorage.getItem('scada-theme') || 'light';
+            document.documentElement.className = saved;
+        })();
+    </script>
 </head>
 <body class="bg-background text-on-background font-body min-h-screen">
     <div id="app">Loading...</div>
@@ -109,5 +276,20 @@
     </div>
 
     <script src="_framework/blazor.webview.js"></script>
+
+    <!-- Theme toggle JS (called from Blazor via JSInterop) -->
+    <script>
+        window.toggleTheme = function() {
+            var html = document.documentElement;
+            var isDark = html.classList.contains('dark');
+            html.className = isDark ? 'light' : 'dark';
+            localStorage.setItem('scada-theme', isDark ? 'light' : 'dark');
+            return !isDark; // returns true if now dark
+        };
+
+        window.getTheme = function() {
+            return document.documentElement.classList.contains('dark') ? 'dark' : 'light';
+        };
+    </script>
 </body>
 </html>

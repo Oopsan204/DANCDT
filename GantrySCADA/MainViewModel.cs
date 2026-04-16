@@ -37,6 +37,23 @@ namespace WPF_Test_PLC20260124
         public int[] arr_W_Position = new int[99];
         private int[] _arr_R_V = new int[99];
         public int[] arr_W_V = new int[99];
+
+        // Global log storage
+        public class LogItem
+        {
+            public DateTime Timestamp { get; set; } = DateTime.Now;
+            public string Source { get; set; } = "UI";
+            public string Message { get; set; } = "";
+            public string Status { get; set; } = "info";
+            public string Detail { get; set; } = "";
+            public bool Tagged { get; set; }
+            public bool IsNewest { get; set; }
+        }
+        private List<LogItem> _allLogs = new();
+        public List<LogItem> AllLogs => _allLogs;
+        
+        // Event for new log
+        public event EventHandler<LogItem>? LogAdded;
         #endregion
         #region Propeties
         public int ValuePLC
@@ -124,6 +141,7 @@ namespace WPF_Test_PLC20260124
         #endregion
         #region Commands
         public ICommand ConnectCommand { get; set; }
+        public ICommand DisconnectCommand { get; set; }
         public ICommand TestReadCommand { get; set; }
         public ICommand TestWriteCommand { get; set; }
         public ICommand TestBit { get; set; }
@@ -134,9 +152,14 @@ namespace WPF_Test_PLC20260124
         public MainViewModel()
         {
             ConnectCommand = new RelayCommand(ConnectPLC);
+            DisconnectCommand = new RelayCommand(DisconnectPLC);
             TestReadCommand = new RelayCommand(new Action(() => { }));
             TestWriteCommand = new RelayCommand(new Action(() => { }));
-
+            
+            // Seed initial logs
+            AddLog("UI",  "info",    "Application started");
+            AddLog("PC",  "info",    "MainViewModel initialized");
+            AddLog("PC",  "info",    "Monitor thread started @ 100Hz");
         }
         private void ConnectPLC()
         {
@@ -144,10 +167,24 @@ namespace WPF_Test_PLC20260124
              ePLC.SetPLCProperties(IpAddress, Port, NetworkNo, StationPLCNo, StationNo);
             ePLC.Open();
             Status = ePLC.IsConnected;
+            
+            AddLog("PLC", "info", $"Connection attempt → {IpAddress}:{Port}");
+            AddLog("PLC", Status ? "success" : "error", 
+                   Status ? "PLC connection established" : "PLC connection failed");
 
             Thread t1 = new Thread(Monitor);
             t1.IsBackground = true;
             t1.Start();
+        }
+
+        private void DisconnectPLC()
+        {
+            Status = false;
+            AddLog("PLC", "warning", "Connection closed by user");
+            if (ePLC != null)
+            {
+                ePLC.Close();
+            }
         }
 
         private void Monitor()
@@ -311,6 +348,55 @@ namespace WPF_Test_PLC20260124
             }
 
             arr[index] = word;
+        }
+
+        // Jog control: Write marks for jog commands
+        public void JogStart(int markAddress)
+        {
+            try
+            {
+                if (ePLC != null && ePLC.IsConnected)
+                {
+                    int[] bitValue = { 1 };
+                    ePLC.WriteDeviceBlock(ePLCControl.SubCommand.Bit, ePLCControl.DeviceName.M, $"{markAddress}", bitValue);
+                }
+            }
+            catch { }
+        }
+
+        public void JogStop(int markAddress)
+        {
+            try
+            {
+                if (ePLC != null && ePLC.IsConnected)
+                {
+                    int[] bitValue = { 0 };
+                    ePLC.WriteDeviceBlock(ePLCControl.SubCommand.Bit, ePLCControl.DeviceName.M, $"{markAddress}", bitValue);
+                }
+            }
+            catch { }
+        }
+
+        // Global log method for all components
+        public void AddLog(string source, string status, string message, string detail = "")
+        {
+            if (_allLogs.Count > 0) 
+                _allLogs[^1].IsNewest = false;
+            
+            var log = new LogItem 
+            { 
+                Source = source, 
+                Status = status, 
+                Message = message, 
+                Detail = detail, 
+                IsNewest = true 
+            };
+            
+            _allLogs.Add(log);
+            if (_allLogs.Count > 500) 
+                _allLogs.RemoveAt(0);
+            
+            LogAdded?.Invoke(this, log);
         }
     }
     public static class PlcBitHelper

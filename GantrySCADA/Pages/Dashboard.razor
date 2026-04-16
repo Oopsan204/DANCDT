@@ -33,7 +33,7 @@
                     <button class="bg-gradient-to-r from-primary to-primary-container text-on-primary font-label text-xs font-bold uppercase tracking-wider py-3 rounded-lg hover:shadow-lg transition-all" @onclick="Connect">
                         Connect
                     </button>
-                    <button class="border border-outline-variant text-primary font-label text-xs font-bold uppercase tracking-wider py-3 rounded-lg hover:bg-surface-container-high transition-all">
+                    <button class="border border-outline-variant text-primary font-label text-xs font-bold uppercase tracking-wider py-3 rounded-lg hover:bg-surface-container-high transition-all" @onclick="Disconnect">
                         Disconnect
                     </button>
                 </div>
@@ -198,22 +198,79 @@
 
 @code {
     private double VelocityVal = 1.5;
+    private Dictionary<char, int> LastActiveMark = new() { { 'X', -1 }, { 'Y', -1 }, { 'Z', -1 } };
+
+    protected override void OnInitialized()
+    {
+        ViewModel.AddLog("UI", "info", "Dashboard page loaded");
+        base.OnInitialized();
+    }
 
     private void Connect()
     {
         if(!ViewModel.Status)
         {
+            ViewModel.AddLog("UI", "info", "User clicked [Connect PLC]");
             ViewModel.ConnectCommand.Execute(null);
+        }
+    }
+
+    private void Disconnect()
+    {
+        if(ViewModel.Status)
+        {
+            ViewModel.AddLog("UI", "info", "User clicked [Disconnect]");
+            ViewModel.DisconnectCommand.Execute(null);
         }
     }
 
     private void Jog(char axis, bool dir)
     {
-        // Add PLC Write Bit Helper logic for Jog here
+        // Map axis + direction to mark address
+        // X+ (false) = m3000, X- (true) = m3001
+        // Y+ (false) = m3002, Y- (true) = m3003
+        // Z+ (false) = m3004, Z- (true) = m3005
+        int markAddress = axis switch
+        {
+            'X' => dir ? 3001 : 3000,
+            'Y' => dir ? 3003 : 3002,
+            'Z' => dir ? 3005 : 3004,
+            _ => -1
+        };
+        
+        if (markAddress >= 0)
+        {
+            string dirName = (axis, dir) switch
+            {
+                ('X', false) => "X+", ('X', true) => "X-",
+                ('Y', false) => "Y+", ('Y', true) => "Y-",
+                ('Z', false) => "Z+", ('Z', true) => "Z-",
+                _ => "?"
+            };
+            ViewModel.AddLog("UI", "info", $"Jog {dirName} pressed");
+            LastActiveMark[axis] = markAddress;
+            ViewModel.JogStart(markAddress);
+        }
     }
-    
     private void StopJog(char axis)
     {
-        // Add PLC Write Bit logic for Jog Release here
+        // Stop all jog marks for this axis
+        ViewModel.AddLog("UI", "info", $"Jog {axis} released");
+        switch (axis)
+        {
+            case 'X':
+                ViewModel.JogStop(3000);
+                ViewModel.JogStop(3001);
+                break;
+            case 'Y':
+                ViewModel.JogStop(3002);
+                ViewModel.JogStop(3003);
+                break;
+            case 'Z':
+                ViewModel.JogStop(3004);
+                ViewModel.JogStop(3005);
+                break;
+        }
+        LastActiveMark[axis] = -1;
     }
 }
