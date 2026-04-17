@@ -159,19 +159,20 @@ Status          // true/false - Trạng thái kết nối
 
 **Method**: 
 - `ConnectPLC()` - Kết nối đến PLC
-- `Monitor()` - Background thread theo dõi và đồng bộ dữ liệu (chạy ở 100Hz = 10ms)
+- `DisconnectPLC()` - Đóng kết nối
+- `Monitor()` - Background thread theo dõi và đồng bộ dữ liệu (100Hz = 10ms)
 
 ### 2. 🎮 Điều khiển chuyển động Jog (Dashboard) - **FULLY IMPLEMENTED**
 **File**: `Dashboard.razor` + `MainViewModel.cs`
 
 **Jog Controls UI**: 4 nút điều khiển XY + 2 nút Z
 ```
-        ↑ Y+
-    X- XY X+  (4 nút grid)
-        ↓ Y-
+        ↑ Y-
+    X- XY X+
+        ↓ Y+
 
         ↑ Z+
-        ↓ Z-  (2 nút)
+        ↓ Z-
 ```
 
 **Mark Address Mapping** (Quy ước từ PLC):
@@ -282,7 +283,80 @@ public void JogStop(int markAddress)
 
 **Velocity Control**: Slider điều chỉnh vận tốc (0.0 - 5.0 m/s)
 
-### 3. 📊 Hiển thị dữ liệu vị trí (Dashboard)
+### 5. 🎯 Custom Memory Stream (REAL-TIME MONITOR) - **NEW FEATURE**
+**File**: `Dashboard.razor` + `MainViewModel.cs`
+
+**Tính năng**:
+- User có thể thêm bất kỳ địa chỉ nào (D, M, X, Y) để đọc thời gian thực
+- Refresh 100Hz từ Monitor thread (RefreshCustomMemory)
+- Hiển thị currentValue và LastUpdate timestamp
+- Add/Remove entry dynamically
+
+**Custom Memory Entry Model**:
+```csharp
+public class CustomMemoryEntry
+{
+    public string AddrType { get; set; } = "D";      // D, M, X, Y
+    public int AddrIndex { get; set; }
+    public int CurrentValue { get; set; }
+    public DateTime LastUpdate { get; set; } = DateTime.Now;
+}
+```
+
+**Methods**:
+- `AddCustomMemoryEntry(addrType, addrIndex)` - Thêm address (log action)
+- `RemoveCustomMemoryEntry(entry)` - Xoá address (log action)
+- `RefreshCustomMemory()` - Cập nhật values (gọi trong Monitor loop 100Hz)
+
+**UI Components (Dashboard)**:
+- Input fields để nhập Address Type (D/M/X/Y) và Address Index
+- List hiển thị entries với CurrentValue, LastUpdate, Delete button
+- Real-time update từ Monitor thread
+
+### 6. 📋 Centralized Logging System - **GLOBAL FEATURE**
+**File**: `MainViewModel.cs` + `LogMonitor.razor`
+
+**Tính năng**:
+- **Global AllLogs**: Tất cả logs từ mọi page (Dashboard, Telemetry, LogMonitor) lưu trong ViewModel.AllLogs
+- **LogAdded event**: Notify subscribers khi có log mới (real-time UI update)
+- **Max 500 entries**: Auto remove oldest logs để tránh memory leak
+- **Multi-source**: UI actions, PC operations, PLC events
+- **Multi-status**: info, success, warning, error
+- **Throttling**: Read/Write logs throttled 1 second để tránh spam (chạy 100Hz)
+
+**LogItem Model**:
+```csharp
+public class LogItem
+{
+    public DateTime Timestamp { get; set; }
+    public string Source { get; set; } = "UI";        // UI / PC / PLC
+    public string Message { get; set; }
+    public string Status { get; set; } = "info";      // info/success/warning/error
+    public string Detail { get; set; }                // Optional: exception type, etc
+    public bool Tagged { get; set; }
+    public bool IsNewest { get; set; }
+}
+```
+
+**Logging Points**:
+```csharp
+// Connection lifecycle
+AddLog("PLC", "info", $"Connection attempt → {IpAddress}:{Port}");
+AddLog("PLC", "success", "PLC connection established");
+AddLog("PLC", "error", "PLC connection failed");
+AddLog("PLC", "warning", "Connection closed by user");
+
+// Custom Memory operations
+AddLog("UI", "info", $"Added custom memory: D4000");
+AddLog("UI", "info", $"Removed custom memory: D4000");
+
+// Monitor cycle (throttled 1 second to avoid flooding)
+AddLog("PC", "success", $"Read D{D_R_V}({Length} words) + D32-blocks → OK", "Monitor cycle");
+AddLog("PC", "success", $"Write D{D_W_V}(99 words) + D{D_W_P}(99 words) → OK", "Monitor cycle");
+AddLog("PC", "error", $"Read failed: {exception.Message}", "AccessViolationException");
+```
+
+### 7. 📊 Hiển thị dữ liệu vị trí (Dashboard)
 **File**: `Dashboard.razor`
 
 **Position Cards** - Hiển thị 3 giá trị 32-bit từ `arr_R32`:
@@ -349,10 +423,43 @@ public int[] arr_W_Position          // 99 từ ghi position
 private int[] _arr_R_V               // 99 từ đọc velocity
 public int[] arr_W_V                 // 99 từ ghi velocity
 
-// Config 32-bit read
-private int _d32Base1 = 1000         // Base địa chỉ khối 1
-private int _d32Base2 = 2000         // Base địa chỉ khối 2
-private int _dReadEnable = 3000      // Enable flag
+// Config 32-bit read (CONFIGURABLE)
+private int _d32Base1 = 1000         // Base địa chỉ khối 1 (configurable)
+private int _d32Base2 = 2000         // Base địa chỉ khối 2 (configurable)
+private int _dReadEnable = 3000      // Enable flag address (configurable)
+
+// Throttle excessive logs (Read/Write 100x/sec)
+private DateTime _lastWriteLogTime = DateTime.MinValue;
+private DateTime _lastReadLogTime = DateTime.MinValue;
+
+// Global log storage (CENTRALIZED)
+public class LogItem
+{
+    public DateTime Timestamp { get; set; } = DateTime.Now;
+    public string Source { get; set; } = "UI";        // "UI" / "PC" / "PLC"
+    public string Message { get; set; } = "";
+    public string Status { get; set; } = "info";      // "info"/"success"/"warning"/"error"
+    public string Detail { get; set; } = "";
+    public bool Tagged { get; set; }
+    public bool IsNewest { get; set; }
+}
+private List<LogItem> _allLogs = new();
+public List<LogItem> AllLogs => _allLogs;
+
+// Event for new log notification
+public event EventHandler<LogItem>? LogAdded;
+
+// Custom Memory Entry: for user-defined address reading
+public class CustomMemoryEntry
+{
+    public string AddrType { get; set; } = "D";      // D, M, X, Y
+    public int AddrIndex { get; set; }
+    public int CurrentValue { get; set; }
+    public DateTime LastUpdate { get; set; } = DateTime.Now;
+}
+
+private List<CustomMemoryEntry> _customMemoryEntries = new();
+public List<CustomMemoryEntry> CustomMemoryEntries => _customMemoryEntries;
 ```
 
 ### 🔄 Properties (Thuộc tính Public)
@@ -383,6 +490,7 @@ public int[] arr_R32            // RW - Mảng 32-bit, SetProperty() để notif
 
 ```csharp
 public ICommand ConnectCommand      // RelayCommand → ConnectPLC()
+public ICommand DisconnectCommand   // RelayCommand → DisconnectPLC()
 public ICommand TestReadCommand     // Placeholder
 public ICommand TestWriteCommand    // Placeholder
 public ICommand TestBit             // Placeholder
@@ -394,12 +502,20 @@ public ICommand TestBit             // Placeholder
 ```csharp
 public MainViewModel()
 {
+    ePLC = new ePLCControl();
     ConnectCommand = new RelayCommand(ConnectPLC);
-    TestReadCommand = new RelayCommand(() => {});
-    TestWriteCommand = new RelayCommand(() => {});
+    DisconnectCommand = new RelayCommand(DisconnectPLC);
+    TestReadCommand = new RelayCommand(new Action(() => { }));
+    TestWriteCommand = new RelayCommand(new Action(() => { }));
+    TestBit = new RelayCommand(new Action(() => { }));
+    
+    // Seed initial logs
+    AddLog("UI",  "info",    "Application started");
+    AddLog("PC",  "info",    "MainViewModel initialized");
+    AddLog("PC",  "info",    "Monitor thread started @ 100Hz");
 }
 ```
-Khởi tạo các command gọi các method.
+Khởi tạo các command và seed initial logs.
 
 #### 2. **ConnectPLC()**
 ```csharp
@@ -410,7 +526,10 @@ private void ConnectPLC()
     ePLC.Open();
     Status = ePLC.IsConnected;
     
-    // Bắt đầu Monitor thread
+    AddLog("PLC", "info", $"Connection attempt → {IpAddress}:{Port}");
+    AddLog("PLC", Status ? "success" : "error", 
+           Status ? "PLC connection established" : "PLC connection failed");
+
     Thread t1 = new Thread(Monitor);
     t1.IsBackground = true;
     t1.Start();
@@ -418,7 +537,28 @@ private void ConnectPLC()
 ```
 - Tạo ePLCControl instance
 - Cấu hình kết nối
+- Log connection attempt
 - Bắt đầu background thread
+
+#### 2.1 **Disconn
+    {
+        Thread.Sleep(10);  // 100Hz (10ms interval)
+        Status = ePLC.IsConnected;
+        if (Status)
+        {
+            Read();                     // Đọc từ PLC
+            RefreshCustomMemory();      // Cập nhật custom memory entries
+            // Write();                 // (commented out)
+        }
+    }
+}
+```
+- **Chạy ở background**: Không chặn UI
+- **Tần số**: 100Hz (cứ 10ms chạy 1 lần)
+- **Hoạt động**: 
+  - Đọc dữ liệu từ PLC
+  - Refresh custom memory entries
+  - Write method hiện tại commented out
 
 #### 3. **Monitor()** ⭐ Core Loop
 ```csharp
@@ -442,39 +582,64 @@ private void Monitor()
 
 #### 4. **Read()** - Đọc dữ liệu từ PLC
 ```csharp
-private void Read()
-{
-    try
-    {
-        // Đọc enable flag ở địa chỉ DReadEnable
-        int[] flag = ePLC.ReadDeviceBlock(...);
-        
+private void Read()configurable address (DReadEnable)
+        int[] flag = ePLC.ReadDeviceBlock(ePLCControl.SubCommand.Word, 
+                                          ePLCControl.DeviceName.D, 
+                                          $"{DReadEnable}", 1);
+        if (flag == null || flag.Length == 0)
+        {
+            arr_R_V = ePLC.ReadDeviceBlock(...);
+            return;
+        }
+
         if (flag[0] != 0)  // Flag enabled
         {
             // Đọc velocity array (D4000-D4099)
             arr_R_V = ePLC.ReadDeviceBlock(...);
             
-            // Đọc 32-bit values (D1000-D1005, D2000-D2005)
+            // Đọc 32-bit values từ configurable bases
             int[] b1 = ePLC.ReadDeviceBlock(..., D32Base1, 6);
             int[] b2 = ePLC.ReadDeviceBlock(..., D32Base2, 6);
             
             // Combine pairs: (low | high << 16)
             int[] newR32 = new int[6];
-            for (int i = 0; i < 3; i++)
+            if (b1 != null && b1.Length >= 6)
             {
-                newR32[i] = b1[i*2] | (b1[i*2+1] << 16);
-                newR32[3+i] = b2[i*2] | (b2[i*2+1] << 16);
+                for (int i = 0; i < 3; i++)
+                    newR32[i] = b1[i*2] | (b1[i*2+1] << 16);
             }
+            if (b2 != null && b2.Length >= 6)
+            {
+                for (int i = 0; i < 3; i++)
+                    newR32[3+i] = b2[i*2] | (b2[i*2+1] << 16);
+            }
+            
             arr_R32 = newR32;  // Trigger PropertyChanged
+            
+            // Log every 1 second to avoid flooding
+            if ((DateTime.Now - _lastReadLogTime).TotalSeconds >= 1.0)
+            {
+                AddLog("PC", "success", $"Read D{D_R_V}({Length} words) + D32-blocks → OK", "Monitor cycle");
+                _lastReadLogTime = DateTime.Now;
+            }
         }
     }
-    catch (Exception) { }
+    catch (Exception ex)
+    {
+        AddLog("PC", "error", $"Read failed: {ex.Message}", ex.GetType().Name);
+        _lastReadLogTime = DateTime.Now;
+    }
 }
 ```
 
 **Logic đọc**:
-1. Kiểm tra enable flag ở D3000
+1. Đọc enable flag ở DReadEnable (configurable, default D3000)
 2. Nếu flag != 0, đọc các khối:
+   - arr_R_V: D4000-D4099 (velocity)
+   - 32-bit: D32Base1, D32Base2 (configurable bases)
+3. Combine 2 words thành 32-bit position
+4. Log hoạt động (throttled 1 second)
+5. Nếu flag != 0, đọc các khối:
    - arr_R_V: D4000-D4099 (velocity)
    - 32-bit: D1000-D1005, D2000-D2005
 3. Combine 2 words thành 32-bit position
@@ -484,14 +649,36 @@ private void Read()
 ```csharp
 private void Write()
 {
-    ePLC.WriteDeviceBlock(..., D_W_V, arr_W_V);      // Ghi velocity
-    ePLC.WriteDeviceBlock(..., D_W_P, arr_W_Position);  // Ghi position
+    try
+    {
+        ePLC.WriteDeviceBlock(ePLCControl.SubCommand.Word, 
+                              ePLCControl.DeviceName.D, 
+                              $"{D_W_V}", arr_W_V);
+        ePLC.WriteDeviceBlock(ePLCControl.SubCommand.Word, 
+                              ePLCControl.DeviceName.D, 
+                              $"{D_W_P}", arr_W_Position);
+        
+        // Log every 1 second to avoid flooding log window
+        if ((DateTime.Now - _lastWriteLogTime).TotalSeconds >= 1.0)
+        {
+            AddLog("PC", "success", $"Write D{D_W_V}(99 words) + D{D_W_P}(99 words) → OK", "Monitor cycle");
+            _lastWriteLogTime = DateTime.Now;
+        }
+    }
+    catch (Exception ex)
+    {
+        AddLog("PC", "error", $"Write failed: {ex.Message}", ex.GetType().Name);
+        _lastWriteLogTime = DateTime.Now;
+    }
 }
 ```
 
 **Ghi vào**:
-- D5000+: velocity commands
-- D3000+: position commands
+- D5000+: velocity commands (99 words)
+- D3000+: position commands (99 words)
+- **Lưu ý**: Method này hiện tại commented out trong Monitor() loop
+
+**Throttling**: Log hoạt động mỗi 1 second để tránh spam (chạy 100Hz)
 
 #### 6. **ReadDevice(int iAddress)** - Đọc 1 bit
 ```csharp
@@ -512,7 +699,91 @@ private void WriteDevice(int iAddress, bool value)
 }
 ```
 
-#### 8. **SetPosition(int iAddress, double value)** - Ghi position 32-bit
+#### 8. **AddCustomMemoryEntry()** - Thêm custom memory address
+```csharp
+public void AddCustomMemoryEntry(string addrType, int addrIndex)
+{
+    try
+    {
+        var entry = new CustomMemoryEntry { AddrType = addrType, AddrIndex = addrIndex };
+        CustomMemoryEntries.Add(entry);
+        AddLog("UI", "info", $"Added custom memory: {addrType}{addrIndex}");
+        OnPropertyChanged(nameof(CustomMemoryEntries));
+    }
+    catch (Exception ex)
+    {
+        AddLog("PC", "error", $"Failed to add entry: {ex.Message}");
+    }
+}
+```
+
+**Mục đích**: Cho phép user thêm địa chỉ tùy ý (D, M, X, Y) để đọc giá trị thời gian thực
+
+#### 8.1 **RemoveCustomMemoryEntry()** - Xoá custom memory address
+```csharp
+public void RemoveCustomMemoryEntry(CustomMemoryEntry entry)
+{
+    try
+    {
+        CustomMemoryEntries.Remove(entry);
+        AddLog("UI", "info", $"Removed custom memory: {entry.AddrType}{entry.AddrIndex}");
+        OnPropertyChanged(nameof(CustomMemoryEntries));
+    }
+    catch (Exception ex)
+    {
+        AddLog("PC", "error", $"Failed to remove entry: {ex.Message}");
+    }
+}
+```
+
+#### 8.2 **RefreshCustomMemory()** - Cập nhật custom memory values
+```csharp
+public void RefreshCustomMemory()
+{
+    try
+    {
+        if (!Status || ePLC == null || CustomMemoryEntries.Count == 0)
+            return;
+
+        foreach (var entry in CustomMemoryEntries)
+        {
+            try
+            {
+                ePLCControl.DeviceName devName = entry.AddrType switch
+                {
+                    "M" => ePLCControl.DeviceName.M,
+                    "X" => ePLCControl.DeviceName.X,
+                    "Y" => ePLCControl.DeviceName.Y,
+                    _ => ePLCControl.DeviceName.D
+                };
+
+                int[] result = ePLC.ReadDeviceBlock(ePLCControl.SubCommand.Word, 
+                                                    devName, 
+                                                    $"{entry.AddrIndex}", 1);
+                if (result != null && result.Length > 0)
+                {
+                    entry.CurrentValue = result[0];
+                    entry.LastUpdate = DateTime.Now;
+                }
+            }
+            catch { }
+        }
+
+        // Trigger UI refresh
+        OnPropertyChanged(nameof(CustomMemoryEntries));
+    }
+    catch (Exception ex)
+    {
+        AddLog("PC", "error", $"RefreshCustomMemory error: {ex.Message}");
+    }
+}
+```
+
+**Hoạt động**:
+- Được gọi trong Monitor() loop (100Hz)
+- Đọc giá trị của mỗi custom memory entry
+- Update CurrentValue và LastUpdate timestamp
+- Trigger UI refresh via PropertyChanged
 ```csharp
 public void SetPosition(int iAddress, double value)
 {
@@ -981,20 +1252,59 @@ void AddWriteEntry() => writeEntries.Add(new PlcWriteItem());
 void RemoveWriteEntry(PlcWriteItem e) => writeEntries.Remove(e);
 ```
 
-#### 12. **AddLog()** - Ghi log hoạt động
+#### 11. **AddLog()** - Ghi log hoạt động (CENTRALIZED LOGGING)
 ```csharp
-void AddLog(string type, string addr, int value, bool success)
+public void AddLog(string source, string status, string message, string detail = "")
 {
-    actionLog.Add(new LogEntry
-    {
-        Timestamp = DateTime.Now,
-        Type = type,
-        Address = addr,
-        Value = value,
-        Success = success,
-    });
-    if (actionLog.Count > 200) actionLog.RemoveAt(0);
+    if (_allLogs.Count > 0) 
+        _allLogs[^1].IsNewest = false;
+    
+    var log = new LogItem 
+    { 
+        Source = source,        // "UI", "PC", "PLC"
+        Status = status,        // "info", "success", "warning", "error"
+        Message = message,
+        Detail = detail, 
+        IsNewest = true 
+    };
+    
+    _allLogs.Add(log);
+    if (_allLogs.Count > 500)   // Max 500 entries
+        _allLogs.RemoveAt(0);
+    
+    LogAdded?.Invoke(this, log);  // Notify subscribers (e.g., LogMonitor)
 }
+```
+
+**Tính năng**:
+- **Centralized storage**: Tất cả logs từ mọi trang (Dashboard, Telemetry, LogMonitor) được lưu trong _allLogs
+- **Event notification**: LogAdded event cho phép UI subscribe và cập nhật real-time
+- **Max limit**: Giới hạn 500 entries để tránh memory leak
+- **IsNewest flag**: Tự động mark log mới nhất
+- **Sources**: "UI" (user actions), "PC" (local operations), "PLC" (connection)
+- **Statuses**: "info", "success", "warning", "error" 
+- **Detail field**: Optional thông tin chi tiết (e.g., exception type)
+
+**Logging điểm gọi**:
+```csharp
+// Application startup
+AddLog("UI", "info", "Application started");
+AddLog("PC", "info", "MainViewModel initialized");
+
+// Connection
+AddLog("PLC", "info", $"Connection attempt → {IpAddress}:{Port}");
+AddLog("PLC", "success", "PLC connection established");
+AddLog("PLC", "error", "PLC connection failed");
+AddLog("PLC", "warning", "Connection closed by user");
+
+// Custom Memory
+AddLog("UI", "info", $"Added custom memory: D4000");
+AddLog("UI", "info", $"Removed custom memory: D4000");
+
+// Read/Write operations (throttled, 1 sec)
+AddLog("PC", "success", $"Read D{D_R_V}(...) + D32-blocks → OK", "Monitor cycle");
+AddLog("PC", "success", $"Write D{D_W_V}(...) + D{D_W_P}(...) → OK", "Monitor cycle");
+AddLog("PC", "error", $"Read failed: {exception}", "AccessViolationException");
 ```
 
 #### 13. **ClearLog()** - Xoá log
@@ -1406,15 +1716,21 @@ LogMonitor displays: [UI] [info] [Jog X+ pressed] & [Jog X released]
 ```
 while (Status)
 {
-    Sleep(10ms)          // 10ms = 100Hz
-    Status = IsConnected // Check connection
+    Sleep(10ms)              // 10ms = 100Hz
+    Status = IsConnected     // Check connection
     if (Status)
     {
-        Read()           // Đọc từ PLC
-        Write()          // Ghi vào PLC
+        Read()               // Đọc từ PLC + log (throttled 1sec)
+        RefreshCustomMemory()// Cập nhật custom memory entries
+        // Write();          // (currently commented out)
     }
 }
 ```
+
+**Hoạt động**:
+- **Read()**: Đọc enable flag, velocity array, 32-bit positions (configurable)
+- **RefreshCustomMemory()**: Cập nhật giá trị của user-defined custom entries
+- **Write()**: Hiện tại commented out trong Monitor loop
 
 ---
 
@@ -1722,7 +2038,24 @@ Visual feedback: User sees which page is active
    - "/telemetry" matches "telemetry" prefix
    - LocationChanged subscription tự động refresh styling
 
+10. **Custom Memory Entries**: User-defined address reading
+    - Stored in CustomMemoryEntries list
+    - RefreshCustomMemory() called in Monitor loop (100Hz)
+    - Supports D, M, X, Y address types
+    - Auto-log when entries added/removed
+
+11. **Log Throttling**: Prevent spam from 100Hz read/write cycle
+    - _lastReadLogTime, _lastWriteLogTime timestamps
+    - Read/Write logs throttled to 1 second intervals
+    - Prevents log window from being flooded
+    - Still logs errors immediately
+
+12. **Configurable Address Bases**: 
+    - D32Base1, D32Base2 - User can change 32-bit read addresses
+    - DReadEnable - User can change enable flag address
+    - Dynamic property updates trigger refresh
+
 ---
 
-**Tài liệu cập nhật**: April 16, 2026
-**Phiên bản dự án**: GantrySCADA v1.0 (with Jog, Centralized Logging, Dynamic Navigation)
+**Tài liệu cập nhật**: April 17, 2026
+**Phiên bản dự án**: GantrySCADA v1.0+ (with Jog, Centralized Logging, Custom Memory Stream, Dynamic Navigation)

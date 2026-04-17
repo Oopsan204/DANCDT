@@ -4,11 +4,12 @@
 
 <style>
     @@keyframes value-flash {
-        0%   { background-color: rgba(0, 80, 203, 0.12); }
+        0%   { background-color: rgba(0, 200, 83, 0.25); }
+        50%  { background-color: rgba(0, 200, 83, 0.15); }
         100% { background-color: transparent; }
     }
     .value-updated {
-        animation: value-flash 1.2s ease-out;
+        animation: value-flash 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);
     }
     @@keyframes pulse-dot {
         0%, 100% { opacity: 1; transform: scale(1); }
@@ -349,8 +350,11 @@
 
     void OnViewModelChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
-        // Refresh when PLC data changes
-        if (autoRefresh)
+        // Refresh when PLC data changes (arr_R_V, arr_R_M, arr_R_X, arr_R_Y)
+        if (autoRefresh && (e.PropertyName == nameof(ViewModel.arr_R_V) || 
+                            e.PropertyName == nameof(ViewModel.arr_R_M) ||
+                            e.PropertyName == nameof(ViewModel.arr_R_X) ||
+                            e.PropertyName == nameof(ViewModel.arr_R_Y)))
             InvokeAsync(() => { UpdateReadValues(); StateHasChanged(); });
     }
 
@@ -363,25 +367,70 @@
     // ─── Read Logic ────────────────────────────────────────────────
     void UpdateReadValues()
     {
-        if (!ViewModel.Status || ViewModel.arr_R_V == null) return;
+        if (!ViewModel.Status) return;
         long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
         foreach (var entry in readEntries)
         {
-            if (entry.AddrType != "D") continue;
-            int offset = entry.AddrIndex - ViewModel.D_R_V;
-            if (offset < 0 || offset >= ViewModel.arr_R_V.Length) continue;
+            int newVal = 0;
+            bool found = false;
 
-            int newVal = ViewModel.arr_R_V[offset];
-            if (newVal != entry.PrevValue)
+            if (entry.AddrType == "D" && ViewModel.arr_R_V != null)
+            {
+                int offset = entry.AddrIndex - ViewModel.D_R_V;
+                if (offset >= 0 && offset < ViewModel.arr_R_V.Length)
+                {
+                    newVal = ViewModel.arr_R_V[offset];
+                    found = true;
+                }
+            }
+            else if (entry.AddrType == "M" && ViewModel.arr_R_M != null)
+            {
+                int offset = entry.AddrIndex - ViewModel.M_R_Base;
+                if (offset >= 0 && offset < ViewModel.arr_R_M.Length)
+                {
+                    newVal = ViewModel.arr_R_M[offset];
+                    found = true;
+                }
+            }
+            else if (entry.AddrType == "X" && ViewModel.arr_R_X != null)
+            {
+                int offset = entry.AddrIndex - ViewModel.X_R_Base;
+                if (offset >= 0 && offset < ViewModel.arr_R_X.Length)
+                {
+                    newVal = ViewModel.arr_R_X[offset];
+                    found = true;
+                }
+            }
+            else if (entry.AddrType == "Y" && ViewModel.arr_R_Y != null)
+            {
+                int offset = entry.AddrIndex - ViewModel.Y_R_Base;
+                if (offset >= 0 && offset < ViewModel.arr_R_Y.Length)
+                {
+                    newVal = ViewModel.arr_R_Y[offset];
+                    found = true;
+                }
+            }
+
+            if (found && newVal != entry.PrevValue)
             {
                 entry.PrevValue = newVal;
                 entry.Value = newVal;
                 entry.JustUpdated = true;
                 entry.UpdatedMs = 0;
                 AddLog("READ", $"{entry.AddrType}{entry.AddrIndex}", newVal, true);
+                
+                // Trigger animation, then reset JustUpdated flag after 800ms (animation duration)
+                _ = Task.Delay(800).ContinueWith(_ =>
+                {
+                    InvokeAsync(() =>
+                    {
+                        entry.JustUpdated = false;
+                        StateHasChanged();
+                    });
+                });
             }
-            else
+            else if (found)
             {
                 entry.JustUpdated = false;
             }
@@ -390,6 +439,22 @@
 
     void ManualRefresh()
     {
+        // Mark all entries for flash animation
+        foreach (var entry in readEntries)
+        {
+            entry.JustUpdated = true;
+            
+            // Reset JustUpdated flag after animation
+            _ = Task.Delay(800).ContinueWith(_ =>
+            {
+                InvokeAsync(() =>
+                {
+                    entry.JustUpdated = false;
+                    StateHasChanged();
+                });
+            });
+        }
+        
         UpdateReadValues();
         StateHasChanged();
     }
@@ -413,13 +478,28 @@
     {
         entry.ErrorMessage = "";
 
-        // Validate
-        if (entry.WriteValue < 0 || entry.WriteValue > 65535)
+        // Validate based on address type
+        if (entry.AddrType == "D")
         {
-            entry.Status = WriteStatus.ERR;
-            entry.ErrorMessage = "Value must be 0 – 65535 for a 16-bit word register.";
-            AddLog("WRITE", $"{entry.AddrType}{entry.AddrIndex}", entry.WriteValue, false);
-            return;
+            // D registers are 16-bit words: 0 to 65535
+            if (entry.WriteValue < 0 || entry.WriteValue > 65535)
+            {
+                entry.Status = WriteStatus.ERR;
+                entry.ErrorMessage = "D register value must be 0–65535.";
+                AddLog("WRITE", $"{entry.AddrType}{entry.AddrIndex}", entry.WriteValue, false);
+                return;
+            }
+        }
+        else if (entry.AddrType == "M" || entry.AddrType == "X" || entry.AddrType == "Y")
+        {
+            // M, X, Y are bit devices: only 0 or 1
+            if (entry.WriteValue != 0 && entry.WriteValue != 1)
+            {
+                entry.Status = WriteStatus.ERR;
+                entry.ErrorMessage = $"{entry.AddrType} register is a BIT device - value must be 0 or 1 only.";
+                AddLog("WRITE", $"{entry.AddrType}{entry.AddrIndex}", entry.WriteValue, false);
+                return;
+            }
         }
 
         if (!ViewModel.Status)
@@ -434,25 +514,92 @@
         {
             if (entry.AddrType == "D")
             {
-                int offset = entry.AddrIndex - ViewModel.D_W_V;
-                if (offset >= 0 && offset < ViewModel.arr_W_V.Length)
+                // Check D_W_P range (D2000-D2005)
+                int offsetP = entry.AddrIndex - ViewModel.D_W_P;
+                if (offsetP >= 0 && offsetP < ViewModel.arr_W_P.Length)
                 {
-                    ViewModel.arr_W_V[offset] = entry.WriteValue;
+                    ViewModel.arr_W_P[offsetP] = entry.WriteValue;
+                    ViewModel.MarkPendingWrite(entry.AddrType, entry.AddrIndex, entry.WriteValue);
+                    entry.Status = WriteStatus.OK;
+                    AddLog("WRITE", $"{entry.AddrType}{entry.AddrIndex}", entry.WriteValue, true);
+                }
+                // Check D_W_V range (D5000-D5098)
+                else
+                {
+                    int offsetV = entry.AddrIndex - ViewModel.D_W_V;
+                    if (offsetV >= 0 && offsetV < ViewModel.arr_W_V.Length)
+                    {
+                        ViewModel.arr_W_V[offsetV] = entry.WriteValue;
+                        ViewModel.MarkPendingWrite(entry.AddrType, entry.AddrIndex, entry.WriteValue);
+                        entry.Status = WriteStatus.OK;
+                        AddLog("WRITE", $"{entry.AddrType}{entry.AddrIndex}", entry.WriteValue, true);
+                    }
+                    else
+                    {
+                        entry.Status = WriteStatus.ERR;
+                        entry.ErrorMessage = $"Address D{entry.AddrIndex} is outside writable ranges D{ViewModel.D_W_P}–D{ViewModel.D_W_P + ViewModel.arr_W_P.Length - 1} or D{ViewModel.D_W_V}–D{ViewModel.D_W_V + ViewModel.arr_W_V.Length - 1}.";
+                        AddLog("WRITE", $"{entry.AddrType}{entry.AddrIndex}", entry.WriteValue, false);
+                    }
+                }
+            }
+            else if (entry.AddrType == "M")
+            {
+                // Check M register range (M3000-M3099)
+                int offsetM = entry.AddrIndex - ViewModel.M_W_Base;
+                if (offsetM >= 0 && offsetM < ViewModel.arr_W_M.Length)
+                {
+                    ViewModel.arr_W_M[offsetM] = entry.WriteValue;
+                    ViewModel.MarkPendingWrite(entry.AddrType, entry.AddrIndex, entry.WriteValue);
                     entry.Status = WriteStatus.OK;
                     AddLog("WRITE", $"{entry.AddrType}{entry.AddrIndex}", entry.WriteValue, true);
                 }
                 else
                 {
                     entry.Status = WriteStatus.ERR;
-                    entry.ErrorMessage = $"Address D{entry.AddrIndex} is outside the writable range D{ViewModel.D_W_V}–D{ViewModel.D_W_V + ViewModel.arr_W_V.Length - 1}.";
+                    entry.ErrorMessage = $"Address M{entry.AddrIndex} is outside writable range M{ViewModel.M_W_Base}–M{ViewModel.M_W_Base + ViewModel.arr_W_M.Length - 1}.";
+                    AddLog("WRITE", $"{entry.AddrType}{entry.AddrIndex}", entry.WriteValue, false);
+                }
+            }
+            else if (entry.AddrType == "X")
+            {
+                // Check X register range (X100-X199)
+                int offsetX = entry.AddrIndex - ViewModel.X_W_Base;
+                if (offsetX >= 0 && offsetX < ViewModel.arr_W_X.Length)
+                {
+                    ViewModel.arr_W_X[offsetX] = entry.WriteValue;
+                    ViewModel.MarkPendingWrite(entry.AddrType, entry.AddrIndex, entry.WriteValue);
+                    entry.Status = WriteStatus.OK;
+                    AddLog("WRITE", $"{entry.AddrType}{entry.AddrIndex}", entry.WriteValue, true);
+                }
+                else
+                {
+                    entry.Status = WriteStatus.ERR;
+                    entry.ErrorMessage = $"Address X{entry.AddrIndex} is outside writable range X{ViewModel.X_W_Base}–X{ViewModel.X_W_Base + ViewModel.arr_W_X.Length - 1}.";
+                    AddLog("WRITE", $"{entry.AddrType}{entry.AddrIndex}", entry.WriteValue, false);
+                }
+            }
+            else if (entry.AddrType == "Y")
+            {
+                // Check Y register range (Y100-Y199)
+                int offsetY = entry.AddrIndex - ViewModel.Y_W_Base;
+                if (offsetY >= 0 && offsetY < ViewModel.arr_W_Y.Length)
+                {
+                    ViewModel.arr_W_Y[offsetY] = entry.WriteValue;
+                    ViewModel.MarkPendingWrite(entry.AddrType, entry.AddrIndex, entry.WriteValue);
+                    entry.Status = WriteStatus.OK;
+                    AddLog("WRITE", $"{entry.AddrType}{entry.AddrIndex}", entry.WriteValue, true);
+                }
+                else
+                {
+                    entry.Status = WriteStatus.ERR;
+                    entry.ErrorMessage = $"Address Y{entry.AddrIndex} is outside writable range Y{ViewModel.Y_W_Base}–Y{ViewModel.Y_W_Base + ViewModel.arr_W_Y.Length - 1}.";
                     AddLog("WRITE", $"{entry.AddrType}{entry.AddrIndex}", entry.WriteValue, false);
                 }
             }
             else
             {
-                // M/X/Y direct bit write not implemented — placeholder
                 entry.Status = WriteStatus.ERR;
-                entry.ErrorMessage = $"Write to {entry.AddrType} registers not yet implemented.";
+                entry.ErrorMessage = $"Unknown address type: {entry.AddrType}.";
                 AddLog("WRITE", $"{entry.AddrType}{entry.AddrIndex}", entry.WriteValue, false);
             }
         }

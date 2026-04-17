@@ -1,0 +1,24 @@
+<Language>
+  <Item Key="AppTitle">MODBUS TCP VIEVWER</Item>
+  <Item Key="AddDevice">Thêm Thiết Bị</Item>
+  <Item Key="OpenWeb">MỞ WEB</Item>
+  <Item Key="DarkMode">Chế độ tối</Item>
+  <Item Key="Connect">KẾT NỐI</Item>
+  <Item Key="Disconnect">NGẮT KẾT NỐI</Item>
+  <Item Key="GrpConnect">1. KẾT NỐI MẠNG</Item>
+  <Item Key="GrpConfig">2. CẤU HÌNH</Item>
+  <Item Key="GrpTag">3. DỮ LIỆU TAG</Item>
+  <Item Key="Save">Lưu File</Item>
+  <Item Key="Load">Nạp File</Item>
+  <Item Key="AddTag">THÊM TAG</Item>
+  <Item Key="DelDevice">XÓA THIẾT BỊ</Item>
+  <Item Key="AutoRead">Tự động đọc</Item>
+  <Item Key="SaveDb">Lưu Database</Item>
+  <Item Key="Alarm">Kích hoạt Alarm</Item>
+  <Item Key="Cycle">Chu kỳ (ms):</Item>
+  <Item Key="Web_Title">GIÁM SÁT HỆ THỐNG</Item>
+  <Item Key="Web_Export">XUẤT BÁO CÁO</Item>
+  <Item Key="Web_From">Từ:</Item>
+  <Item Key="Web_To">Đến:</Item>
+  <Item Key="Web_Download">TẢI FILE EXCEL</Item>
+</Language>

@@ -1,0 +1,24 @@
+<Language>
+  <Item Key="AppTitle">Modbus TCP Viewer</Item>
+  <Item Key="AddDevice">Add Device</Item>
+  <Item Key="OpenWeb">OPEN WEB</Item>
+  <Item Key="DarkMode">Dark Mode</Item>
+  <Item Key="Connect">CONNECT</Item>
+  <Item Key="Disconnect">DISCONNECT</Item>
+  <Item Key="GrpConnect">1. NETWORK</Item>
+  <Item Key="GrpConfig">2. CONFIG</Item>
+  <Item Key="GrpTag">3. TAG DATA</Item>
+  <Item Key="Save">Save File</Item>
+  <Item Key="Load">Load File</Item>
+  <Item Key="AddTag">ADD TAG</Item>
+  <Item Key="DelDevice">DELETE DEVICE</Item>
+  <Item Key="AutoRead">Auto Read</Item>
+  <Item Key="SaveDb">Log Database</Item>
+  <Item Key="Alarm">Enable Alarm</Item>
+  <Item Key="Cycle">Cycle (ms):</Item>
+  <Item Key="Web_Title">SYSTEM MONITOR</Item>
+  <Item Key="Web_Export">EXPORT REPORT</Item>
+  <Item Key="Web_From">From:</Item>
+  <Item Key="Web_To">To:</Item>
+  <Item Key="Web_Download">DOWNLOAD CSV</Item>
+</Language>

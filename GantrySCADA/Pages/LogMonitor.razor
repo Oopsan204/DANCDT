@@ -461,38 +461,8 @@
     async void OnTick(object? sender, ElapsedEventArgs e)
     {
         if (isPaused) return;
-        await InvokeAsync(() => { Simulate(); StateHasChanged(); });
-    }
-
-    // ──────────────────────────────────────── Simulation
-    void Simulate()
-    {
-        string[] srcs = { "UI", "PC", "PLC" };
-        string   src  = srcs[_rng.Next(srcs.Length)];
-
-        (string status, string message, string detail) = (src, _rng.Next(0, 10)) switch
-        {
-            ("UI", 0) => ("warning", "Jog button held >5s without stop signal", "axis=X dir=+"),
-            ("UI", 1) => ("info",    "User clicked [Connect PLC]", ""),
-            ("UI", 2) => ("info",    $"Velocity slider → {(_rng.NextDouble()*5):F2} m/s", ""),
-            ("UI", 3) => ("success", $"Write D5000 = {_rng.Next(0,100)} submitted", ""),
-            ("UI", _) => ("info",    "UI render cycle", "250ms tick"),
-
-            ("PC", 0) => ("error",   "Exception in Monitor(): TCP timeout", "SocketException code=10060"),
-            ("PC", 1) => ("warning", "Monitor latency spike detected", $"cycle={_rng.Next(11,20)}ms"),
-            ("PC", 2) => ("success", $"Read D{ViewModel.D_R_V}-D{ViewModel.D_R_V+9} → OK", $"{_rng.Next(0,9999)}"),
-            ("PC", 3) => ("success", "Write D5000-D5099 → OK", "arr_W_V flushed"),
-            ("PC", _) => ("info",    "Monitor cycle OK", $"{DateTime.Now.Millisecond}ms"),
-
-            ("PLC", 0) => ("error",   "PLC NACK: invalid address range", "D9999 out of bounds"),
-            ("PLC", 1) => ("warning", "PLC response time elevated", $"{_rng.Next(5,35)}ms"),
-            ("PLC", 2) => ("success", $"ACK D{ViewModel.D_R_V} block read", $"{_rng.Next(10,99)} words"),
-            ("PLC", 3) => ("success", "Jog axis X+ command ACK", ""),
-            ("PLC", _) => ("info",    $"Heartbeat OK @ {DateTime.Now:HH:mm:ss}", ""),
-            (_, _)     => ("info",    "Stream event", ""),
-        };
-
-        Inject(src, status, message, detail);
+        // ✓ Simulation disabled - only real logs from PLC operations
+        await InvokeAsync(() => { StateHasChanged(); });
     }
 
     void Inject(string source, string status, string message, string detail = "")

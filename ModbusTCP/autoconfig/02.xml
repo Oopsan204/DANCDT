@@ -1,0 +1,298 @@
+<?xml version="1.0" encoding="utf-8"?>
+<DeviceConfig xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <DeviceName>AITECH</DeviceName>
+  <IpAddress>192.168.100.86</IpAddress>
+  <Port>10007</Port>
+  <SlaveId>1</SlaveId>
+  <ScanRate>10000</ScanRate>
+  <Tags>
+    <ModbusTag>
+      <Name>Input 1</Name>
+      <Address>0</Address>
+      <Type>Bool</Type>
+      <FunctionCode>2</FunctionCode>
+      <AlarmEnabled>false</AlarmEnabled>
+      <HighLimit>100</HighLimit>
+      <LowLimit>0</LowLimit>
+    </ModbusTag>
+    <ModbusTag>
+      <Name>Input 2</Name>
+      <Address>1</Address>
+      <Type>Bool</Type>
+      <FunctionCode>2</FunctionCode>
+      <AlarmEnabled>false</AlarmEnabled>
+      <HighLimit>100</HighLimit>
+      <LowLimit>0</LowLimit>
+    </ModbusTag>
+    <ModbusTag>
+      <Name>Input 3</Name>
+      <Address>2</Address>
+      <Type>Bool</Type>
+      <FunctionCode>2</FunctionCode>
+      <AlarmEnabled>false</AlarmEnabled>
+      <HighLimit>100</HighLimit>
+      <LowLimit>0</LowLimit>
+    </ModbusTag>
+    <ModbusTag>
+      <Name>Input 4</Name>
+      <Address>3</Address>
+      <Type>Bool</Type>
+      <FunctionCode>2</FunctionCode>
+      <AlarmEnabled>false</AlarmEnabled>
+      <HighLimit>100</HighLimit>
+      <LowLimit>0</LowLimit>
+    </ModbusTag>
+    <ModbusTag>
+      <Name>Input 5</Name>
+      <Address>4</Address>
+      <Type>Bool</Type>
+      <FunctionCode>2</FunctionCode>
+      <AlarmEnabled>false</AlarmEnabled>
+      <HighLimit>100</HighLimit>
+      <LowLimit>0</LowLimit>
+    </ModbusTag>
+    <ModbusTag>
+      <Name>Input 6</Name>
+      <Address>5</Address>
+      <Type>Bool</Type>
+      <FunctionCode>2</FunctionCode>
+      <AlarmEnabled>false</AlarmEnabled>
+      <HighLimit>100</HighLimit>
+      <LowLimit>0</LowLimit>
+    </ModbusTag>
+    <ModbusTag>
+      <Name>Input 7</Name>
+      <Address>6</Address>
+      <Type>Bool</Type>
+      <FunctionCode>2</FunctionCode>
+      <AlarmEnabled>false</AlarmEnabled>
+      <HighLimit>100</HighLimit>
+      <LowLimit>0</LowLimit>
+    </ModbusTag>
+    <ModbusTag>
+      <Name>Input 8</Name>
+      <Address>7</Address>
+      <Type>Bool</Type>
+      <FunctionCode>2</FunctionCode>
+      <AlarmEnabled>false</AlarmEnabled>
+      <HighLimit>100</HighLimit>
+      <LowLimit>0</LowLimit>
+    </ModbusTag>
+    <ModbusTag>
+      <Name>Output 1</Name>
+      <Address>0</Address>
+      <Type>Bool</Type>
+      <FunctionCode>1</FunctionCode>
+      <AlarmEnabled>false</AlarmEnabled>
+      <HighLimit>100</HighLimit>
+      <LowLimit>0</LowLimit>
+    </ModbusTag>
+    <ModbusTag>
+      <Name>Output 2</Name>
+      <Address>1</Address>
+      <Type>Bool</Type>
+      <FunctionCode>1</FunctionCode>
+      <AlarmEnabled>false</AlarmEnabled>
+      <HighLimit>100</HighLimit>
+      <LowLimit>0</LowLimit>
+    </ModbusTag>
+    <ModbusTag>
+      <Name>Output 3</Name>
+      <Address>2</Address>
+      <Type>Bool</Type>
+      <FunctionCode>1</FunctionCode>
+      <AlarmEnabled>false</AlarmEnabled>
+      <HighLimit>100</HighLimit>
+      <LowLimit>0</LowLimit>
+    </ModbusTag>
+    <ModbusTag>
+      <Name>Output 4</Name>
+      <Address>3</Address>
+      <Type>Bool</Type>
+      <FunctionCode>1</FunctionCode>
+      <AlarmEnabled>false</AlarmEnabled>
+      <HighLimit>100</HighLimit>
+      <LowLimit>0</LowLimit>
+    </ModbusTag>
+    <ModbusTag>
+      <Name>Output 5</Name>
+      <Address>4</Address>
+      <Type>Bool</Type>
+      <FunctionCode>1</FunctionCode>
+      <AlarmEnabled>false</AlarmEnabled>
+      <HighLimit>100</HighLimit>
+      <LowLimit>0</LowLimit>
+    </ModbusTag>
+    <ModbusTag>
+      <Name>Output 6</Name>
+      <Address>5</Address>
+      <Type>Bool</Type>
+      <FunctionCode>1</FunctionCode>
+      <AlarmEnabled>false</AlarmEnabled>
+      <HighLimit>100</HighLimit>
+      <LowLimit>0</LowLimit>
+    </ModbusTag>
+    <ModbusTag>
+      <Name>Output 7</Name>
+      <Address>6</Address>
+      <Type>Bool</Type>
+      <FunctionCode>1</FunctionCode>
+      <AlarmEnabled>false</AlarmEnabled>
+      <HighLimit>100</HighLimit>
+      <LowLimit>0</LowLimit>
+    </ModbusTag>
+    <ModbusTag>
+      <Name>Output 8</Name>
+      <Address>7</Address>
+      <Type>Bool</Type>
+      <FunctionCode>1</FunctionCode>
+      <AlarmEnabled>false</AlarmEnabled>
+      <HighLimit>100</HighLimit>
+      <LowLimit>0</LowLimit>
+    </ModbusTag>
+    <ModbusTag>
+      <Name>On counters 01</Name>
+      <Address>0</Address>
+      <Type>UInt16</Type>
+      <FunctionCode>3</FunctionCode>
+      <AlarmEnabled>false</AlarmEnabled>
+      <HighLimit>100</HighLimit>
+      <LowLimit>0</LowLimit>
+    </ModbusTag>
+    <ModbusTag>
+      <Name>On counters 02</Name>
+      <Address>1</Address>
+      <Type>UInt16</Type>
+      <FunctionCode>3</FunctionCode>
+      <AlarmEnabled>false</AlarmEnabled>
+      <HighLimit>100</HighLimit>
+      <LowLimit>0</LowLimit>
+    </ModbusTag>
+    <ModbusTag>
+      <Name>On counters 03</Name>
+      <Address>2</Address>
+      <Type>UInt16</Type>
+      <FunctionCode>3</FunctionCode>
+      <AlarmEnabled>false</AlarmEnabled>
+      <HighLimit>100</HighLimit>
+      <LowLimit>0</LowLimit>
+    </ModbusTag>
+    <ModbusTag>
+      <Name>On counters 04</Name>
+      <Address>3</Address>
+      <Type>UInt16</Type>
+      <FunctionCode>3</FunctionCode>
+      <AlarmEnabled>false</AlarmEnabled>
+      <HighLimit>100</HighLimit>
+      <LowLimit>0</LowLimit>
+    </ModbusTag>
+    <ModbusTag>
+      <Name>On counters 05</Name>
+      <Address>4</Address>
+      <Type>UInt16</Type>
+      <FunctionCode>3</FunctionCode>
+      <AlarmEnabled>false</AlarmEnabled>
+      <HighLimit>100</HighLimit>
+      <LowLimit>0</LowLimit>
+    </ModbusTag>
+    <ModbusTag>
+      <Name>On counters 06</Name>
+      <Address>5</Address>
+      <Type>UInt16</Type>
+      <FunctionCode>3</FunctionCode>
+      <AlarmEnabled>false</AlarmEnabled>
+      <HighLimit>100</HighLimit>
+      <LowLimit>0</LowLimit>
+    </ModbusTag>
+    <ModbusTag>
+      <Name>On counters 07</Name>
+      <Address>6</Address>
+      <Type>UInt16</Type>
+      <FunctionCode>3</FunctionCode>
+      <AlarmEnabled>false</AlarmEnabled>
+      <HighLimit>100</HighLimit>
+      <LowLimit>0</LowLimit>
+    </ModbusTag>
+    <ModbusTag>
+      <Name>On counters 08</Name>
+      <Address>7</Address>
+      <Type>UInt16</Type>
+      <FunctionCode>3</FunctionCode>
+      <AlarmEnabled>false</AlarmEnabled>
+      <HighLimit>100</HighLimit>
+      <LowLimit>0</LowLimit>
+    </ModbusTag>
+    <ModbusTag>
+      <Name>Off counters 01</Name>
+      <Address>8</Address>
+      <Type>UInt16</Type>
+      <FunctionCode>3</FunctionCode>
+      <AlarmEnabled>false</AlarmEnabled>
+      <HighLimit>100</HighLimit>
+      <LowLimit>0</LowLimit>
+    </ModbusTag>
+    <ModbusTag>
+      <Name>Off counters 02</Name>
+      <Address>9</Address>
+      <Type>UInt16</Type>
+      <FunctionCode>3</FunctionCode>
+      <AlarmEnabled>false</AlarmEnabled>
+      <HighLimit>100</HighLimit>
+      <LowLimit>0</LowLimit>
+    </ModbusTag>
+    <ModbusTag>
+      <Name>Off counters 03</Name>
+      <Address>10</Address>
+      <Type>UInt16</Type>
+      <FunctionCode>3</FunctionCode>
+      <AlarmEnabled>false</AlarmEnabled>
+      <HighLimit>100</HighLimit>
+      <LowLimit>0</LowLimit>
+    </ModbusTag>
+    <ModbusTag>
+      <Name>Off counters 04</Name>
+      <Address>11</Address>
+      <Type>UInt16</Type>
+      <FunctionCode>3</FunctionCode>
+      <AlarmEnabled>false</AlarmEnabled>
+      <HighLimit>100</HighLimit>
+      <LowLimit>0</LowLimit>
+    </ModbusTag>
+    <ModbusTag>
+      <Name>Off counters 05</Name>
+      <Address>12</Address>
+      <Type>UInt16</Type>
+      <FunctionCode>3</FunctionCode>
+      <AlarmEnabled>false</AlarmEnabled>
+      <HighLimit>100</HighLimit>
+      <LowLimit>0</LowLimit>
+    </ModbusTag>
+    <ModbusTag>
+      <Name>Off counters 06</Name>
+      <Address>13</Address>
+      <Type>UInt16</Type>
+      <FunctionCode>3</FunctionCode>
+      <AlarmEnabled>false</AlarmEnabled>
+      <HighLimit>100</HighLimit>
+      <LowLimit>0</LowLimit>
+    </ModbusTag>
+    <ModbusTag>
+      <Name>Off counters 07</Name>
+      <Address>14</Address>
+      <Type>UInt16</Type>
+      <FunctionCode>3</FunctionCode>
+      <AlarmEnabled>false</AlarmEnabled>
+      <HighLimit>100</HighLimit>
+      <LowLimit>0</LowLimit>
+    </ModbusTag>
+    <ModbusTag>
+      <Name>Off counters 08</Name>
+      <Address>15</Address>
+      <Type>UInt16</Type>
+      <FunctionCode>3</FunctionCode>
+      <AlarmEnabled>false</AlarmEnabled>
+      <HighLimit>100</HighLimit>
+      <LowLimit>0</LowLimit>
+    </ModbusTag>
+  </Tags>
+</DeviceConfig>

@@ -26,17 +26,63 @@ namespace WPF_Test_PLC20260124
         private bool status;
 
 
-        public int D_R_V = 4000;
-        public int D_W_V = 5000;
-        public int D_W_P = 3000;
+        private int _D_R_V = 4000;
+        private int _D_W_V = 5000;
+        private int _D_W_P = 2000;
+        private int _M_R_Base = 0;     // M register read base (M0+)
+        private int _M_W_Base = 3000;  // M register write base (M3000+)
+        private int _X_R_Base = 0;     // X register read base (X0+)
+        private int _X_W_Base = 100;   // X register write base (X100+)
+        private int _Y_R_Base = 0;     // Y register read base (Y0+)
+        private int _Y_W_Base = 100;   // Y register write base (Y100+)
 
         // New: addresses to read as 32-bit (pairs)
         // Default pairs: D1000+D1001, D1002+D1003, D1004+D1005, D2000+D2001, D2002+D2003, D2004+D2005
         private int[] _arr_R32 = new int[6];
 
         public int[] arr_W_Position = new int[99];
+        public int[] arr_W_P = new int[6];  // Write Position D2000-D2005 (6 words)
+        public int[] arr_W_M = new int[100];  // Write M registers M3000-M3099 (100 words)
+        public int[] arr_W_X = new int[100];  // Write X registers X100-X199 (100 words)
+        public int[] arr_W_Y = new int[100];  // Write Y registers Y100-Y199 (100 words)
         private int[] _arr_R_V = new int[99];
+        private int[] _arr_R_M = new int[100];  // Read M registers M0-M99
+        private int[] _arr_R_X = new int[100];  // Read X registers X0-X99
+        private int[] _arr_R_Y = new int[100];  // Read Y registers Y0-Y99
         public int[] arr_W_V = new int[99];
+        
+        // Properties for arr_R_M, arr_R_X, arr_R_Y to trigger PropertyChanged when updated
+        public int[] arr_R_M
+        {
+            get { return _arr_R_M; }
+            private set { SetProperty(ref _arr_R_M, value); }
+        }
+        public int[] arr_R_X
+        {
+            get { return _arr_R_X; }
+            private set { SetProperty(ref _arr_R_X, value); }
+        }
+        public int[] arr_R_Y
+        {
+            get { return _arr_R_Y; }
+            private set { SetProperty(ref _arr_R_Y, value); }
+        }
+
+        // ✓ Throttle excessive logs (Write/Read happen 100x/sec)
+        private DateTime _lastWriteLogTime = DateTime.MinValue;
+        private DateTime _lastReadLogTime = DateTime.MinValue;
+
+        // Write command flags - track if there are pending write operations
+        private bool _hasPendingWrites = false;
+        private readonly object _pendingWriteLock = new();
+        private readonly List<PendingWriteItem> _pendingWriteItems = new();
+
+        private sealed class PendingWriteItem
+        {
+            public string AddrType { get; set; } = "D";
+            public int AddrIndex { get; set; }
+            public int Value { get; set; }
+        }
 
         // Global log storage
         public class LogItem
@@ -54,6 +100,18 @@ namespace WPF_Test_PLC20260124
         
         // Event for new log
         public event EventHandler<LogItem>? LogAdded;
+
+        // Custom Memory Entry: for user to read arbitrary addresses
+        public class CustomMemoryEntry
+        {
+            public string AddrType { get; set; } = "D";  // D, M, X, Y
+            public int AddrIndex { get; set; }
+            public int CurrentValue { get; set; }
+            public DateTime LastUpdate { get; set; } = DateTime.Now;
+        }
+        
+        private List<CustomMemoryEntry> _customMemoryEntries = new();
+        public List<CustomMemoryEntry> CustomMemoryEntries => _customMemoryEntries;
         #endregion
         #region Propeties
         public int ValuePLC
@@ -138,6 +196,129 @@ namespace WPF_Test_PLC20260124
             get { return _dReadEnable; }
             set { _dReadEnable = value; OnPropertyChanged(); }
         }
+
+        // Custom Memory Stream: for user to read arbitrary addresses
+        private int _customMemoryRefresh = 0;
+        public int CustomMemoryRefresh
+        {
+            get { return _customMemoryRefresh; }
+            set { _customMemoryRefresh = value; OnPropertyChanged(); }
+        }
+
+        // --- Configurable PLC Base Addresses ---
+        public int D_R_V
+        {
+            get => _D_R_V;
+            set { _D_R_V = value; OnPropertyChanged(); }
+        }
+        public int D_W_V
+        {
+            get => _D_W_V;
+            set { _D_W_V = value; OnPropertyChanged(); }
+        }
+        public int D_W_P
+        {
+            get => _D_W_P;
+            set { _D_W_P = value; OnPropertyChanged(); }
+        }
+        public int M_W_Base
+        {
+            get => _M_W_Base;
+            set { _M_W_Base = value; OnPropertyChanged(); }
+        }
+        public int M_R_Base
+        {
+            get => _M_R_Base;
+            set { _M_R_Base = value; OnPropertyChanged(); }
+        }
+        public int X_R_Base
+        {
+            get => _X_R_Base;
+            set { _X_R_Base = value; OnPropertyChanged(); }
+        }
+        public int X_W_Base
+        {
+            get => _X_W_Base;
+            set { _X_W_Base = value; OnPropertyChanged(); }
+        }
+        public int Y_R_Base
+        {
+            get => _Y_R_Base;
+            set { _Y_R_Base = value; OnPropertyChanged(); }
+        }
+        public int Y_W_Base
+        {
+            get => _Y_W_Base;
+            set { _Y_W_Base = value; OnPropertyChanged(); }
+        }
+
+        // --- Position Scaling & Offset Configuration ---
+        private string _posUnit = "mm";
+        public string PosUnit
+        {
+            get => _posUnit;
+            set { _posUnit = value; OnPropertyChanged(); }
+        }
+
+        private int _posDecimals = 2;
+        public int PosDecimals
+        {
+            get => _posDecimals;
+            set { _posDecimals = value; OnPropertyChanged(); }
+        }
+
+        private double _posScaleX = 1.0;
+        public double PosScaleX
+        {
+            get => _posScaleX;
+            set { _posScaleX = value; OnPropertyChanged(); }
+        }
+
+        private double _posScaleY = 1.0;
+        public double PosScaleY
+        {
+            get => _posScaleY;
+            set { _posScaleY = value; OnPropertyChanged(); }
+        }
+
+        private double _posScaleZ = 1.0;
+        public double PosScaleZ
+        {
+            get => _posScaleZ;
+            set { _posScaleZ = value; OnPropertyChanged(); }
+        }
+
+        private double _posOffsetX = 0;
+        public double PosOffsetX
+        {
+            get => _posOffsetX;
+            set { _posOffsetX = value; OnPropertyChanged(); }
+        }
+
+        private double _posOffsetY = 0;
+        public double PosOffsetY
+        {
+            get => _posOffsetY;
+            set { _posOffsetY = value; OnPropertyChanged(); }
+        }
+
+        private double _posOffsetZ = 0;
+        public double PosOffsetZ
+        {
+            get => _posOffsetZ;
+            set { _posOffsetZ = value; OnPropertyChanged(); }
+        }
+
+        /// <summary>
+        /// Formats a raw PLC 32-bit register value based on the axis scaling settings.
+        /// </summary>
+        public string GetFormattedPosition(int rawValue, string axis)
+        {
+            double scale = axis switch { "X" => PosScaleX, "Y" => PosScaleY, "Z" => PosScaleZ, _ => 1.0 };
+            double offset = axis switch { "X" => PosOffsetX, "Y" => PosOffsetY, "Z" => PosOffsetZ, _ => 0.0 };
+            double scaledValue = (rawValue * scale) + offset;
+            return scaledValue.ToString("F" + PosDecimals);
+        }
         #endregion
         #region Commands
         public ICommand ConnectCommand { get; set; }
@@ -151,10 +332,12 @@ namespace WPF_Test_PLC20260124
     {
         public MainViewModel()
         {
+            ePLC = new ePLCControl();
             ConnectCommand = new RelayCommand(ConnectPLC);
             DisconnectCommand = new RelayCommand(DisconnectPLC);
             TestReadCommand = new RelayCommand(new Action(() => { }));
             TestWriteCommand = new RelayCommand(new Action(() => { }));
+            TestBit = new RelayCommand(new Action(() => { }));
             
             // Seed initial logs
             AddLog("UI",  "info",    "Application started");
@@ -196,16 +379,249 @@ namespace WPF_Test_PLC20260124
                 if (Status)
                 {
                     Read();
-                    Write();
+                    Write();  // ✓ Send pending write commands to PLC
+                    RefreshCustomMemory();
                 }
             }
         }
         private void Write()
         {
+            // Only write if there are pending commands
+            if (!HasPendingWrites())
+                return;
 
-            ePLC.WriteDeviceBlock(ePLCControl.SubCommand.Word, ePLCControl.DeviceName.D, $"{D_W_V}", arr_W_V);
-            ePLC.WriteDeviceBlock(ePLCControl.SubCommand.Word, ePLCControl.DeviceName.D, $"{D_W_P}", arr_W_Position);
+            try
+            {
+                List<PendingWriteItem> pendingSnapshot;
+                lock (_pendingWriteLock)
+                {
+                    pendingSnapshot = _pendingWriteItems
+                        .Select(x => new PendingWriteItem { AddrType = x.AddrType, AddrIndex = x.AddrIndex, Value = x.Value })
+                        .ToList();
+                }
+
+                bool anyWrite = false;
+                bool hasWriteError = false;
+                bool dVOk = true, dPOk = true, mOk = true, xOk = true, yOk = true;
+                string dVErr = "", dPErr = "", mErr = "", xErr = "", yErr = "";
+
+                foreach (var p in pendingSnapshot)
+                    AddLog("PC", "info", $"WRITE sent: {p.AddrType}{p.AddrIndex}={p.Value}", "sent");
+
+                // Write D registers (Word)
+                try
+                {
+                    ePLC.WriteDeviceBlock(ePLCControl.SubCommand.Word, ePLCControl.DeviceName.D, $"{D_W_V}", arr_W_V);
+                    anyWrite = true;
+                }
+                catch (Exception ex)
+                {
+                    hasWriteError = true;
+                    dVOk = false;
+                    dVErr = ex.Message;
+                    AddLog("PC", "error", $"Write D{D_W_V} failed: {ex.Message}", "Write-D");
+                }
+
+                try
+                {
+                    ePLC.WriteDeviceBlock(ePLCControl.SubCommand.Word, ePLCControl.DeviceName.D, $"{D_W_P}", arr_W_P);
+                    anyWrite = true;
+                }
+                catch (Exception ex)
+                {
+                    hasWriteError = true;
+                    dPOk = false;
+                    dPErr = ex.Message;
+                    AddLog("PC", "error", $"Write D{D_W_P} failed: {ex.Message}", "Write-D");
+                }
+
+                // Write M registers (Bit)
+                try
+                {
+                    ePLC.WriteDeviceBlock(ePLCControl.SubCommand.Bit, ePLCControl.DeviceName.M, $"{M_W_Base}", arr_W_M);
+                    anyWrite = true;
+                }
+                catch (Exception ex)
+                {
+                    hasWriteError = true;
+                    mOk = false;
+                    mErr = ex.Message;
+                    AddLog("PC", "error", $"Write M{M_W_Base} failed: {ex.Message}", "Write-M");
+                }
+
+                // Write X registers (Bit)
+                try
+                {
+                    ePLC.WriteDeviceBlock(ePLCControl.SubCommand.Bit, ePLCControl.DeviceName.X, $"{X_W_Base}", arr_W_X);
+                    anyWrite = true;
+                }
+                catch (Exception ex)
+                {
+                    hasWriteError = true;
+                    xOk = false;
+                    xErr = ex.Message;
+                    AddLog("PC", "error", $"Write X{X_W_Base} failed: {ex.Message}", "Write-X");
+                }
+
+                // Write Y registers (Bit)
+                try
+                {
+                    ePLC.WriteDeviceBlock(ePLCControl.SubCommand.Bit, ePLCControl.DeviceName.Y, $"{Y_W_Base}", arr_W_Y);
+                    anyWrite = true;
+                }
+                catch (Exception ex)
+                {
+                    hasWriteError = true;
+                    yOk = false;
+                    yErr = ex.Message;
+                    AddLog("PC", "error", $"Write Y{Y_W_Base} failed: {ex.Message}", "Write-Y");
+                }
+
+                foreach (var p in pendingSnapshot)
+                {
+                    bool ok = true;
+                    string reason = "";
+                    string t = p.AddrType.ToUpperInvariant();
+
+                    if (t == "D")
+                    {
+                        bool inDP = p.AddrIndex >= D_W_P && p.AddrIndex < D_W_P + arr_W_P.Length;
+                        bool inDV = p.AddrIndex >= D_W_V && p.AddrIndex < D_W_V + arr_W_V.Length;
+                        if (inDP)
+                        {
+                            ok = dPOk;
+                            reason = dPErr;
+                        }
+                        else if (inDV)
+                        {
+                            ok = dVOk;
+                            reason = dVErr;
+                        }
+                        else
+                        {
+                            ok = false;
+                            reason = "D address out of configured write ranges";
+                        }
+                    }
+                    else if (t == "M")
+                    {
+                        ok = mOk;
+                        reason = mErr;
+                    }
+                    else if (t == "X")
+                    {
+                        ok = xOk;
+                        reason = xErr;
+                    }
+                    else if (t == "Y")
+                    {
+                        ok = yOk;
+                        reason = yErr;
+                    }
+                    else
+                    {
+                        ok = false;
+                        reason = "Unsupported address type";
+                    }
+
+                    if (ok)
+                        AddLog("PC", "success", $"WRITE ack: {p.AddrType}{p.AddrIndex}={p.Value}", "ack");
+                    else
+                        AddLog("PC", "error", $"WRITE failed: {p.AddrType}{p.AddrIndex}={p.Value}", reason);
+                }
+                
+                // ✓ Log and clear after successful write
+                if (anyWrite && !hasWriteError)
+                {
+                    AddLog("PC", "success", $"Write commands sent to PLC → D{D_W_V}/D{D_W_P}/M{M_W_Base}/X{X_W_Base}/Y{Y_W_Base}", "Write cycle");
+                    ClearPendingWrites();  // ← Clear arrays after sending to PLC
+                    _lastWriteLogTime = DateTime.Now;
+                }
+                else if (hasWriteError)
+                {
+                    // Keep pending flag so the next monitor cycle retries.
+                    _hasPendingWrites = true;
+                }
+            }
+            catch (Exception ex)
+            {
+                AddLog("PC", "error", $"Write cycle failed: {ex.Message}", ex.GetType().Name);
+                _lastWriteLogTime = DateTime.Now;
+            }
         }
+
+        /// <summary>
+        /// Check if there are any pending write commands (non-zero values in write arrays)
+        /// </summary>
+        private bool HasPendingWrites()
+        {
+            return _hasPendingWrites;
+        }
+
+        public void MarkPendingWrite()
+        {
+            _hasPendingWrites = true;
+        }
+
+        public void MarkPendingWrite(string addrType, int addrIndex, int value)
+        {
+            string normType = string.IsNullOrWhiteSpace(addrType)
+                ? "D"
+                : addrType.Trim().ToUpperInvariant();
+
+            lock (_pendingWriteLock)
+            {
+                var existing = _pendingWriteItems.FirstOrDefault(x => x.AddrType == normType && x.AddrIndex == addrIndex);
+                if (existing == null)
+                {
+                    _pendingWriteItems.Add(new PendingWriteItem
+                    {
+                        AddrType = normType,
+                        AddrIndex = addrIndex,
+                        Value = value
+                    });
+                }
+                else
+                {
+                    existing.Value = value;
+                }
+            }
+
+            _hasPendingWrites = true;
+            AddLog("PC", "info", $"WRITE queued: {normType}{addrIndex}={value}", "queued");
+        }
+
+        /// <summary>
+        /// Clear all pending write commands (reset all write arrays to 0)
+        /// </summary>
+        private void ClearPendingWrites()
+        {
+            // Clear D registers
+            if (arr_W_V != null)
+                Array.Clear(arr_W_V, 0, arr_W_V.Length);
+            if (arr_W_P != null)
+                Array.Clear(arr_W_P, 0, arr_W_P.Length);
+
+            // Clear M registers
+            if (arr_W_M != null)
+                Array.Clear(arr_W_M, 0, arr_W_M.Length);
+
+            // Clear X registers
+            if (arr_W_X != null)
+                Array.Clear(arr_W_X, 0, arr_W_X.Length);
+
+            // Clear Y registers
+            if (arr_W_Y != null)
+                Array.Clear(arr_W_Y, 0, arr_W_Y.Length);
+
+            lock (_pendingWriteLock)
+            {
+                _pendingWriteItems.Clear();
+            }
+
+            _hasPendingWrites = false;
+        }
+
         private void Read()
         {
             // Read enable flag at configurable address (DReadEnable). If non-zero -> proceed; otherwise skip reading 32-bit values.
@@ -215,14 +631,24 @@ namespace WPF_Test_PLC20260124
                 if (flag == null || flag.Length == 0)
                 {
                     // fallback: still read default block
-                    arr_R_V = ePLC.ReadDeviceBlock(ePLCControl.SubCommand.Word, ePLCControl.DeviceName.D, $"{D_R_V}", Length);
+                    int[] newData = ePLC.ReadDeviceBlock(ePLCControl.SubCommand.Word, ePLCControl.DeviceName.D, $"{D_R_V}", Length);
+                    if (newData != null && newData.Length > 0)
+                    {
+                        Array.Copy(newData, _arr_R_V, Math.Min(newData.Length, _arr_R_V.Length));
+                        OnPropertyChanged(nameof(arr_R_V));  // ✓ Notify UI
+                    }
                     return;
                 }
 
                 if (flag[0] != 0)
                 {
                     // Read normal block (if still needed)
-                    arr_R_V = ePLC.ReadDeviceBlock(ePLCControl.SubCommand.Word, ePLCControl.DeviceName.D, $"{D_R_V}", Length);
+                    int[] newData = ePLC.ReadDeviceBlock(ePLCControl.SubCommand.Word, ePLCControl.DeviceName.D, $"{D_R_V}", Length);
+                    if (newData != null && newData.Length > 0)
+                    {
+                        Array.Copy(newData, _arr_R_V, Math.Min(newData.Length, _arr_R_V.Length));
+                        OnPropertyChanged(nameof(arr_R_V));  // ✓ Notify UI
+                    }
 
                     // Read blocks for 32-bit values using configurable bases
                     int[] b1 = ePLC.ReadDeviceBlock(ePLCControl.SubCommand.Word, ePLCControl.DeviceName.D, $"{D32Base1}", 6);
@@ -246,17 +672,71 @@ namespace WPF_Test_PLC20260124
 
                     // Assign via property setter -> SetProperty -> OnPropertyChanged -> UI refresh
                     arr_R32 = newR32;
+                    
+                    // Read M/X/Y registers - create new arrays to trigger PropertyChanged
+                    try
+                    {
+                        int[] mData = ePLC.ReadDeviceBlock(ePLCControl.SubCommand.Bit, ePLCControl.DeviceName.M, $"{M_R_Base}", 100);
+                        if (mData != null && mData.Length > 0)
+                        {
+                            int[] newM = new int[_arr_R_M.Length];
+                            Array.Copy(mData, newM, Math.Min(mData.Length, newM.Length));
+                            arr_R_M = newM;  // Assign via property setter to trigger PropertyChanged
+                        }
+
+                        int[] xData = ePLC.ReadDeviceBlock(ePLCControl.SubCommand.Bit, ePLCControl.DeviceName.X, $"{X_R_Base}", 100);
+                        if (xData != null && xData.Length > 0)
+                        {
+                            int[] newX = new int[_arr_R_X.Length];
+                            Array.Copy(xData, newX, Math.Min(xData.Length, newX.Length));
+                            arr_R_X = newX;  // Assign via property setter to trigger PropertyChanged
+                        }
+
+                        int[] yData = ePLC.ReadDeviceBlock(ePLCControl.SubCommand.Bit, ePLCControl.DeviceName.Y, $"{Y_R_Base}", 100);
+                        if (yData != null && yData.Length > 0)
+                        {
+                            int[] newY = new int[_arr_R_Y.Length];
+                            Array.Copy(yData, newY, Math.Min(yData.Length, newY.Length));
+                            arr_R_Y = newY;  // Assign via property setter to trigger PropertyChanged
+                        }
+                    }
+                    catch { }
+                    
+                    // ✓ Log every 1 second to avoid flooding log window
+                    if ((DateTime.Now - _lastReadLogTime).TotalSeconds >= 1.0)
+                    {
+                        AddLog("PC", "success", $"Read D{D_R_V}({Length} words) + D32-blocks + M/X/Y → OK", "Monitor cycle");
+                        _lastReadLogTime = DateTime.Now;
+                    }
                 }
                 else
                 {
                     // If flag is 0, still update arr_R_V (optional) or skip reading arr_R32
-                    arr_R_V = ePLC.ReadDeviceBlock(ePLCControl.SubCommand.Word, ePLCControl.DeviceName.D, $"{D_R_V}", Length);
+                    int[] newData = ePLC.ReadDeviceBlock(ePLCControl.SubCommand.Word, ePLCControl.DeviceName.D, $"{D_R_V}", Length);
+                    if (newData != null && newData.Length > 0)
+                    {
+                        Array.Copy(newData, _arr_R_V, Math.Min(newData.Length, _arr_R_V.Length));
+                        OnPropertyChanged(nameof(arr_R_V));  // ✓ Notify UI
+                    }
                 }
             }
-            catch (Exception)
+            catch (Exception ex)
             {
                 // on exception, try to read fallback block
-                try { arr_R_V = ePLC.ReadDeviceBlock(ePLCControl.SubCommand.Word, ePLCControl.DeviceName.D, $"{D_R_V}", Length); } catch { }
+                try 
+                { 
+                    int[] newData = ePLC.ReadDeviceBlock(ePLCControl.SubCommand.Word, ePLCControl.DeviceName.D, $"{D_R_V}", Length);
+                    if (newData != null && newData.Length > 0)
+                    {
+                        Array.Copy(newData, _arr_R_V, Math.Min(newData.Length, _arr_R_V.Length));
+                        OnPropertyChanged(nameof(arr_R_V));  // ✓ Notify UI
+                    }
+                } 
+                catch { }
+                
+                // ✓ Log read errors
+                AddLog("PC", "error", $"Read failed: {ex.Message}", ex.GetType().Name);
+                _lastReadLogTime = DateTime.Now;
             }
         }
         private bool ReadDevice(int iAddress)
@@ -275,6 +755,74 @@ namespace WPF_Test_PLC20260124
             if ((iAddress - D_W_V) >= 0 && (iAddress - D_W_V) < arr_W_V.Length)
             {
                 arr_W_V[iAddress - D_W_V] = value ? 1 : 0;
+            }
+        }
+
+        // Read custom memory range for user-defined display
+        public void AddCustomMemoryEntry(string addrType, int addrIndex)
+        {
+            try
+            {
+                var entry = new CustomMemoryEntry { AddrType = addrType, AddrIndex = addrIndex };
+                CustomMemoryEntries.Add(entry);
+                AddLog("UI", "info", $"Added custom memory: {addrType}{addrIndex}");
+                OnPropertyChanged(nameof(CustomMemoryEntries));
+            }
+            catch (Exception ex)
+            {
+                AddLog("PC", "error", $"Failed to add entry: {ex.Message}");
+            }
+        }
+
+        public void RemoveCustomMemoryEntry(CustomMemoryEntry entry)
+        {
+            try
+            {
+                CustomMemoryEntries.Remove(entry);
+                AddLog("UI", "info", $"Removed custom memory: {entry.AddrType}{entry.AddrIndex}");
+                OnPropertyChanged(nameof(CustomMemoryEntries));
+            }
+            catch (Exception ex)
+            {
+                AddLog("PC", "error", $"Failed to remove entry: {ex.Message}");
+            }
+        }
+
+        public void RefreshCustomMemory()
+        {
+            try
+            {
+                if (!Status || ePLC == null || CustomMemoryEntries.Count == 0)
+                    return;
+
+                foreach (var entry in CustomMemoryEntries)
+                {
+                    try
+                    {
+                        ePLCControl.DeviceName devName = entry.AddrType switch
+                        {
+                            "M" => ePLCControl.DeviceName.M,
+                            "X" => ePLCControl.DeviceName.X,
+                            "Y" => ePLCControl.DeviceName.Y,
+                            _ => ePLCControl.DeviceName.D
+                        };
+
+                        int[] result = ePLC.ReadDeviceBlock(ePLCControl.SubCommand.Word, devName, $"{entry.AddrIndex}", 1);
+                        if (result != null && result.Length > 0)
+                        {
+                            entry.CurrentValue = result[0];
+                            entry.LastUpdate = DateTime.Now;
+                        }
+                    }
+                    catch { }
+                }
+
+                // Trigger UI refresh
+                OnPropertyChanged(nameof(CustomMemoryEntries));
+            }
+            catch (Exception ex)
+            {
+                AddLog("PC", "error", $"RefreshCustomMemory error: {ex.Message}");
             }
         }
 
@@ -300,7 +848,7 @@ namespace WPF_Test_PLC20260124
         {
             if (arr.Length == 0)
             {
-                return null;
+                return new int[0];
             }
             int iVal = arr[index];
             return ePLC.WordToBit(iVal).ToList().Select(x => int.Parse(x.ToString())).ToArray();
@@ -318,7 +866,7 @@ namespace WPF_Test_PLC20260124
         private int[] GetDataValue_(int[] arr, int index)
         {
             if (arr == null || index < 0 || index >= arr.Length)
-                return null;
+                return new int[0];
 
             int word = arr[index];
             int[] bits = new int[16];
@@ -403,7 +951,7 @@ namespace WPF_Test_PLC20260124
     {
         public static int[] BoolArrayToIntArray(bool[] bits)
         {
-            if (bits == null) return null;
+            if (bits == null) return new int[0];
 
             int[] arr = new int[bits.Length];
             for (int i = 0; i < bits.Length; i++)

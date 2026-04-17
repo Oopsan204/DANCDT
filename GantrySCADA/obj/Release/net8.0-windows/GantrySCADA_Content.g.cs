@@ -18,6 +18,7 @@
 [assembly: System.Windows.Resources.AssemblyAssociatedContentFileAttribute("mainlayout.razor")]
 [assembly: System.Windows.Resources.AssemblyAssociatedContentFileAttribute("pages/dashboard.razor")]
 [assembly: System.Windows.Resources.AssemblyAssociatedContentFileAttribute("pages/logmonitor.razor")]
+[assembly: System.Windows.Resources.AssemblyAssociatedContentFileAttribute("pages/systemsettings.razor")]
 [assembly: System.Windows.Resources.AssemblyAssociatedContentFileAttribute("pages/telemetry.razor")]
 [assembly: System.Windows.Resources.AssemblyAssociatedContentFileAttribute("_imports.razor")]
 
