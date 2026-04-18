@@ -24,133 +24,137 @@ namespace WPF_Test_PLC20260124
 
                 bool anyWrite = false;
                 bool hasWriteError = false;
-                bool dVOk = true, dPOk = true, mOk = true, xOk = true, yOk = true;
-                string dVErr = "", dPErr = "", mErr = "", xErr = "", yErr = "";
+                bool mOk = true, xOk = true, yOk = true;
+                string mErr = "", xErr = "", yErr = "";
+
+                bool hasPendingM = pendingSnapshot.Any(p => string.Equals(p.AddrType, "M", StringComparison.OrdinalIgnoreCase));
+                bool hasPendingX = pendingSnapshot.Any(p => string.Equals(p.AddrType, "X", StringComparison.OrdinalIgnoreCase));
+                bool hasPendingY = pendingSnapshot.Any(p => string.Equals(p.AddrType, "Y", StringComparison.OrdinalIgnoreCase));
 
                 foreach (var p in pendingSnapshot)
                     AddLog("PC", "info", $"WRITE sent: {p.AddrType}{p.AddrIndex}={p.Value}", "sent");
 
-                try
+                foreach (var p in pendingSnapshot)
                 {
-                    ePLC.WriteDeviceBlock(NVKProject.PLC.ePLCControl.SubCommand.Word, NVKProject.PLC.ePLCControl.DeviceName.D, $"{D_W_V}", arr_W_V);
-                    anyWrite = true;
-                }
-                catch (Exception ex)
-                {
-                    hasWriteError = true;
-                    dVOk = false;
-                    dVErr = ex.Message;
-                    AddLog("PC", "error", $"Write D{D_W_V} failed: {ex.Message}", "Write-D");
+                    try
+                    {
+                        string t = string.IsNullOrWhiteSpace(p.AddrType)
+                            ? "D"
+                            : p.AddrType.Trim().ToUpperInvariant();
+
+                        if (t == "D")
+                        {
+                            ePLC.WriteDeviceBlock(
+                                NVKProject.PLC.ePLCControl.SubCommand.Word,
+                                NVKProject.PLC.ePLCControl.DeviceName.D,
+                                $"{p.AddrIndex}",
+                                new[] { p.Value });
+
+                            anyWrite = true;
+                            AddLog("PC", "success", $"WRITE ack: {p.AddrType}{p.AddrIndex}={p.Value}", "ack");
+                        }
+                        else
+                        {
+                            // M/X/Y are written as blocks below to match PLC bit write behavior.
+                            continue;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        hasWriteError = true;
+                        AddLog("PC", "error", $"WRITE failed: {p.AddrType}{p.AddrIndex}={p.Value}", ex.Message);
+                    }
                 }
 
-                try
+                if (hasPendingM)
                 {
-                    ePLC.WriteDeviceBlock(NVKProject.PLC.ePLCControl.SubCommand.Word, NVKProject.PLC.ePLCControl.DeviceName.D, $"{D_W_P}", arr_W_P);
-                    anyWrite = true;
-                }
-                catch (Exception ex)
-                {
-                    hasWriteError = true;
-                    dPOk = false;
-                    dPErr = ex.Message;
-                    AddLog("PC", "error", $"Write D{D_W_P} failed: {ex.Message}", "Write-D");
-                }
-
-                try
-                {
-                    ePLC.WriteDeviceBlock(NVKProject.PLC.ePLCControl.SubCommand.Bit, NVKProject.PLC.ePLCControl.DeviceName.M, $"{M_W_Base}", arr_W_M);
-                    anyWrite = true;
-                }
-                catch (Exception ex)
-                {
-                    hasWriteError = true;
-                    mOk = false;
-                    mErr = ex.Message;
-                    AddLog("PC", "error", $"Write M{M_W_Base} failed: {ex.Message}", "Write-M");
+                    try
+                    {
+                        ePLC.WriteDeviceBlock(
+                            NVKProject.PLC.ePLCControl.SubCommand.Bit,
+                            NVKProject.PLC.ePLCControl.DeviceName.M,
+                            $"{M_W_Base}",
+                            arr_W_M);
+                        anyWrite = true;
+                    }
+                    catch (Exception ex)
+                    {
+                        hasWriteError = true;
+                        mOk = false;
+                        mErr = ex.Message;
+                    }
                 }
 
-                try
+                if (hasPendingX)
                 {
-                    ePLC.WriteDeviceBlock(NVKProject.PLC.ePLCControl.SubCommand.Bit, NVKProject.PLC.ePLCControl.DeviceName.X, $"{X_W_Base}", arr_W_X);
-                    anyWrite = true;
-                }
-                catch (Exception ex)
-                {
-                    hasWriteError = true;
-                    xOk = false;
-                    xErr = ex.Message;
-                    AddLog("PC", "error", $"Write X{X_W_Base} failed: {ex.Message}", "Write-X");
+                    try
+                    {
+                        ePLC.WriteDeviceBlock(
+                            NVKProject.PLC.ePLCControl.SubCommand.Bit,
+                            NVKProject.PLC.ePLCControl.DeviceName.X,
+                            $"{X_W_Base}",
+                            arr_W_X);
+                        anyWrite = true;
+                    }
+                    catch (Exception ex)
+                    {
+                        hasWriteError = true;
+                        xOk = false;
+                        xErr = ex.Message;
+                    }
                 }
 
-                try
+                if (hasPendingY)
                 {
-                    ePLC.WriteDeviceBlock(NVKProject.PLC.ePLCControl.SubCommand.Bit, NVKProject.PLC.ePLCControl.DeviceName.Y, $"{Y_W_Base}", arr_W_Y);
-                    anyWrite = true;
-                }
-                catch (Exception ex)
-                {
-                    hasWriteError = true;
-                    yOk = false;
-                    yErr = ex.Message;
-                    AddLog("PC", "error", $"Write Y{Y_W_Base} failed: {ex.Message}", "Write-Y");
+                    try
+                    {
+                        ePLC.WriteDeviceBlock(
+                            NVKProject.PLC.ePLCControl.SubCommand.Bit,
+                            NVKProject.PLC.ePLCControl.DeviceName.Y,
+                            $"{Y_W_Base}",
+                            arr_W_Y);
+                        anyWrite = true;
+                    }
+                    catch (Exception ex)
+                    {
+                        hasWriteError = true;
+                        yOk = false;
+                        yErr = ex.Message;
+                    }
                 }
 
                 foreach (var p in pendingSnapshot)
                 {
-                    bool ok = true;
-                    string reason = "";
-                    string t = p.AddrType.ToUpperInvariant();
+                    string t = string.IsNullOrWhiteSpace(p.AddrType)
+                        ? "D"
+                        : p.AddrType.Trim().ToUpperInvariant();
 
-                    if (t == "D")
+                    if (t == "M")
                     {
-                        bool inDP = p.AddrIndex >= D_W_P && p.AddrIndex < D_W_P + arr_W_P.Length;
-                        bool inDV = p.AddrIndex >= D_W_V && p.AddrIndex < D_W_V + arr_W_V.Length;
-                        if (inDP)
-                        {
-                            ok = dPOk;
-                            reason = dPErr;
-                        }
-                        else if (inDV)
-                        {
-                            ok = dVOk;
-                            reason = dVErr;
-                        }
+                        if (mOk)
+                            AddLog("PC", "success", $"WRITE ack: {p.AddrType}{p.AddrIndex}={p.Value}", "ack");
                         else
-                        {
-                            ok = false;
-                            reason = "D address out of configured write ranges";
-                        }
-                    }
-                    else if (t == "M")
-                    {
-                        ok = mOk;
-                        reason = mErr;
+                            AddLog("PC", "error", $"WRITE failed: {p.AddrType}{p.AddrIndex}={p.Value}", mErr);
                     }
                     else if (t == "X")
                     {
-                        ok = xOk;
-                        reason = xErr;
+                        if (xOk)
+                            AddLog("PC", "success", $"WRITE ack: {p.AddrType}{p.AddrIndex}={p.Value}", "ack");
+                        else
+                            AddLog("PC", "error", $"WRITE failed: {p.AddrType}{p.AddrIndex}={p.Value}", xErr);
                     }
                     else if (t == "Y")
                     {
-                        ok = yOk;
-                        reason = yErr;
+                        if (yOk)
+                            AddLog("PC", "success", $"WRITE ack: {p.AddrType}{p.AddrIndex}={p.Value}", "ack");
+                        else
+                            AddLog("PC", "error", $"WRITE failed: {p.AddrType}{p.AddrIndex}={p.Value}", yErr);
                     }
-                    else
-                    {
-                        ok = false;
-                        reason = "Unsupported address type";
-                    }
-
-                    if (ok)
-                        AddLog("PC", "success", $"WRITE ack: {p.AddrType}{p.AddrIndex}={p.Value}", "ack");
-                    else
-                        AddLog("PC", "error", $"WRITE failed: {p.AddrType}{p.AddrIndex}={p.Value}", reason);
                 }
 
                 if (anyWrite && !hasWriteError)
                 {
-                    AddLog("PC", "success", $"Write commands sent to PLC -> D{D_W_V}/D{D_W_P}/M{M_W_Base}/X{X_W_Base}/Y{Y_W_Base}", "Write cycle");
+                    AddLog("PC", "success", $"Write commands sent to PLC -> {pendingSnapshot.Count} item(s)", "Write cycle");
                     ClearPendingWrites();
                     _lastWriteLogTime = DateTime.Now;
                 }
