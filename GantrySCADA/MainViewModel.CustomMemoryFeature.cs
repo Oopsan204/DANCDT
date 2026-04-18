@@ -24,6 +24,7 @@ namespace WPF_Test_PLC20260124
             };
 
             bool isBitDevice = normalizedType == "M" || normalizedType == "X" || normalizedType == "Y";
+            int bitOffset = Math.Abs(addrIndex) & 0x0F;
 
             try
             {
@@ -34,14 +35,33 @@ namespace WPF_Test_PLC20260124
                     int[] bit = ePLC.ReadDeviceBlock(ePLCControl.SubCommand.Bit, devName, $"{addrIndex}", 1);
                     if (bit != null && bit.Length > 0)
                     {
-                        value = bit[0] != 0 ? 1 : 0;
+                        int raw = bit[0];
+                        if (raw == 0 || raw == 1)
+                        {
+                            value = raw;
+                        }
+                        else
+                        {
+                            // Packed form: raw contains 16 bits; extract the requested address bit.
+                            value = ((raw >> bitOffset) & 1) != 0 ? 1 : 0;
+                        }
+
                         return true;
                     }
 
                     int[] wordFallback = ePLC.ReadDeviceBlock(ePLCControl.SubCommand.Word, devName, $"{addrIndex}", 1);
                     if (wordFallback != null && wordFallback.Length > 0)
                     {
-                        value = wordFallback[0] != 0 ? 1 : 0;
+                        int raw = wordFallback[0];
+                        if (raw == 0 || raw == 1)
+                        {
+                            value = raw;
+                        }
+                        else
+                        {
+                            value = ((raw >> bitOffset) & 1) != 0 ? 1 : 0;
+                        }
+
                         return true;
                     }
 
@@ -66,7 +86,16 @@ namespace WPF_Test_PLC20260124
                         int[] wordFallback = ePLC.ReadDeviceBlock(ePLCControl.SubCommand.Word, devName, $"{addrIndex}", 1);
                         if (wordFallback != null && wordFallback.Length > 0)
                         {
-                            value = wordFallback[0] != 0 ? 1 : 0;
+                            int raw = wordFallback[0];
+                            if (raw == 0 || raw == 1)
+                            {
+                                value = raw;
+                            }
+                            else
+                            {
+                                value = ((raw >> bitOffset) & 1) != 0 ? 1 : 0;
+                            }
+
                             return true;
                         }
                     }

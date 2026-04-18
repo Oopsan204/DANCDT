@@ -248,6 +248,80 @@
 
                     <div class="divider"></div>
 
+                    <!-- Coordinate Source Mapping -->
+                    <table class="config-table">
+                        <thead>
+                            <tr>
+                                <th>Axis</th>
+                                <th>Addr Type</th>
+                                <th>Address Index</th>
+                                <th>Read Mode</th>
+                                <th>Source</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><span class="axis-badge axis-x">X</span></td>
+                                <td>
+                                    <select class="scale-select" style="max-width:90px;" @bind="ViewModel.PosAddrTypeX">
+                                        <option value="D">D</option>
+                                        <option value="M">M</option>
+                                        <option value="X">X</option>
+                                        <option value="Y">Y</option>
+                                    </select>
+                                </td>
+                                <td><input class="addr-input" type="number" min="0" @bind="ViewModel.PosAddrIndexX" /></td>
+                                <td>
+                                    <label class="mono-val" style="display:flex;align-items:center;gap:6px;">
+                                        <input type="checkbox" @bind="ViewModel.PosAddrXRead32" />
+                                        32-bit (D only)
+                                    </label>
+                                </td>
+                                <td class="mono-val">@ViewModel.PosAddrTypeX@ViewModel.PosAddrIndexX</td>
+                            </tr>
+                            <tr>
+                                <td><span class="axis-badge axis-y">Y</span></td>
+                                <td>
+                                    <select class="scale-select" style="max-width:90px;" @bind="ViewModel.PosAddrTypeY">
+                                        <option value="D">D</option>
+                                        <option value="M">M</option>
+                                        <option value="X">X</option>
+                                        <option value="Y">Y</option>
+                                    </select>
+                                </td>
+                                <td><input class="addr-input" type="number" min="0" @bind="ViewModel.PosAddrIndexY" /></td>
+                                <td>
+                                    <label class="mono-val" style="display:flex;align-items:center;gap:6px;">
+                                        <input type="checkbox" @bind="ViewModel.PosAddrYRead32" />
+                                        32-bit (D only)
+                                    </label>
+                                </td>
+                                <td class="mono-val">@ViewModel.PosAddrTypeY@ViewModel.PosAddrIndexY</td>
+                            </tr>
+                            <tr>
+                                <td><span class="axis-badge axis-z">Z</span></td>
+                                <td>
+                                    <select class="scale-select" style="max-width:90px;" @bind="ViewModel.PosAddrTypeZ">
+                                        <option value="D">D</option>
+                                        <option value="M">M</option>
+                                        <option value="X">X</option>
+                                        <option value="Y">Y</option>
+                                    </select>
+                                </td>
+                                <td><input class="addr-input" type="number" min="0" @bind="ViewModel.PosAddrIndexZ" /></td>
+                                <td>
+                                    <label class="mono-val" style="display:flex;align-items:center;gap:6px;">
+                                        <input type="checkbox" @bind="ViewModel.PosAddrZRead32" />
+                                        32-bit (D only)
+                                    </label>
+                                </td>
+                                <td class="mono-val">@ViewModel.PosAddrTypeZ@ViewModel.PosAddrIndexZ</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <div class="divider"></div>
+
                     <!-- Individual Axis Scaling -->
                     <table class="config-table">
                         <thead>
@@ -540,6 +614,15 @@
     {
         ViewModel.PosUnit = "mm";
         ViewModel.PosDecimals = 2;
+        ViewModel.PosAddrTypeX = "D";
+        ViewModel.PosAddrIndexX = 1000;
+        ViewModel.PosAddrXRead32 = true;
+        ViewModel.PosAddrTypeY = "D";
+        ViewModel.PosAddrIndexY = 1002;
+        ViewModel.PosAddrYRead32 = true;
+        ViewModel.PosAddrTypeZ = "D";
+        ViewModel.PosAddrIndexZ = 1004;
+        ViewModel.PosAddrZRead32 = true;
         ViewModel.PosScaleX = 1.0;
         ViewModel.PosScaleY = 1.0;
         ViewModel.PosScaleZ = 1.0;
