@@ -66,21 +66,21 @@
                         <div class="jog-plate">
                             <div class="plate-grid">
                                 <div></div>
-                                <button class="jog-btn north" @onpointerdown='() => Jog("Y", false)' @onpointerup='() => StopJog("Y")' @onpointercancel='() => StopJog("Y")' @onmouseleave='() => StopJog("Y")'>
+                                <button class="jog-btn north" @onmousedown='() => Jog("Y", false)' @onmouseup='() => StopJog("Y")'>
                                     <span class="material-symbols-outlined">arrow_upward</span>
                                 </button>
                                 <div></div>
                                 
-                                <button class="jog-btn west" @onpointerdown='() => Jog("X", false)' @onpointerup='() => StopJog("X")' @onpointercancel='() => StopJog("X")' @onmouseleave='() => StopJog("X")'>
+                                <button class="jog-btn west" @onmousedown='() => Jog("X", false)' @onmouseup='() => StopJog("X")'>
                                     <span class="material-symbols-outlined">arrow_back</span>
                                 </button>
                                 <div class="plate-center">XY</div>
-                                <button class="jog-btn east" @onpointerdown='() => Jog("X", true)' @onpointerup='() => StopJog("X")' @onpointercancel='() => StopJog("X")' @onmouseleave='() => StopJog("X")'>
+                                <button class="jog-btn east" @onmousedown='() => Jog("X", true)' @onmouseup='() => StopJog("X")'>
                                     <span class="material-symbols-outlined">arrow_forward</span>
                                 </button>
                                 
                                 <div></div>
-                                <button class="jog-btn south" @onpointerdown='() => Jog("Y", true)' @onpointerup='() => StopJog("Y")' @onpointercancel='() => StopJog("Y")' @onmouseleave='() => StopJog("Y")'>
+                                <button class="jog-btn south" @onmousedown='() => Jog("Y", true)' @onmouseup='() => StopJog("Y")'>
                                     <span class="material-symbols-outlined">arrow_downward</span>
                                 </button>
                                 <div></div>
@@ -89,12 +89,12 @@
 
                         <!-- Z-Axis Column -->
                         <div class="z-axis-column">
-                            <button class="jog-btn z-up" @onpointerdown='() => Jog("Z", false)' @onpointerup='() => StopJog("Z")' @onpointercancel='() => StopJog("Z")' @onmouseleave='() => StopJog("Z")'>
+                            <button class="jog-btn z-up" @onmousedown='() => Jog("Z", false)' @onmouseup='() => StopJog("Z")'>
                                 <span class="material-symbols-outlined">expand_less</span>
                                 <span class="btn-label">Z+</span>
                             </button>
                             <div class="z-label">Z AXIS</div>
-                            <button class="jog-btn z-dn" @onpointerdown='() => Jog("Z", true)' @onpointerup='() => StopJog("Z")' @onpointercancel='() => StopJog("Z")' @onmouseleave='() => StopJog("Z")'>
+                            <button class="jog-btn z-dn" @onmousedown='() => Jog("Z", true)' @onmouseup='() => StopJog("Z")'>
                                 <span class="material-symbols-outlined">expand_more</span>
                                 <span class="btn-label">Z-</span>
                             </button>
@@ -427,10 +427,9 @@
         int baseAddr = ViewModel.M_W_Base;
         int markAddress = axis switch
         {
-            // true  = positive direction (+), false = negative direction (-)
-            "X" => dir ? baseAddr : baseAddr + 1,
-            "Y" => dir ? baseAddr + 2 : baseAddr + 3,
-            "Z" => dir ? baseAddr + 4 : baseAddr + 5,
+            "X" => dir ? baseAddr + 1 : baseAddr,
+            "Y" => dir ? baseAddr + 3 : baseAddr + 2,
+            "Z" => dir ? baseAddr + 5 : baseAddr + 4,
             _ => -1
         };
         

@@ -69,6 +69,7 @@
                             </div>
                             <div class="text-right">
                                 <div class="font-headline text-2xl font-bold text-on-surface">@entry.Value</div>
+                                <div class="text-[10px] font-body text-outline">upd @entry.UpdatedMs ms ago</div>
                             </div>
                         </div>
 
@@ -238,7 +239,6 @@
                             <th class="px-3 py-2 text-left">Type</th>
                             <th class="px-3 py-2 text-left">Address</th>
                             <th class="px-3 py-2 text-right">Value</th>
-                            <th class="px-3 py-2 text-right">Age</th>
                             <th class="px-5 py-2 text-center">Status</th>
                         </tr>
                     </thead>
@@ -259,16 +259,6 @@
                                 </td>
                                 <td class="px-3 py-2 font-bold text-inverse-on-surface">@log.Address</td>
                                 <td class="px-3 py-2 text-right text-primary-fixed-dim font-bold">@log.Value</td>
-                                <td class="px-3 py-2 text-right text-outline-variant">
-                                    @if (log.Type == "READ")
-                                    {
-                                        @($"{Math.Max(0, (long)(DateTime.Now - log.Timestamp).TotalMilliseconds)} ms ago")
-                                    }
-                                    else
-                                    {
-                                        <span>-</span>
-                                    }
-                                </td>
                                 <td class="px-5 py-2 text-center">
                                     @if (log.Success)
                                     {
@@ -301,8 +291,6 @@
         public long UpdatedMs { get; set; }
         public bool JustUpdated { get; set; }
         public int PrevValue { get; set; }
-        public bool HasValue { get; set; }
-        public long LastChangedAtMs { get; set; }
     }
 
     public enum WriteStatus { None, OK, ERR }
@@ -325,7 +313,7 @@
     }
 
     // ─── State ─────────────────────────────────────────────────────
-    static List<ReadEntry> _savedReadEntries = new()
+    List<ReadEntry> readEntries = new()
     {
         new() { AddrType = "D", AddrIndex = 4000 },
         new() { AddrType = "D", AddrIndex = 4001 },
@@ -333,17 +321,12 @@
         new() { AddrType = "M", AddrIndex = 0 },
     };
 
-    static List<PlcWriteItem> _savedWriteEntries = new()
+    List<PlcWriteItem> writeEntries = new()
     {
         new() { AddrType = "D", AddrIndex = 5000 },
         new() { AddrType = "D", AddrIndex = 5001 },
         new() { AddrType = "M", AddrIndex = 0 },
     };
-
-    static bool _savedAutoRefresh = true;
-
-    List<ReadEntry> readEntries = new();
-    List<PlcWriteItem> writeEntries = new();
 
     List<LogEntry> actionLog = new();
 
@@ -357,10 +340,6 @@
     // ─── Lifecycle ─────────────────────────────────────────────────
     protected override void OnInitialized()
     {
-        readEntries = _savedReadEntries;
-        writeEntries = _savedWriteEntries;
-        autoRefresh = _savedAutoRefresh;
-
         ViewModel.AddLog("UI", "info", "Telemetry page loaded");
         ViewModel.PropertyChanged += OnViewModelChanged;
         _timer = new System.Timers.Timer(250);
@@ -433,29 +412,12 @@
                 }
             }
 
-            // Fallback for addresses outside cached ranges:
-            // use Monitor-thread refreshed custom memory values.
-            if (!found)
-            {
-                var custom = ViewModel.CustomMemoryEntries.FirstOrDefault(x =>
-                    string.Equals(x.AddrType, entry.AddrType, StringComparison.OrdinalIgnoreCase)
-                    && x.AddrIndex == entry.AddrIndex);
-
-                if (custom != null)
-                {
-                    newVal = custom.CurrentValue;
-                    found = true;
-                }
-            }
-
-            if (found && (!entry.HasValue || newVal != entry.PrevValue))
+            if (found && newVal != entry.PrevValue)
             {
                 entry.PrevValue = newVal;
                 entry.Value = newVal;
                 entry.JustUpdated = true;
                 entry.UpdatedMs = 0;
-                entry.HasValue = true;
-                entry.LastChangedAtMs = now;
                 AddLog("READ", $"{entry.AddrType}{entry.AddrIndex}", newVal, true);
                 
                 // Trigger animation, then reset JustUpdated flag after 800ms (animation duration)
@@ -470,10 +432,7 @@
             }
             else if (found)
             {
-                entry.Value = newVal;
                 entry.JustUpdated = false;
-                if (entry.HasValue)
-                    entry.UpdatedMs = Math.Max(0, now - entry.LastChangedAtMs);
             }
         }
     }
@@ -503,44 +462,16 @@
     void ToggleAutoRefresh()
     {
         autoRefresh = !autoRefresh;
-        _savedAutoRefresh = autoRefresh;
     }
 
     void AddReadEntry()
     {
-        string normalizedType = (newReadType ?? "D").Trim().ToUpperInvariant();
-        int normalizedIndex = newReadIndex;
-
-        bool alreadyExists = readEntries.Any(x =>
-            x.AddrType.Equals(normalizedType, StringComparison.OrdinalIgnoreCase)
-            && x.AddrIndex == normalizedIndex);
-
-        if (!alreadyExists)
-            readEntries.Add(new ReadEntry { AddrType = normalizedType, AddrIndex = normalizedIndex });
-
-        // Ensure this address is refreshed by Monitor thread even when outside default cache windows.
-        bool hasCustom = ViewModel.CustomMemoryEntries.Any(x =>
-            x.AddrType.Equals(normalizedType, StringComparison.OrdinalIgnoreCase)
-            && x.AddrIndex == normalizedIndex);
-        if (!hasCustom)
-            ViewModel.AddCustomMemoryEntry(normalizedType, normalizedIndex);
-
+        readEntries.Add(new ReadEntry { AddrType = newReadType, AddrIndex = newReadIndex });
         showAddRead = false;
         newReadIndex = 0;
-        UpdateReadValues();
     }
 
-    void RemoveReadEntry(ReadEntry e)
-    {
-        readEntries.Remove(e);
-
-        var custom = ViewModel.CustomMemoryEntries.FirstOrDefault(x =>
-            x.AddrType.Equals(e.AddrType, StringComparison.OrdinalIgnoreCase)
-            && x.AddrIndex == e.AddrIndex);
-
-        if (custom != null)
-            ViewModel.RemoveCustomMemoryEntry(custom);
-    }
+    void RemoveReadEntry(ReadEntry e) => readEntries.Remove(e);
 
     // ─── Write Logic ───────────────────────────────────────────────
     void ExecuteWrite(PlcWriteItem entry)
