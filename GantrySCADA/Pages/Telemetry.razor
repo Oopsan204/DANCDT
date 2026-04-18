@@ -584,95 +584,51 @@
 
         try
         {
-            if (entry.AddrType == "D")
+            string normType = string.IsNullOrWhiteSpace(entry.AddrType)
+                ? "D"
+                : entry.AddrType.Trim().ToUpperInvariant();
+
+            if (normType == "D" || normType == "M" || normType == "X" || normType == "Y")
             {
-                // Check D_W_P range (D2000-D2005)
-                int offsetP = entry.AddrIndex - ViewModel.D_W_P;
-                if (offsetP >= 0 && offsetP < ViewModel.arr_W_P.Length)
+                // Keep mirror buffers in sync when address is inside configured ranges.
+                if (normType == "D")
                 {
-                    ViewModel.arr_W_P[offsetP] = entry.WriteValue;
-                    ViewModel.MarkPendingWrite(entry.AddrType, entry.AddrIndex, entry.WriteValue);
-                    entry.Status = WriteStatus.OK;
-                    AddLog("WRITE", $"{entry.AddrType}{entry.AddrIndex}", entry.WriteValue, true);
-                }
-                // Check D_W_V range (D5000-D5098)
-                else
-                {
+                    int offsetP = entry.AddrIndex - ViewModel.D_W_P;
+                    if (offsetP >= 0 && offsetP < ViewModel.arr_W_P.Length)
+                        ViewModel.arr_W_P[offsetP] = entry.WriteValue;
+
                     int offsetV = entry.AddrIndex - ViewModel.D_W_V;
                     if (offsetV >= 0 && offsetV < ViewModel.arr_W_V.Length)
-                    {
                         ViewModel.arr_W_V[offsetV] = entry.WriteValue;
-                        ViewModel.MarkPendingWrite(entry.AddrType, entry.AddrIndex, entry.WriteValue);
-                        entry.Status = WriteStatus.OK;
-                        AddLog("WRITE", $"{entry.AddrType}{entry.AddrIndex}", entry.WriteValue, true);
-                    }
-                    else
-                    {
-                        entry.Status = WriteStatus.ERR;
-                        entry.ErrorMessage = $"Address D{entry.AddrIndex} is outside writable ranges D{ViewModel.D_W_P}-D{ViewModel.D_W_P + ViewModel.arr_W_P.Length - 1} or D{ViewModel.D_W_V}-D{ViewModel.D_W_V + ViewModel.arr_W_V.Length - 1}.";
-                        AddLog("WRITE", $"{entry.AddrType}{entry.AddrIndex}", entry.WriteValue, false);
-                    }
                 }
-            }
-            else if (entry.AddrType == "M")
-            {
-                // Check M register range (M3000-M3099)
-                int offsetM = entry.AddrIndex - ViewModel.M_W_Base;
-                if (offsetM >= 0 && offsetM < ViewModel.arr_W_M.Length)
+                else if (normType == "M")
                 {
-                    ViewModel.arr_W_M[offsetM] = entry.WriteValue;
-                    ViewModel.MarkPendingWrite(entry.AddrType, entry.AddrIndex, entry.WriteValue);
-                    entry.Status = WriteStatus.OK;
-                    AddLog("WRITE", $"{entry.AddrType}{entry.AddrIndex}", entry.WriteValue, true);
+                    int offsetM = entry.AddrIndex - ViewModel.M_W_Base;
+                    if (offsetM >= 0 && offsetM < ViewModel.arr_W_M.Length)
+                        ViewModel.arr_W_M[offsetM] = entry.WriteValue;
                 }
-                else
+                else if (normType == "X")
                 {
-                    entry.Status = WriteStatus.ERR;
-                    entry.ErrorMessage = $"Address M{entry.AddrIndex} is outside writable range M{ViewModel.M_W_Base}-M{ViewModel.M_W_Base + ViewModel.arr_W_M.Length - 1}.";
-                    AddLog("WRITE", $"{entry.AddrType}{entry.AddrIndex}", entry.WriteValue, false);
+                    int offsetX = entry.AddrIndex - ViewModel.X_W_Base;
+                    if (offsetX >= 0 && offsetX < ViewModel.arr_W_X.Length)
+                        ViewModel.arr_W_X[offsetX] = entry.WriteValue;
                 }
-            }
-            else if (entry.AddrType == "X")
-            {
-                // Check X register range (X100-X199)
-                int offsetX = entry.AddrIndex - ViewModel.X_W_Base;
-                if (offsetX >= 0 && offsetX < ViewModel.arr_W_X.Length)
+                else if (normType == "Y")
                 {
-                    ViewModel.arr_W_X[offsetX] = entry.WriteValue;
-                    ViewModel.MarkPendingWrite(entry.AddrType, entry.AddrIndex, entry.WriteValue);
-                    entry.Status = WriteStatus.OK;
-                    AddLog("WRITE", $"{entry.AddrType}{entry.AddrIndex}", entry.WriteValue, true);
+                    int offsetY = entry.AddrIndex - ViewModel.Y_W_Base;
+                    if (offsetY >= 0 && offsetY < ViewModel.arr_W_Y.Length)
+                        ViewModel.arr_W_Y[offsetY] = entry.WriteValue;
                 }
-                else
-                {
-                    entry.Status = WriteStatus.ERR;
-                    entry.ErrorMessage = $"Address X{entry.AddrIndex} is outside writable range X{ViewModel.X_W_Base}-X{ViewModel.X_W_Base + ViewModel.arr_W_X.Length - 1}.";
-                    AddLog("WRITE", $"{entry.AddrType}{entry.AddrIndex}", entry.WriteValue, false);
-                }
-            }
-            else if (entry.AddrType == "Y")
-            {
-                // Check Y register range (Y100-Y199)
-                int offsetY = entry.AddrIndex - ViewModel.Y_W_Base;
-                if (offsetY >= 0 && offsetY < ViewModel.arr_W_Y.Length)
-                {
-                    ViewModel.arr_W_Y[offsetY] = entry.WriteValue;
-                    ViewModel.MarkPendingWrite(entry.AddrType, entry.AddrIndex, entry.WriteValue);
-                    entry.Status = WriteStatus.OK;
-                    AddLog("WRITE", $"{entry.AddrType}{entry.AddrIndex}", entry.WriteValue, true);
-                }
-                else
-                {
-                    entry.Status = WriteStatus.ERR;
-                    entry.ErrorMessage = $"Address Y{entry.AddrIndex} is outside writable range Y{ViewModel.Y_W_Base}-Y{ViewModel.Y_W_Base + ViewModel.arr_W_Y.Length - 1}.";
-                    AddLog("WRITE", $"{entry.AddrType}{entry.AddrIndex}", entry.WriteValue, false);
-                }
+
+                ViewModel.MarkPendingWrite(normType, entry.AddrIndex, entry.WriteValue);
+                entry.Status = WriteStatus.OK;
+                AddLog("WRITE", $"{normType}{entry.AddrIndex}", entry.WriteValue, true);
             }
             else
             {
                 entry.Status = WriteStatus.ERR;
-                entry.ErrorMessage = $"Unknown address type: {entry.AddrType}.";
-                AddLog("WRITE", $"{entry.AddrType}{entry.AddrIndex}", entry.WriteValue, false);
+                entry.ErrorMessage = $"Unknown address type: {normType}.";
+                AddLog("WRITE", $"{normType}{entry.AddrIndex}", entry.WriteValue, false);
             }
         }
         catch (Exception ex)
