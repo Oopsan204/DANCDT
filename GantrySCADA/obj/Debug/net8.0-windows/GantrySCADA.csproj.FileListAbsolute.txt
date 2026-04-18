@@ -232,4 +232,3 @@ E:\hoctap\nam4_ky3\1.DO-AN-CDT\APP\DANCDT\GantrySCADA\obj\Debug\net8.0-windows\r
 E:\hoctap\nam4_ky3\1.DO-AN-CDT\APP\DANCDT\GantrySCADA\obj\Debug\net8.0-windows\GantrySCADA.pdb
 E:\hoctap\nam4_ky3\1.DO-AN-CDT\APP\DANCDT\GantrySCADA\obj\Debug\net8.0-windows\GantrySCADA.genruntimeconfig.cache
 E:\hoctap\nam4_ky3\1.DO-AN-CDT\APP\DANCDT\GantrySCADA\obj\Debug\net8.0-windows\ref\GantrySCADA.dll
-E:\hoctap\nam4_ky3\1.DO-AN-CDT\APP\DANCDT\GantrySCADA\obj\Debug\net8.0-windows\staticwebassets.upToDateCheck.txt
