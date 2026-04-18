@@ -1,0 +1,357 @@
+@page "/dxf-run"
+@inject WPF_Test_PLC20260124.MainViewModel ViewModel
+@inject IJSRuntime JS
+@using System.IO
+
+<div class="space-y-6 pb-20">
+    <!-- Header / Breadcrumbs -->
+    <div class="flex justify-between items-end mb-4">
+        <div>
+            <h1 class="text-3xl font-bold tracking-tighter text-on-surface font-headline uppercase">DXF Advanced Control Hub</h1>
+            <p class="text-xs text-on-surface-variant font-label uppercase tracking-widest mt-1">Industrial Trajectory & Visual Validation Engine</p>
+        </div>
+        <div class="flex gap-2">
+            <div class="px-3 py-1 rounded bg-surface-container-high border border-outline-variant/30 flex items-center gap-2">
+                <div class="w-2 h-2 rounded-full @(ViewModel.Status ? "bg-green-500" : "bg-red-500") shadow-[0_0_8px_currentColor]"></div>
+                <span class="text-[10px] font-bold font-label uppercase text-on-surface-variant">PLC: @(ViewModel.Status ? "CONNECTED" : "OFFLINE")</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Hub Layout: 3 Columns -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        
+        <!-- LEFT COLUMN: Source & Manager (3 units) -->
+        <div class="lg:col-span-3 space-y-6">
+            <!-- DXF Source Block -->
+            <section class="bg-surface-container-lowest rounded-xl p-5 shadow-sm border border-outline-variant/10 relative overflow-hidden">
+                <div class="flex items-center gap-2 mb-4 border-b border-outline-variant/10 pb-2">
+                    <span class="material-symbols-outlined text-primary text-sm">upload_file</span>
+                    <h2 class="text-[11px] font-bold font-label uppercase tracking-wider text-on-surface-variant">DXF Source</h2>
+                </div>
+                <div class="space-y-4">
+                    <div class="flex gap-2">
+                        <input type="text" @bind="ViewModel.DxfFilePath" placeholder="C:\Paths\Project.dxf" 
+                               class="flex-grow bg-surface-container-low border border-outline-variant/20 rounded px-3 py-2 text-xs font-mono focus:outline-none focus:border-primary transition-all shadow-inner"/>
+                        <button class="bg-surface-container-high hover:bg-surface-container-highest text-on-surface p-2 rounded transition-colors shadow-sm"
+                            @onclick='() => ViewModel.BrowseAndLoadDxf()'>
+                            <span class="material-symbols-outlined text-lg">folder_open</span>
+                        </button>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button @onclick='() => ViewModel.LoadDxfAdvanced(ViewModel.DxfFilePath)' 
+                                class="bg-primary hover:brightness-110 text-white py-2 rounded text-[10px] font-bold uppercase tracking-wider transition-all shadow-md">
+                            Load DXF
+                        </button>
+                        <button class="bg-surface-container-high hover:bg-surface-container-highest text-on-surface py-2 rounded text-[10px] font-bold uppercase tracking-wider transition-all"
+                                @onclick='() => ViewModel.LoadDxfAdvanced(ViewModel.DxfFilePath)'>
+                            Reload
+                        </button>
+                    </div>
+                    <div class="mt-4 p-3 bg-surface-container-low rounded border-l-2 border-primary space-y-2">
+                        <div class="flex justify-between text-[10px] font-mono text-on-surface-variant">
+                            <span>Entities:</span>
+                            <span class="text-on-surface font-bold text-primary">@ViewModel.DxfEntityCount</span>
+                        </div>
+                        <div class="flex justify-between text-[10px] font-mono text-on-surface-variant">
+                            <span>Points:</span>
+                            <span class="text-on-surface font-bold">@ViewModel.DxfSampleCount</span>
+                        </div>
+                        <div class="flex justify-between text-[10px] font-mono text-on-surface-variant">
+                            <span>Layers:</span>
+                            <span class="text-on-surface font-bold">@ViewModel.DxfLayerCount</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Contour Manager Block -->
+            <section class="bg-surface-container-lowest rounded-xl p-5 shadow-sm border border-outline-variant/10 flex flex-col h-[500px]">
+                <div class="flex items-center justify-between mb-4 border-b border-outline-variant/10 pb-2">
+                    <div class="flex items-center gap-2">
+                        <span class="material-symbols-outlined text-primary text-sm">polyline</span>
+                        <h2 class="text-[11px] font-bold font-label uppercase tracking-wider text-on-surface-variant">Contour Manager</h2>
+                    </div>
+                    <select @bind="ViewModel.SelectedDxfLayer" class="bg-surface-container-low border-none rounded text-[9px] font-bold uppercase py-1 px-2 focus:ring-0">
+                        @foreach(var layer in ViewModel.DxfLayers)
+                        {
+                            <option value="@layer">@layer</option>
+                        }
+                    </select>
+                </div>
+                <div class="flex-grow overflow-y-auto pr-1 custom-scrollbar">
+                    <table class="w-full text-left border-separate border-spacing-y-1">
+                        <thead>
+                            <tr class="text-[9px] font-label text-on-surface-variant/60 uppercase tracking-tighter">
+                                <th class="pb-2 pl-2">Name</th>
+                                <th class="pb-2">Length</th>
+                                <th class="pb-2">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach(var item in ViewModel.DxfContours.Where(c => ViewModel.SelectedDxfLayer == "All" || c.Layer == ViewModel.SelectedDxfLayer))
+                            {
+                                <tr class="group hover:bg-surface-container-low transition-colors cursor-pointer @(ViewModel.SelectedContour == item ? "bg-surface-container-high" : "bg-surface-container-low/30")"
+                                    @onclick="() => ViewModel.SelectedContour = item">
+                                    <td class="py-2 pl-2 rounded-l flex items-center gap-1">
+                                        <div class="w-1 h-3 rounded-full @(item.IsClosed ? "bg-green-500" : "bg-blue-500/50") mr-1"></div>
+                                        <span class="text-[10px] font-mono font-bold text-on-surface">@item.Name</span>
+                                    </td>
+                                    <td class="text-[10px] font-mono text-on-surface-variant italic">@item.Length.ToString("F1")mm</td>
+                                    <td class="py-2 pr-2 rounded-r text-right opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <span class="material-symbols-outlined text-primary text-sm">visibility</span>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+
+        <!-- CENTER COLUMN: Visual Validation (6 units) -->
+        <div class="lg:col-span-6">
+            <section class="bg-surface-container-lowest rounded-xl shadow-lg border border-outline-variant/10 overflow-hidden flex flex-col h-full min-h-[700px]">
+                <!-- Workspace Header -->
+                <div class="bg-surface-container-high/30 p-4 border-b border-outline-variant/10 flex justify-between items-center">
+                    <div class="flex items-center gap-3">
+                        <span class="material-symbols-outlined text-primary">analytics</span>
+                        <div>
+                            <span class="text-[11px] font-bold font-label uppercase tracking-widest text-on-surface">Visual Workspace</span>
+                            <div class="flex gap-4 mt-0.5">
+                                <span class="text-[9px] font-mono text-on-surface-variant uppercase tracking-tighter">X Range: <b class="text-primary">@ViewModel.DxfXMin.ToString("F1"):@ViewModel.DxfXMax.ToString("F1")</b></span>
+                                <span class="text-[9px] font-mono text-on-surface-variant uppercase tracking-tighter">Y Range: <b class="text-primary">@ViewModel.DxfYMin.ToString("F1"):@ViewModel.DxfYMax.ToString("F1")</b></span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex gap-1">
+                        <button class="p-1.5 hover:bg-surface-container-high rounded" title="Zoom In"><span class="material-symbols-outlined text-sm">zoom_in</span></button>
+                        <button class="p-1.5 hover:bg-surface-container-high rounded" title="Zoom Out"><span class="material-symbols-outlined text-sm">zoom_out</span></button>
+                        <button class="p-1.5 hover:bg-surface-container-high rounded" title="Reset"><span class="material-symbols-outlined text-sm">refresh</span></button>
+                    </div>
+                </div>
+
+                <!-- SVG Preview Area -->
+                <div class="flex-grow bg-[#0f172a] relative overflow-hidden group">
+                    <!-- Grid Lines Overlay -->
+                    <div class="absolute inset-0 opacity-20" 
+                         style="background-image: radial-gradient(#334155 1px, transparent 1px); background-size: 20px 20px;"></div>
+                    
+                    <div class="flex items-center justify-center h-full p-10 select-none">
+                        @if(!string.IsNullOrEmpty(ViewModel.DxfPreviewPathData))
+                        {
+                            <svg viewBox="0 0 200 200" class="w-full h-full max-h-[500px] drop-shadow-[0_0_15px_rgba(13,110,253,0.3)]">
+                                <path d="@ViewModel.DxfPreviewPathData" 
+                                      fill="none" 
+                                      stroke="#0d6efd" 
+                                      stroke-width="1"
+                                      stroke-linecap="round"
+                                      stroke-linejoin="round"
+                                      class="transition-all duration-700 ease-out" />
+                            </svg>
+                        }
+                        else
+                        {
+                            <div class="text-on-surface-variant/30 flex flex-col items-center gap-3">
+                                <span class="material-symbols-outlined text-6xl">draft</span>
+                                <span class="text-xs font-label uppercase tracking-widest">No DXF Data Loaded</span>
+                            </div>
+                        }
+                    </div>
+
+                    <!-- Floating Tooltip -->
+                    <div class="absolute bottom-4 left-4 bg-surface-container-highest/80 backdrop-blur-md px-3 py-1 rounded text-[9px] font-mono text-white tracking-widest border border-white/10 uppercase">
+                        Units: Millimeters (mm)
+                    </div>
+                    <div class="absolute top-4 right-4 flex flex-col gap-2">
+                         <div class="bg-surface-container-highest/60 backdrop-blur pb-1 px-2 rounded border border-white/5">
+                            <span class="text-[8px] font-bold text-white/50 block mt-1">AXIS X</span>
+                            <span class="text-xs text-primary font-bold font-mono">@(ViewModel.arr_R32.Length > 0 ? (ViewModel.arr_R32[0]/20.0).ToString("F2") : "0.00")</span>
+                         </div>
+                         <div class="bg-surface-container-highest/60 backdrop-blur pb-1 px-2 rounded border border-white/5">
+                            <span class="text-[8px] font-bold text-white/50 block mt-1">AXIS Y</span>
+                            <span class="text-xs text-primary font-bold font-mono">@(ViewModel.arr_R32.Length > 2 ? (ViewModel.arr_R32[1]/20.0).ToString("F2") : "0.00")</span>
+                         </div>
+                    </div>
+                </div>
+
+                <!-- Diagnostics Hub -->
+                <div class="bg-surface-container-low p-4 space-y-3">
+                    <div class="flex items-center justify-between">
+                         <h3 class="text-[10px] font-bold font-label uppercase tracking-widest text-on-surface-variant">System Diagnostics</h3>
+                         <button class="text-[9px] font-bold text-primary uppercase hover:underline">Export Session Log</button>
+                    </div>
+                    <div class="space-y-1 h-32 overflow-y-auto pr-2 custom-scrollbar">
+                        <div class="flex gap-2 text-[10px] font-mono">
+                            <span class="text-primary font-bold">[PARSE]</span>
+                            <span class="text-on-surface-variant">DXF successfully initialized: @(string.IsNullOrEmpty(ViewModel.DxfFilePath) ? "None" : Path.GetFileName(ViewModel.DxfFilePath))</span>
+                        </div>
+                        <div class="flex gap-2 text-[10px] font-mono">
+                            <span class="text-green-500 font-bold">[SAFETY]</span>
+                            <span class="text-on-surface-variant">Bounding area validated for Gantry Alpha limits.</span>
+                        </div>
+                        @if(ViewModel.SelectedContour != null)
+                        {
+                            <div class="flex gap-2 text-[10px] font-mono">
+                                <span class="text-orange-500 font-bold">[SELECT]</span>
+                                <span class="text-on-surface-variant">Active: @ViewModel.SelectedContour.Name (L=@ViewModel.SelectedContour.Length.ToString("F1") mm)</span>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <!-- RIGHT COLUMN: Setup & Execution (3 units) -->
+        <div class="lg:col-span-3 space-y-6">
+            <!-- Transformation Setup -->
+            <section class="bg-surface-container-lowest rounded-xl p-5 shadow-sm border border-outline-variant/10">
+                <div class="flex items-center gap-2 mb-4 border-b border-outline-variant/10 pb-2">
+                    <span class="material-symbols-outlined text-primary text-sm">settings_input_component</span>
+                    <h2 class="text-[11px] font-bold font-label uppercase tracking-wider text-on-surface-variant">Robot Transformation</h2>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="space-y-1">
+                        <label class="text-[9px] font-bold uppercase text-on-surface-variant">Scale X</label>
+                        <input type="number" step="0.1" @bind="ViewModel.DxfScaleX" class="w-full bg-surface-container-low border border-outline-variant/20 rounded px-2 py-1.5 text-xs font-mono"/>
+                    </div>
+                    <div class="space-y-1">
+                        <label class="text-[9px] font-bold uppercase text-on-surface-variant">Scale Y</label>
+                        <input type="number" step="0.1" @bind="ViewModel.DxfScaleY" class="w-full bg-surface-container-low border border-outline-variant/20 rounded px-2 py-1.5 text-xs font-mono"/>
+                    </div>
+                    <div class="space-y-1">
+                        <label class="text-[9px] font-bold uppercase text-on-surface-variant">Offset X</label>
+                        <input type="number" @bind="ViewModel.DxfOffsetX" class="w-full bg-surface-container-low border border-outline-variant/20 rounded px-2 py-1.5 text-xs font-mono"/>
+                    </div>
+                    <div class="space-y-1">
+                        <label class="text-[9px] font-bold uppercase text-on-surface-variant">Offset Y</label>
+                        <input type="number" @bind="ViewModel.DxfOffsetY" class="w-full bg-surface-container-low border border-outline-variant/20 rounded px-2 py-1.5 text-xs font-mono"/>
+                    </div>
+                    <div class="col-span-2 flex items-center justify-between py-2 border-y border-outline-variant/5">
+                        <span class="text-[10px] uppercase font-bold text-on-surface-variant">Mirror Y Axis</span>
+                        <div class="w-8 h-4 bg-primary/20 rounded-full relative cursor-pointer" @onclick="() => ViewModel.DxfMirrorY = !ViewModel.DxfMirrorY">
+                            <div class="absolute top-0.5 w-3 h-3 rounded-full transition-all duration-300 @(ViewModel.DxfMirrorY ? "right-0.5 bg-primary" : "left-0.5 bg-on-surface-variant/40")"></div>
+                        </div>
+                    </div>
+                    <div class="col-span-2 space-y-1">
+                         <label class="text-[9px] font-bold uppercase text-on-surface-variant">Origin Mode</label>
+                         <div class="flex gap-1">
+                            @foreach(var mode in new[]{"Min", "Center", "Custom"})
+                            {
+                                <button @onclick="() => ViewModel.DxfOriginMode = mode"
+                                        class="flex-grow py-1.5 rounded text-[9px] font-bold uppercase transition-all @(ViewModel.DxfOriginMode == mode ? "bg-primary text-white" : "bg-surface-container-low text-on-surface-variant")">
+                                    @mode
+                                </button>
+                            }
+                         </div>
+                    </div>
+                    <button @onclick="ViewModel.ValidateDxfSafety"
+                            class="col-span-2 py-2 mt-2 border-2 border-primary text-primary hover:bg-primary hover:text-white rounded text-[10px] font-bold uppercase tracking-widest transition-all">
+                        Validate Safety
+                    </button>
+                </div>
+            </section>
+
+            <!-- Trajectory Engine -->
+            <section class="bg-surface-container-lowest rounded-xl p-5 shadow-lg border border-outline-variant/20 overflow-hidden relative">
+                @if(ViewModel.IsDxfRunning){ <div class="absolute inset-0 bg-primary/5 animate-pulse"></div> }
+                
+                <div class="flex items-center gap-2 mb-4 border-b border-outline-variant/10 pb-2 relative z-10">
+                    <span class="material-symbols-outlined text-primary text-sm">precision_manufacturing</span>
+                    <h2 class="text-[11px] font-bold font-label uppercase tracking-wider text-on-surface-variant">Trajectory Engine</h2>
+                </div>
+
+                <div class="space-y-6 relative z-10">
+                    <div class="flex gap-3">
+                        <button class="flex-grow bg-primary hover:brightness-110 text-white py-4 rounded-lg flex flex-col items-center gap-1 shadow-lg shadow-primary/20 transition-all active:scale-95 disabled:grayscale"
+                                disabled="@(ViewModel.IsDxfRunning || !ViewModel.Status)">
+                            <span class="material-symbols-outlined text-2xl">play_arrow</span>
+                            <span class="text-[10px] font-bold uppercase tracking-widest leading-none">START RUN</span>
+                        </button>
+                        <button class="bg-surface-container-high hover:bg-surface-container-highest px-4 rounded-lg flex flex-col items-center justify-center transition-all">
+                            <span class="material-symbols-outlined text-lg">science</span>
+                            <span class="text-[8px] font-bold uppercase opacity-50 mt-1">Dry Run</span>
+                        </button>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2">
+                        <button class="bg-red-500/10 text-red-500 border border-red-500/20 py-2 rounded font-bold text-[10px] uppercase hover:bg-red-500 hover:text-white transition-all">
+                            ABORT
+                        </button>
+                        <button class="bg-amber-500/10 text-amber-500 border border-amber-500/20 py-2 rounded font-bold text-[10px] uppercase hover:bg-amber-500 hover:text-white transition-all">
+                            PAUSE
+                        </button>
+                    </div>
+
+                    <!-- Progress Bar -->
+                    <div class="space-y-2">
+                        <div class="flex justify-between items-end">
+                            <span class="text-[9px] font-bold font-label uppercase text-on-surface-variant">Progression</span>
+                            <span class="text-xs font-mono font-bold text-primary">@ViewModel.DxfProgressCurrent / @ViewModel.DxfProgressTotal</span>
+                        </div>
+                        <div class="h-1.5 w-full bg-surface-container-high rounded-full overflow-hidden">
+                            <div class="bg-primary h-full transition-all duration-300" style="width: @(ViewModel.DxfProgressTotal > 0 ? (ViewModel.DxfProgressCurrent * 100.0 / ViewModel.DxfProgressTotal) : 0)%"></div>
+                        </div>
+                    </div>
+
+                    <!-- Targets Monitor -->
+                    <div class="bg-surface-container-low p-3 rounded-lg border border-outline-variant/10 space-y-2">
+                        <span class="text-[8px] font-bold uppercase text-on-surface-variant/50">Next Target Command</span>
+                        <div class="flex justify-between items-center text-on-surface">
+                            <div class="flex flex-col">
+                                <span class="text-[7px] text-on-surface-variant uppercase">X Pos</span>
+                                <span class="text-sm font-mono font-bold leading-none">@ViewModel.DxfCurrX.ToString("F3")</span>
+                            </div>
+                            <div class="flex flex-col">
+                                <span class="text-[7px] text-on-surface-variant uppercase">Y Pos</span>
+                                <span class="text-sm font-mono font-bold leading-none">@ViewModel.DxfCurrY.ToString("F3")</span>
+                            </div>
+                            <div class="flex flex-col">
+                                <span class="text-[7px] text-on-surface-variant uppercase">Feedrate</span>
+                                <span class="text-sm font-mono font-bold leading-none text-primary">@ViewModel.DxfCurrFeed.ToString("F0")</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center justify-between py-1">
+                        <div class="flex items-center gap-2">
+                            <span class="text-[9px] font-bold uppercase text-on-surface-variant">Step-by-step mode</span>
+                        </div>
+                        <div class="w-8 h-4 bg-primary/20 rounded-full relative cursor-pointer" @onclick="() => ViewModel.DxfStepMode = !ViewModel.DxfStepMode">
+                            <div class="absolute top-0.5 w-3 h-3 rounded-full transition-all duration-300 @(ViewModel.DxfStepMode ? "right-0.5 bg-primary" : "left-0.5 bg-on-surface-variant/40")"></div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </div>
+</div>
+
+<style>
+    .custom-scrollbar::-webkit-scrollbar {
+        width: 4px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+        background: transparent;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+        background: var(--outline-variant);
+        border-radius: 10px;
+        opacity: 0.3;
+    }
+    
+    @@keyframes pulse {
+        0%, 100% { opacity: 0.05; }
+        50% { opacity: 0.15; }
+    }
+    .animate-pulse {
+        animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+</style>
+
+@code {
+    protected override void OnInitialized()
+    {
+        ViewModel.PropertyChanged += (s, e) => StateHasChanged();
+    }
+}

@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "dgSpecHash": "a6okCl+jhIE=",
+  "dgSpecHash": "fYrep5Og3lE=",
   "success": true,
   "projectFilePath": "E:\\hoctap\\nam4_ky3\\1.DO-AN-CDT\\APP\\DANCDT\\GantrySCADA\\GantrySCADA.csproj",
   "expectedPackageFiles": [
@@ -31,6 +31,7 @@
     "C:\\Users\\Opposan1112\\.nuget\\packages\\microsoft.extensions.primitives\\8.0.0\\microsoft.extensions.primitives.8.0.0.nupkg.sha512",
     "C:\\Users\\Opposan1112\\.nuget\\packages\\microsoft.jsinterop\\8.0.0\\microsoft.jsinterop.8.0.0.nupkg.sha512",
     "C:\\Users\\Opposan1112\\.nuget\\packages\\microsoft.web.webview2\\1.0.2592.51\\microsoft.web.webview2.1.0.2592.51.nupkg.sha512",
+    "C:\\Users\\Opposan1112\\.nuget\\packages\\netdxf\\2023.11.10\\netdxf.2023.11.10.nupkg.sha512",
     "C:\\Users\\Opposan1112\\.nuget\\packages\\system.io.pipelines\\8.0.0\\system.io.pipelines.8.0.0.nupkg.sha512",
     "C:\\Users\\Opposan1112\\.nuget\\packages\\system.text.encodings.web\\8.0.0\\system.text.encodings.web.8.0.0.nupkg.sha512",
     "C:\\Users\\Opposan1112\\.nuget\\packages\\system.text.json\\8.0.0\\system.text.json.8.0.0.nupkg.sha512"

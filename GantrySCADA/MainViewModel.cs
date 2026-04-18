@@ -29,6 +29,8 @@ namespace WPF_Test_PLC20260124
             AddLog("UI", "info", "Application started");
             AddLog("PC", "info", "MainViewModel initialized");
             AddLog("PC", "info", "Monitor thread started @ 100Hz");
+
+            InitializeDxfFeature();
         }
 
         private void ConnectPLC()

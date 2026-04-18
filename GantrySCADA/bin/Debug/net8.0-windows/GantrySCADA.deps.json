@@ -10,6 +10,7 @@
         "dependencies": {
           "CommunityToolkit.Mvvm": "8.4.2",
           "Microsoft.AspNetCore.Components.WebView.Wpf": "8.0.82",
+          "netDxf": "2023.11.10",
           "NVKProject.Logger": "1.0.0.0",
           "NVKProject.PLC": "1.0.0.0"
         },
@@ -337,6 +338,14 @@
           }
         }
       },
+      "netDxf/2023.11.10": {
+        "runtime": {
+          "lib/net6.0/netDxf.dll": {
+            "assemblyVersion": "2023.11.10.0",
+            "fileVersion": "2023.11.10.0"
+          }
+        }
+      },
       "System.IO.Pipelines/8.0.0": {
         "runtime": {
           "lib/net8.0/System.IO.Pipelines.dll": {
@@ -563,6 +572,13 @@
       "sha512": "sha512-AC9aWCthS2JvddYA1jl4dFpLBW3GsLRInhp5dkcBzaFXsRehfoUN9olIUsrH41eNaNYd7z9NRvmy81aUA5aD1g==",
       "path": "microsoft.web.webview2/1.0.2592.51",
       "hashPath": "microsoft.web.webview2.1.0.2592.51.nupkg.sha512"
+    },
+    "netDxf/2023.11.10": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-7BFtw6P5Zfli59HJJ3INq6InaWzgNnC7qQopP+5H8CUg/7FjUX0qG63kLLPplOy1sZSjnwGzAPEjk67g1O7LuQ==",
+      "path": "netdxf/2023.11.10",
+      "hashPath": "netdxf.2023.11.10.nupkg.sha512"
     },
     "System.IO.Pipelines/8.0.0": {
       "type": "package",

@@ -522,6 +522,19 @@
           }
         }
       },
+      "netDxf/2023.11.10": {
+        "type": "package",
+        "compile": {
+          "lib/net6.0/netDxf.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/net6.0/netDxf.dll": {
+            "related": ".xml"
+          }
+        }
+      },
       "System.IO.Pipelines/8.0.0": {
         "type": "package",
         "compile": {
@@ -1413,6 +1426,22 @@
         "tools/wv2winrt/zh-Hant/System.CommandLine.resources.dll"
       ]
     },
+    "netDxf/2023.11.10": {
+      "sha512": "7BFtw6P5Zfli59HJJ3INq6InaWzgNnC7qQopP+5H8CUg/7FjUX0qG63kLLPplOy1sZSjnwGzAPEjk67g1O7LuQ==",
+      "type": "package",
+      "path": "netdxf/2023.11.10",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "README.md",
+        "lib/net48/netDxf.dll",
+        "lib/net48/netDxf.xml",
+        "lib/net6.0/netDxf.dll",
+        "lib/net6.0/netDxf.xml",
+        "netdxf.2023.11.10.nupkg.sha512",
+        "netdxf.nuspec"
+      ]
+    },
     "System.IO.Pipelines/8.0.0": {
       "sha512": "FHNOatmUq0sqJOkTx+UF/9YK1f180cnW5FVqnQMvYUN0elp6wFzbtPSiqbo1/ru8ICp43JM1i7kKkk6GsNGHlA==",
       "type": "package",
@@ -1554,7 +1583,8 @@
   "projectFileDependencyGroups": {
     "net8.0-windows7.0": [
       "CommunityToolkit.Mvvm >= 8.4.2",
-      "Microsoft.AspNetCore.Components.WebView.Wpf >= 8.0.82"
+      "Microsoft.AspNetCore.Components.WebView.Wpf >= 8.0.82",
+      "netDxf >= 2023.11.10"
     ]
   },
   "packageFolders": {
@@ -1614,6 +1644,10 @@
           "Microsoft.AspNetCore.Components.WebView.Wpf": {
             "target": "Package",
             "version": "[8.0.82, )"
+          },
+          "netDxf": {
+            "target": "Package",
+            "version": "[2023.11.10, )"
           }
         },
         "imports": [

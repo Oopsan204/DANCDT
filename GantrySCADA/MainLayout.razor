@@ -14,7 +14,9 @@
                 <a class="@(IsActive("logmonitor") ? "text-primary border-b-2 border-primary" : "text-on-surface-variant hover:text-primary") transition-colors font-label text-xs uppercase tracking-[0.05em] py-5" href="logmonitor">Logs</a>
                 <a class="@(IsActive("telemetry") ? "text-primary border-b-2 border-primary" : "text-on-surface-variant hover:text-primary") transition-colors font-label text-xs uppercase tracking-[0.05em] py-5" href="telemetry">Telemetry</a>
                 <a class="@(IsActive("settings") ? "text-primary border-b-2 border-primary" : "text-on-surface-variant hover:text-primary") transition-colors font-label text-xs uppercase tracking-[0.05em] py-5" href="settings">System Settings</a>
+                <a class="@(IsActive("dxf-run") ? "text-primary border-b-2 border-primary" : "text-on-surface-variant hover:text-primary") transition-colors font-label text-xs uppercase tracking-[0.05em] py-5" href="dxf-run">DXF Run</a>
             </div>
+
         </div>
         <div class="flex items-center gap-3">
             <!-- ✦ Theme Toggle Button -->
@@ -59,7 +61,11 @@
             <a class="flex items-center gap-3 px-6 py-3 @(IsActive("settings") ? "bg-surface-container-lowest text-primary border-l-4 border-primary shadow-sm" : "text-on-surface-variant hover:bg-surface-container-low") transition-all font-label text-xs font-bold uppercase tracking-[0.05em]" href="settings">
                 <span class="material-symbols-outlined text-lg">settings</span> Settings
             </a>
+            <a class="flex items-center gap-3 px-6 py-3 @(IsActive("dxf-run") ? "bg-surface-container-lowest text-primary border-l-4 border-primary shadow-sm" : "text-on-surface-variant hover:bg-surface-container-low") transition-all font-label text-xs font-bold uppercase tracking-[0.05em]" href="dxf-run">
+                <span class="material-symbols-outlined text-lg">data_object</span> DXF Run
+            </a>
         </nav>
+
         <div class="px-6 mt-auto flex flex-col gap-4">
             <button class="w-full py-3 bg-tertiary text-white font-label font-bold text-xs uppercase tracking-wider rounded-lg hover:brightness-110 transition-all">
                 EMERGENCY STOP
