@@ -197,6 +197,82 @@ namespace WPF_Test_PLC20260124
             set { _dReadEnable = value; OnPropertyChanged(); }
         }
 
+        // Configurable source mapping for X/Y/Z coordinate display (Dashboard/Control tab)
+        private string _posAddrTypeX = "D";
+        public string PosAddrTypeX
+        {
+            get => _posAddrTypeX;
+            set
+            {
+                _posAddrTypeX = NormalizeAddrType(value);
+                OnPropertyChanged();
+            }
+        }
+
+        private int _posAddrIndexX = 1000;
+        public int PosAddrIndexX
+        {
+            get => _posAddrIndexX;
+            set { _posAddrIndexX = value; OnPropertyChanged(); }
+        }
+
+        private bool _posAddrXRead32 = true;
+        public bool PosAddrXRead32
+        {
+            get => _posAddrXRead32;
+            set { _posAddrXRead32 = value; OnPropertyChanged(); }
+        }
+
+        private string _posAddrTypeY = "D";
+        public string PosAddrTypeY
+        {
+            get => _posAddrTypeY;
+            set
+            {
+                _posAddrTypeY = NormalizeAddrType(value);
+                OnPropertyChanged();
+            }
+        }
+
+        private int _posAddrIndexY = 1002;
+        public int PosAddrIndexY
+        {
+            get => _posAddrIndexY;
+            set { _posAddrIndexY = value; OnPropertyChanged(); }
+        }
+
+        private bool _posAddrYRead32 = true;
+        public bool PosAddrYRead32
+        {
+            get => _posAddrYRead32;
+            set { _posAddrYRead32 = value; OnPropertyChanged(); }
+        }
+
+        private string _posAddrTypeZ = "D";
+        public string PosAddrTypeZ
+        {
+            get => _posAddrTypeZ;
+            set
+            {
+                _posAddrTypeZ = NormalizeAddrType(value);
+                OnPropertyChanged();
+            }
+        }
+
+        private int _posAddrIndexZ = 1004;
+        public int PosAddrIndexZ
+        {
+            get => _posAddrIndexZ;
+            set { _posAddrIndexZ = value; OnPropertyChanged(); }
+        }
+
+        private bool _posAddrZRead32 = true;
+        public bool PosAddrZRead32
+        {
+            get => _posAddrZRead32;
+            set { _posAddrZRead32 = value; OnPropertyChanged(); }
+        }
+
         // Custom Memory Stream: for user to read arbitrary addresses
         private int _customMemoryRefresh = 0;
         public int CustomMemoryRefresh
@@ -318,6 +394,55 @@ namespace WPF_Test_PLC20260124
             double offset = axis switch { "X" => PosOffsetX, "Y" => PosOffsetY, "Z" => PosOffsetZ, _ => 0.0 };
             double scaledValue = (rawValue * scale) + offset;
             return scaledValue.ToString("F" + PosDecimals);
+        }
+
+        private static string NormalizeAddrType(string? addrType)
+        {
+            string t = string.IsNullOrWhiteSpace(addrType) ? "D" : addrType.Trim().ToUpperInvariant();
+            return t is "D" or "M" or "X" or "Y" ? t : "D";
+        }
+
+        private int ReadCoordinateSourceValue(string addrType, int addrIndex, bool read32Bit, int fallbackValue)
+        {
+            try
+            {
+                string t = NormalizeAddrType(addrType);
+                if (t == "D")
+                {
+                    if (read32Bit)
+                    {
+                        int[] words32 = ePLC.ReadDeviceBlock(ePLCControl.SubCommand.Word, ePLCControl.DeviceName.D, $"{addrIndex}", 2);
+                        if (words32 != null && words32.Length >= 2)
+                            return words32[0] | (words32[1] << 16);
+                    }
+                    else
+                    {
+                        int[] words16 = ePLC.ReadDeviceBlock(ePLCControl.SubCommand.Word, ePLCControl.DeviceName.D, $"{addrIndex}", 1);
+                        if (words16 != null && words16.Length >= 1)
+                            return words16[0];
+                    }
+
+                    return fallbackValue;
+                }
+
+                ePLCControl.DeviceName device = t switch
+                {
+                    "M" => ePLCControl.DeviceName.M,
+                    "X" => ePLCControl.DeviceName.X,
+                    "Y" => ePLCControl.DeviceName.Y,
+                    _ => ePLCControl.DeviceName.D
+                };
+
+                int[] bit = ePLC.ReadDeviceBlock(ePLCControl.SubCommand.Bit, device, $"{addrIndex}", 1);
+                if (bit != null && bit.Length >= 1)
+                    return bit[0];
+
+                return fallbackValue;
+            }
+            catch
+            {
+                return fallbackValue;
+            }
         }
         #endregion
         #region Commands
@@ -624,42 +749,48 @@ namespace WPF_Test_PLC20260124
 
         private void Read()
         {
-            // Read enable flag at configurable address (DReadEnable). If non-zero -> proceed; otherwise skip reading 32-bit values.
+            // Always update X/Y/Z from configured source mapping.
+            // DReadEnable only controls legacy D32 block reads used as fallback values.
+            bool enableLegacyD32 = false;
+
+            // Keep previous values as fallback so one failed read does not freeze coordinates at 0.
+            int[] newR32 = (arr_R32 != null && arr_R32.Length == 6)
+                ? (int[])arr_R32.Clone()
+                : new int[6];
+
             try
             {
                 int[] flag = ePLC.ReadDeviceBlock(ePLCControl.SubCommand.Word, ePLCControl.DeviceName.D, $"{DReadEnable}", 1);
-                if (flag == null || flag.Length == 0)
+                enableLegacyD32 = flag != null && flag.Length > 0 && flag[0] != 0;
+            }
+            catch { }
+
+            try
+            {
+                int[] newData = ePLC.ReadDeviceBlock(ePLCControl.SubCommand.Word, ePLCControl.DeviceName.D, $"{D_R_V}", Length);
+                if (newData != null && newData.Length > 0)
                 {
-                    // fallback: still read default block
-                    int[] newData = ePLC.ReadDeviceBlock(ePLCControl.SubCommand.Word, ePLCControl.DeviceName.D, $"{D_R_V}", Length);
-                    if (newData != null && newData.Length > 0)
-                    {
-                        Array.Copy(newData, _arr_R_V, Math.Min(newData.Length, _arr_R_V.Length));
-                        OnPropertyChanged(nameof(arr_R_V));  // ✓ Notify UI
-                    }
-                    return;
+                    Array.Copy(newData, _arr_R_V, Math.Min(newData.Length, _arr_R_V.Length));
+                    OnPropertyChanged(nameof(arr_R_V));
                 }
-
-                if (flag[0] != 0)
+            }
+            catch (Exception ex)
+            {
+                if ((DateTime.Now - _lastReadLogTime).TotalSeconds >= 1.0)
                 {
-                    // Read normal block (if still needed)
-                    int[] newData = ePLC.ReadDeviceBlock(ePLCControl.SubCommand.Word, ePLCControl.DeviceName.D, $"{D_R_V}", Length);
-                    if (newData != null && newData.Length > 0)
-                    {
-                        Array.Copy(newData, _arr_R_V, Math.Min(newData.Length, _arr_R_V.Length));
-                        OnPropertyChanged(nameof(arr_R_V));  // ✓ Notify UI
-                    }
+                    AddLog("PC", "warning", $"Read D{D_R_V} failed: {ex.Message}", "Read-D");
+                }
+            }
 
-                    // Read blocks for 32-bit values using configurable bases
+            if (enableLegacyD32)
+            {
+                try
+                {
                     int[] b1 = ePLC.ReadDeviceBlock(ePLCControl.SubCommand.Word, ePLCControl.DeviceName.D, $"{D32Base1}", 6);
                     int[] b2 = ePLC.ReadDeviceBlock(ePLCControl.SubCommand.Word, ePLCControl.DeviceName.D, $"{D32Base2}", 6);
 
-                    // Build new array so SetProperty detects reference change -> triggers PropertyChanged
-                    int[] newR32 = new int[6];
-
                     if (b1 != null && b1.Length >= 6)
                     {
-                        // combine pairs (low word | high word << 16): (0,1), (2,3), (4,5)
                         for (int i = 0; i < 3; i++)
                             newR32[i] = b1[i * 2] | (b1[i * 2 + 1] << 16);
                     }
@@ -669,75 +800,62 @@ namespace WPF_Test_PLC20260124
                         for (int i = 0; i < 3; i++)
                             newR32[3 + i] = b2[i * 2] | (b2[i * 2 + 1] << 16);
                     }
-
-                    // Assign via property setter -> SetProperty -> OnPropertyChanged -> UI refresh
-                    arr_R32 = newR32;
-                    
-                    // Read M/X/Y registers - create new arrays to trigger PropertyChanged
-                    try
-                    {
-                        int[] mData = ePLC.ReadDeviceBlock(ePLCControl.SubCommand.Bit, ePLCControl.DeviceName.M, $"{M_R_Base}", 100);
-                        if (mData != null && mData.Length > 0)
-                        {
-                            int[] newM = new int[_arr_R_M.Length];
-                            Array.Copy(mData, newM, Math.Min(mData.Length, newM.Length));
-                            arr_R_M = newM;  // Assign via property setter to trigger PropertyChanged
-                        }
-
-                        int[] xData = ePLC.ReadDeviceBlock(ePLCControl.SubCommand.Bit, ePLCControl.DeviceName.X, $"{X_R_Base}", 100);
-                        if (xData != null && xData.Length > 0)
-                        {
-                            int[] newX = new int[_arr_R_X.Length];
-                            Array.Copy(xData, newX, Math.Min(xData.Length, newX.Length));
-                            arr_R_X = newX;  // Assign via property setter to trigger PropertyChanged
-                        }
-
-                        int[] yData = ePLC.ReadDeviceBlock(ePLCControl.SubCommand.Bit, ePLCControl.DeviceName.Y, $"{Y_R_Base}", 100);
-                        if (yData != null && yData.Length > 0)
-                        {
-                            int[] newY = new int[_arr_R_Y.Length];
-                            Array.Copy(yData, newY, Math.Min(yData.Length, newY.Length));
-                            arr_R_Y = newY;  // Assign via property setter to trigger PropertyChanged
-                        }
-                    }
-                    catch { }
-                    
-                    // ✓ Log every 1 second to avoid flooding log window
+                }
+                catch (Exception ex)
+                {
                     if ((DateTime.Now - _lastReadLogTime).TotalSeconds >= 1.0)
                     {
-                        AddLog("PC", "success", $"Read D{D_R_V}({Length} words) + D32-blocks + M/X/Y → OK", "Monitor cycle");
-                        _lastReadLogTime = DateTime.Now;
-                    }
-                }
-                else
-                {
-                    // If flag is 0, still update arr_R_V (optional) or skip reading arr_R32
-                    int[] newData = ePLC.ReadDeviceBlock(ePLCControl.SubCommand.Word, ePLCControl.DeviceName.D, $"{D_R_V}", Length);
-                    if (newData != null && newData.Length > 0)
-                    {
-                        Array.Copy(newData, _arr_R_V, Math.Min(newData.Length, _arr_R_V.Length));
-                        OnPropertyChanged(nameof(arr_R_V));  // ✓ Notify UI
+                        AddLog("PC", "warning", $"Legacy D32 read failed: {ex.Message}", "Read-D32");
                     }
                 }
             }
-            catch (Exception ex)
+
+            // These three mapped coordinates are independent from D_R_V / D32 blocks.
+            newR32[0] = ReadCoordinateSourceValue(PosAddrTypeX, PosAddrIndexX, PosAddrXRead32, newR32[0]);
+            newR32[1] = ReadCoordinateSourceValue(PosAddrTypeY, PosAddrIndexY, PosAddrYRead32, newR32[1]);
+            newR32[2] = ReadCoordinateSourceValue(PosAddrTypeZ, PosAddrIndexZ, PosAddrZRead32, newR32[2]);
+
+            arr_R32 = newR32;
+
+            ReadBitRegisters();
+
+            if ((DateTime.Now - _lastReadLogTime).TotalSeconds >= 1.0)
             {
-                // on exception, try to read fallback block
-                try 
-                { 
-                    int[] newData = ePLC.ReadDeviceBlock(ePLCControl.SubCommand.Word, ePLCControl.DeviceName.D, $"{D_R_V}", Length);
-                    if (newData != null && newData.Length > 0)
-                    {
-                        Array.Copy(newData, _arr_R_V, Math.Min(newData.Length, _arr_R_V.Length));
-                        OnPropertyChanged(nameof(arr_R_V));  // ✓ Notify UI
-                    }
-                } 
-                catch { }
-                
-                // ✓ Log read errors
-                AddLog("PC", "error", $"Read failed: {ex.Message}", ex.GetType().Name);
+                string legacyState = enableLegacyD32 ? "D32-on" : "D32-off";
+                AddLog("PC", "success", $"Read D{D_R_V}({Length}) + CoordMap(XYZ) + M/X/Y [{legacyState}] → OK", "Monitor cycle");
                 _lastReadLogTime = DateTime.Now;
             }
+        }
+
+        private void ReadBitRegisters()
+        {
+            try
+            {
+                int[] mData = ePLC.ReadDeviceBlock(ePLCControl.SubCommand.Bit, ePLCControl.DeviceName.M, $"{M_R_Base}", 100);
+                if (mData != null && mData.Length > 0)
+                {
+                    int[] newM = new int[_arr_R_M.Length];
+                    Array.Copy(mData, newM, Math.Min(mData.Length, newM.Length));
+                    arr_R_M = newM;
+                }
+
+                int[] xData = ePLC.ReadDeviceBlock(ePLCControl.SubCommand.Bit, ePLCControl.DeviceName.X, $"{X_R_Base}", 100);
+                if (xData != null && xData.Length > 0)
+                {
+                    int[] newX = new int[_arr_R_X.Length];
+                    Array.Copy(xData, newX, Math.Min(xData.Length, newX.Length));
+                    arr_R_X = newX;
+                }
+
+                int[] yData = ePLC.ReadDeviceBlock(ePLCControl.SubCommand.Bit, ePLCControl.DeviceName.Y, $"{Y_R_Base}", 100);
+                if (yData != null && yData.Length > 0)
+                {
+                    int[] newY = new int[_arr_R_Y.Length];
+                    Array.Copy(yData, newY, Math.Min(yData.Length, newY.Length));
+                    arr_R_Y = newY;
+                }
+            }
+            catch { }
         }
         private bool ReadDevice(int iAddress)
         {
@@ -807,7 +925,15 @@ namespace WPF_Test_PLC20260124
                             _ => ePLCControl.DeviceName.D
                         };
 
-                        int[] result = ePLC.ReadDeviceBlock(ePLCControl.SubCommand.Word, devName, $"{entry.AddrIndex}", 1);
+                        var subCommand = entry.AddrType switch
+                        {
+                            "M" => ePLCControl.SubCommand.Bit,
+                            "X" => ePLCControl.SubCommand.Bit,
+                            "Y" => ePLCControl.SubCommand.Bit,
+                            _ => ePLCControl.SubCommand.Word
+                        };
+
+                        int[] result = ePLC.ReadDeviceBlock(subCommand, devName, $"{entry.AddrIndex}", 1);
                         if (result != null && result.Length > 0)
                         {
                             entry.CurrentValue = result[0];
@@ -903,26 +1029,54 @@ namespace WPF_Test_PLC20260124
         {
             try
             {
-                if (ePLC != null && ePLC.IsConnected)
+                if (ePLC == null || !ePLC.IsConnected || !Status)
                 {
-                    int[] bitValue = { 1 };
-                    ePLC.WriteDeviceBlock(ePLCControl.SubCommand.Bit, ePLCControl.DeviceName.M, $"{markAddress}", bitValue);
+                    AddLog("UI", "warning", $"Jog start ignored (PLC disconnected): M{markAddress}");
+                    return;
                 }
+
+                int offset = markAddress - M_W_Base;
+                if (offset < 0 || offset >= arr_W_M.Length)
+                {
+                    AddLog("UI", "error", $"Jog start out of range: M{markAddress}", $"Valid range M{M_W_Base}..M{M_W_Base + arr_W_M.Length - 1}");
+                    return;
+                }
+
+                arr_W_M[offset] = 1;
+                MarkPendingWrite("M", markAddress, 1);
+                AddLog("UI", "info", $"Jog start queued M{markAddress}=1");
             }
-            catch { }
+            catch (Exception ex)
+            {
+                AddLog("PC", "error", $"Jog start failed M{markAddress}: {ex.Message}", "JogStart");
+            }
         }
 
         public void JogStop(int markAddress)
         {
             try
             {
-                if (ePLC != null && ePLC.IsConnected)
+                if (ePLC == null || !ePLC.IsConnected || !Status)
                 {
-                    int[] bitValue = { 0 };
-                    ePLC.WriteDeviceBlock(ePLCControl.SubCommand.Bit, ePLCControl.DeviceName.M, $"{markAddress}", bitValue);
+                    AddLog("UI", "warning", $"Jog stop ignored (PLC disconnected): M{markAddress}");
+                    return;
                 }
+
+                int offset = markAddress - M_W_Base;
+                if (offset < 0 || offset >= arr_W_M.Length)
+                {
+                    AddLog("UI", "error", $"Jog stop out of range: M{markAddress}", $"Valid range M{M_W_Base}..M{M_W_Base + arr_W_M.Length - 1}");
+                    return;
+                }
+
+                arr_W_M[offset] = 0;
+                MarkPendingWrite("M", markAddress, 0);
+                AddLog("UI", "info", $"Jog stop queued M{markAddress}=0");
             }
-            catch { }
+            catch (Exception ex)
+            {
+                AddLog("PC", "error", $"Jog stop failed M{markAddress}: {ex.Message}", "JogStop");
+            }
         }
 
         // Global log method for all components

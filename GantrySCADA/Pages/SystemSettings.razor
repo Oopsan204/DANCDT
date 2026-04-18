@@ -219,6 +219,101 @@
                 </div>
             </div>
 
+            <!-- Card 0: Coordinate Source Mapping -->
+            <div class="settings-card">
+                <div class="card-header accent-blue">
+                    <span class="material-symbols-outlined">route</span>
+                    <div>
+                        <h3 class="card-title">Coordinate Read Source</h3>
+                        <p class="card-subtitle">Configure X/Y/Z read addresses like Telemetry monitor entries</p>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <table class="config-table">
+                        <thead>
+                            <tr>
+                                <th>Axis</th>
+                                <th>Addr Type</th>
+                                <th>Address Index</th>
+                                <th>D Read Mode</th>
+                                <th>Preview Source</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><span class="axis-badge axis-x">X</span></td>
+                                <td>
+                                    <select class="scale-select" @bind="ViewModel.PosAddrTypeX">
+                                        <option value="D">D</option>
+                                        <option value="M">M</option>
+                                        <option value="X">X</option>
+                                        <option value="Y">Y</option>
+                                    </select>
+                                </td>
+                                <td><input class="addr-input" type="number" min="0" max="9999" @bind="ViewModel.PosAddrIndexX" /></td>
+                                <td>
+                                    @if (ViewModel.PosAddrTypeX == "D")
+                                    {
+                                        <label class="mode-checkbox"><input type="checkbox" @bind="ViewModel.PosAddrXRead32" /> 32-bit (addr + addr+1)</label>
+                                    }
+                                    else
+                                    {
+                                        <span class="mono-val">Bit read (0/1)</span>
+                                    }
+                                </td>
+                                <td class="mono-val">@ViewModel.PosAddrTypeX@ViewModel.PosAddrIndexX</td>
+                            </tr>
+                            <tr>
+                                <td><span class="axis-badge axis-y">Y</span></td>
+                                <td>
+                                    <select class="scale-select" @bind="ViewModel.PosAddrTypeY">
+                                        <option value="D">D</option>
+                                        <option value="M">M</option>
+                                        <option value="X">X</option>
+                                        <option value="Y">Y</option>
+                                    </select>
+                                </td>
+                                <td><input class="addr-input" type="number" min="0" max="9999" @bind="ViewModel.PosAddrIndexY" /></td>
+                                <td>
+                                    @if (ViewModel.PosAddrTypeY == "D")
+                                    {
+                                        <label class="mode-checkbox"><input type="checkbox" @bind="ViewModel.PosAddrYRead32" /> 32-bit (addr + addr+1)</label>
+                                    }
+                                    else
+                                    {
+                                        <span class="mono-val">Bit read (0/1)</span>
+                                    }
+                                </td>
+                                <td class="mono-val">@ViewModel.PosAddrTypeY@ViewModel.PosAddrIndexY</td>
+                            </tr>
+                            <tr>
+                                <td><span class="axis-badge axis-z">Z</span></td>
+                                <td>
+                                    <select class="scale-select" @bind="ViewModel.PosAddrTypeZ">
+                                        <option value="D">D</option>
+                                        <option value="M">M</option>
+                                        <option value="X">X</option>
+                                        <option value="Y">Y</option>
+                                    </select>
+                                </td>
+                                <td><input class="addr-input" type="number" min="0" max="9999" @bind="ViewModel.PosAddrIndexZ" /></td>
+                                <td>
+                                    @if (ViewModel.PosAddrTypeZ == "D")
+                                    {
+                                        <label class="mode-checkbox"><input type="checkbox" @bind="ViewModel.PosAddrZRead32" /> 32-bit (addr + addr+1)</label>
+                                    }
+                                    else
+                                    {
+                                        <span class="mono-val">Bit read (0/1)</span>
+                                    }
+                                </td>
+                                <td class="mono-val">@ViewModel.PosAddrTypeZ@ViewModel.PosAddrIndexZ</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
             <!-- Card 1: Display Scaling -->
             <div class="settings-card">
                 <div class="card-header accent-amber">
@@ -303,7 +398,7 @@
                                 @ViewModel.GetFormattedPosition(ViewModel.arr_R32.Length > 0 ? ViewModel.arr_R32[0] : 0, "X")
                                 <span class="pos-unit">@ViewModel.PosUnit</span>
                             </div>
-                            <div class="pos-card-index">Raw: @(ViewModel.arr_R32.Length > 0 ? ViewModel.arr_R32[0] : 0)</div>
+                            <div class="pos-card-index">Raw (@ViewModel.PosAddrTypeX@ViewModel.PosAddrIndexX): @(ViewModel.arr_R32.Length > 0 ? ViewModel.arr_R32[0] : 0)</div>
                         </div>
                         <!-- Y -->
                         <div class="pos-preview-card axis-y-card">
@@ -315,7 +410,7 @@
                                 @ViewModel.GetFormattedPosition(ViewModel.arr_R32.Length > 1 ? ViewModel.arr_R32[1] : 0, "Y")
                                 <span class="pos-unit">@ViewModel.PosUnit</span>
                             </div>
-                            <div class="pos-card-index">Raw: @(ViewModel.arr_R32.Length > 1 ? ViewModel.arr_R32[1] : 0)</div>
+                            <div class="pos-card-index">Raw (@ViewModel.PosAddrTypeY@ViewModel.PosAddrIndexY): @(ViewModel.arr_R32.Length > 1 ? ViewModel.arr_R32[1] : 0)</div>
                         </div>
                         <!-- Z -->
                         <div class="pos-preview-card axis-z-card">
@@ -327,7 +422,7 @@
                                 @ViewModel.GetFormattedPosition(ViewModel.arr_R32.Length > 2 ? ViewModel.arr_R32[2] : 0, "Z")
                                 <span class="pos-unit">@ViewModel.PosUnit</span>
                             </div>
-                            <div class="pos-card-index">Raw: @(ViewModel.arr_R32.Length > 2 ? ViewModel.arr_R32[2] : 0)</div>
+                            <div class="pos-card-index">Raw (@ViewModel.PosAddrTypeZ@ViewModel.PosAddrIndexZ): @(ViewModel.arr_R32.Length > 2 ? ViewModel.arr_R32[2] : 0)</div>
                         </div>
                     </div>
                 </div>
@@ -479,6 +574,7 @@
     .scaling-group { display: flex; flex-direction: column; gap: 6px; }
     .scale-label { font-size: 11px; font-weight: 700; color: var(--c-on-surface-variant); text-transform: uppercase; }
     .scale-select { padding: 6px 12px; border-radius: 4px; border: 1px solid var(--c-outline-variant); background: var(--c-surface-container-low); color: var(--c-on-surface); font-size: 12px; }
+    .mode-checkbox { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: var(--c-on-surface-variant); }
     .divider { height: 1px; background: var(--c-outline-variant); margin: 20px 0; opacity: 0.5; }
     .position-preview-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
     .pos-preview-card { padding: 20px; border-radius: 12px; background: var(--c-surface-container-low); border-top: 4px solid var(--c-primary); text-align: center; }
@@ -546,5 +642,15 @@
         ViewModel.PosOffsetX = 0;
         ViewModel.PosOffsetY = 0;
         ViewModel.PosOffsetZ = 0;
+
+        ViewModel.PosAddrTypeX = "D";
+        ViewModel.PosAddrTypeY = "D";
+        ViewModel.PosAddrTypeZ = "D";
+        ViewModel.PosAddrIndexX = 1000;
+        ViewModel.PosAddrIndexY = 1002;
+        ViewModel.PosAddrIndexZ = 1004;
+        ViewModel.PosAddrXRead32 = true;
+        ViewModel.PosAddrYRead32 = true;
+        ViewModel.PosAddrZRead32 = true;
     }
 }
