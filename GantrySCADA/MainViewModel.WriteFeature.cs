@@ -53,11 +53,99 @@ namespace WPF_Test_PLC20260124
                                 _ => NVKProject.PLC.ePLCControl.DeviceName.Y
                             };
 
-                            ePLC.WriteDeviceBlock(
-                                NVKProject.PLC.ePLCControl.SubCommand.Bit,
-                                devName,
-                                $"{p.AddrIndex}",
-                                new[] { p.Value });
+                            bool written = false;
+                            Exception? lastWriteEx = null;
+
+                            try
+                            {
+                                ePLC.WriteDeviceBlock(
+                                    NVKProject.PLC.ePLCControl.SubCommand.Bit,
+                                    devName,
+                                    $"{p.AddrIndex}",
+                                    new[] { p.Value });
+                                written = true;
+                            }
+                            catch (Exception exBit)
+                            {
+                                lastWriteEx = exBit;
+                            }
+
+                            if (!written)
+                            {
+                                try
+                                {
+                                    ePLC.WriteDeviceBlock(
+                                        NVKProject.PLC.ePLCControl.SubCommand.Word,
+                                        devName,
+                                        $"{p.AddrIndex}",
+                                        new[] { p.Value });
+                                    written = true;
+                                }
+                                catch (Exception exWord)
+                                {
+                                    lastWriteEx = exWord;
+                                }
+                            }
+
+                            if (!written)
+                            {
+                                try
+                                {
+                                    if (t == "M")
+                                    {
+                                        int offset = p.AddrIndex - M_W_Base;
+                                        if (offset >= 0 && offset < arr_W_M.Length)
+                                        {
+                                            arr_W_M[offset] = p.Value;
+                                            ePLC.WriteDeviceBlock(
+                                                NVKProject.PLC.ePLCControl.SubCommand.Bit,
+                                                NVKProject.PLC.ePLCControl.DeviceName.M,
+                                                $"{M_W_Base}",
+                                                arr_W_M);
+                                            written = true;
+                                        }
+                                    }
+                                    else if (t == "X")
+                                    {
+                                        int offset = p.AddrIndex - X_W_Base;
+                                        if (offset >= 0 && offset < arr_W_X.Length)
+                                        {
+                                            arr_W_X[offset] = p.Value;
+                                            ePLC.WriteDeviceBlock(
+                                                NVKProject.PLC.ePLCControl.SubCommand.Bit,
+                                                NVKProject.PLC.ePLCControl.DeviceName.X,
+                                                $"{X_W_Base}",
+                                                arr_W_X);
+                                            written = true;
+                                        }
+                                    }
+                                    else
+                                    {
+                                        int offset = p.AddrIndex - Y_W_Base;
+                                        if (offset >= 0 && offset < arr_W_Y.Length)
+                                        {
+                                            arr_W_Y[offset] = p.Value;
+                                            ePLC.WriteDeviceBlock(
+                                                NVKProject.PLC.ePLCControl.SubCommand.Bit,
+                                                NVKProject.PLC.ePLCControl.DeviceName.Y,
+                                                $"{Y_W_Base}",
+                                                arr_W_Y);
+                                            written = true;
+                                        }
+                                    }
+                                }
+                                catch (Exception exBlock)
+                                {
+                                    lastWriteEx = exBlock;
+                                }
+                            }
+
+                            if (!written)
+                            {
+                                throw new InvalidOperationException(
+                                    $"Write fallback failed for {t}{p.AddrIndex}: {lastWriteEx?.Message}",
+                                    lastWriteEx);
+                            }
                         }
                         else
                         {

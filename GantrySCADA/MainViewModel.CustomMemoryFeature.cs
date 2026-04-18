@@ -29,10 +29,19 @@ namespace WPF_Test_PLC20260124
             {
                 if (isBitDevice)
                 {
+                    // Some PLC/driver combinations expose bit devices more reliably via BIT reads,
+                    // while others may return data only through WORD reads. Try BIT first.
                     int[] bit = ePLC.ReadDeviceBlock(ePLCControl.SubCommand.Bit, devName, $"{addrIndex}", 1);
                     if (bit != null && bit.Length > 0)
                     {
                         value = bit[0] != 0 ? 1 : 0;
+                        return true;
+                    }
+
+                    int[] wordFallback = ePLC.ReadDeviceBlock(ePLCControl.SubCommand.Word, devName, $"{addrIndex}", 1);
+                    if (wordFallback != null && wordFallback.Length > 0)
+                    {
+                        value = wordFallback[0] != 0 ? 1 : 0;
                         return true;
                     }
 
@@ -50,6 +59,20 @@ namespace WPF_Test_PLC20260124
             }
             catch
             {
+                if (isBitDevice)
+                {
+                    try
+                    {
+                        int[] wordFallback = ePLC.ReadDeviceBlock(ePLCControl.SubCommand.Word, devName, $"{addrIndex}", 1);
+                        if (wordFallback != null && wordFallback.Length > 0)
+                        {
+                            value = wordFallback[0] != 0 ? 1 : 0;
+                            return true;
+                        }
+                    }
+                    catch { }
+                }
+
                 return false;
             }
         }
