@@ -36,7 +36,7 @@ namespace WPF_Test_PLC20260124
         private int _X_W_Base = 100;
         private int _Y_R_Base = 0;
         private int _Y_W_Base = 100;
-        private int _velocityWriteAddress = 5000;
+        private int _velocityWriteAddress = 406;
         private double _velocityWriteScale = 10.0;
         private double _velocitySetpoint = 1.5;
 
