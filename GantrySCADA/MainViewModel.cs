@@ -35,45 +35,141 @@ namespace WPF_Test_PLC20260124
 
         private void ConnectPLC()
         {
-            ePLC = new ePLCControl();
-            ePLC.SetPLCProperties(IpAddress, Port, NetworkNo, StationPLCNo, StationNo);
-            ePLC.Open();
-            Status = ePLC.IsConnected;
-
             AddLog("PLC", "info", $"Connection attempt -> {IpAddress}:{Port}");
-            AddLog("PLC", Status ? "success" : "error",
-                Status ? "PLC connection established" : "PLC connection failed");
 
-            Thread t1 = new Thread(Monitor)
+            try
             {
-                IsBackground = true
-            };
-            t1.Start();
+                lock (_plcSync)
+                {
+                    _monitorStopRequested = false;
+
+                    try
+                    {
+                        ePLC?.Close();
+                    }
+                    catch
+                    {
+                        // Ignore close errors from previous stale connection instance.
+                    }
+
+                    ePLC = new ePLCControl();
+                    ePLC.SetPLCProperties(IpAddress, Port, NetworkNo, StationPLCNo, StationNo);
+                    ePLC.Open();
+                    Status = ePLC.IsConnected;
+                }
+
+                AddLog("PLC", Status ? "success" : "error",
+                    Status ? "PLC connection established" : "PLC connection failed");
+
+                if (Status)
+                {
+                    StartMonitorThread();
+                }
+            }
+            catch (Exception ex)
+            {
+                Status = false;
+                AddLog("PLC", "error", $"PLC connection failed: {ex.Message}", "ConnectPLC");
+            }
         }
 
         private void DisconnectPLC()
         {
+            _monitorStopRequested = true;
             Status = false;
             AddLog("PLC", "warning", "Connection closed by user");
 
-            if (ePLC != null)
+            lock (_plcSync)
             {
-                ePLC.Close();
+                try
+                {
+                    ePLC?.Close();
+                }
+                catch
+                {
+                    // Ignore close errors during manual disconnect.
+                }
+            }
+        }
+
+        private void StartMonitorThread()
+        {
+            lock (_plcSync)
+            {
+                if (_monitorThread != null && _monitorThread.IsAlive)
+                    return;
+
+                _monitorThread = new Thread(Monitor)
+                {
+                    IsBackground = true,
+                    Name = "PLC-Monitor"
+                };
+
+                _monitorThread.Start();
+            }
+        }
+
+        private bool IsConnectedSafe()
+        {
+            lock (_plcSync)
+            {
+                try
+                {
+                    return ePLC != null && ePLC.IsConnected;
+                }
+                catch
+                {
+                    return false;
+                }
             }
         }
 
         private void Monitor()
         {
-            while (Status)
+            if (_monitorRunning)
+                return;
+
+            _monitorRunning = true;
+            bool lostLogged = false;
+
+            try
             {
-                Thread.Sleep(10);
-                Status = ePLC.IsConnected;
-                if (Status)
+                while (!_monitorStopRequested)
                 {
-                    Read();
-                    Write();
-                    RefreshCustomMemory();
+                    Thread.Sleep(10);
+
+                    bool connected = IsConnectedSafe();
+                    Status = connected;
+
+                    if (!connected)
+                    {
+                        if (!lostLogged && !_monitorStopRequested)
+                        {
+                            AddLog("PLC", "warning", "PLC connection lost unexpectedly");
+                            lostLogged = true;
+                        }
+
+                        continue;
+                    }
+
+                    lostLogged = false;
+
+                    try
+                    {
+                        Read();
+                        Write();
+                        RefreshCustomMemory();
+                    }
+                    catch (Exception ex)
+                    {
+                        Status = false;
+                        AddLog("PC", "error", $"Monitor cycle error: {ex.Message}", ex.GetType().Name);
+                    }
                 }
+            }
+            finally
+            {
+                _monitorRunning = false;
             }
         }
     }

@@ -3,6 +3,7 @@ using NVKProject.PLC;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 
 namespace WPF_Test_PLC20260124
 {
@@ -49,6 +50,10 @@ namespace WPF_Test_PLC20260124
         private bool _hasPendingWrites = false;
         private readonly object _pendingWriteLock = new();
         private readonly List<PendingWriteItem> _pendingWriteItems = new();
+        private readonly object _plcSync = new();
+        private Thread? _monitorThread;
+        private volatile bool _monitorStopRequested;
+        private volatile bool _monitorRunning;
 
         private sealed class PendingWriteItem
         {
@@ -202,7 +207,7 @@ namespace WPF_Test_PLC20260124
             }
         }
 
-        private int _posAddrIndexX = 1000;
+        private int _posAddrIndexX = 4000;
         public int PosAddrIndexX
         {
             get => _posAddrIndexX;
@@ -227,7 +232,7 @@ namespace WPF_Test_PLC20260124
             }
         }
 
-        private int _posAddrIndexY = 1002;
+        private int _posAddrIndexY = 4002;
         public int PosAddrIndexY
         {
             get => _posAddrIndexY;
@@ -252,7 +257,7 @@ namespace WPF_Test_PLC20260124
             }
         }
 
-        private int _posAddrIndexZ = 1004;
+        private int _posAddrIndexZ = 4004;
         public int PosAddrIndexZ
         {
             get => _posAddrIndexZ;
@@ -327,7 +332,7 @@ namespace WPF_Test_PLC20260124
             set { _Y_W_Base = value; OnPropertyChanged(); }
         }
 
-        private string _posUnit = "mm";
+        private string _posUnit = "µm";
         public string PosUnit
         {
             get => _posUnit;
