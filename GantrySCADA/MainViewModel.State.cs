@@ -26,6 +26,12 @@ namespace WPF_Test_PLC20260124
         private int _D_W_P = 2000;
         private int _M_R_Base = 0;
         private int _M_W_Base = 3000;
+        private int _jogXPosAddress = 3000;
+        private int _jogXNegAddress = 3001;
+        private int _jogYPosAddress = 3002;
+        private int _jogYNegAddress = 3003;
+        private int _jogZPosAddress = 3004;
+        private int _jogZNegAddress = 3005;
         private int _X_R_Base = 0;
         private int _X_W_Base = 100;
         private int _Y_R_Base = 0;
@@ -54,6 +60,8 @@ namespace WPF_Test_PLC20260124
         private Thread? _monitorThread;
         private volatile bool _monitorStopRequested;
         private volatile bool _monitorRunning;
+        private DateTime _lastReconnectAttempt = DateTime.MinValue;
+        private readonly TimeSpan _reconnectInterval = TimeSpan.FromSeconds(5);
 
         private sealed class PendingWriteItem
         {
@@ -302,6 +310,42 @@ namespace WPF_Test_PLC20260124
             set { _M_W_Base = value; OnPropertyChanged(); }
         }
 
+        public int JogXPosAddress
+        {
+            get => _jogXPosAddress;
+            set { _jogXPosAddress = value; OnPropertyChanged(); }
+        }
+
+        public int JogXNegAddress
+        {
+            get => _jogXNegAddress;
+            set { _jogXNegAddress = value; OnPropertyChanged(); }
+        }
+
+        public int JogYPosAddress
+        {
+            get => _jogYPosAddress;
+            set { _jogYPosAddress = value; OnPropertyChanged(); }
+        }
+
+        public int JogYNegAddress
+        {
+            get => _jogYNegAddress;
+            set { _jogYNegAddress = value; OnPropertyChanged(); }
+        }
+
+        public int JogZPosAddress
+        {
+            get => _jogZPosAddress;
+            set { _jogZPosAddress = value; OnPropertyChanged(); }
+        }
+
+        public int JogZNegAddress
+        {
+            get => _jogZNegAddress;
+            set { _jogZNegAddress = value; OnPropertyChanged(); }
+        }
+
         public int M_R_Base
         {
             get => _M_R_Base;
@@ -346,21 +390,21 @@ namespace WPF_Test_PLC20260124
             set { _posDecimals = value; OnPropertyChanged(); }
         }
 
-        private double _posScaleX = 1.0;
+        private double _posScaleX = 0.1;
         public double PosScaleX
         {
             get => _posScaleX;
             set { _posScaleX = value; OnPropertyChanged(); }
         }
 
-        private double _posScaleY = 1.0;
+        private double _posScaleY = 0.1;
         public double PosScaleY
         {
             get => _posScaleY;
             set { _posScaleY = value; OnPropertyChanged(); }
         }
 
-        private double _posScaleZ = 1.0;
+        private double _posScaleZ = 0.1;
         public double PosScaleZ
         {
             get => _posScaleZ;

@@ -424,12 +424,11 @@
 
     private void Jog(string axis, bool dir)
     {
-        int baseAddr = ViewModel.M_W_Base;
         int markAddress = axis switch
         {
-            "X" => dir ? baseAddr + 1 : baseAddr,
-            "Y" => dir ? baseAddr + 3 : baseAddr + 2,
-            "Z" => dir ? baseAddr + 5 : baseAddr + 4,
+            "X" => dir ? ViewModel.JogXNegAddress : ViewModel.JogXPosAddress,
+            "Y" => dir ? ViewModel.JogYNegAddress : ViewModel.JogYPosAddress,
+            "Z" => dir ? ViewModel.JogZNegAddress : ViewModel.JogZPosAddress,
             _ => -1
         };
         
@@ -441,20 +440,19 @@
 
     private void StopJog(string axis)
     {
-        int baseAddr = ViewModel.M_W_Base;
         switch (axis)
         {
             case "X":
-                ViewModel.JogStop(baseAddr);
-                ViewModel.JogStop(baseAddr + 1);
+                ViewModel.JogStop(ViewModel.JogXPosAddress);
+                ViewModel.JogStop(ViewModel.JogXNegAddress);
                 break;
             case "Y":
-                ViewModel.JogStop(baseAddr + 2);
-                ViewModel.JogStop(baseAddr + 3);
+                ViewModel.JogStop(ViewModel.JogYPosAddress);
+                ViewModel.JogStop(ViewModel.JogYNegAddress);
                 break;
             case "Z":
-                ViewModel.JogStop(baseAddr + 4);
-                ViewModel.JogStop(baseAddr + 5);
+                ViewModel.JogStop(ViewModel.JogZPosAddress);
+                ViewModel.JogStop(ViewModel.JogZNegAddress);
                 break;
         }
     }

@@ -183,15 +183,42 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach (var jog in _jogMap)
-                            {
-                                <tr>
-                                    <td><span class="axis-badge axis-@jog.Axis.ToLower()">@jog.Axis</span></td>
-                                    <td class="dir-cell"><span class="material-symbols-outlined dir-icon">@jog.DirIcon</span> @jog.DirLabel</td>
-                                    <td class="mono-val accent-cyan">M @jog.Address</td>
-                                    <td class="desc-cell">@jog.Description</td>
-                                </tr>
-                            }
+                            <tr>
+                                <td><span class="axis-badge axis-x">X</span></td>
+                                <td class="dir-cell"><span class="material-symbols-outlined dir-icon">arrow_forward</span> + (Right)</td>
+                                <td><input class="addr-input" type="number" min="0" max="999999" @bind="ViewModel.JogXPosAddress" /></td>
+                                <td class="desc-cell">Positive X Jog</td>
+                            </tr>
+                            <tr>
+                                <td><span class="axis-badge axis-x">X</span></td>
+                                <td class="dir-cell"><span class="material-symbols-outlined dir-icon">arrow_back</span> - (Left)</td>
+                                <td><input class="addr-input" type="number" min="0" max="999999" @bind="ViewModel.JogXNegAddress" /></td>
+                                <td class="desc-cell">Negative X Jog</td>
+                            </tr>
+                            <tr>
+                                <td><span class="axis-badge axis-y">Y</span></td>
+                                <td class="dir-cell"><span class="material-symbols-outlined dir-icon">arrow_downward</span> + (Down)</td>
+                                <td><input class="addr-input" type="number" min="0" max="999999" @bind="ViewModel.JogYPosAddress" /></td>
+                                <td class="desc-cell">Positive Y Jog</td>
+                            </tr>
+                            <tr>
+                                <td><span class="axis-badge axis-y">Y</span></td>
+                                <td class="dir-cell"><span class="material-symbols-outlined dir-icon">arrow_upward</span> - (Up)</td>
+                                <td><input class="addr-input" type="number" min="0" max="999999" @bind="ViewModel.JogYNegAddress" /></td>
+                                <td class="desc-cell">Negative Y Jog</td>
+                            </tr>
+                            <tr>
+                                <td><span class="axis-badge axis-z">Z</span></td>
+                                <td class="dir-cell"><span class="material-symbols-outlined dir-icon">arrow_upward</span> + (Up)</td>
+                                <td><input class="addr-input" type="number" min="0" max="999999" @bind="ViewModel.JogZPosAddress" /></td>
+                                <td class="desc-cell">Positive Z Jog</td>
+                            </tr>
+                            <tr>
+                                <td><span class="axis-badge axis-z">Z</span></td>
+                                <td class="dir-cell"><span class="material-symbols-outlined dir-icon">arrow_downward</span> - (Down)</td>
+                                <td><input class="addr-input" type="number" min="0" max="999999" @bind="ViewModel.JogZNegAddress" /></td>
+                                <td class="desc-cell">Negative Z Jog</td>
+                            </tr>
                         </tbody>
                     </table>
                 </div>
@@ -585,17 +612,6 @@
         new("plc", "PLC Connection", "settings_ethernet"),
     };
 
-    private record JogRow(string Axis, string DirLabel, string DirIcon, int Address, string Description);
-    private readonly JogRow[] _jogMap = 
-    {
-        new("X", "+ (Right)", "arrow_forward", 3000, "Positive X Jog"),
-        new("X", "- (Left)", "arrow_back", 3001, "Negative X Jog"),
-        new("Y", "+ (Down)", "arrow_downward", 3002, "Positive Y Jog"),
-        new("Y", "- (Up)", "arrow_upward", 3003, "Negative Y Jog"),
-        new("Z", "+ (Up)", "arrow_upward", 3004, "Positive Z Jog"),
-        new("Z", "- (Down)", "arrow_downward", 3005, "Negative Z Jog"),
-    };
-
     protected override void OnInitialized()
     {
         ViewModel.PropertyChanged += (_, _) => InvokeAsync(StateHasChanged);
@@ -608,6 +624,12 @@
         ViewModel.D_W_P = 2000;
         ViewModel.DReadEnable = 3000;
         ViewModel.D32Base1 = 1000;
+        ViewModel.JogXPosAddress = 3000;
+        ViewModel.JogXNegAddress = 3001;
+        ViewModel.JogYPosAddress = 3002;
+        ViewModel.JogYNegAddress = 3003;
+        ViewModel.JogZPosAddress = 3004;
+        ViewModel.JogZNegAddress = 3005;
     }
 
     private void ResetPositionDefaults()

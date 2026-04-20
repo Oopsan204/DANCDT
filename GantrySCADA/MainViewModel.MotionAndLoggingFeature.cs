@@ -96,13 +96,11 @@ namespace WPF_Test_PLC20260124
                 }
 
                 int offset = markAddress - M_W_Base;
-                if (offset < 0 || offset >= arr_W_M.Length)
+                if (offset >= 0 && offset < arr_W_M.Length)
                 {
-                    AddLog("UI", "error", $"Jog start out of range: M{markAddress}", $"Valid range M{M_W_Base}..M{M_W_Base + arr_W_M.Length - 1}");
-                    return;
+                    arr_W_M[offset] = 1;
                 }
 
-                arr_W_M[offset] = 1;
                 MarkPendingWrite("M", markAddress, 1);
                 AddLog("UI", "info", $"Jog start queued M{markAddress}=1");
             }
@@ -123,13 +121,11 @@ namespace WPF_Test_PLC20260124
                 }
 
                 int offset = markAddress - M_W_Base;
-                if (offset < 0 || offset >= arr_W_M.Length)
+                if (offset >= 0 && offset < arr_W_M.Length)
                 {
-                    AddLog("UI", "error", $"Jog stop out of range: M{markAddress}", $"Valid range M{M_W_Base}..M{M_W_Base + arr_W_M.Length - 1}");
-                    return;
+                    arr_W_M[offset] = 0;
                 }
 
-                arr_W_M[offset] = 0;
                 MarkPendingWrite("M", markAddress, 0);
                 AddLog("UI", "info", $"Jog stop queued M{markAddress}=0");
             }

@@ -109,6 +109,49 @@ namespace WPF_Test_PLC20260124
             }
         }
 
+        private void TryReconnectIfDue()
+        {
+            if (_monitorStopRequested)
+                return;
+
+            DateTime now = DateTime.Now;
+            if ((now - _lastReconnectAttempt) < _reconnectInterval)
+                return;
+
+            _lastReconnectAttempt = now;
+            AddLog("PLC", "warning", $"Reconnect attempt -> {IpAddress}:{Port}", "AutoReconnect 5s");
+
+            try
+            {
+                lock (_plcSync)
+                {
+                    try
+                    {
+                        ePLC?.Close();
+                    }
+                    catch
+                    {
+                        // Ignore stale transport close failures.
+                    }
+
+                    ePLC = new ePLCControl();
+                    ePLC.SetPLCProperties(IpAddress, Port, NetworkNo, StationPLCNo, StationNo);
+                    ePLC.Open();
+                    Status = ePLC.IsConnected;
+                }
+
+                if (Status)
+                {
+                    AddLog("PLC", "success", "PLC reconnected", "AutoReconnect 5s");
+                }
+            }
+            catch (Exception ex)
+            {
+                Status = false;
+                AddLog("PLC", "warning", $"Reconnect failed: {ex.Message}", "AutoReconnect 5s");
+            }
+        }
+
         private bool IsConnectedSafe()
         {
             lock (_plcSync)
@@ -148,6 +191,8 @@ namespace WPF_Test_PLC20260124
                             AddLog("PLC", "warning", "PLC connection lost unexpectedly");
                             lostLogged = true;
                         }
+
+                        TryReconnectIfDue();
 
                         continue;
                     }
