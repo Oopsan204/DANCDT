@@ -146,7 +146,7 @@
 
                             <!-- Value Input -->
                             <div class="flex-1">
-                                                <input type="number" @bind="entry.WriteValue" placeholder="Value (0-65535)"
+                                                <input type="number" @bind="entry.WriteValue" placeholder="Value (-2147483648..2147483647 for D32)"
                                        class="w-full bg-surface-container-highest text-on-surface font-mono text-sm px-3 py-2.5 rounded focus:outline-none focus:ring-2 focus:ring-primary/30" />
                             </div>
 
@@ -553,14 +553,8 @@
         // Validate based on address type
         if (entry.AddrType == "D")
         {
-            // D registers are 16-bit words: 0 to 65535
-            if (entry.WriteValue < 0 || entry.WriteValue > 65535)
-            {
-                entry.Status = WriteStatus.ERR;
-                entry.ErrorMessage = "D register value must be 0-65535.";
-                AddLog("WRITE", $"{entry.AddrType}{entry.AddrIndex}", entry.WriteValue, false);
-                return;
-            }
+            // D writes are packed as 32-bit into Dn (low) + Dn+1 (high).
+            // entry.WriteValue is int, already constrained to Int32 range by type.
         }
         else if (entry.AddrType == "M" || entry.AddrType == "X" || entry.AddrType == "Y")
         {
@@ -593,13 +587,22 @@
                 // Keep mirror buffers in sync when address is inside configured ranges.
                 if (normType == "D")
                 {
+                    int lowWord = entry.WriteValue & 0xFFFF;
+                    int highWord = (entry.WriteValue >> 16) & 0xFFFF;
+
                     int offsetP = entry.AddrIndex - ViewModel.D_W_P;
-                    if (offsetP >= 0 && offsetP < ViewModel.arr_W_P.Length)
-                        ViewModel.arr_W_P[offsetP] = entry.WriteValue;
+                    if (offsetP >= 0 && (offsetP + 1) < ViewModel.arr_W_P.Length)
+                    {
+                        ViewModel.arr_W_P[offsetP] = lowWord;
+                        ViewModel.arr_W_P[offsetP + 1] = highWord;
+                    }
 
                     int offsetV = entry.AddrIndex - ViewModel.D_W_V;
-                    if (offsetV >= 0 && offsetV < ViewModel.arr_W_V.Length)
-                        ViewModel.arr_W_V[offsetV] = entry.WriteValue;
+                    if (offsetV >= 0 && (offsetV + 1) < ViewModel.arr_W_V.Length)
+                    {
+                        ViewModel.arr_W_V[offsetV] = lowWord;
+                        ViewModel.arr_W_V[offsetV + 1] = highWord;
+                    }
                 }
                 else if (normType == "M")
                 {

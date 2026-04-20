@@ -38,11 +38,17 @@ namespace WPF_Test_PLC20260124
 
                         if (t == "D")
                         {
+                            // Always write D as 32-bit using 2 consecutive words: low at Dn, high at Dn+1.
+                            int lowWord = p.Value & 0xFFFF;
+                            int highWord = (p.Value >> 16) & 0xFFFF;
+
                             ePLC.WriteDeviceBlock(
                                 NVKProject.PLC.ePLCControl.SubCommand.Word,
                                 NVKProject.PLC.ePLCControl.DeviceName.D,
                                 $"{p.AddrIndex}",
-                                new[] { p.Value });
+                                new[] { lowWord, highWord });
+
+                            AddLog("PC", "info", $"WRITE D32 packed: D{p.AddrIndex}={lowWord}, D{p.AddrIndex + 1}={highWord}", "D32");
                         }
                         else if (t == "M" || t == "X" || t == "Y")
                         {
