@@ -42,6 +42,9 @@ namespace WPF_Test_PLC20260124
             public bool IsClosed { get; set; }
             public List<(double X, double Y)> Points { get; set; } = new();
             public string Layer { get; set; } = "";
+            public bool HasCenter { get; set; }
+            public double CenterX { get; set; }
+            public double CenterY { get; set; }
         }
 
         private List<DxfContourInfo> _dxfContours = new();
@@ -143,6 +146,42 @@ namespace WPF_Test_PLC20260124
                     allPoints.AddRange(pts);
                 }
 
+                // Circles: sample into polyline points so they can be previewed/selected like other contours.
+                foreach (var c in doc.Entities.Circles)
+                {
+                    var pts = SampleCirclePoints(c.Center.X, c.Center.Y, c.Radius, 96);
+                    contours.Add(new DxfContourInfo
+                    {
+                        Name = $"Circle {cIdx++}",
+                        Points = pts,
+                        IsClosed = true,
+                        Layer = c.Layer.Name,
+                        Length = 2.0 * Math.PI * c.Radius,
+                        HasCenter = true,
+                        CenterX = c.Center.X,
+                        CenterY = c.Center.Y
+                    });
+                    allPoints.AddRange(pts);
+                }
+
+                // Arcs: sample along start/end angles (degrees in DXF/netDxf).
+                foreach (var a in doc.Entities.Arcs)
+                {
+                    var pts = SampleArcPoints(a.Center.X, a.Center.Y, a.Radius, a.StartAngle, a.EndAngle, 64);
+                    contours.Add(new DxfContourInfo
+                    {
+                        Name = $"Arc {cIdx++}",
+                        Points = pts,
+                        IsClosed = false,
+                        Layer = a.Layer.Name,
+                        Length = CalculateLength(pts),
+                        HasCenter = true,
+                        CenterX = a.Center.X,
+                        CenterY = a.Center.Y
+                    });
+                    allPoints.AddRange(pts);
+                }
+
                 DxfContours = contours;
                 DxfSampleCount = allPoints.Count;
 
@@ -152,7 +191,7 @@ namespace WPF_Test_PLC20260124
                     DxfXMax = allPoints.Max(p => p.X);
                     DxfYMin = allPoints.Min(p => p.Y);
                     DxfYMax = allPoints.Max(p => p.Y);
-                    DxfPreviewPathData = GenerateSvgPath(allPoints, doc);
+                    DxfPreviewPathData = GenerateSvgPath(contours, allPoints);
                 }
 
                 DxfSummary = $"Loaded OK: {Path.GetFileName(filePath)} | {DxfEntityCount} entities | {DxfContours.Count} contours";
@@ -222,7 +261,7 @@ namespace WPF_Test_PLC20260124
             return len;
         }
 
-        private string GenerateSvgPath(List<(double X, double Y)> points, DxfDocument doc)
+        private string GenerateSvgPath(List<DxfContourInfo> contours, List<(double X, double Y)> points)
         {
             // Simple SVG generation logic: Scale visualization to fit roughly 200x200
             if (!points.Any()) return "";
@@ -233,23 +272,65 @@ namespace WPF_Test_PLC20260124
             double scale = 200 / Math.Max(width, height == 0 ? 1 : height);
 
             var sb = new System.Text.StringBuilder();
-            foreach (var pl in doc.Entities.Polylines2D)
+            foreach (var contour in contours)
             {
-                var v0 = pl.Vertexes.First();
-                sb.Append($"M {(v0.Position.X - minX) * scale} {200 - (v0.Position.Y - minY) * scale} ");
-                foreach (var v in pl.Vertexes.Skip(1))
+                if (contour.Points == null || contour.Points.Count == 0)
+                    continue;
+
+                var p0 = contour.Points[0];
+                sb.Append($"M {(p0.X - minX) * scale} {200 - (p0.Y - minY) * scale} ");
+
+                foreach (var p in contour.Points.Skip(1))
                 {
-                    sb.Append($"L {(v.Position.X - minX) * scale} {200 - (v.Position.Y - minY) * scale} ");
+                    sb.Append($"L {(p.X - minX) * scale} {200 - (p.Y - minY) * scale} ");
                 }
-                if (pl.IsClosed) sb.Append("Z ");
-            }
-            foreach (var ln in doc.Entities.Lines)
-            {
-                sb.Append($"M {(ln.StartPoint.X - minX) * scale} {200 - (ln.StartPoint.Y - minY) * scale} ");
-                sb.Append($"L {(ln.EndPoint.X - minX) * scale} {200 - (ln.EndPoint.Y - minY) * scale} ");
+
+                if (contour.IsClosed)
+                    sb.Append("Z ");
             }
 
             return sb.ToString();
+        }
+
+        private static List<(double X, double Y)> SampleCirclePoints(double cx, double cy, double radius, int segments)
+        {
+            int n = Math.Max(segments, 12);
+            var pts = new List<(double X, double Y)>(n);
+
+            for (int i = 0; i < n; i++)
+            {
+                double t = (2.0 * Math.PI * i) / n;
+                pts.Add((cx + radius * Math.Cos(t), cy + radius * Math.Sin(t)));
+            }
+
+            return pts;
+        }
+
+        private static List<(double X, double Y)> SampleArcPoints(double cx, double cy, double radius, double startDeg, double endDeg, int maxSegments)
+        {
+            double s = NormalizeDeg(startDeg);
+            double e = NormalizeDeg(endDeg);
+            if (e <= s)
+                e += 360.0;
+
+            double sweep = e - s;
+            int seg = Math.Max(4, (int)Math.Ceiling(maxSegments * (sweep / 360.0)));
+
+            var pts = new List<(double X, double Y)>(seg + 1);
+            for (int i = 0; i <= seg; i++)
+            {
+                double aDeg = s + sweep * i / seg;
+                double aRad = aDeg * Math.PI / 180.0;
+                pts.Add((cx + radius * Math.Cos(aRad), cy + radius * Math.Sin(aRad)));
+            }
+
+            return pts;
+        }
+
+        private static double NormalizeDeg(double deg)
+        {
+            double d = deg % 360.0;
+            return d < 0 ? d + 360.0 : d;
         }
 
         public void ValidateDxfSafety()
