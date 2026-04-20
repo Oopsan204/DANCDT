@@ -26,8 +26,8 @@ namespace WPF_Test_PLC20260124
         private int _D_W_P = 2000;
         private int _M_R_Base = 0;
         private int _M_W_Base = 3000;
-        private int _jogXPosAddress = 3000;
-        private int _jogXNegAddress = 3001;
+        private int _jogXPosAddress = 3001;
+        private int _jogXNegAddress = 3000;
         private int _jogYPosAddress = 3002;
         private int _jogYNegAddress = 3003;
         private int _jogZPosAddress = 3004;
@@ -36,6 +36,9 @@ namespace WPF_Test_PLC20260124
         private int _X_W_Base = 100;
         private int _Y_R_Base = 0;
         private int _Y_W_Base = 100;
+        private int _velocityWriteAddress = 5000;
+        private double _velocityWriteScale = 10.0;
+        private double _velocitySetpoint = 1.5;
 
         private int[] _arr_R32 = new int[6];
 
@@ -374,6 +377,24 @@ namespace WPF_Test_PLC20260124
         {
             get => _Y_W_Base;
             set { _Y_W_Base = value; OnPropertyChanged(); }
+        }
+
+        public int VelocityWriteAddress
+        {
+            get => _velocityWriteAddress;
+            set { _velocityWriteAddress = value; OnPropertyChanged(); }
+        }
+
+        public double VelocityWriteScale
+        {
+            get => _velocityWriteScale;
+            set { _velocityWriteScale = value; OnPropertyChanged(); }
+        }
+
+        public double VelocitySetpoint
+        {
+            get => _velocitySetpoint;
+            set { _velocitySetpoint = value; OnPropertyChanged(); }
         }
 
         private string _posUnit = "µm";

@@ -108,6 +108,30 @@
                             </tr>
                             <tr>
                                 <td class="param-name">
+                                    <span class="code-chip">V_SLIDER_D</span>
+                                    Velocity Slider Write Address
+                                </td>
+                                <td><span class="addr-badge badge-D">D</span></td>
+                                <td>
+                                    <input class="addr-input" type="number" min="0" max="999999" @bind="ViewModel.VelocityWriteAddress" />
+                                </td>
+                                <td class="mono-val">@ViewModel.VelocityWriteAddress</td>
+                                <td><span class="status-ok material-symbols-outlined">check_circle</span></td>
+                            </tr>
+                            <tr>
+                                <td class="param-name">
+                                    <span class="code-chip">V_SCALE</span>
+                                    Velocity Scale (m/s to raw)
+                                </td>
+                                <td><span class="addr-badge badge-D">x</span></td>
+                                <td>
+                                    <input class="addr-input" type="number" step="0.1" min="0.1" max="1000" @bind="ViewModel.VelocityWriteScale" />
+                                </td>
+                                <td class="mono-val">@ViewModel.VelocityWriteScale</td>
+                                <td><span class="status-ok material-symbols-outlined">check_circle</span></td>
+                            </tr>
+                            <tr>
+                                <td class="param-name">
                                     <span class="code-chip">D_W_P</span>
                                     Write Position Base
                                 </td>
@@ -624,6 +648,8 @@
         ViewModel.D_W_P = 2000;
         ViewModel.DReadEnable = 3000;
         ViewModel.D32Base1 = 1000;
+        ViewModel.VelocityWriteAddress = 5000;
+        ViewModel.VelocityWriteScale = 10.0;
         ViewModel.JogXPosAddress = 3000;
         ViewModel.JogXNegAddress = 3001;
         ViewModel.JogYPosAddress = 3002;

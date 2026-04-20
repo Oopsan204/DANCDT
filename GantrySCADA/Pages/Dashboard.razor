@@ -162,7 +162,7 @@
                         <span class="material-symbols-outlined header-icon">speed</span>
                         <div>
                             <h2 class="header-title">Process Velocity</h2>
-                            <p class="header-subtitle">Target Write Velocity (D_W_V)</p>
+                            <p class="header-subtitle">Target Write Velocity (@($"D{ViewModel.VelocityWriteAddress}"))</p>
                         </div>
                     </div>
                     <div class="card-body">
@@ -172,7 +172,7 @@
                                 <span class="unt">m/s</span>
                             </div>
                             <div class="slider-container flex-1">
-                                <input type="range" min="0" max="5.0" step="0.1" @bind="VelocityVal" @bind:event="oninput" 
+                                <input type="range" min="0" max="5.0" step="0.1" @bind="VelocityVal" @bind:event="oninput" @onchange="OnVelocityCommit"
                                        class="nexus-slider" />
                                 <div class="slider-marks">
                                     <span>0.0</span>
@@ -400,8 +400,23 @@
 
     protected override void OnInitialized()
     {
+        VelocityVal = ViewModel.VelocitySetpoint;
         ViewModel.PropertyChanged += (_, _) => InvokeAsync(StateHasChanged);
         base.OnInitialized();
+    }
+
+    private void OnVelocityCommit(ChangeEventArgs _)
+    {
+        if (VelocityVal < 0)
+            VelocityVal = 0;
+
+        ViewModel.VelocitySetpoint = VelocityVal;
+
+        double scaled = VelocityVal * ViewModel.VelocityWriteScale;
+        int rawValue = (int)Math.Round(scaled, MidpointRounding.AwayFromZero);
+
+        ViewModel.MarkPendingWrite("D", ViewModel.VelocityWriteAddress, rawValue);
+        ViewModel.AddLog("UI", "info", $"Velocity setpoint queued: {VelocityVal:F1} m/s -> D{ViewModel.VelocityWriteAddress}={rawValue}", "Velocity slider");
     }
 
     private void Connect()
