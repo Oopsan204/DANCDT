@@ -2,6 +2,7 @@
 @inject WPF_Test_PLC20260124.MainViewModel ViewModel
 @inject IJSRuntime JS
 @using System.IO
+@implements IDisposable
 
 <div class="space-y-6 pb-20">
     <!-- Header / Breadcrumbs -->
@@ -333,14 +334,19 @@
                                   class="w-full bg-[#020817] border border-outline-variant/30 rounded px-3 py-2 text-[11px] leading-5 text-sky-100 font-mono resize-y"></textarea>
                     </div>
 
-                    <div class="grid grid-cols-2 gap-2">
+                    <div class="grid grid-cols-3 gap-2">
                         <button class="bg-primary hover:brightness-110 text-white py-2 rounded text-[10px] font-bold uppercase tracking-wider transition-all"
                                 @onclick="GeneratePlcFrames">
                             GenCode
                         </button>
+                        <button class="bg-amber-600 hover:brightness-110 text-white py-2 rounded text-[10px] font-bold uppercase tracking-wider transition-all"
+                                @onclick="SendSingleFrameToPlcAsync"
+                                disabled="@(!_generatedFrames.Any() || !ViewModel.Status || _isSending || _nextSendIndex >= _generatedFrames.Count)">
+                            Send 1 Cmd
+                        </button>
                         <button class="bg-emerald-600 hover:brightness-110 text-white py-2 rounded text-[10px] font-bold uppercase tracking-wider transition-all"
                                 @onclick="SendFramesToPlcAsync"
-                                disabled="@(!_generatedFrames.Any() || !ViewModel.Status)">
+                                disabled="@(!_generatedFrames.Any() || !ViewModel.Status || _isSending)">
                             Send PLC
                         </button>
                     </div>
@@ -365,9 +371,11 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                @foreach (var f in _generatedFrames)
+                                @for (int i = 0; i < _generatedFrames.Count; i++)
                                 {
-                                    <tr class="text-[10px] font-mono border-t border-outline-variant/10">
+                                    var f = _generatedFrames[i];
+                                    bool isActiveRow = i == _activeSendIndex;
+                                    <tr class="text-[10px] font-mono border-t border-outline-variant/10 @(isActiveRow ? "bg-emerald-500/20" : "")">
                                         <td class="px-2 py-1">@f.CommandCode</td>
                                         <td class="px-2 py-1">@f.PosXUm</td>
                                         <td class="px-2 py-1">@f.PosYUm</td>
@@ -410,6 +418,11 @@
 </style>
 
 @code {
+        private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+        {
+            _ = InvokeAsync(StateHasChanged);
+        }
+
     private sealed class PickedPoint
     {
         public string SourceKey { get; set; } = "";
@@ -443,6 +456,9 @@
     private static string _motionScript = "MoveL P1 1000 0\nMoveC P2 C1 1000 0";
     private static string _scriptStatus = string.Empty;
     private static readonly List<PlcMotionFrame> _generatedFrames = new();
+    private static int _nextSendIndex = 0;
+    private static int _activeSendIndex = -1;
+    private static bool _isSending = false;
 
     private sealed class PlcMotionFrame
     {
@@ -522,6 +538,8 @@
     {
         _generatedFrames.Clear();
         _scriptStatus = string.Empty;
+        _nextSendIndex = 0;
+        _activeSendIndex = -1;
         PickedPoint? previousEndPoint = null;
 
         var lines = _motionScript
@@ -643,26 +661,84 @@
             return;
         }
 
-        foreach (var f in _generatedFrames)
+        if (_isSending)
+            return;
+
+        _isSending = true;
+
+        try
         {
-            ViewModel.MarkPendingWrite("D", DCmd, f.CommandCode);
-            ViewModel.MarkPendingWrite("D", DPosX, f.PosXUm);
-            ViewModel.MarkPendingWrite("D", DPosY, f.PosYUm);
-            ViewModel.MarkPendingWrite("D", DArcX, f.ArcXUm);
-            ViewModel.MarkPendingWrite("D", DArcY, f.ArcYUm);
-            ViewModel.MarkPendingWrite("D", DSpeed, f.SpeedMmMin);
-            ViewModel.MarkPendingWrite("D", DDwell, f.DwellMs);
+            for (int i = _nextSendIndex; i < _generatedFrames.Count; i++)
+            {
+                _activeSendIndex = i;
+                await SendFrameToPlcAsync(_generatedFrames[i]);
+                _nextSendIndex = i + 1;
+            }
 
-            // Pulse run bit for each frame: 1 then 0
-            ViewModel.MarkPendingWrite("D", DRun, f.BitRun);
-            await Task.Delay(80);
-            ViewModel.MarkPendingWrite("D", DRun, 0);
+            _scriptStatus = $"Sent {_generatedFrames.Count} frame(s) to PLC.";
+            ViewModel.AddLog("PLC", "success", _scriptStatus, "PLC send");
+        }
+        finally
+        {
+            _isSending = false;
+        }
+    }
 
-            await Task.Delay(Math.Max(40, f.DwellMs));
+    private async Task SendSingleFrameToPlcAsync()
+    {
+        if (_generatedFrames.Count == 0)
+        {
+            _scriptStatus = "No generated frame to send.";
+            return;
         }
 
-        _scriptStatus = $"Sent {_generatedFrames.Count} frame(s) to PLC.";
-        ViewModel.AddLog("PLC", "success", _scriptStatus, "PLC send");
+        if (!ViewModel.Status)
+        {
+            _scriptStatus = "PLC is offline.";
+            return;
+        }
+
+        if (_isSending)
+            return;
+
+        if (_nextSendIndex >= _generatedFrames.Count)
+        {
+            _scriptStatus = "All frames were already sent.";
+            return;
+        }
+
+        _isSending = true;
+        try
+        {
+            _activeSendIndex = _nextSendIndex;
+            await SendFrameToPlcAsync(_generatedFrames[_nextSendIndex]);
+            _nextSendIndex++;
+
+            _scriptStatus = $"Sent frame {_nextSendIndex}/{_generatedFrames.Count}.";
+            ViewModel.AddLog("PLC", "info", _scriptStatus, "PLC step send");
+        }
+        finally
+        {
+            _isSending = false;
+        }
+    }
+
+    private async Task SendFrameToPlcAsync(PlcMotionFrame f)
+    {
+        ViewModel.MarkPendingWrite("D", DCmd, f.CommandCode);
+        ViewModel.MarkPendingWrite("D", DPosX, f.PosXUm);
+        ViewModel.MarkPendingWrite("D", DPosY, f.PosYUm);
+        ViewModel.MarkPendingWrite("D", DArcX, f.ArcXUm);
+        ViewModel.MarkPendingWrite("D", DArcY, f.ArcYUm);
+        ViewModel.MarkPendingWrite("D", DSpeed, f.SpeedMmMin);
+        ViewModel.MarkPendingWrite("D", DDwell, f.DwellMs);
+
+        // Pulse run bit for each frame: 1 then 0
+        ViewModel.MarkPendingWrite("D", DRun, f.BitRun);
+        await Task.Delay(80);
+        ViewModel.MarkPendingWrite("D", DRun, 0);
+
+        await Task.Delay(Math.Max(40, f.DwellMs));
     }
 
     private void RemovePickedPoint(PickedPoint point)
@@ -752,6 +828,11 @@
 
     protected override void OnInitialized()
     {
-        ViewModel.PropertyChanged += (s, e) => StateHasChanged();
+        ViewModel.PropertyChanged += OnViewModelPropertyChanged;
+    }
+
+    public void Dispose()
+    {
+        ViewModel.PropertyChanged -= OnViewModelPropertyChanged;
     }
 }
