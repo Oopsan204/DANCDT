@@ -45,6 +45,11 @@ namespace WPF_Test_PLC20260124
             public bool HasCenter { get; set; }
             public double CenterX { get; set; }
             public double CenterY { get; set; }
+            public bool IsCircle { get; set; }
+            public bool IsArc { get; set; }
+            public double Radius { get; set; }
+            public double StartAngleDeg { get; set; }
+            public double EndAngleDeg { get; set; }
         }
 
         private List<DxfContourInfo> _dxfContours = new();
@@ -146,10 +151,11 @@ namespace WPF_Test_PLC20260124
                     allPoints.AddRange(pts);
                 }
 
-                // Circles: sample into polyline points so they can be previewed/selected like other contours.
+                // Circles: keep only start/end (same point) and center.
                 foreach (var c in doc.Entities.Circles)
                 {
-                    var pts = SampleCirclePoints(c.Center.X, c.Center.Y, c.Radius, 96);
+                    var start = (X: c.Center.X + c.Radius, Y: c.Center.Y);
+                    var pts = new List<(double X, double Y)> { start, start };
                     contours.Add(new DxfContourInfo
                     {
                         Name = $"Circle {cIdx++}",
@@ -159,27 +165,37 @@ namespace WPF_Test_PLC20260124
                         Length = 2.0 * Math.PI * c.Radius,
                         HasCenter = true,
                         CenterX = c.Center.X,
-                        CenterY = c.Center.Y
+                        CenterY = c.Center.Y,
+                        IsCircle = true,
+                        Radius = c.Radius,
+                        StartAngleDeg = 0.0,
+                        EndAngleDeg = 360.0
                     });
-                    allPoints.AddRange(pts);
+                    AddCircleBoundsPoints(allPoints, c.Center.X, c.Center.Y, c.Radius);
                 }
 
-                // Arcs: sample along start/end angles (degrees in DXF/netDxf).
+                // Arcs: keep only start/end and center.
                 foreach (var a in doc.Entities.Arcs)
                 {
-                    var pts = SampleArcPoints(a.Center.X, a.Center.Y, a.Radius, a.StartAngle, a.EndAngle, 64);
+                    var start = GetPointOnCircle(a.Center.X, a.Center.Y, a.Radius, a.StartAngle);
+                    var end = GetPointOnCircle(a.Center.X, a.Center.Y, a.Radius, a.EndAngle);
+                    var pts = new List<(double X, double Y)> { start, end };
                     contours.Add(new DxfContourInfo
                     {
                         Name = $"Arc {cIdx++}",
                         Points = pts,
                         IsClosed = false,
                         Layer = a.Layer.Name,
-                        Length = CalculateLength(pts),
+                        Length = CalculateArcLength(a.Radius, a.StartAngle, a.EndAngle),
                         HasCenter = true,
                         CenterX = a.Center.X,
-                        CenterY = a.Center.Y
+                        CenterY = a.Center.Y,
+                        IsArc = true,
+                        Radius = a.Radius,
+                        StartAngleDeg = a.StartAngle,
+                        EndAngleDeg = a.EndAngle
                     });
-                    allPoints.AddRange(pts);
+                    AddArcBoundsPoints(allPoints, a.Center.X, a.Center.Y, a.Radius, a.StartAngle, a.EndAngle, start, end);
                 }
 
                 DxfContours = contours;
@@ -277,6 +293,33 @@ namespace WPF_Test_PLC20260124
                 if (contour.Points == null || contour.Points.Count == 0)
                     continue;
 
+                if (contour.IsCircle && contour.HasCenter && contour.Radius > 0)
+                {
+                    double cx = (contour.CenterX - minX) * scale;
+                    double cy = 200 - (contour.CenterY - minY) * scale;
+                    double r = contour.Radius * scale;
+                    sb.Append($"M {cx + r} {cy} ");
+                    sb.Append($"A {r} {r} 0 1 1 {cx - r} {cy} ");
+                    sb.Append($"A {r} {r} 0 1 1 {cx + r} {cy} ");
+                    sb.Append("Z ");
+                    continue;
+                }
+
+                if (contour.IsArc && contour.HasCenter && contour.Points.Count >= 2 && contour.Radius > 0)
+                {
+                    var pStart = contour.Points[0];
+                    var pEnd = contour.Points[1];
+                    double sx = (pStart.X - minX) * scale;
+                    double sy = 200 - (pStart.Y - minY) * scale;
+                    double ex = (pEnd.X - minX) * scale;
+                    double ey = 200 - (pEnd.Y - minY) * scale;
+                    double r = contour.Radius * scale;
+                    double sweep = GetSweepDegrees(contour.StartAngleDeg, contour.EndAngleDeg);
+                    int largeArcFlag = sweep > 180.0 ? 1 : 0;
+                    sb.Append($"M {sx} {sy} A {r} {r} 0 {largeArcFlag} 1 {ex} {ey} ");
+                    continue;
+                }
+
                 var p0 = contour.Points[0];
                 sb.Append($"M {(p0.X - minX) * scale} {200 - (p0.Y - minY) * scale} ");
 
@@ -292,39 +335,69 @@ namespace WPF_Test_PLC20260124
             return sb.ToString();
         }
 
-        private static List<(double X, double Y)> SampleCirclePoints(double cx, double cy, double radius, int segments)
+        private static void AddCircleBoundsPoints(List<(double X, double Y)> allPoints, double cx, double cy, double radius)
         {
-            int n = Math.Max(segments, 12);
-            var pts = new List<(double X, double Y)>(n);
-
-            for (int i = 0; i < n; i++)
-            {
-                double t = (2.0 * Math.PI * i) / n;
-                pts.Add((cx + radius * Math.Cos(t), cy + radius * Math.Sin(t)));
-            }
-
-            return pts;
+            allPoints.Add((cx - radius, cy));
+            allPoints.Add((cx + radius, cy));
+            allPoints.Add((cx, cy - radius));
+            allPoints.Add((cx, cy + radius));
         }
 
-        private static List<(double X, double Y)> SampleArcPoints(double cx, double cy, double radius, double startDeg, double endDeg, int maxSegments)
+        private static void AddArcBoundsPoints(
+            List<(double X, double Y)> allPoints,
+            double cx,
+            double cy,
+            double radius,
+            double startDeg,
+            double endDeg,
+            (double X, double Y) start,
+            (double X, double Y) end)
+        {
+            allPoints.Add(start);
+            allPoints.Add(end);
+
+            foreach (double candidate in new[] { 0.0, 90.0, 180.0, 270.0 })
+            {
+                if (IsAngleInCcwSweep(candidate, startDeg, endDeg))
+                {
+                    allPoints.Add(GetPointOnCircle(cx, cy, radius, candidate));
+                }
+            }
+        }
+
+        private static (double X, double Y) GetPointOnCircle(double cx, double cy, double radius, double angleDeg)
+        {
+            double a = angleDeg * Math.PI / 180.0;
+            return (cx + radius * Math.Cos(a), cy + radius * Math.Sin(a));
+        }
+
+        private static double CalculateArcLength(double radius, double startDeg, double endDeg)
+        {
+            double sweep = GetSweepDegrees(startDeg, endDeg);
+            return radius * sweep * Math.PI / 180.0;
+        }
+
+        private static double GetSweepDegrees(double startDeg, double endDeg)
         {
             double s = NormalizeDeg(startDeg);
             double e = NormalizeDeg(endDeg);
             if (e <= s)
                 e += 360.0;
+            return e - s;
+        }
 
-            double sweep = e - s;
-            int seg = Math.Max(4, (int)Math.Ceiling(maxSegments * (sweep / 360.0)));
+        private static bool IsAngleInCcwSweep(double angle, double startDeg, double endDeg)
+        {
+            double s = NormalizeDeg(startDeg);
+            double e = NormalizeDeg(endDeg);
+            double a = NormalizeDeg(angle);
 
-            var pts = new List<(double X, double Y)>(seg + 1);
-            for (int i = 0; i <= seg; i++)
-            {
-                double aDeg = s + sweep * i / seg;
-                double aRad = aDeg * Math.PI / 180.0;
-                pts.Add((cx + radius * Math.Cos(aRad), cy + radius * Math.Sin(aRad)));
-            }
+            if (e <= s)
+                e += 360.0;
+            if (a < s)
+                a += 360.0;
 
-            return pts;
+            return a >= s && a <= e;
         }
 
         private static double NormalizeDeg(double deg)

@@ -341,7 +341,7 @@
                         </button>
                         <button class="bg-amber-600 hover:brightness-110 text-white py-2 rounded text-[10px] font-bold uppercase tracking-wider transition-all"
                                 @onclick="SendSingleFrameToPlcAsync"
-                                disabled="@(!_generatedFrames.Any() || !ViewModel.Status || _isSending || _nextSendIndex >= _generatedFrames.Count)">
+                                disabled="@(!_generatedFrames.Any() || !ViewModel.Status || _isSending)">
                             Send 1 Cmd
                         </button>
                         <button class="bg-emerald-600 hover:brightness-110 text-white py-2 rounded text-[10px] font-bold uppercase tracking-wider transition-all"
@@ -431,7 +431,7 @@
         public int YUm { get; set; }
     }
 
-    private static readonly List<PickedPoint> _pickedPoints = new();
+    private readonly List<PickedPoint> _pickedPoints = new();
     private double _viewportZoom = 1.0;
     private const double MinZoom = 0.6;
     private const double MaxZoom = 8.0;
@@ -453,12 +453,12 @@
     private const int DDwell = 1600;
     private const int DRun = 1700;
 
-    private static string _motionScript = "MoveL P1 1000 0\nMoveC P2 C1 1000 0";
-    private static string _scriptStatus = string.Empty;
-    private static readonly List<PlcMotionFrame> _generatedFrames = new();
-    private static int _nextSendIndex = 0;
-    private static int _activeSendIndex = -1;
-    private static bool _isSending = false;
+    private string _motionScript = "MoveL P1 1000 0\nMoveC P2 C1 1000 0";
+    private string _scriptStatus = string.Empty;
+    private readonly List<PlcMotionFrame> _generatedFrames = new();
+    private int _nextSendIndex = 0;
+    private int _activeSendIndex = -1;
+    private bool _isSending = false;
 
     private sealed class PlcMotionFrame
     {
@@ -701,20 +701,17 @@
         if (_isSending)
             return;
 
-        if (_nextSendIndex >= _generatedFrames.Count)
-        {
-            _scriptStatus = "All frames were already sent.";
-            return;
-        }
-
         _isSending = true;
         try
         {
-            _activeSendIndex = _nextSendIndex;
-            await SendFrameToPlcAsync(_generatedFrames[_nextSendIndex]);
-            _nextSendIndex++;
+            int sendIndex = _nextSendIndex % _generatedFrames.Count;
+            _activeSendIndex = sendIndex;
 
-            _scriptStatus = $"Sent frame {_nextSendIndex}/{_generatedFrames.Count}.";
+            await SendFrameToPlcAsync(_generatedFrames[sendIndex]);
+
+            _nextSendIndex = (sendIndex + 1) % _generatedFrames.Count;
+            int nextHumanIndex = _nextSendIndex + 1;
+            _scriptStatus = $"Sent frame {sendIndex + 1}/{_generatedFrames.Count}. Next: {nextHumanIndex}/{_generatedFrames.Count}.";
             ViewModel.AddLog("PLC", "info", _scriptStatus, "PLC step send");
         }
         finally
@@ -829,6 +826,7 @@
     protected override void OnInitialized()
     {
         ViewModel.PropertyChanged += OnViewModelPropertyChanged;
+        base.OnInitialized();
     }
 
     public void Dispose()
