@@ -50,6 +50,8 @@ namespace WPF_Test_PLC20260124
             public double Radius { get; set; }
             public double StartAngleDeg { get; set; }
             public double EndAngleDeg { get; set; }
+            public bool ArcClockwise { get; set; }
+            public double ArcSweepDeg { get; set; }
         }
 
         private List<DxfContourInfo> _dxfContours = new();
@@ -177,6 +179,11 @@ namespace WPF_Test_PLC20260124
                 // Arcs: keep only start/end and center.
                 foreach (var a in doc.Entities.Arcs)
                 {
+                    bool arcClockwise = a.Normal.Z < 0.0;
+                    double arcSweep = arcClockwise
+                        ? GetSweepDegreesClockwise(a.StartAngle, a.EndAngle)
+                        : GetSweepDegrees(a.StartAngle, a.EndAngle);
+
                     var start = GetPointOnCircle(a.Center.X, a.Center.Y, a.Radius, a.StartAngle);
                     var end = GetPointOnCircle(a.Center.X, a.Center.Y, a.Radius, a.EndAngle);
                     var pts = new List<(double X, double Y)> { start, end };
@@ -186,16 +193,18 @@ namespace WPF_Test_PLC20260124
                         Points = pts,
                         IsClosed = false,
                         Layer = a.Layer.Name,
-                        Length = CalculateArcLength(a.Radius, a.StartAngle, a.EndAngle),
+                        Length = CalculateArcLength(a.Radius, arcSweep),
                         HasCenter = true,
                         CenterX = a.Center.X,
                         CenterY = a.Center.Y,
                         IsArc = true,
                         Radius = a.Radius,
                         StartAngleDeg = a.StartAngle,
-                        EndAngleDeg = a.EndAngle
+                        EndAngleDeg = a.EndAngle,
+                        ArcClockwise = arcClockwise,
+                        ArcSweepDeg = arcSweep
                     });
-                    AddArcBoundsPoints(allPoints, a.Center.X, a.Center.Y, a.Radius, a.StartAngle, a.EndAngle, start, end);
+                    AddArcBoundsPoints(allPoints, a.Center.X, a.Center.Y, a.Radius, a.StartAngle, a.EndAngle, arcClockwise, start, end);
                 }
 
                 DxfContours = contours;
@@ -314,9 +323,11 @@ namespace WPF_Test_PLC20260124
                     double ex = (pEnd.X - minX) * scale;
                     double ey = 200 - (pEnd.Y - minY) * scale;
                     double r = contour.Radius * scale;
-                    double sweep = GetSweepDegrees(contour.StartAngleDeg, contour.EndAngleDeg);
+                    double sweep = contour.ArcSweepDeg > 0 ? contour.ArcSweepDeg : GetSweepDegrees(contour.StartAngleDeg, contour.EndAngleDeg);
                     int largeArcFlag = sweep > 180.0 ? 1 : 0;
-                    sb.Append($"M {sx} {sy} A {r} {r} 0 {largeArcFlag} 1 {ex} {ey} ");
+                    // Y-axis is flipped in SVG projection, so sweep-flag is inverted from math-space orientation.
+                    int sweepFlag = contour.ArcClockwise ? 1 : 0;
+                    sb.Append($"M {sx} {sy} A {r} {r} 0 {largeArcFlag} {sweepFlag} {ex} {ey} ");
                     continue;
                 }
 
@@ -350,6 +361,7 @@ namespace WPF_Test_PLC20260124
             double radius,
             double startDeg,
             double endDeg,
+            bool arcClockwise,
             (double X, double Y) start,
             (double X, double Y) end)
         {
@@ -358,7 +370,7 @@ namespace WPF_Test_PLC20260124
 
             foreach (double candidate in new[] { 0.0, 90.0, 180.0, 270.0 })
             {
-                if (IsAngleInCcwSweep(candidate, startDeg, endDeg))
+                if (IsAngleInArcSweep(candidate, startDeg, endDeg, arcClockwise))
                 {
                     allPoints.Add(GetPointOnCircle(cx, cy, radius, candidate));
                 }
@@ -371,10 +383,9 @@ namespace WPF_Test_PLC20260124
             return (cx + radius * Math.Cos(a), cy + radius * Math.Sin(a));
         }
 
-        private static double CalculateArcLength(double radius, double startDeg, double endDeg)
+        private static double CalculateArcLength(double radius, double sweepDeg)
         {
-            double sweep = GetSweepDegrees(startDeg, endDeg);
-            return radius * sweep * Math.PI / 180.0;
+            return radius * sweepDeg * Math.PI / 180.0;
         }
 
         private static double GetSweepDegrees(double startDeg, double endDeg)
@@ -384,6 +395,22 @@ namespace WPF_Test_PLC20260124
             if (e <= s)
                 e += 360.0;
             return e - s;
+        }
+
+        private static double GetSweepDegreesClockwise(double startDeg, double endDeg)
+        {
+            double s = NormalizeDeg(startDeg);
+            double e = NormalizeDeg(endDeg);
+            if (e >= s)
+                e -= 360.0;
+            return s - e;
+        }
+
+        private static bool IsAngleInArcSweep(double angle, double startDeg, double endDeg, bool arcClockwise)
+        {
+            return arcClockwise
+                ? IsAngleInClockwiseSweep(angle, startDeg, endDeg)
+                : IsAngleInCcwSweep(angle, startDeg, endDeg);
         }
 
         private static bool IsAngleInCcwSweep(double angle, double startDeg, double endDeg)
@@ -398,6 +425,20 @@ namespace WPF_Test_PLC20260124
                 a += 360.0;
 
             return a >= s && a <= e;
+        }
+
+        private static bool IsAngleInClockwiseSweep(double angle, double startDeg, double endDeg)
+        {
+            double s = NormalizeDeg(startDeg);
+            double e = NormalizeDeg(endDeg);
+            double a = NormalizeDeg(angle);
+
+            if (e >= s)
+                e -= 360.0;
+            if (a > s)
+                a -= 360.0;
+
+            return a <= s && a >= e;
         }
 
         private static double NormalizeDeg(double deg)
