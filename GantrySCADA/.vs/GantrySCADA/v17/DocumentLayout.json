@@ -3,8 +3,16 @@
   "WorkspaceRootPath": "D:\\DACDT_2026\\DANCDT\\GantrySCADA\\",
   "Documents": [
     {
+      "AbsoluteMoniker": "D:0:0:{F06545A3-CE02-E11C-3865-664FD75F3608}|GantrySCADA.csproj|d:\\dacdt_2026\\dancdt\\gantryscada\\pages\\telemetry.razor||{40D31677-CBC0-4297-A9EF-89D907823A98}",
+      "RelativeMoniker": "D:0:0:{F06545A3-CE02-E11C-3865-664FD75F3608}|GantrySCADA.csproj|solutionrelative:pages\\telemetry.razor||{40D31677-CBC0-4297-A9EF-89D907823A98}"
+    },
+    {
       "AbsoluteMoniker": "D:0:0:{F06545A3-CE02-E11C-3865-664FD75F3608}|GantrySCADA.csproj|d:\\dacdt_2026\\dancdt\\gantryscada\\pages\\systemsettings.razor||{40D31677-CBC0-4297-A9EF-89D907823A98}",
       "RelativeMoniker": "D:0:0:{F06545A3-CE02-E11C-3865-664FD75F3608}|GantrySCADA.csproj|solutionrelative:pages\\systemsettings.razor||{40D31677-CBC0-4297-A9EF-89D907823A98}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{F06545A3-CE02-E11C-3865-664FD75F3608}|GantrySCADA.csproj|d:\\dacdt_2026\\dancdt\\gantryscada\\mainviewmodel.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{F06545A3-CE02-E11C-3865-664FD75F3608}|GantrySCADA.csproj|solutionrelative:mainviewmodel.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     }
   ],
   "DocumentGroupContainers": [
@@ -35,15 +43,39 @@
             {
               "$type": "Document",
               "DocumentIndex": 0,
+              "Title": "Telemetry.razor",
+              "DocumentMoniker": "D:\\DACDT_2026\\DANCDT\\GantrySCADA\\Pages\\Telemetry.razor",
+              "RelativeDocumentMoniker": "Pages\\Telemetry.razor",
+              "ToolTip": "D:\\DACDT_2026\\DANCDT\\GantrySCADA\\Pages\\Telemetry.razor",
+              "RelativeToolTip": "Pages\\Telemetry.razor",
+              "ViewState": "AgIAANECAAAAAAAAAAAswPACAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000759|",
+              "WhenOpened": "2026-04-24T04:53:18.466Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 2,
+              "Title": "MainViewModel.cs",
+              "DocumentMoniker": "D:\\DACDT_2026\\DANCDT\\GantrySCADA\\MainViewModel.cs",
+              "RelativeDocumentMoniker": "MainViewModel.cs",
+              "ToolTip": "D:\\DACDT_2026\\DANCDT\\GantrySCADA\\MainViewModel.cs",
+              "RelativeToolTip": "MainViewModel.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAABQAAAAJAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-04-24T03:52:55.309Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 1,
               "Title": "SystemSettings.razor",
               "DocumentMoniker": "D:\\DACDT_2026\\DANCDT\\GantrySCADA\\Pages\\SystemSettings.razor",
               "RelativeDocumentMoniker": "Pages\\SystemSettings.razor",
               "ToolTip": "D:\\DACDT_2026\\DANCDT\\GantrySCADA\\Pages\\SystemSettings.razor",
               "RelativeToolTip": "Pages\\SystemSettings.razor",
-              "ViewState": "AgIAAA8AAAAAAAAAAAAAACEAAAAdAAAAAAAAAA==",
+              "ViewState": "AgIAAA8AAAAAAAAAAAAAACAAAAAnAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000759|",
-              "WhenOpened": "2026-04-17T16:03:20.279Z",
-              "EditorCaption": ""
+              "WhenOpened": "2026-04-17T16:03:20.279Z"
             }
           ]
         }

@@ -1,6 +1,7 @@
 @page "/telemetry"
 @inject WPF_Test_PLC20260124.MainViewModel ViewModel
 @using System.Timers
+@using System.Text.RegularExpressions
 
 <style>
     @@keyframes value-flash {
@@ -19,6 +20,26 @@
 </style>
 
 <div class="space-y-8">
+
+    <!-- ═════════ Raw Buffer Write Tester (u0\g2004) ═════════ -->
+    <div class="grid grid-cols-12 gap-6">
+        <section class="col-span-12 bg-surface-container-low rounded-lg p-4 flex items-center gap-4">
+            <div class="flex-1">
+                <label class="block text-xs font-label text-on-surface-variant uppercase">Raw Buffer Address</label>
+                <input @bind="rawAddr" class="w-full bg-surface-container-highest text-on-surface font-mono text-sm px-3 py-2 rounded" />
+            </div>
+            <div class="w-40">
+                <label class="block text-xs font-label text-on-surface-variant uppercase">Value</label>
+                <input type="number" @bind="rawValue" class="w-full bg-surface-container-highest text-on-surface font-mono text-sm px-3 py-2 rounded" />
+            </div>
+            <div class="flex items-end">
+                <button @onclick="SendRawBuffer" class="bg-gradient-to-r from-primary to-primary-container text-on-primary px-4 py-2 rounded font-label text-xs font-bold uppercase">
+                    Send
+                </button>
+            </div>
+            <div class="text-sm text-outline ml-4">Example: <code>u0\\g2006</code></div>
+        </section>
+    </div>
 
     <!-- ═══════════════════════════════════════════════════════════
          TOP ROW: Read Monitor (40%) + Write Control (60%)
@@ -88,7 +109,7 @@
                 <div class="flex gap-2 bg-surface-container-lowest rounded-lg p-3 shadow-sm">
                     <select @bind="newReadType"
                             class="bg-surface-container-highest text-on-surface font-label text-xs font-bold uppercase rounded px-2 py-2 focus:outline-none focus:ring-2 focus:ring-primary/30">
-                        <option>D</option><option>M</option><option>X</option><option>Y</option>
+                        <option>D</option><option>M</option><option>X</option><option>Y</option><option>G</option><option>Q</option>
                     </select>
                     <input type="number" @bind="newReadIndex" placeholder="Address"
                            class="flex-1 bg-surface-container-highest text-on-surface font-mono text-sm px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-primary/30" />
@@ -135,7 +156,7 @@
                             <!-- Type Selector -->
                             <select @bind="entry.AddrType"
                                     class="bg-surface-container-highest text-on-surface font-label text-xs font-bold uppercase rounded px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-primary/30 w-20">
-                                <option>D</option><option>M</option><option>X</option><option>Y</option>
+                                <option>D</option><option>M</option><option>X</option><option>Y</option><option>G</option><option>Q</option>
                             </select>
 
                             <!-- Address Index -->
@@ -282,6 +303,10 @@
 </div>
 
 @code {
+    // Raw buffer tester state
+    string rawAddr = "u0\\g2006";
+    int rawValue = 0;
+
     // ─── Models ────────────────────────────────────────────────────
     public class ReadEntry
     {
@@ -582,7 +607,7 @@
                 ? "D"
                 : entry.AddrType.Trim().ToUpperInvariant();
 
-            if (normType == "D" || normType == "M" || normType == "X" || normType == "Y")
+            if (normType == "D" || normType == "M" || normType == "X" || normType == "Y" || normType == "G" || normType == "Q")
             {
                 // Keep mirror buffers in sync when address is inside configured ranges.
                 if (normType == "D")
@@ -621,6 +646,20 @@
                     int offsetY = entry.AddrIndex - ViewModel.Y_W_Base;
                     if (offsetY >= 0 && offsetY < ViewModel.arr_W_Y.Length)
                         ViewModel.arr_W_Y[offsetY] = entry.WriteValue;
+                }
+                else if (normType == "G")
+                {
+                    // Handle G register writes (e.g., G2000)
+                    int offsetG = entry.AddrIndex - ViewModel.G_W_Base;
+                    if (offsetG >= 0 && offsetG < ViewModel.arr_W_G.Length)
+                        ViewModel.arr_W_G[offsetG] = entry.WriteValue;
+                }
+                else if (normType == "Q")
+                {
+                    // Handle Q register writes (e.g., Q2000)
+                    int offsetQ = entry.AddrIndex - ViewModel.Q_W_Base;
+                    if (offsetQ >= 0 && offsetQ < ViewModel.arr_W_Q.Length)
+                        ViewModel.arr_W_Q[offsetQ] = entry.WriteValue;
                 }
 
                 ViewModel.MarkPendingWrite(normType, entry.AddrIndex, entry.WriteValue);
@@ -669,6 +708,8 @@
         "M" => "#006c49",
         "X" => "#b45309",
         "Y" => "#7c3aed",
+        "G" => "#00838f",
+        "Q" => "#c62828",
         _   => "#727687"
     };
 
@@ -677,5 +718,57 @@
         _timer?.Stop();
         _timer?.Dispose();
         ViewModel.PropertyChanged -= OnViewModelChanged;
+    }
+
+    // Attempt to interpret address strings like "u0\\g2004" or "u0/g2004".
+    // For unsupported device letters we fall back to treating it as D (word) device.
+    void SendRawBuffer()
+    {
+        if (string.IsNullOrWhiteSpace(rawAddr))
+        {
+            return;
+        }
+
+        // Normalize separators and lower-case
+        string s = rawAddr.Trim().ToLowerInvariant().Replace('/', '\\');
+
+        // Regex to match u<unit>\\<device><index> (allow one or more backslashes after unit)
+        var m = Regex.Match(s, @"^u\d+\\+([gq])(\d+)$");
+        int index = -1;
+
+        if (m.Success && int.TryParse(m.Groups[2].Value, out index))
+        {
+            var devLetter = m.Groups[1].Value.ToUpperInvariant(); // 'G' or 'Q'
+
+            if (!ViewModel.Status)
+            {
+                ViewModel.AddLog("UI", "warning", $"Send ignored - PLC not connected: {rawAddr}");
+                return;
+            }
+
+            // Queue a pending write targeted at the parsed device (G/Q).
+            ViewModel.MarkPendingWrite(devLetter, index, rawValue);
+            ViewModel.AddLog("UI", "info", $"Raw buffer send queued: {rawAddr} -> {devLetter}{index} = {rawValue}");
+        }
+        else
+        {
+            // Try fallback: extract last number in string and treat as D
+            var numMatch = Regex.Match(s, @"(\d+)$");
+            if (numMatch.Success && int.TryParse(numMatch.Groups[1].Value, out index))
+            {
+                if (!ViewModel.Status)
+                {
+                    ViewModel.AddLog("UI", "warning", $"Send ignored - PLC not connected: {rawAddr}");
+                    return;
+                }
+
+                ViewModel.MarkPendingWrite("D", index, rawValue);
+                ViewModel.AddLog("UI", "info", $"Raw buffer send queued (fallback): {rawAddr} -> D{index} = {rawValue}");
+            }
+            else
+            {
+                ViewModel.AddLog("UI", "error", $"Unable to parse raw address: {rawAddr}");
+            }
+        }
     }
 }
