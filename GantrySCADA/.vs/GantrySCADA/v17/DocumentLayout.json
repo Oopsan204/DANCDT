@@ -1,9 +1,9 @@
 {
   "Version": 1,
-  "WorkspaceRootPath": "E:\\hoctap\\nam4_ky3\\1.DO-AN-CDT\\APP\\DANCDT\\GantrySCADA\\",
+  "WorkspaceRootPath": "D:\\DACDT_2026\\DANCDT\\GantrySCADA\\",
   "Documents": [
     {
-      "AbsoluteMoniker": "D:0:0:{F06545A3-CE02-E11C-3865-664FD75F3608}|GantrySCADA.csproj|e:\\hoctap\\nam4_ky3\\1.do-an-cdt\\app\\dancdt\\gantryscada\\pages\\systemsettings.razor||{40D31677-CBC0-4297-A9EF-89D907823A98}",
+      "AbsoluteMoniker": "D:0:0:{F06545A3-CE02-E11C-3865-664FD75F3608}|GantrySCADA.csproj|d:\\dacdt_2026\\dancdt\\gantryscada\\pages\\systemsettings.razor||{40D31677-CBC0-4297-A9EF-89D907823A98}",
       "RelativeMoniker": "D:0:0:{F06545A3-CE02-E11C-3865-664FD75F3608}|GantrySCADA.csproj|solutionrelative:pages\\systemsettings.razor||{40D31677-CBC0-4297-A9EF-89D907823A98}"
     }
   ],
@@ -14,24 +14,36 @@
       "DocumentGroups": [
         {
           "DockedWidth": 200,
-          "SelectedChildIndex": 0,
+          "SelectedChildIndex": 4,
           "Children": [
+            {
+              "$type": "Bookmark",
+              "Name": "ST:0:0:{b1e99781-ab81-11d0-b683-00aa00a3ee26}"
+            },
+            {
+              "$type": "Bookmark",
+              "Name": "ST:258945968:0:{83107a3e-496a-485e-b455-16ddb978e55e}"
+            },
+            {
+              "$type": "Bookmark",
+              "Name": "ST:0:0:{aa2115a1-9712-457b-9047-dbb71ca2cdd2}"
+            },
+            {
+              "$type": "Bookmark",
+              "Name": "ST:0:0:{d78612c7-9962-4b83-95d9-268046dad23a}"
+            },
             {
               "$type": "Document",
               "DocumentIndex": 0,
               "Title": "SystemSettings.razor",
-              "DocumentMoniker": "E:\\hoctap\\nam4_ky3\\1.DO-AN-CDT\\APP\\DANCDT\\GantrySCADA\\Pages\\SystemSettings.razor",
+              "DocumentMoniker": "D:\\DACDT_2026\\DANCDT\\GantrySCADA\\Pages\\SystemSettings.razor",
               "RelativeDocumentMoniker": "Pages\\SystemSettings.razor",
-              "ToolTip": "E:\\hoctap\\nam4_ky3\\1.DO-AN-CDT\\APP\\DANCDT\\GantrySCADA\\Pages\\SystemSettings.razor",
+              "ToolTip": "D:\\DACDT_2026\\DANCDT\\GantrySCADA\\Pages\\SystemSettings.razor",
               "RelativeToolTip": "Pages\\SystemSettings.razor",
-              "ViewState": "AgIAABUAAAAAAAAAAAAAAAkAAABYAAAAAAAAAA==",
+              "ViewState": "AgIAABUAAAAAAAAAAAAAAB4AAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000759|",
               "WhenOpened": "2026-04-17T16:03:20.279Z",
               "EditorCaption": ""
-            },
-            {
-              "$type": "Bookmark",
-              "Name": "ST:0:0:{cce594b6-0c39-4442-ba28-10c64ac7e89f}"
             }
           ]
         }
