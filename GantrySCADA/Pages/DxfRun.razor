@@ -540,10 +540,6 @@
         _scriptStatus = string.Empty;
         _nextSendIndex = 0;
         _activeSendIndex = -1;
-
-        if (TryGenerateFramesFromSelectedContour())
-            return;
-
         PickedPoint? previousEndPoint = null;
 
         var lines = _motionScript
@@ -649,95 +645,6 @@
 
         _scriptStatus = $"Generated {_generatedFrames.Count} frame(s).";
         ViewModel.AddLog("UI", "success", _scriptStatus, "PLC frame gen");
-    }
-
-    private bool TryGenerateFramesFromSelectedContour()
-    {
-        var contour = ViewModel.SelectedContour;
-        if (contour == null)
-            return false;
-
-        const int defaultSpeed = 1000;
-        const int defaultDwell = 0;
-
-        void AddMoveL(double xMm, double yMm)
-        {
-            _generatedFrames.Add(new PlcMotionFrame
-            {
-                CommandCode = 1,
-                PosXUm = ToUm(xMm),
-                PosYUm = ToUm(yMm),
-                ArcXUm = 0,
-                ArcYUm = 0,
-                SpeedMmMin = defaultSpeed,
-                DwellMs = defaultDwell,
-                BitRun = 1
-            });
-        }
-
-        void AddMoveC(double endXmm, double endYmm, double cxMm, double cyMm)
-        {
-            _generatedFrames.Add(new PlcMotionFrame
-            {
-                CommandCode = 2,
-                PosXUm = ToUm(endXmm),
-                PosYUm = ToUm(endYmm),
-                ArcXUm = ToUm(cxMm),
-                ArcYUm = ToUm(cyMm),
-                SpeedMmMin = defaultSpeed,
-                DwellMs = defaultDwell,
-                BitRun = 1
-            });
-        }
-
-        if (contour.IsCircle)
-        {
-            if (contour.Points.Count < 1 || !contour.HasCenter)
-            {
-                _scriptStatus = "Selected circle is missing start/center info.";
-                return true;
-            }
-
-            var start = contour.Points[0];
-            // Single MoveC command: end = start, center = C. Useful for cyclic single-step send.
-            AddMoveC(start.X, start.Y, contour.CenterX, contour.CenterY);
-        }
-        else if (contour.IsArc)
-        {
-            if (contour.Points.Count < 2 || !contour.HasCenter)
-            {
-                _scriptStatus = "Selected arc is missing start/end/center info.";
-                return true;
-            }
-
-            var start = contour.Points[0];
-            var end = contour.Points[1];
-            AddMoveL(start.X, start.Y);
-            AddMoveC(end.X, end.Y, contour.CenterX, contour.CenterY);
-        }
-        else
-        {
-            if (contour.Points.Count == 0)
-            {
-                _scriptStatus = "Selected contour has no points.";
-                return true;
-            }
-
-            foreach (var p in contour.Points)
-                AddMoveL(p.X, p.Y);
-
-            if (contour.IsClosed && contour.Points.Count > 1)
-            {
-                var first = contour.Points[0];
-                var last = contour.Points[^1];
-                if (Math.Abs(first.X - last.X) > 1e-9 || Math.Abs(first.Y - last.Y) > 1e-9)
-                    AddMoveL(first.X, first.Y);
-            }
-        }
-
-        _scriptStatus = $"Auto generated {_generatedFrames.Count} frame(s) from contour '{contour.Name}'.";
-        ViewModel.AddLog("UI", "success", _scriptStatus, "PLC frame auto-gen");
-        return true;
     }
 
     private async Task SendFramesToPlcAsync()
