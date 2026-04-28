@@ -1,836 +1,350 @@
 @page "/dxf-run"
 @inject WPF_Test_PLC20260124.MainViewModel ViewModel
-@inject IJSRuntime JS
 @using System.IO
-@implements IDisposable
 
-<div class="space-y-6 pb-20">
-    <!-- Header / Breadcrumbs -->
-    <div class="flex justify-between items-end mb-4">
-        <div>
-            <h1 class="text-3xl font-bold tracking-tighter text-on-surface font-headline uppercase">DXF Advanced Control Hub</h1>
-            <p class="text-xs text-on-surface-variant font-label uppercase tracking-widest mt-1">Industrial Trajectory & Visual Validation Engine</p>
+<div class="h-[calc(100vh-60px)] w-full flex flex-col p-6 gap-6 bg-surface text-on-surface font-body overflow-hidden">
+    
+    <!-- Top Bar -->
+    <div class="flex items-start justify-between w-full shrink-0">
+        <div class="flex gap-4 w-1/2">
+            <!-- CAD Path & File Input -->
+            <div class="flex items-center bg-surface-container-lowest border border-outline-variant/50 flex-1 h-10 px-3 overflow-hidden">
+                <span class="material-symbols-outlined text-outline mr-2">folder_open</span>
+                <span class="text-xs font-mono text-outline flex-1 truncate" title="@ViewModel.DxfFilePath">
+                    @(string.IsNullOrWhiteSpace(ViewModel.DxfFilePath) ? "Đường dẫn cad / Tên file" : $"{ViewModel.DxfFilePath} ({Path.GetFileName(ViewModel.DxfFilePath)})")
+                </span>
+                <button class="bg-primary-container text-on-primary-fixed font-headline font-bold text-xs px-4 h-full ml-3 hover:bg-primary-fixed-dim transition-colors uppercase" @onclick="() => ViewModel.BrowseAndLoadDxf()">
+                    OPEN
+                </button>
+            </div>
         </div>
-        <div class="flex gap-2">
-            <div class="px-3 py-1 rounded bg-surface-container-high border border-outline-variant/30 flex items-center gap-2">
-                <div class="w-2 h-2 rounded-full @(ViewModel.Status ? "bg-green-500" : "bg-red-500") shadow-[0_0_8px_currentColor]"></div>
-                <span class="text-[10px] font-bold font-label uppercase text-on-surface-variant">PLC: @(ViewModel.Status ? "CONNECTED" : "OFFLINE")</span>
+
+        <!-- Status Indicators -->
+        <div class="flex gap-6 items-end mr-4">
+            <div class="flex flex-col items-center gap-2">
+                <span class="text-outline text-[10px] font-bold tracking-widest uppercase">Ready</span>
+                <div class="w-6 h-6 rounded-none border border-outline-variant/50 transition-colors @(ViewModel.Status && !ViewModel.IsDxfRunning ? "bg-secondary-container shadow-[0_0_15px_var(--c-secondary-container)]" : "bg-surface-container-low")"></div>
+            </div>
+            <div class="flex flex-col items-center gap-2">
+                <span class="text-outline text-[10px] font-bold tracking-widest uppercase">Busy</span>
+                <div class="w-6 h-6 rounded-none border border-outline-variant/50 transition-colors @(ViewModel.IsDxfRunning ? "bg-primary shadow-[0_0_15px_var(--c-primary)]" : "bg-surface-container-low")"></div>
+            </div>
+            <div class="flex flex-col items-center gap-2">
+                <span class="text-outline text-[10px] font-bold tracking-widest uppercase">Home</span>
+                <div class="w-6 h-6 rounded-none bg-surface-container-low border border-outline-variant/50"></div>
+            </div>
+            <div class="flex flex-col items-center gap-2">
+                <span class="text-outline text-[10px] font-bold tracking-widest uppercase">Error</span>
+                <div class="w-6 h-6 rounded-none border border-outline-variant/50 transition-colors @(!ViewModel.Status ? "bg-error shadow-[0_0_15px_var(--c-error)]" : "bg-surface-container-low")"></div>
             </div>
         </div>
     </div>
 
-    <!-- Main Hub Layout: 3 Columns -->
-    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+    <!-- Main Content Area -->
+    <div class="flex-1 flex gap-6 min-h-0 overflow-hidden">
         
-        <!-- LEFT COLUMN: Source & Manager (3 units) -->
-        <div class="lg:col-span-3 space-y-6">
-            <!-- DXF Source Block -->
-            <section class="bg-surface-container-lowest rounded-xl p-5 shadow-sm border border-outline-variant/10 relative overflow-hidden">
-                <div class="flex items-center gap-2 mb-4 border-b border-outline-variant/10 pb-2">
-                    <span class="material-symbols-outlined text-primary text-sm">upload_file</span>
-                    <h2 class="text-[11px] font-bold font-label uppercase tracking-wider text-on-surface-variant">DXF Source</h2>
+        <!-- View CAD Box (Center-Left) -->
+        <div class="flex-[2] bg-surface-container-lowest border border-primary-container/20 relative flex items-center justify-center overflow-hidden" style="background-image: linear-gradient(to right, rgba(59, 73, 75, 0.1) 1px, transparent 1px), linear-gradient(to bottom, rgba(59, 73, 75, 0.1) 1px, transparent 1px); background-size: 40px 40px;">
+            @if (string.IsNullOrWhiteSpace(ViewModel.DxfPreviewPathData))
+            {
+                <div class="flex flex-1 items-center justify-center">
+                    <span class="text-outline text-2xl tracking-widest font-headline uppercase opacity-50">NO SIGNAL / NO CAD LOADED</span>
                 </div>
-                <div class="space-y-4">
-                    <div class="flex gap-2">
-                        <input type="text" @bind="ViewModel.DxfFilePath" placeholder="C:\Paths\Project.dxf" 
-                               class="flex-grow bg-surface-container-low border border-outline-variant/20 rounded px-3 py-2 text-xs font-mono focus:outline-none focus:border-primary transition-all shadow-inner"/>
-                        <button class="bg-surface-container-high hover:bg-surface-container-highest text-on-surface p-2 rounded transition-colors shadow-sm"
-                            @onclick='() => ViewModel.BrowseAndLoadDxf()'>
-                            <span class="material-symbols-outlined text-lg">folder_open</span>
-                        </button>
-                    </div>
-                    <div class="grid grid-cols-2 gap-2">
-                        <button @onclick='() => ViewModel.LoadDxfAdvanced(ViewModel.DxfFilePath)' 
-                                class="bg-primary hover:brightness-110 text-white py-2 rounded text-[10px] font-bold uppercase tracking-wider transition-all shadow-md">
-                            Load DXF
-                        </button>
-                        <button class="bg-surface-container-high hover:bg-surface-container-highest text-on-surface py-2 rounded text-[10px] font-bold uppercase tracking-wider transition-all"
-                                @onclick='() => ViewModel.LoadDxfAdvanced(ViewModel.DxfFilePath)'>
-                            Reload
-                        </button>
-                    </div>
-                    <div class="mt-4 p-3 bg-surface-container-low rounded border-l-2 border-primary space-y-2">
-                        <div class="flex justify-between text-[10px] font-mono text-on-surface-variant">
-                            <span>Entities:</span>
-                            <span class="text-on-surface font-bold text-primary">@ViewModel.DxfEntityCount</span>
-                        </div>
-                        <div class="flex justify-between text-[10px] font-mono text-on-surface-variant">
-                            <span>Points:</span>
-                            <span class="text-on-surface font-bold">@ViewModel.DxfSampleCount</span>
-                        </div>
-                        <div class="flex justify-between text-[10px] font-mono text-on-surface-variant">
-                            <span>Layers:</span>
-                            <span class="text-on-surface font-bold">@ViewModel.DxfLayerCount</span>
-                        </div>
-                    </div>
+            }
+            else
+            {
+                <!-- X/Y/Z Readouts Overlay -->
+                <div class="absolute top-4 left-4 flex gap-2">
+                    <div class="bg-surface-container-high/80 backdrop-blur px-3 py-1 border border-outline-variant/20 text-[10px] font-mono uppercase text-outline">X: 0.000</div>
+                    <div class="bg-surface-container-high/80 backdrop-blur px-3 py-1 border border-outline-variant/20 text-[10px] font-mono uppercase text-outline">Y: 0.000</div>
+                    <div class="bg-surface-container-high/80 backdrop-blur px-3 py-1 border border-outline-variant/20 text-[10px] font-mono uppercase text-outline">Z: 0.000</div>
                 </div>
-            </section>
 
-            <!-- Contour Manager Block -->
-            <section class="bg-surface-container-lowest rounded-xl p-5 shadow-sm border border-outline-variant/10 flex flex-col h-[500px]">
-                <div class="flex items-center justify-between mb-4 border-b border-outline-variant/10 pb-2">
-                    <div class="flex items-center gap-2">
-                        <span class="material-symbols-outlined text-primary text-sm">polyline</span>
-                        <h2 class="text-[11px] font-bold font-label uppercase tracking-wider text-on-surface-variant">Contour Manager</h2>
-                    </div>
-                    <select @bind="ViewModel.SelectedDxfLayer" class="bg-surface-container-low border-none rounded text-[9px] font-bold uppercase py-1 px-2 focus:ring-0">
-                        @foreach(var layer in ViewModel.DxfLayers)
-                        {
-                            <option value="@layer">@layer</option>
-                        }
-                    </select>
+                <!-- SVG CAD PREVIEW -->
+                <div class="absolute inset-0 flex items-center justify-center p-4" @ref="svgContainer" @onwheel="OnMouseWheel" @onwheel:preventDefault="true" @onmousedown="OnMouseDown" @onmousemove="OnMouseMove" @onmouseup="OnMouseUp" @onmouseleave="OnMouseLeave">
+                    <svg viewBox="0 0 200 200" class="w-full h-full drop-shadow-[0_0_10px_var(--c-secondary)]" preserveAspectRatio="none" style="transform: translate(@(PanX)px, @(PanY)px) scale(@(ZoomLevel)); transform-origin: center;">
+                        <g>
+                            <path d="@ViewModel.DxfPreviewPathData" stroke="var(--c-secondary)" stroke-width="0.5" fill="none" vector-effect="non-scaling-stroke" />
+                        </g>
+                    </svg>
                 </div>
-                <div class="flex-grow overflow-y-auto pr-1 custom-scrollbar">
-                    <table class="w-full text-left border-separate border-spacing-y-1">
-                        <thead>
-                            <tr class="text-[9px] font-label text-on-surface-variant/60 uppercase tracking-tighter">
-                                <th class="pb-2 pl-2">Name</th>
-                                <th class="pb-2">Length</th>
-                                <th class="pb-2">Action</th>
+                
+                <!-- Mini Stats Overlay -->
+                <div class="absolute bottom-4 left-4 bg-surface-container-high/80 backdrop-blur border border-outline-variant/20 text-outline px-3 py-2 text-[10px] font-mono uppercase">
+                    Entities: @ViewModel.DxfEntityCount | Contours: @(ViewModel.DxfContours?.Count ?? 0) | Layers: @ViewModel.DxfLayerCount
+                </div>
+                
+                <!-- Zoom controls overlay -->
+                <div class="absolute bottom-4 right-4 flex flex-col gap-2">
+                    <button class="w-10 h-10 bg-surface-container-high border border-outline-variant/50 flex items-center justify-center hover:bg-surface-container-highest active:bg-primary transition-colors" @onclick="() => ZoomIn()" title="Zoom In"><span class="material-symbols-outlined text-on-surface">add</span></button>
+                    <button class="w-10 h-10 bg-surface-container-high border border-outline-variant/50 flex items-center justify-center hover:bg-surface-container-highest active:bg-primary transition-colors" @onclick="() => ZoomOut()" title="Zoom Out"><span class="material-symbols-outlined text-on-surface">remove</span></button>
+                    <button class="w-10 h-10 bg-surface-container-high border border-outline-variant/50 flex items-center justify-center hover:bg-surface-container-highest active:bg-primary transition-colors" @onclick="() => ResetZoomAndPan()" title="Reset View"><span class="material-symbols-outlined text-on-surface">fit_screen</span></button>
+                </div>
+                
+                <!-- Zoom level indicator -->
+                <div class="absolute top-4 right-4 bg-surface-container-high/80 backdrop-blur border border-outline-variant/20 text-outline px-3 py-1 text-[10px] font-mono uppercase">
+                    Zoom: @(Math.Round(ZoomLevel * 100))% | Pan: (@(Math.Round(PanX)), @(Math.Round(PanY)))
+                </div>
+            }
+        </div>
+
+        <!-- Right Side Tables -->
+        <div class="flex-1 flex flex-col gap-6 h-full min-w-[320px]">
+            
+            <!-- Point Coordinates Table -->
+            <div class="flex-[3] flex flex-col bg-surface-container-low border border-outline-variant/20 overflow-hidden">
+                <div class="bg-surface-container-highest p-3 border-b border-outline-variant/30 flex justify-between items-center shrink-0">
+                    <span class="font-headline font-bold uppercase text-xs tracking-widest">POINT_DATA_SET</span>
+                    <span class="text-[10px] text-primary-container font-mono">COUNT: @(ViewModel.DxfContours?.Sum(c => c.Points?.Count ?? 0) ?? 0)</span>
+                </div>
+                <div class="flex-1 overflow-auto overflow-x-hidden [scrollbar-width:thin] [scrollbar-color:var(--c-outline-variant)_transparent]">
+                    <table class="w-full text-left text-[11px] font-mono border-collapse">
+                        <thead class="sticky top-0 bg-surface-container-low z-10 shadow-sm">
+                            <tr>
+                                <th class="p-2 border-b border-outline-variant/20 text-outline uppercase font-medium w-12">STT</th>
+                                <th class="p-2 border-b border-outline-variant/20 text-outline uppercase font-medium">TYPE</th>
+                                <th class="p-2 border-b border-outline-variant/20 text-outline uppercase font-medium">X</th>
+                                <th class="p-2 border-b border-outline-variant/20 text-outline uppercase font-medium">Y</th>
                             </tr>
                         </thead>
-                        <tbody>
-                            @foreach(var item in ViewModel.DxfContours.Where(c => ViewModel.SelectedDxfLayer == "All" || c.Layer == ViewModel.SelectedDxfLayer))
+                        <tbody class="divide-y divide-outline-variant/10">
+                            @if (ViewModel.DxfContours != null && ViewModel.DxfContours.Count > 0)
                             {
-                                <tr class="group hover:bg-surface-container-low transition-colors cursor-pointer @(ViewModel.SelectedContour == item ? "bg-surface-container-high" : "bg-surface-container-low/30")"
-                                    @onclick="() => SelectContour(item)">
-                                    <td class="py-2 pl-2 rounded-l flex items-center gap-1">
-                                        <div class="w-1 h-3 rounded-full @(item.IsClosed ? "bg-green-500" : "bg-blue-500/50") mr-1"></div>
-                                        <span class="text-[10px] font-mono font-bold text-on-surface">@item.Name</span>
-                                    </td>
-                                    <td class="text-[10px] font-mono text-on-surface-variant italic">@item.Length.ToString("F1")mm</td>
-                                    <td class="py-2 pr-2 rounded-r text-right opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <span class="material-symbols-outlined text-primary text-sm">visibility</span>
-                                    </td>
-                                </tr>
+                                int stt = 1;
+                                foreach (var contour in ViewModel.DxfContours)
+                                {
+                                    if (contour.Points != null && contour.Points.Count > 0)
+                                    {
+                                        foreach (var pt in contour.Points)
+                                        {
+                                            string rowBg = stt % 2 == 0 ? "bg-surface-container-low" : "bg-surface";
+                                            <tr class="@rowBg h-8 hover:bg-surface-container-high transition-colors">
+                                                <td class="p-2 text-outline text-center">@stt.ToString("D4")</td>
+                                                <td class="p-2 text-on-surface">@(contour.IsCircle ? "CIRCLE" : (contour.IsArc ? "ARC" : "LINEAR"))</td>
+                                                <td class="p-2 text-primary-fixed-dim">@pt.X.ToString("F3")</td>
+                                                <td class="p-2 text-primary-fixed-dim">@pt.Y.ToString("F3")</td>
+                                            </tr>
+                                            stt++;
+                                        }
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                for (int i = 0; i < 5; i++)
+                                {
+                                    string rowBg = i % 2 == 1 ? "bg-surface-container-low" : "bg-surface";
+                                    <tr class="@rowBg h-8"><td class="p-2"></td><td class="p-2"></td><td class="p-2"></td><td class="p-2"></td></tr>
+                                }
                             }
                         </tbody>
                     </table>
                 </div>
-            </section>
+            </div>
+
+            <!-- Motion Details Table -->
+            <div class="flex-[2] flex flex-col bg-surface-container-lowest border border-outline-variant/50 overflow-hidden">
+                <div class="bg-surface-container-highest p-3 border-b border-outline-variant/30 flex justify-between items-center shrink-0">
+                    <span class="font-headline font-bold uppercase text-xs tracking-widest">MOTION_KERNEL</span>
+                </div>
+                <div class="flex-1 overflow-auto overflow-x-hidden [scrollbar-width:thin] [scrollbar-color:var(--c-outline-variant)_transparent]">
+                    <table class="w-full text-left text-[11px] font-mono border-collapse">
+                        <thead class="sticky top-0 bg-surface-container-lowest z-10 shadow-sm">
+                            <tr>
+                                <th class="p-2 border-b border-outline-variant/20 text-outline uppercase font-medium">TYPE</th>
+                                <th class="p-2 border-b border-outline-variant/20 text-outline uppercase font-medium">M_CODE</th>
+                                <th class="p-2 border-b border-outline-variant/20 text-outline uppercase font-medium">DWELL</th>
+                                <th class="p-2 border-b border-outline-variant/20 text-outline uppercase font-medium">SPEED</th>
+                                <th class="p-2 border-b border-outline-variant/20 text-outline uppercase font-medium">END_PT</th>
+                                <th class="p-2 border-b border-outline-variant/20 text-outline uppercase font-medium">CENTER</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-outline-variant/10">
+                            @if (ViewModel.DxfContours != null && ViewModel.DxfContours.Count > 0)
+                            {
+                                int rowIdx = 0;
+                                foreach (var contour in ViewModel.DxfContours)
+                                {
+                                    string motionType = contour.IsCircle ? "CW" : (contour.IsArc ? (contour.ArcClockwise ? "CW" : "CCW") : "LIN");
+                                    string endPt = contour.Points.Any() ? $"{contour.Points.Last().X:F1},{contour.Points.Last().Y:F1}" : "N/A";
+                                    string centerPt = contour.HasCenter ? $"{contour.CenterX:F1},{contour.CenterY:F1}" : "N/A";
+                                    
+                                    string rowBg = rowIdx % 2 == 1 ? "bg-surface-container-lowest" : "bg-surface-container-low";
+                                    <tr class="@rowBg h-8 hover:bg-surface-container-high transition-colors">
+                                        <td class="p-2 text-on-surface font-bold">@motionType</td>
+                                        <td class="p-2 text-outline">0</td>
+                                        <td class="p-2 text-outline">0</td>
+                                        <td class="p-2 text-outline">1.0</td>
+                                        <td class="p-2 text-primary-fixed-dim">@endPt</td>
+                                        <td class="p-2 text-primary-fixed-dim">@centerPt</td>
+                                    </tr>
+                                    rowIdx++;
+                                }
+                            }
+                            else
+                            {
+                                for (int i = 0; i < 3; i++)
+                                {
+                                    string rowBg = i % 2 == 1 ? "bg-surface-container-lowest" : "bg-surface-container-low";
+                                    <tr class="@rowBg h-8"><td class="p-2"></td><td class="p-2"></td><td class="p-2"></td><td class="p-2"></td><td class="p-2"></td><td class="p-2"></td></tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Bottom Controls Area -->
+    <div class="h-20 bg-surface-container-highest border border-outline-variant/40 flex items-center justify-between px-6 shrink-0 z-10">
+        <!-- Parameters (Left side of footer) -->
+        <div class="flex gap-2 flex-wrap h-full py-4 items-center">
+            <button class="bg-surface-container-low text-on-surface border border-outline-variant/30 h-full px-4 hover:bg-surface-container-high active:bg-surface transition-colors font-headline text-xs uppercase flex flex-col justify-center items-center">
+                <span class="text-[9px] text-outline">ĐIỂM</span>
+                <span>Bắt đầu</span>
+            </button>
+            <button class="bg-surface-container-low text-on-surface border border-outline-variant/30 h-full px-4 hover:bg-surface-container-high active:bg-surface transition-colors font-headline text-xs uppercase flex flex-col justify-center items-center">
+                <span class="text-[9px] text-outline">BƠM KEO</span>
+                <span>Bắt đầu</span>
+            </button>
+            <button class="bg-surface-container-low text-on-surface border border-outline-variant/30 h-full px-4 hover:bg-surface-container-high active:bg-surface transition-colors font-headline text-xs uppercase flex flex-col justify-center items-center">
+                <span class="text-[9px] text-outline">BƠM KEO</span>
+                <span>Kết thúc</span>
+            </button>
+            <button class="bg-surface-container-low text-on-surface border border-outline-variant/30 h-full px-4 hover:bg-surface-container-high active:bg-surface transition-colors font-headline text-xs uppercase flex flex-col justify-center items-center">
+                <span class="text-[9px] text-outline">ĐỘ CAO</span>
+                <span>Z Hạ</span>
+            </button>
+            <button class="bg-surface-container-low text-on-surface border border-outline-variant/30 h-full px-4 hover:bg-surface-container-high active:bg-surface transition-colors font-headline text-xs uppercase flex flex-col justify-center items-center">
+                <span class="text-[9px] text-outline">ĐỘ CAO</span>
+                <span>Z An Toàn</span>
+            </button>
+            <button class="bg-surface-container-low text-on-surface border border-outline-variant/30 h-full px-6 hover:bg-surface-container-high active:bg-surface transition-colors font-headline text-xs uppercase flex flex-col justify-center items-center">
+                <span class="text-[9px] text-outline">THIẾT LẬP</span>
+                <span>Tốc độ</span>
+            </button>
         </div>
 
-        <!-- CENTER COLUMN: Visual Validation (6 units) -->
-        <div class="lg:col-span-6">
-            <section class="bg-surface-container-lowest rounded-xl shadow-lg border border-outline-variant/10 overflow-hidden flex flex-col h-full min-h-[700px]">
-                <!-- Workspace Header -->
-                <div class="bg-surface-container-high/30 p-4 border-b border-outline-variant/10 flex justify-between items-center">
-                    <div class="flex items-center gap-3">
-                        <span class="material-symbols-outlined text-primary">analytics</span>
-                        <div>
-                            <span class="text-[11px] font-bold font-label uppercase tracking-widest text-on-surface">Visual Workspace</span>
-                            <div class="flex gap-4 mt-0.5">
-                                <span class="text-[9px] font-mono text-on-surface-variant uppercase tracking-tighter">X Range: <b class="text-primary">@ViewModel.DxfXMin.ToString("F1"):@ViewModel.DxfXMax.ToString("F1")</b></span>
-                                <span class="text-[9px] font-mono text-on-surface-variant uppercase tracking-tighter">Y Range: <b class="text-primary">@ViewModel.DxfYMin.ToString("F1"):@ViewModel.DxfYMax.ToString("F1")</b></span>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="flex gap-1">
-                        <button class="p-1.5 hover:bg-surface-container-high rounded" title="Zoom In" @onclick="ZoomIn"><span class="material-symbols-outlined text-sm">zoom_in</span></button>
-                        <button class="p-1.5 hover:bg-surface-container-high rounded" title="Zoom Out" @onclick="ZoomOut"><span class="material-symbols-outlined text-sm">zoom_out</span></button>
-                        <button class="p-1.5 hover:bg-surface-container-high rounded" title="Reset" @onclick="ResetZoom"><span class="material-symbols-outlined text-sm">refresh</span></button>
-                    </div>
-                </div>
-
-                <!-- SVG Preview Area -->
-                <div class="flex-grow bg-[#0f172a] relative overflow-hidden group">
-                    <!-- Grid Lines Overlay -->
-                    <div class="absolute inset-0 opacity-20" 
-                         style="background-image: radial-gradient(#334155 1px, transparent 1px); background-size: 20px 20px;"></div>
-                    
-                    <div class="flex items-center justify-center h-full p-10 select-none"
-                        style="cursor:@(_isPanning ? "grabbing" : "grab")"
-                        @onwheel="OnViewportWheel"
-                        @onwheel:preventDefault="true"
-                        @onmousedown="OnViewportMouseDown"
-                        @onmousedown:preventDefault="true"
-                        @onmousemove="OnViewportMouseMove"
-                        @onmouseup="OnViewportMouseUp"
-                        @onmouseleave="OnViewportMouseLeave">
-                        @if(!string.IsNullOrEmpty(ViewModel.DxfPreviewPathData))
-                        {
-                            <svg viewBox="0 0 200 200" class="w-full h-full max-h-[500px] drop-shadow-[0_0_15px_rgba(13,110,253,0.3)]">
-                                <g transform="@GetSvgTransform()">
-                                    <path d="@ViewModel.DxfPreviewPathData" 
-                                          fill="none" 
-                                          stroke="#0d6efd" 
-                                          stroke-width="1"
-                                          stroke-linecap="round"
-                                          stroke-linejoin="round"
-                                          class="transition-all duration-700 ease-out" />
-
-                                    @if (ViewModel.SelectedContour?.Points != null)
-                                    {
-                                        string contourKey = GetContourKey(ViewModel.SelectedContour);
-                                        @for (int i = 0; i < ViewModel.SelectedContour.Points.Count; i++)
-                                        {
-                                            var point = ViewModel.SelectedContour.Points[i];
-                                            var sx = ToSvgX(point.X);
-                                            var sy = ToSvgY(point.Y);
-                                            string pointKey = $"{contourKey}:V:{i}";
-                                            bool isPicked = IsPointPicked(pointKey);
-
-                                            <circle cx="@sx" cy="@sy"
-                                                    r="4.8"
-                                                    fill="rgba(255,255,255,0.001)"
-                                                    style="cursor:pointer"
-                                                    @onclick="() => SelectPoint(pointKey, point.X, point.Y)">
-                                                <title>@($"Point {i + 1}: ({point.X:F3}, {point.Y:F3})")</title>
-                                            </circle>
-
-                                            <circle cx="@sx" cy="@sy"
-                                                    r="@(isPicked ? "2.4" : "1.7")"
-                                                    fill="@(isPicked ? "#f97316" : "#38bdf8")"
-                                                    stroke="#ffffff"
-                                                    stroke-width="0.35"
-                                                    style="cursor:pointer"
-                                                    @onclick="() => SelectPoint(pointKey, point.X, point.Y)">
-                                                <title>@($"Point {i + 1}: ({point.X:F3}, {point.Y:F3})")</title>
-                                            </circle>
-                                        }
-                                    }
-
-                                    @if (ViewModel.SelectedContour?.HasCenter == true)
-                                    {
-                                        var cx = ToSvgX(ViewModel.SelectedContour.CenterX);
-                                        var cy = ToSvgY(ViewModel.SelectedContour.CenterY);
-                                        string centerKey = $"{GetContourKey(ViewModel.SelectedContour)}:CENTER";
-                                        bool centerPicked = IsPointPicked(centerKey);
-
-                                        <circle cx="@cx" cy="@cy"
-                                                r="5.2"
-                                                fill="rgba(255,255,255,0.001)"
-                                                style="cursor:pointer"
-                                                @onclick='() => SelectPoint(centerKey, ViewModel.SelectedContour.CenterX, ViewModel.SelectedContour.CenterY)'>
-                                            <title>@($"Center point: ({ViewModel.SelectedContour.CenterX:F3}, {ViewModel.SelectedContour.CenterY:F3})")</title>
-                                        </circle>
-
-                                        <circle cx="@cx" cy="@cy" r="2.8" fill="@(centerPicked ? "#f97316" : "#f59e0b")" stroke="#ffffff" stroke-width="0.45"
-                                                style="cursor:pointer"
-                                                @onclick='() => SelectPoint(centerKey, ViewModel.SelectedContour.CenterX, ViewModel.SelectedContour.CenterY)'>
-                                            <title>@($"Center: ({ViewModel.SelectedContour.CenterX:F3}, {ViewModel.SelectedContour.CenterY:F3})")</title>
-                                        </circle>
-                                        <line x1="@(cx - 4.0)" y1="@cy" x2="@(cx + 4.0)" y2="@cy" stroke="#f59e0b" stroke-width="0.5" />
-                                        <line x1="@cx" y1="@(cy - 4.0)" x2="@cx" y2="@(cy + 4.0)" stroke="#f59e0b" stroke-width="0.5" />
-                                    }
-                                </g>
-                            </svg>
-                        }
-                        else
-                        {
-                            <div class="text-on-surface-variant/30 flex flex-col items-center gap-3">
-                                <span class="material-symbols-outlined text-6xl">draft</span>
-                                <span class="text-xs font-label uppercase tracking-widest">No DXF Data Loaded</span>
-                            </div>
-                        }
-                    </div>
-
-                    <!-- Floating Tooltip -->
-                    <div class="absolute bottom-4 left-4 bg-surface-container-highest/80 backdrop-blur-md px-3 py-1 rounded text-[9px] font-mono text-white tracking-widest border border-white/10 uppercase">
-                        Units: Millimeters (mm)
-                    </div>
-                    <div class="absolute top-4 right-4 flex flex-col gap-2">
-                         <div class="bg-surface-container-highest/60 backdrop-blur pb-1 px-2 rounded border border-white/5">
-                            <span class="text-[8px] font-bold text-white/50 block mt-1">AXIS X</span>
-                            <span class="text-xs text-primary font-bold font-mono">@(ViewModel.arr_R32.Length > 0 ? (ViewModel.arr_R32[0]/20.0).ToString("F2") : "0.00")</span>
-                         </div>
-                         <div class="bg-surface-container-highest/60 backdrop-blur pb-1 px-2 rounded border border-white/5">
-                            <span class="text-[8px] font-bold text-white/50 block mt-1">AXIS Y</span>
-                            <span class="text-xs text-primary font-bold font-mono">@(ViewModel.arr_R32.Length > 2 ? (ViewModel.arr_R32[1]/20.0).ToString("F2") : "0.00")</span>
-                         </div>
-                    </div>
-                </div>
-
-                <!-- Diagnostics Hub -->
-                <div class="bg-surface-container-low p-4 space-y-3">
-                    <div class="flex items-center justify-between">
-                         <h3 class="text-[10px] font-bold font-label uppercase tracking-widest text-on-surface-variant">System Diagnostics</h3>
-                         <button class="text-[9px] font-bold text-primary uppercase hover:underline">Export Session Log</button>
-                    </div>
-                    <div class="space-y-1 h-32 overflow-y-auto pr-2 custom-scrollbar">
-                        <div class="flex gap-2 text-[10px] font-mono">
-                            <span class="text-primary font-bold">[PARSE]</span>
-                            <span class="text-on-surface-variant">DXF successfully initialized: @(string.IsNullOrEmpty(ViewModel.DxfFilePath) ? "None" : Path.GetFileName(ViewModel.DxfFilePath))</span>
-                        </div>
-                        <div class="flex gap-2 text-[10px] font-mono">
-                            <span class="text-green-500 font-bold">[SAFETY]</span>
-                            <span class="text-on-surface-variant">Bounding area validated for Gantry Alpha limits.</span>
-                        </div>
-                        @if(ViewModel.SelectedContour != null)
-                        {
-                            <div class="flex gap-2 text-[10px] font-mono">
-                                <span class="text-orange-500 font-bold">[SELECT]</span>
-                                <span class="text-on-surface-variant">Active: @ViewModel.SelectedContour.Name (L=@ViewModel.SelectedContour.Length.ToString("F1") mm)</span>
-                            </div>
-                        }
-                    </div>
-                </div>
-            </section>
-        </div>
-
-        <!-- RIGHT COLUMN: Setup & Execution (3 units) -->
-        <div class="lg:col-span-3 space-y-6">
-            <section class="bg-surface-container-lowest rounded-xl p-5 shadow-sm border border-outline-variant/10">
-                <div class="flex items-center justify-between mb-4 border-b border-outline-variant/10 pb-2">
-                    <div class="flex items-center gap-2">
-                        <span class="material-symbols-outlined text-primary text-sm">point_scan</span>
-                        <h2 class="text-[11px] font-bold font-label uppercase tracking-wider text-on-surface-variant">Selected Points</h2>
-                    </div>
-                    <button class="text-[9px] font-bold text-primary uppercase hover:underline"
-                            @onclick="ClearPickedPoints">Clear</button>
-                </div>
-
-                @if (_pickedPoints.Count == 0)
-                {
-                    <p class="text-[10px] text-on-surface-variant">Click points in the DXF viewport to add entries like P1(x_um,y_um).</p>
-                }
-                else
-                {
-                    <div class="max-h-44 overflow-y-auto custom-scrollbar border border-outline-variant/15 rounded">
-                        <table class="w-full text-left">
-                            <thead class="bg-surface-container-low">
-                                <tr class="text-[9px] font-bold uppercase text-on-surface-variant">
-                                    <th class="px-2 py-1">Tag</th>
-                                    <th class="px-2 py-1">X(um)</th>
-                                    <th class="px-2 py-1">Y(um)</th>
-                                    <th class="px-2 py-1 text-right">Del</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @for (int i = 0; i < _pickedPoints.Count; i++)
-                                {
-                                    var p = _pickedPoints[i];
-                                    <tr class="text-[10px] font-mono border-t border-outline-variant/10">
-                                        <td class="px-2 py-1 text-primary font-bold">@p.Label</td>
-                                        <td class="px-2 py-1">@p.XUm</td>
-                                        <td class="px-2 py-1">@p.YUm</td>
-                                        <td class="px-2 py-1 text-right">
-                                            <button class="text-red-500 hover:text-red-600" title="Remove point" @onclick="() => RemovePickedPoint(p)">
-                                                <span class="material-symbols-outlined text-sm">delete</span>
-                                            </button>
-                                        </td>
-                                    </tr>
-                                }
-                            </tbody>
-                        </table>
-                    </div>
-                }
-            </section>
-
-            <section class="bg-surface-container-lowest rounded-xl p-5 shadow-lg border border-outline-variant/20 overflow-hidden relative">
-                <div class="flex items-center gap-2 mb-4 border-b border-outline-variant/10 pb-2">
-                    <span class="material-symbols-outlined text-primary text-sm">terminal</span>
-                    <h2 class="text-[11px] font-bold font-label uppercase tracking-wider text-on-surface-variant">PLC Motion Script</h2>
-                </div>
-
-                <div class="space-y-3">
-                    <p class="text-[10px] text-on-surface-variant">Commands: <span class="font-mono">MoveL P1 [speed dwell]</span>, <span class="font-mono">MoveC P2 C1 [speed dwell]</span></p>
-
-                    <div class="space-y-1">
-                        <label class="text-[9px] font-bold uppercase text-on-surface-variant">Script Input</label>
-                        <textarea @bind="_motionScript"
-                                  rows="9"
-                                  spellcheck="false"
-                                  class="w-full bg-[#020817] border border-outline-variant/30 rounded px-3 py-2 text-[11px] leading-5 text-sky-100 font-mono resize-y"></textarea>
-                    </div>
-
-                    <div class="grid grid-cols-3 gap-2">
-                        <button class="bg-primary hover:brightness-110 text-white py-2 rounded text-[10px] font-bold uppercase tracking-wider transition-all"
-                                @onclick="GeneratePlcFrames">
-                            GenCode
-                        </button>
-                        <button class="bg-amber-600 hover:brightness-110 text-white py-2 rounded text-[10px] font-bold uppercase tracking-wider transition-all"
-                                @onclick="SendSingleFrameToPlcAsync"
-                                disabled="@(!_generatedFrames.Any() || !ViewModel.Status || _isSending)">
-                            Send 1 Cmd
-                        </button>
-                        <button class="bg-emerald-600 hover:brightness-110 text-white py-2 rounded text-[10px] font-bold uppercase tracking-wider transition-all"
-                                @onclick="SendFramesToPlcAsync"
-                                disabled="@(!_generatedFrames.Any() || !ViewModel.Status || _isSending)">
-                            Send PLC
-                        </button>
-                    </div>
-
-                    @if (!string.IsNullOrWhiteSpace(_scriptStatus))
-                    {
-                        <div class="text-[10px] font-mono text-amber-300 bg-surface-container-low border border-outline-variant/20 rounded px-2 py-1">@_scriptStatus</div>
-                    }
-
-                    <div class="max-h-52 overflow-y-auto custom-scrollbar border border-outline-variant/15 rounded">
-                        <table class="w-full text-left">
-                            <thead class="bg-surface-container-low sticky top-0">
-                                <tr class="text-[9px] font-bold uppercase text-on-surface-variant">
-                                    <th class="px-2 py-1">Cmd</th>
-                                    <th class="px-2 py-1">POS_X(um)</th>
-                                    <th class="px-2 py-1">POS_Y(um)</th>
-                                    <th class="px-2 py-1">ARC_X(um)</th>
-                                    <th class="px-2 py-1">ARC_Y(um)</th>
-                                    <th class="px-2 py-1">SPD</th>
-                                    <th class="px-2 py-1">DWELL(ms)</th>
-                                    <th class="px-2 py-1">BIT_RUN</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @for (int i = 0; i < _generatedFrames.Count; i++)
-                                {
-                                    var f = _generatedFrames[i];
-                                    bool isActiveRow = i == _activeSendIndex;
-                                    <tr class="text-[10px] font-mono border-t border-outline-variant/10 @(isActiveRow ? "bg-emerald-500/20" : "")">
-                                        <td class="px-2 py-1">@f.CommandCode</td>
-                                        <td class="px-2 py-1">@f.PosXUm</td>
-                                        <td class="px-2 py-1">@f.PosYUm</td>
-                                        <td class="px-2 py-1">@f.ArcXUm</td>
-                                        <td class="px-2 py-1">@f.ArcYUm</td>
-                                        <td class="px-2 py-1">@f.SpeedMmMin</td>
-                                        <td class="px-2 py-1">@f.DwellMs</td>
-                                        <td class="px-2 py-1">@f.BitRun</td>
-                                    </tr>
-                                }
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </section>
+        <!-- Actions (Right side of footer) -->
+        <div class="flex gap-4">
+            <button class="px-6 py-3 border border-primary-container text-primary-container font-headline font-black text-xs flex items-center gap-2 hover:bg-primary-container/10 transition-colors uppercase" @onclick="ResumeClick">
+                <span class="material-symbols-outlined text-[18px]" style="font-variation-settings: 'FILL' 1;">replay</span>
+                RESUME
+            </button>
+            <button class="px-6 py-3 bg-error-container/30 border border-error text-error font-headline font-black text-xs flex items-center gap-2 hover:bg-error-container/50 transition-colors uppercase" @onclick="PauseClick">
+                <span class="material-symbols-outlined text-[18px]" style="font-variation-settings: 'FILL' 1;">pause</span>
+                PAUSE
+            </button>
+            <button class="px-8 py-3 bg-primary-container text-on-primary-fixed font-headline font-black text-xs flex items-center gap-2 hover:bg-primary-fixed-dim transition-colors uppercase shadow-[0_0_15px_rgba(0,240,255,0.2)]" @onclick="StartClick">
+                <span class="material-symbols-outlined text-[18px]" style="font-variation-settings: 'FILL' 1;">play_arrow</span>
+                START_NODE
+            </button>
         </div>
     </div>
 </div>
 
-<style>
-    .custom-scrollbar::-webkit-scrollbar {
-        width: 4px;
-    }
-    .custom-scrollbar::-webkit-scrollbar-track {
-        background: transparent;
-    }
-    .custom-scrollbar::-webkit-scrollbar-thumb {
-        background: var(--outline-variant);
-        border-radius: 10px;
-        opacity: 0.3;
-    }
-    
-    @@keyframes pulse {
-        0%, 100% { opacity: 0.05; }
-        50% { opacity: 0.15; }
-    }
-    .animate-pulse {
-        animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-    }
-</style>
-
 @code {
-        private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    private ElementReference svgContainer;
+    private double ZoomLevel = 1.0;
+    private double PanX = 0;
+    private double PanY = 0;
+    private bool isMiddleMouseDown = false;
+    private double lastMouseX = 0;
+    private double lastMouseY = 0;
+    private const double ZoomStep = 0.2;
+    private const double MinZoom = 0.1;
+    private const double MaxZoom = 5.0;
+
+    protected override void OnInitialized()
+    {
+        ViewModel.PropertyChanged += (_, _) => InvokeAsync(StateHasChanged);
+        base.OnInitialized();
+    }
+
+    private async Task OnMouseWheel(WheelEventArgs e)
+    {
+        double zoomChange = e.DeltaY > 0 ? -ZoomStep : ZoomStep;
+        double newZoom = Math.Clamp(ZoomLevel + zoomChange, MinZoom, MaxZoom);
+        if (newZoom != ZoomLevel)
         {
-            _ = InvokeAsync(StateHasChanged);
-        }
-
-    private sealed class PickedPoint
-    {
-        public string SourceKey { get; set; } = "";
-        public string Label { get; set; } = "";
-        public int XUm { get; set; }
-        public int YUm { get; set; }
-    }
-
-    private readonly List<PickedPoint> _pickedPoints = new();
-    private double _viewportZoom = 1.0;
-    private const double MinZoom = 0.6;
-    private const double MaxZoom = 8.0;
-    private double _viewportTx = 0.0;
-    private double _viewportTy = 0.0;
-    private bool _isPanning = false;
-    private double _panStartMouseX = 0.0;
-    private double _panStartMouseY = 0.0;
-    private double _panStartTx = 0.0;
-    private double _panStartTy = 0.0;
-    private const double PanScale = 0.35;
-
-    private const int DCmd = 1000;
-    private const int DPosX = 1100;
-    private const int DPosY = 1200;
-    private const int DArcX = 1300;
-    private const int DArcY = 1400;
-    private const int DSpeed = 1500;
-    private const int DDwell = 1600;
-    private const int DRun = 1700;
-
-    private string _motionScript = "MoveL P1 1000 0\nMoveC P2 C1 1000 0";
-    private string _scriptStatus = string.Empty;
-    private readonly List<PlcMotionFrame> _generatedFrames = new();
-    private int _nextSendIndex = 0;
-    private int _activeSendIndex = -1;
-    private bool _isSending = false;
-
-    private sealed class PlcMotionFrame
-    {
-        public int CommandCode { get; set; }
-        public int PosXUm { get; set; }
-        public int PosYUm { get; set; }
-        public int ArcXUm { get; set; }
-        public int ArcYUm { get; set; }
-        public int SpeedMmMin { get; set; }
-        public int DwellMs { get; set; }
-        public int BitRun { get; set; } = 1;
-    }
-
-    private double ToSvgX(double x)
-    {
-        double width = ViewModel.DxfXMax - ViewModel.DxfXMin;
-        double height = ViewModel.DxfYMax - ViewModel.DxfYMin;
-        double scale = 200.0 / Math.Max(width, height == 0 ? 1 : height);
-        return (x - ViewModel.DxfXMin) * scale;
-    }
-
-    private double ToSvgY(double y)
-    {
-        double width = ViewModel.DxfXMax - ViewModel.DxfXMin;
-        double height = ViewModel.DxfYMax - ViewModel.DxfYMin;
-        double scale = 200.0 / Math.Max(width, height == 0 ? 1 : height);
-        return 200.0 - (y - ViewModel.DxfYMin) * scale;
-    }
-
-    private void SelectContour(WPF_Test_PLC20260124.MainViewModel.DxfContourInfo contour)
-    {
-        ViewModel.SelectedContour = contour;
-    }
-
-    private static string GetContourKey(WPF_Test_PLC20260124.MainViewModel.DxfContourInfo contour)
-    {
-        return $"{contour.Layer}|{contour.Name}";
-    }
-
-    private void SelectPoint(string sourceKey, double x, double y)
-    {
-        string label = $"P{_pickedPoints.Count + 1}";
-        _pickedPoints.Add(new PickedPoint
-        {
-            SourceKey = sourceKey,
-            Label = label,
-            XUm = ToUm(x),
-            YUm = ToUm(y)
-        });
-
-        ReindexPickedPointLabels();
-
-        ViewModel.AddLog("UI", "info", $"{label}({_pickedPoints[^1].XUm}, {_pickedPoints[^1].YUm}) um selected");
-    }
-
-    private bool IsPointPicked(string sourceKey)
-    {
-        return _pickedPoints.Any(p => p.SourceKey == sourceKey);
-    }
-
-    private void ClearPickedPoints()
-    {
-        _pickedPoints.Clear();
-    }
-
-    private PickedPoint? FindPointByLabel(string label)
-    {
-        return _pickedPoints.FirstOrDefault(p => string.Equals(p.Label, label, StringComparison.OrdinalIgnoreCase));
-    }
-
-    private int ToUm(double mm)
-    {
-        return (int)Math.Round(mm * 1000.0, MidpointRounding.AwayFromZero);
-    }
-
-    private void GeneratePlcFrames()
-    {
-        _generatedFrames.Clear();
-        _scriptStatus = string.Empty;
-        _nextSendIndex = 0;
-        _activeSendIndex = -1;
-        PickedPoint? previousEndPoint = null;
-
-        var lines = _motionScript
-            .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
-            .Select(x => x.Trim())
-            .Where(x => !string.IsNullOrWhiteSpace(x) && !x.StartsWith("#") && !x.StartsWith("//"))
-            .ToList();
-
-        if (lines.Count == 0)
-        {
-            _scriptStatus = "Script is empty.";
-            return;
-        }
-
-        for (int i = 0; i < lines.Count; i++)
-        {
-            string line = lines[i];
-            string[] parts = line.Split(new[] { ' ', '\t', ',' }, StringSplitOptions.RemoveEmptyEntries);
-            if (parts.Length < 2)
-            {
-                _scriptStatus = $"Line {i + 1}: invalid syntax.";
-                return;
-            }
-
-            string cmd = parts[0].ToUpperInvariant();
-            string posLabel = parts[1].ToUpperInvariant();
-            var endPt = FindPointByLabel(posLabel);
-            if (endPt == null)
-            {
-                _scriptStatus = $"Line {i + 1}: point '{posLabel}' not found in Selected Points.";
-                return;
-            }
-
-            var frame = new PlcMotionFrame
-            {
-                CommandCode = cmd switch
-                {
-                    "MOVEL" => 1,
-                    "MOVEC" => 2,
-                    _ => -1
-                },
-                PosXUm = endPt.XUm,
-                PosYUm = endPt.YUm,
-                ArcXUm = 0,
-                ArcYUm = 0,
-                SpeedMmMin = 1000,
-                DwellMs = 0,
-                BitRun = 1
-            };
-
-            if (frame.CommandCode < 0)
-            {
-                _scriptStatus = $"Line {i + 1}: unsupported command '{parts[0]}'. Use MoveL/MoveC.";
-                return;
-            }
-
-            // Arc command: MoveC Pn Ck [speed dwell]
-            if (cmd == "MOVEC")
-            {
-                // MoveC uses the previous command's end point as arc start point.
-                if (previousEndPoint == null)
-                {
-                    _scriptStatus = $"Line {i + 1}: MoveC requires a previous endpoint as arc start. Add a MoveL before it.";
-                    return;
-                }
-
-                if (parts.Length < 3)
-                {
-                    _scriptStatus = $"Line {i + 1}: MoveC requires center label. Example: MoveC P2 C1";
-                    return;
-                }
-
-                string centerLabel = parts[2].ToUpperInvariant();
-                var centerPt = FindPointByLabel(centerLabel);
-                if (centerPt == null)
-                {
-                    _scriptStatus = $"Line {i + 1}: center point '{centerLabel}' not found.";
-                    return;
-                }
-
-                frame.ArcXUm = centerPt.XUm;
-                frame.ArcYUm = centerPt.YUm;
-
-                if (parts.Length >= 4 && int.TryParse(parts[3], out int arcSpd))
-                    frame.SpeedMmMin = Math.Max(1, arcSpd);
-                if (parts.Length >= 5 && int.TryParse(parts[4], out int arcDw))
-                    frame.DwellMs = Math.Max(0, arcDw);
-
-                // Start point is implicit from previous command.
-                ViewModel.AddLog("UI", "info", $"Line {i + 1}: MoveC start=P({previousEndPoint.XUm}, {previousEndPoint.YUm})um end={posLabel} center={centerLabel}");
-            }
-            else
-            {
-                if (parts.Length >= 3 && int.TryParse(parts[2], out int spd))
-                    frame.SpeedMmMin = Math.Max(1, spd);
-                if (parts.Length >= 4 && int.TryParse(parts[3], out int dw))
-                    frame.DwellMs = Math.Max(0, dw);
-            }
-
-            _generatedFrames.Add(frame);
-            previousEndPoint = endPt;
-        }
-
-        _scriptStatus = $"Generated {_generatedFrames.Count} frame(s).";
-        ViewModel.AddLog("UI", "success", _scriptStatus, "PLC frame gen");
-    }
-
-    private async Task SendFramesToPlcAsync()
-    {
-        if (_generatedFrames.Count == 0)
-        {
-            _scriptStatus = "No generated frame to send.";
-            return;
-        }
-
-        if (!ViewModel.Status)
-        {
-            _scriptStatus = "PLC is offline.";
-            return;
-        }
-
-        if (_isSending)
-            return;
-
-        _isSending = true;
-
-        try
-        {
-            for (int i = _nextSendIndex; i < _generatedFrames.Count; i++)
-            {
-                _activeSendIndex = i;
-                await SendFrameToPlcAsync(_generatedFrames[i]);
-                _nextSendIndex = i + 1;
-            }
-
-            _scriptStatus = $"Sent {_generatedFrames.Count} frame(s) to PLC.";
-            ViewModel.AddLog("PLC", "success", _scriptStatus, "PLC send");
-        }
-        finally
-        {
-            _isSending = false;
+            ZoomLevel = newZoom;
+            ViewModel.AddLog("UI", "info", $"Zoomed to {Math.Round(ZoomLevel * 100)}%");
+            await InvokeAsync(StateHasChanged);
         }
     }
 
-    private async Task SendSingleFrameToPlcAsync()
+    private void OnMouseDown(MouseEventArgs e)
     {
-        if (_generatedFrames.Count == 0)
+        if (e.Button == 1) // Middle mouse button
         {
-            _scriptStatus = "No generated frame to send.";
-            return;
-        }
-
-        if (!ViewModel.Status)
-        {
-            _scriptStatus = "PLC is offline.";
-            return;
-        }
-
-        if (_isSending)
-            return;
-
-        _isSending = true;
-        try
-        {
-            int sendIndex = _nextSendIndex % _generatedFrames.Count;
-            _activeSendIndex = sendIndex;
-
-            await SendFrameToPlcAsync(_generatedFrames[sendIndex]);
-
-            _nextSendIndex = (sendIndex + 1) % _generatedFrames.Count;
-            int nextHumanIndex = _nextSendIndex + 1;
-            _scriptStatus = $"Sent frame {sendIndex + 1}/{_generatedFrames.Count}. Next: {nextHumanIndex}/{_generatedFrames.Count}.";
-            ViewModel.AddLog("PLC", "info", _scriptStatus, "PLC step send");
-        }
-        finally
-        {
-            _isSending = false;
+            isMiddleMouseDown = true;
+            lastMouseX = e.ClientX;
+            lastMouseY = e.ClientY;
         }
     }
 
-    private async Task SendFrameToPlcAsync(PlcMotionFrame f)
+    private void OnMouseMove(MouseEventArgs e)
     {
-        ViewModel.MarkPendingWrite("D", DCmd, f.CommandCode);
-        ViewModel.MarkPendingWrite("D", DPosX, f.PosXUm);
-        ViewModel.MarkPendingWrite("D", DPosY, f.PosYUm);
-        ViewModel.MarkPendingWrite("D", DArcX, f.ArcXUm);
-        ViewModel.MarkPendingWrite("D", DArcY, f.ArcYUm);
-        ViewModel.MarkPendingWrite("D", DSpeed, f.SpeedMmMin);
-        ViewModel.MarkPendingWrite("D", DDwell, f.DwellMs);
-
-        // Pulse run bit for each frame: 1 then 0
-        ViewModel.MarkPendingWrite("D", DRun, f.BitRun);
-        await Task.Delay(80);
-        ViewModel.MarkPendingWrite("D", DRun, 0);
-
-        await Task.Delay(Math.Max(40, f.DwellMs));
-    }
-
-    private void RemovePickedPoint(PickedPoint point)
-    {
-        if (_pickedPoints.Remove(point))
+        if (isMiddleMouseDown)
         {
-            ReindexPickedPointLabels();
-            ViewModel.AddLog("UI", "info", $"Removed {point.Label}({point.XUm}, {point.YUm}) um");
+            double deltaX = e.ClientX - lastMouseX;
+            double deltaY = e.ClientY - lastMouseY;
+            PanX += deltaX;
+            PanY += deltaY;
+            lastMouseX = e.ClientX;
+            lastMouseY = e.ClientY;
         }
     }
 
-    private void ReindexPickedPointLabels()
+    private void OnMouseUp(MouseEventArgs e)
     {
-        for (int i = 0; i < _pickedPoints.Count; i++)
-            _pickedPoints[i].Label = $"P{i + 1}";
+        if (e.Button == 1)
+        {
+            isMiddleMouseDown = false;
+        }
     }
 
-    private string GetSvgTransform()
+    private void OnMouseLeave()
     {
-        string zoom = _viewportZoom.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
-        string tx = _viewportTx.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
-        string ty = _viewportTy.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
-        return $"translate({tx} {ty}) translate(100 100) scale({zoom}) translate(-100 -100)";
+        isMiddleMouseDown = false;
     }
 
     private void ZoomIn()
     {
-        _viewportZoom = Math.Min(MaxZoom, _viewportZoom * 1.2);
+        ZoomLevel = Math.Clamp(ZoomLevel + ZoomStep, MinZoom, MaxZoom);
+        ViewModel.AddLog("UI", "info", $"Zoomed in to {Math.Round(ZoomLevel * 100)}%");
     }
 
     private void ZoomOut()
     {
-        _viewportZoom = Math.Max(MinZoom, _viewportZoom / 1.2);
+        ZoomLevel = Math.Clamp(ZoomLevel - ZoomStep, MinZoom, MaxZoom);
+        ViewModel.AddLog("UI", "info", $"Zoomed out to {Math.Round(ZoomLevel * 100)}%");
     }
 
-    private void ResetZoom()
+    private void ResetZoomAndPan()
     {
-        _viewportZoom = 1.0;
-        _viewportTx = 0.0;
-        _viewportTy = 0.0;
-        _isPanning = false;
+        ZoomLevel = 1.0;
+        PanX = 0;
+        PanY = 0;
+        ViewModel.AddLog("UI", "info", "Reset zoom and pan to default");
     }
 
-    private void OnViewportWheel(Microsoft.AspNetCore.Components.Web.WheelEventArgs e)
+    private void StartClick()
     {
-        if (e.DeltaY < 0)
-            ZoomIn();
-        else if (e.DeltaY > 0)
-            ZoomOut();
+        ViewModel.AddLog("UI", "info", "User clicked [Start DXF Run]");
+        ViewModel.IsDxfRunning = true;
+        ViewModel.DownloadTrajectoryToPlc();
     }
 
-    private void OnViewportMouseDown(Microsoft.AspNetCore.Components.Web.MouseEventArgs e)
+    private void PauseClick()
     {
-        // Middle button only: press-and-drag to pan viewport.
-        if (e.Button != 1)
-            return;
-
-        _isPanning = true;
-        _panStartMouseX = e.ClientX;
-        _panStartMouseY = e.ClientY;
-        _panStartTx = _viewportTx;
-        _panStartTy = _viewportTy;
+        ViewModel.AddLog("UI", "info", "User clicked [Pause DXF Run]");
     }
 
-    private void OnViewportMouseMove(Microsoft.AspNetCore.Components.Web.MouseEventArgs e)
+    private void ResumeClick()
     {
-        if (!_isPanning)
-            return;
-
-        double dx = e.ClientX - _panStartMouseX;
-        double dy = e.ClientY - _panStartMouseY;
-
-        _viewportTx = _panStartTx + (dx * PanScale) / Math.Max(_viewportZoom, 0.0001);
-        _viewportTy = _panStartTy + (dy * PanScale) / Math.Max(_viewportZoom, 0.0001);
-    }
-
-    private void OnViewportMouseUp(Microsoft.AspNetCore.Components.Web.MouseEventArgs e)
-    {
-        if (_isPanning && e.Button == 1)
-            _isPanning = false;
-    }
-
-    private void OnViewportMouseLeave(Microsoft.AspNetCore.Components.Web.MouseEventArgs _)
-    {
-        _isPanning = false;
-    }
-
-    protected override void OnInitialized()
-    {
-        ViewModel.PropertyChanged += OnViewModelPropertyChanged;
-        base.OnInitialized();
-    }
-
-    public void Dispose()
-    {
-        ViewModel.PropertyChanged -= OnViewModelPropertyChanged;
+        ViewModel.AddLog("UI", "info", "User clicked [Resume DXF Run]");
     }
 }

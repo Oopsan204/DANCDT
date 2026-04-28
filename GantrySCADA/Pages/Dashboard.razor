@@ -1,0 +1,484 @@
+@page "/"
+@inject WPF_Test_PLC20260124.MainViewModel ViewModel
+@inject IJSRuntime JS
+
+<div class="dashboard-container">
+    <div class="grid grid-cols-12 gap-6">
+        
+        <!-- ── LEFT COLUMN: SYSTEM CONTROL ───────────────────────────── -->
+        <section class="col-span-12 lg:col-span-4 space-y-6">
+            
+            <!-- Connection Card -->
+            <div class="nexus-card connection-card">
+                <div class="card-header">
+                    <span class="material-symbols-outlined header-icon">settings_ethernet</span>
+                    <div>
+                        <h2 class="header-title">System Connectivity</h2>
+                        <p class="header-subtitle">Mitsubishi PLC Network Interface</p>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="status-ribbon @(ViewModel.Status ? "connected" : "disconnected")">
+                        <span class="status-dot"></span>
+                        @(ViewModel.Status ? "PLC CONNECTED: " + ViewModel.IpAddress : "PLC DISCONNECTED")
+                    </div>
+
+                    <div class="conn-inputs mt-4">
+                        <div class="input-group">
+                            <label>IP Address</label>
+                            <input class="nexus-input" type="text" @bind="ViewModel.IpAddress" />
+                        </div>
+                        <div class="input-group">
+                            <label>Port</label>
+                            <input class="nexus-input" type="number" @bind="ViewModel.Port" />
+                        </div>
+                    </div>
+
+                    <div class="btn-group mt-6">
+                        @if (!ViewModel.Status)
+                        {
+                            <button class="btn-primary w-full shadow-lg hover:shadow-primary/20" @onclick="Connect">
+                                <span class="material-symbols-outlined">link</span> CONNECT SYSTEM
+                            </button>
+                        }
+                        else
+                        {
+                            <button class="btn-danger w-full shadow-lg hover:shadow-error/20" @onclick="Disconnect">
+                                <span class="material-symbols-outlined">link_off</span> DISCONNECT
+                            </button>
+                        }
+                    </div>
+                </div>
+            </div>
+
+            <!-- Jog Controls Card -->
+            <div class="nexus-card jog-card">
+                <div class="card-header">
+                    <span class="material-symbols-outlined header-icon">sports_esports</span>
+                    <div>
+                        <h2 class="header-title">Manual Kinematic Jog</h2>
+                        <p class="header-subtitle">Direct M-Register Pulse Control</p>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="jog-layout">
+                        <!-- Horizontal/Vertical Plate -->
+                        <div class="jog-plate">
+                            <div class="plate-grid">
+                                <div></div>
+                                <button class="jog-btn north" @onmousedown='() => Jog("Y", false)' @onmouseup='() => StopJog("Y")'>
+                                    <span class="material-symbols-outlined">arrow_upward</span>
+                                </button>
+                                <div></div>
+                                
+                                <button class="jog-btn west" @onmousedown='() => Jog("X", false)' @onmouseup='() => StopJog("X")'>
+                                    <span class="material-symbols-outlined">arrow_back</span>
+                                </button>
+                                <div class="plate-center">XY</div>
+                                <button class="jog-btn east" @onmousedown='() => Jog("X", true)' @onmouseup='() => StopJog("X")'>
+                                    <span class="material-symbols-outlined">arrow_forward</span>
+                                </button>
+                                
+                                <div></div>
+                                <button class="jog-btn south" @onmousedown='() => Jog("Y", true)' @onmouseup='() => StopJog("Y")'>
+                                    <span class="material-symbols-outlined">arrow_downward</span>
+                                </button>
+                                <div></div>
+                            </div>
+                        </div>
+
+                        <!-- Z-Axis Column -->
+                        <div class="z-axis-column">
+                            <button class="jog-btn z-up" @onmousedown='() => Jog("Z", false)' @onmouseup='() => StopJog("Z")'>
+                                <span class="material-symbols-outlined">expand_less</span>
+                                <span class="btn-label">Z+</span>
+                            </button>
+                            <div class="z-label">Z AXIS</div>
+                            <button class="jog-btn z-dn" @onmousedown='() => Jog("Z", true)' @onmouseup='() => StopJog("Z")'>
+                                <span class="material-symbols-outlined">expand_more</span>
+                                <span class="btn-label">Z-</span>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="jog-info mt-4">
+                        <span class="material-symbols-outlined">info</span>
+                        Current Jog Base Address: <span class="mono">M@(ViewModel.M_W_Base)</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ── RIGHT COLUMN: TELEMETRY ─────────────────────────────── -->
+        <section class="col-span-12 lg:col-span-8 space-y-6">
+            
+            <!-- Position Display Grid -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <!-- X Position -->
+                <div class="telemetry-card axis-x">
+                    <div class="card-inner">
+                        <div class="card-label">Coordinate X</div>
+                        <div class="value-row">
+                            <span class="value">@ViewModel.GetFormattedPosition(ViewModel.arr_R32.Length > 0 ? ViewModel.arr_R32[0] : 0, "X")</span>
+                            <span class="unit">@ViewModel.PosUnit</span>
+                        </div>
+                        <div class="raw-value">Raw: @(ViewModel.arr_R32.Length > 0 ? ViewModel.arr_R32[0] : 0)</div>
+                    </div>
+                    <div class="card-accent"></div>
+                </div>
+
+                <!-- Y Position -->
+                <div class="telemetry-card axis-y">
+                    <div class="card-inner">
+                        <div class="card-label">Coordinate Y</div>
+                        <div class="value-row">
+                            <span class="value">@ViewModel.GetFormattedPosition(ViewModel.arr_R32.Length > 1 ? ViewModel.arr_R32[1] : 0, "Y")</span>
+                            <span class="unit">@ViewModel.PosUnit</span>
+                        </div>
+                        <div class="raw-value">Raw: @(ViewModel.arr_R32.Length > 1 ? ViewModel.arr_R32[1] : 0)</div>
+                    </div>
+                    <div class="card-accent"></div>
+                </div>
+
+                <!-- Z Position -->
+                <div class="telemetry-card axis-z">
+                    <div class="card-inner">
+                        <div class="card-label">Coordinate Z</div>
+                        <div class="value-row">
+                            <span class="value">@ViewModel.GetFormattedPosition(ViewModel.arr_R32.Length > 2 ? ViewModel.arr_R32[2] : 0, "Z")</span>
+                            <span class="unit">@ViewModel.PosUnit</span>
+                        </div>
+                        <div class="raw-value">Raw: @(ViewModel.arr_R32.Length > 2 ? ViewModel.arr_R32[2] : 0)</div>
+                    </div>
+                    <div class="card-accent"></div>
+                </div>
+            </div>
+
+            <!-- Enhanced Velocity & Status -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <!-- Target Velocity Slider Card -->
+                <div class="col-span-1 md:col-span-2 nexus-card velocity-card">
+                    <div class="card-header pb-2">
+                        <span class="material-symbols-outlined header-icon">speed</span>
+                        <div>
+                            <h2 class="header-title">Process Velocity</h2>
+                            <p class="header-subtitle">Target Write Velocity (@($"D{ViewModel.VelocityWriteAddress}"))</p>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="flex items-center gap-6">
+                            <div class="velocity-value">
+                                <span class="val">@VelocityVal</span>
+                                <span class="unt">m/s</span>
+                            </div>
+                            <div class="slider-container flex-1">
+                                <input type="range" min="0" max="5.0" step="0.1" @bind="VelocityVal" @bind:event="oninput" @onchange="OnVelocityCommit"
+                                       class="nexus-slider" />
+                                <div class="slider-marks">
+                                    <span>0.0</span>
+                                    <span>2.5</span>
+                                    <span>5.0</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- System State Card -->
+                <div class="nexus-card state-card">
+                    <div class="card-body flex flex-col items-center justify-center text-center p-6 h-full">
+                        <p class="header-subtitle uppercase tracking-widest mb-2 font-bold">System Integrity</p>
+                        <div class="state-indicator @(ViewModel.Status ? "status-run" : "status-idle")">
+                            <span class="material-symbols-outlined text-4xl mb-1">
+                                @(ViewModel.Status ? "dynamic_form" : "motion_photos_off")
+                            </span>
+                            <span class="state-text">@(ViewModel.Status ? "OPERATIONAL" : "IDLE / STOP")</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Memory Stream Debugger (Nexus Style) -->
+            <div class="nexus-card memory-card">
+                <div class="card-header border-none">
+                    <div class="flex items-center gap-3">
+                        <span class="material-symbols-outlined header-icon bg-primary/10 text-primary p-2 rounded-lg">stream</span>
+                        <div>
+                            <h2 class="header-title">Real-Time Data Stream</h2>
+                            <p class="header-subtitle">Live PLC Register Monitoring</p>
+                        </div>
+                    </div>
+                    <button class="btn-ghost ml-auto text-[10px]" @onclick="() => showAddMemory = !showAddMemory">
+                        <span class="material-symbols-outlined text-sm">add</span> ADD REGISTER
+                    </button>
+                </div>
+                
+                @if (showAddMemory)
+                {
+                    <div class="memory-add-panel animate-fade-in">
+                        <div class="flex gap-4 p-4 bg-surface-container-high rounded-xl mb-4 border border-outline-variant">
+                            <div class="flex-1">
+                                <label class="nexus-label">Type</label>
+                                <select class="nexus-input py-2" @bind="newMemoryType">
+                                    <option value="D">D (Word)</option>
+                                    <option value="M">M (Bit)</option>
+                                    <option value="X">X (Input)</option>
+                                    <option value="Y">Y (Output)</option>
+                                </select>
+                            </div>
+                            <div class="flex-1">
+                                <label class="nexus-label">Address</label>
+                                <input class="nexus-input py-2" type="number" @bind="newMemoryIndex" />
+                            </div>
+                            <div class="flex items-end pb-1">
+                                <button class="btn-primary py-2 px-6" @onclick="AddMemoryEntry">ADD</button>
+                            </div>
+                        </div>
+                    </div>
+                }
+
+                <div class="memory-monitor-window">
+                    @if (ViewModel.CustomMemoryEntries != null && ViewModel.CustomMemoryEntries.Count > 0)
+                    {
+                        <div class="memory-grid">
+                            @foreach (var entry in ViewModel.CustomMemoryEntries)
+                            {
+                                <div class="memory-entry">
+                                    <div class="entry-tag">@entry.AddrType@entry.AddrIndex</div>
+                                    <div class="entry-val">@entry.CurrentValue</div>
+                                    <button class="entry-del" @onclick="() => ViewModel.RemoveCustomMemoryEntry(entry)">
+                                        <span class="material-symbols-outlined">close</span>
+                                    </button>
+                                </div>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="empty-state">
+                            <span class="material-symbols-outlined text-4xl opacity-20">biotech</span>
+                            <p>No registers being monitored.</p>
+                            <p class="text-[10px] opacity-50 mt-1">Configure memory addresses to view real-time data flow.</p>
+                        </div>
+                    }
+                </div>
+            </div>
+
+        </section>
+    </div>
+</div>
+
+<style>
+    :root {
+        --c-accent-x: #3b82f6;
+        --c-accent-y: #22c55e;
+        --c-accent-z: #f97316;
+    }
+
+    .dashboard-container { padding: 8px; }
+    
+    /* ── Nexus Card System ────────────────────────────────── */
+    .nexus-card {
+        background: var(--c-surface-container-lowest);
+        border: 1px solid var(--c-outline-variant);
+        border-radius: 16px;
+        overflow: hidden;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .nexus-card:hover { box-shadow: 0 4px 20px rgba(0,0,0,0.04); }
+    html.dark .nexus-card:hover { box-shadow: 0 4px 30px rgba(0,0,0,0.4); }
+
+    .card-header { padding: 16px 20px; display: flex; align-items: flex-start; gap: 12px; border-bottom: 1px solid var(--c-outline-variant); }
+    .header-icon { color: var(--c-primary); font-variation-settings: 'FILL' 0, 'wght' 400; }
+    .header-title { font-family: 'Space Grotesk', sans-serif; font-size: 14px; font-weight: 700; color: var(--c-on-surface); }
+    .header-subtitle { font-size: 10px; color: var(--c-on-surface-variant); font-weight: 500; letter-spacing: 0.02em; }
+    .card-body { padding: 20px; }
+
+    /* ── Connection Status ────────────────────────────────── */
+    .status-ribbon {
+        padding: 8px 12px; border-radius: 8px; font-size: 11px; font-weight: 700; font-family: 'Space Grotesk', sans-serif;
+        display: flex; align-items: center; gap: 8px; letter-spacing: 0.02em;
+    }
+    .connected { background: #dcfce7; color: #166534; }
+    .disconnected { background: #fee2e2; color: #991b1b; }
+    html.dark .connected { background: #064e3b; color: #6ee7b7; }
+    html.dark .disconnected { background: #450a0a; color: #fca5a5; }
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+    .connected .status-dot { animation: pulse 2s infinite; }
+
+    /* ── Inputs & Buttons ─────────────────────────────────── */
+    .input-group { margin-bottom: 12px; }
+    .nexus-label { font-size: 10px; font-weight: 700; color: var(--c-on-surface-variant); text-transform: uppercase; margin-bottom: 4px; display: block; }
+    .nexus-input { 
+        width: 100%; background: var(--c-surface-container); border: 1px solid var(--c-outline-variant); 
+        padding: 10px 14px; border-radius: 10px; font-size: 13px; color: var(--c-on-surface); font-family: 'Roboto Mono', monospace;
+    }
+    .btn-primary { 
+        background: linear-gradient(135deg, #0d6efd, #0b5ed7); color: white; border: none; padding: 12px; 
+        border-radius: 12px; font-family: 'Space Grotesk', sans-serif; font-size: 12px; font-weight: 700; cursor: pointer;
+        display: flex; align-items: center; justify-content: center; gap: 8px; transition: 0.2s;
+    }
+    .btn-danger { 
+        background: #ef4444; color: white; border: none; padding: 12px; 
+        border-radius: 12px; font-family: 'Space Grotesk', sans-serif; font-size: 12px; font-weight: 700; cursor: pointer;
+        display: flex; align-items: center; justify-content: center; gap: 8px;
+    }
+
+    /* ── Jog Control Layout ────────────────────────────────── */
+    .jog-layout { display: flex; gap: 20px; align-items: center; justify-content: center; padding: 10px 0; }
+    .jog-plate { background: var(--c-surface-container); padding: 12px; border-radius: 24px; box-shadow: inset 0 2px 10px rgba(0,0,0,0.05); }
+    .plate-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; align-items: center; }
+    .jog-btn {
+        width: 54px; height: 54px; border-radius: 14px; background: var(--c-surface-container-highest);
+        border: 1px solid var(--c-outline-variant); color: var(--c-on-surface); cursor: pointer;
+        display: flex; flex-direction: column; items: center; justify-content: center; transition: 0.1s;
+    }
+    .jog-btn:hover { background: var(--c-surface-container-lowest); border-color: var(--c-primary); color: var(--c-primary); transform: translateY(-1px); }
+    .jog-btn:active { transform: translateY(1px); background: var(--c-primary-container); }
+    .plate-center { font-size: 10px; font-weight: 800; color: var(--c-outline); text-align: center; font-family: 'Space Grotesk', sans-serif; }
+    
+    .z-axis-column { display: flex; flex-direction: column; gap: 10px; align-items: center; }
+    .z-label { font-size: 9px; font-weight: 800; color: var(--c-outline); writing-mode: vertical-lr; text-orientation: mixed; margin: 4px 0; }
+    .btn-label { font-size: 9px; font-weight: 800; }
+
+    /* ── Telemetry Cards ──────────────────────────────────── */
+    .telemetry-card {
+        position: relative; overflow: hidden; border-radius: 20px; background: var(--c-surface-container-lowest);
+        border: 1px solid var(--c-outline-variant); transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .telemetry-card:hover { transform: translateY(-4px); }
+    .card-inner { padding: 24px; position: relative; z-index: 2; }
+    .card-label { font-size: 11px; font-weight: 700; color: var(--c-on-surface-variant); text-transform: uppercase; margin-bottom: 8px; letter-spacing: 0.05em; }
+    .value-row { display: flex; align-items: baseline; gap: 4px; }
+    .value { font-family: 'Space Grotesk', sans-serif; font-size: 38px; font-weight: 700; color: var(--c-on-surface); line-height: 1; }
+    .unit { font-size: 14px; color: var(--c-on-surface-variant); }
+    .raw-value { font-family: 'Roboto Mono', monospace; font-size: 10px; color: var(--c-outline); margin-top: 12px; }
+    
+    .card-accent { position: absolute; left: 0; top: 0; bottom: 0; width: 4px; }
+    .axis-x .card-accent { background: var(--c-accent-x); shadow: 0 0 20px var(--c-accent-x); }
+    .axis-y .card-accent { background: var(--c-accent-y); shadow: 0 0 20px var(--c-accent-y); }
+    .axis-z .card-accent { background: var(--c-accent-z); shadow: 0 0 20px var(--c-accent-z); }
+
+    /* ── Velocity & State ─────────────────────────────────── */
+    .velocity-value { display: flex; flex-direction: column; min-width: 80px; }
+    .velocity-value .val { font-size: 38px; font-weight: 700; font-family: 'Space Grotesk', sans-serif; line-height: 1; }
+    .velocity-value .unt { font-size: 12px; color: var(--c-on-surface-variant); }
+    .nexus-slider {
+        -webkit-appearance: none; width: 100%; height: 6px; border-radius: 10px; background: var(--c-surface-container-high);
+    }
+    .nexus-slider::-webkit-slider-thumb {
+        -webkit-appearance: none; width: 22px; height: 22px; border-radius: 50%; background: var(--c-primary); border: 4px solid var(--c-surface-container-lowest); cursor: pointer; box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    .slider-marks { display: flex; justify-content: space-between; font-size: 10px; font-weight: 800; color: var(--c-outline); margin-top: 8px; }
+
+    .state-indicator { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+    .status-run { color: #22c55e; }
+    .status-idle { color: var(--c-outline); }
+    .state-text { font-size: 14px; font-weight: 800; font-family: 'Space Grotesk', sans-serif; letter-spacing: 0.1em; }
+
+    /* ── Memory Monitor ───────────────────────────────────── */
+    .memory-monitor-window { min-height: 200px; padding: 0 20px 20px; }
+    .memory-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
+    .memory-entry {
+        background: var(--c-surface-container); padding: 12px; border-radius: 12px; position: relative;
+        display: flex; flex-direction: column; border: 1px solid var(--c-outline-variant);
+    }
+    .entry-tag { font-family: 'Roboto Mono', monospace; font-size: 11px; font-weight: 700; color: var(--c-primary); margin-bottom: 4px; }
+    .entry-val { font-size: 20px; font-weight: 700; font-family: 'Space Grotesk', sans-serif; color: var(--c-on-surface); }
+    .entry-del { position: absolute; top: 4px; right: 4px; border: none; background: transparent; color: var(--c-outline); cursor: pointer; opacity: 0; transition: 0.2s; }
+    .memory-entry:hover .entry-del { opacity: 1; }
+    .empty-state { padding: 60px 0; text-align: center; color: var(--c-outline); }
+
+    @@keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
+</style>
+
+@code {
+    private double VelocityVal = 1.5;
+    private bool showAddMemory = false;
+    private string newMemoryType = "D";
+    private int newMemoryIndex = 0;
+
+    protected override void OnInitialized()
+    {
+        VelocityVal = ViewModel.VelocitySetpoint;
+        ViewModel.PropertyChanged += (_, _) => InvokeAsync(StateHasChanged);
+        base.OnInitialized();
+    }
+
+    private void OnVelocityCommit(ChangeEventArgs _)
+    {
+        if (VelocityVal < 0)
+            VelocityVal = 0;
+
+        ViewModel.VelocitySetpoint = VelocityVal;
+
+        double scaled = VelocityVal * ViewModel.VelocityWriteScale;
+        int rawValue = (int)Math.Round(scaled, MidpointRounding.AwayFromZero);
+
+        ViewModel.MarkPendingWrite("D", ViewModel.VelocityWriteAddress, rawValue);
+        ViewModel.AddLog("UI", "info", $"Velocity setpoint queued: {VelocityVal:F1} m/s -> D{ViewModel.VelocityWriteAddress}={rawValue}", "Velocity slider");
+    }
+
+    private void Connect()
+    {
+        if (!ViewModel.Status)
+        {
+            ViewModel.AddLog("UI", "info", "User clicked [Connect PLC]");
+            ViewModel.ConnectCommand.Execute(null);
+        }
+    }
+
+    private void Disconnect()
+    {
+        if (ViewModel.Status)
+        {
+            ViewModel.AddLog("UI", "info", "User clicked [Disconnect]");
+            ViewModel.DisconnectCommand.Execute(null);
+        }
+    }
+
+    private void Jog(string axis, bool dir)
+    {
+        int markAddress = axis switch
+        {
+            "X" => dir ? ViewModel.JogXNegAddress : ViewModel.JogXPosAddress,
+            "Y" => dir ? ViewModel.JogYNegAddress : ViewModel.JogYPosAddress,
+            "Z" => dir ? ViewModel.JogZNegAddress : ViewModel.JogZPosAddress,
+            _ => -1
+        };
+        
+        if (markAddress >= 0)
+        {
+            ViewModel.JogStart(markAddress);
+        }
+    }
+
+    private void StopJog(string axis)
+    {
+        switch (axis)
+        {
+            case "X":
+                ViewModel.JogStop(ViewModel.JogXPosAddress);
+                ViewModel.JogStop(ViewModel.JogXNegAddress);
+                break;
+            case "Y":
+                ViewModel.JogStop(ViewModel.JogYPosAddress);
+                ViewModel.JogStop(ViewModel.JogYNegAddress);
+                break;
+            case "Z":
+                ViewModel.JogStop(ViewModel.JogZPosAddress);
+                ViewModel.JogStop(ViewModel.JogZNegAddress);
+                break;
+        }
+    }
+
+    private void AddMemoryEntry()
+    {
+        if (newMemoryIndex >= 0 && newMemoryIndex <= 9999)
+        {
+            ViewModel.AddCustomMemoryEntry(newMemoryType, newMemoryIndex);
+            newMemoryIndex = 0;
+            showAddMemory = false;
+        }
+    }
+}
