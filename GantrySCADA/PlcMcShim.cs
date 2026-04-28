@@ -158,9 +158,15 @@ namespace NVKProject.PLC
         {
             if (deviceName == DeviceName.Buffer)
             {
-                return string.IsNullOrWhiteSpace(address)
+                string raw = string.IsNullOrWhiteSpace(address)
                     ? "U0G0"
                     : address.Trim().ToUpperInvariant();
+                raw = raw.Replace("/", string.Empty).Replace("\\", string.Empty);
+                if (!raw.Contains("G"))
+                    raw += "G";
+                if (!raw.Contains("\\G"))
+                    raw = raw.Replace("G", "\\G");
+                return raw;
             }
 
             string prefix = deviceName.ToString();

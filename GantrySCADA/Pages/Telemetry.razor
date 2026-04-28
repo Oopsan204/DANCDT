@@ -288,6 +288,7 @@
         public string AddrType { get; set; } = "D";
         public int AddrIndex { get; set; }
         public string AddrIndexText { get; set; } = "";
+        public bool Read32 { get; set; }
         public int Value { get; set; }
         public long UpdatedMs { get; set; }
         public bool JustUpdated { get; set; }
@@ -527,9 +528,10 @@
                 : true));
         if (!exists)
         {
-            readEntries.Add(new ReadEntry { AddrType = normalizedType, AddrIndex = parsedIndex, AddrIndexText = parsedText });
+            bool read32 = IsBufferType(normalizedType);
+            readEntries.Add(new ReadEntry { AddrType = normalizedType, AddrIndex = parsedIndex, AddrIndexText = parsedText, Read32 = read32 });
             string storageText = IsBufferType(normalizedType) ? parsedText : string.Empty;
-            ViewModel.AddCustomMemoryEntry(normalizedType, parsedIndex, storageText);
+            ViewModel.AddCustomMemoryEntry(normalizedType, parsedIndex, storageText, read32);
             ViewModel.AddLog("UI", "info", $"Telemetry read entry added: {FormatAddress(normalizedType, parsedIndex, parsedText)}");
         }
 
@@ -558,7 +560,7 @@
         foreach (var entry in readEntries)
         {
             string storageText = IsBufferType(entry.AddrType) ? entry.AddrIndexText : string.Empty;
-            ViewModel.AddCustomMemoryEntry(entry.AddrType, entry.AddrIndex, storageText);
+            ViewModel.AddCustomMemoryEntry(entry.AddrType, entry.AddrIndex, storageText, entry.Read32);
         }
     }
 
@@ -746,7 +748,10 @@
             return;
 
         if (IsBufferType(entry.AddrType))
+        {
             entry.AddrIndexText = entry.AddrIndex.ToString("X");
+            entry.Read32 = true;
+        }
         else
             entry.AddrIndexText = entry.AddrIndex.ToString();
     }

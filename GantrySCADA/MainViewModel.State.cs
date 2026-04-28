@@ -95,6 +95,7 @@ namespace WPF_Test_PLC20260124
             public string AddrType { get; set; } = "D";
             public int AddrIndex { get; set; }
             public string AddrIndexText { get; set; } = "";
+            public bool Read32 { get; set; }
             public int CurrentValue { get; set; }
             public DateTime LastUpdate { get; set; } = DateTime.Now;
         }
@@ -480,9 +481,12 @@ namespace WPF_Test_PLC20260124
         private static string BuildBufferAddress(string addrType, int addrIndex, string? addrIndexText = null)
         {
             string prefix = addrType.Trim().ToUpperInvariant();
-            prefix = prefix.Replace("\\", string.Empty).Replace("/", string.Empty);
+            prefix = prefix.Replace("/", string.Empty).Replace("\\", string.Empty);
             if (!prefix.Contains("G", StringComparison.OrdinalIgnoreCase))
                 prefix += "G";
+
+            if (!prefix.Contains("\\G", StringComparison.OrdinalIgnoreCase))
+                prefix = prefix.Replace("G", "\\G");
 
             string hexIndex = !string.IsNullOrWhiteSpace(addrIndexText)
                 ? addrIndexText.Trim().ToUpperInvariant()

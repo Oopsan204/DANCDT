@@ -6,7 +6,7 @@ namespace WPF_Test_PLC20260124
 {
     public partial class MainViewModel : ObservableObject
     {
-        private bool TryReadValueCore(string addrType, int addrIndex, out int value, string? addrIndexText = null)
+        private bool TryReadValueCore(string addrType, int addrIndex, out int value, string? addrIndexText = null, bool read32 = false)
         {
             value = 0;
 
@@ -19,15 +19,31 @@ namespace WPF_Test_PLC20260124
             {
                 try
                 {
-                    int[] word = ePLC.ReadDeviceBlock(
-                        ePLCControl.SubCommand.Word,
-                        ePLCControl.DeviceName.Buffer,
-                        BuildBufferAddress(normalizedType, addrIndex, addrIndexText),
-                        1);
-                    if (word != null && word.Length > 0)
+                    if (read32)
                     {
-                        value = word[0];
-                        return true;
+                        int[] words32 = ePLC.ReadDeviceBlock(
+                            ePLCControl.SubCommand.Word,
+                            ePLCControl.DeviceName.Buffer,
+                            BuildBufferAddress(normalizedType, addrIndex, addrIndexText),
+                            2);
+                        if (words32 != null && words32.Length >= 2)
+                        {
+                            value = words32[0] | (words32[1] << 16);
+                            return true;
+                        }
+                    }
+                    else
+                    {
+                        int[] word = ePLC.ReadDeviceBlock(
+                            ePLCControl.SubCommand.Word,
+                            ePLCControl.DeviceName.Buffer,
+                            BuildBufferAddress(normalizedType, addrIndex, addrIndexText),
+                            1);
+                        if (word != null && word.Length > 0)
+                        {
+                            value = word[0];
+                            return true;
+                        }
                     }
 
                     return false;
@@ -157,7 +173,7 @@ namespace WPF_Test_PLC20260124
                 if (exists)
                     return;
 
-                var entry = new CustomMemoryEntry { AddrType = normalizedType, AddrIndex = addrIndex, AddrIndexText = string.Empty };
+                var entry = new CustomMemoryEntry { AddrType = normalizedType, AddrIndex = addrIndex, AddrIndexText = string.Empty, Read32 = false };
                 CustomMemoryEntries.Add(entry);
                 AddLog("UI", "info", $"Added custom memory: {normalizedType}{addrIndex}");
                 OnPropertyChanged(nameof(CustomMemoryEntries));
@@ -168,7 +184,7 @@ namespace WPF_Test_PLC20260124
             }
         }
 
-        public void AddCustomMemoryEntry(string addrType, int addrIndex, string? addrIndexText)
+        public void AddCustomMemoryEntry(string addrType, int addrIndex, string? addrIndexText, bool read32 = false)
         {
             try
             {
@@ -187,7 +203,8 @@ namespace WPF_Test_PLC20260124
                 {
                     AddrType = normalizedType,
                     AddrIndex = addrIndex,
-                    AddrIndexText = normalizedText
+                    AddrIndexText = normalizedText,
+                    Read32 = read32
                 };
 
                 CustomMemoryEntries.Add(entry);
@@ -229,7 +246,7 @@ namespace WPF_Test_PLC20260124
                 {
                     try
                     {
-                        if (TryReadValueCore(entry.AddrType, entry.AddrIndex, out int newValue, entry.AddrIndexText))
+                        if (TryReadValueCore(entry.AddrType, entry.AddrIndex, out int newValue, entry.AddrIndexText, entry.Read32))
                         {
                             entry.CurrentValue = newValue;
                             entry.LastUpdate = DateTime.Now;
