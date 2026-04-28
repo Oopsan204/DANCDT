@@ -244,7 +244,7 @@
                             @foreach (var entry in ViewModel.CustomMemoryEntries)
                             {
                                 <div class="memory-entry">
-                                    <div class="entry-tag">@entry.AddrType@entry.AddrIndex</div>
+                                    <div class="entry-tag">@FormatCustomMemoryAddress(entry)</div>
                                     <div class="entry-val">@entry.CurrentValue</div>
                                     <button class="entry-del" @onclick="() => ViewModel.RemoveCustomMemoryEntry(entry)">
                                         <span class="material-symbols-outlined">close</span>
@@ -480,5 +480,22 @@
             newMemoryIndex = 0;
             showAddMemory = false;
         }
+    }
+
+    private string FormatCustomMemoryAddress(MainViewModel.CustomMemoryEntry entry)
+    {
+        if (entry.AddrType.StartsWith("U", StringComparison.OrdinalIgnoreCase))
+        {
+            string prefix = entry.AddrType.Replace("\\", string.Empty).Replace("/", string.Empty).ToUpperInvariant();
+            if (!prefix.Contains("G", StringComparison.OrdinalIgnoreCase))
+                prefix += "G";
+
+            string indexText = string.IsNullOrWhiteSpace(entry.AddrIndexText)
+                ? entry.AddrIndex.ToString("X")
+                : entry.AddrIndexText.Trim().ToUpperInvariant();
+            return prefix + indexText;
+        }
+
+        return $"{entry.AddrType}{entry.AddrIndex}";
     }
 }

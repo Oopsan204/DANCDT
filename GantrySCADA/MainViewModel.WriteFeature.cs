@@ -18,7 +18,13 @@ namespace WPF_Test_PLC20260124
                 lock (_pendingWriteLock)
                 {
                     pendingSnapshot = _pendingWriteItems
-                        .Select(x => new PendingWriteItem { AddrType = x.AddrType, AddrIndex = x.AddrIndex, Value = x.Value })
+                        .Select(x => new PendingWriteItem
+                        {
+                            AddrType = x.AddrType,
+                            AddrIndex = x.AddrIndex,
+                            AddrIndexText = x.AddrIndexText,
+                            Value = x.Value
+                        })
                         .ToList();
                 }
 
@@ -26,7 +32,12 @@ namespace WPF_Test_PLC20260124
                 bool hasWriteError = false;
 
                 foreach (var p in pendingSnapshot)
-                    AddLog("PC", "info", $"WRITE sent: {p.AddrType}{p.AddrIndex}={p.Value}", "sent");
+                {
+                    string addrLabel = IsBufferType(p.AddrType)
+                        ? BuildBufferAddress(p.AddrType, p.AddrIndex, p.AddrIndexText)
+                        : $"{p.AddrType}{p.AddrIndex}";
+                    AddLog("PC", "info", $"WRITE sent: {addrLabel}={p.Value}", "sent");
+                }
 
                 foreach (var p in pendingSnapshot)
                 {
@@ -49,6 +60,15 @@ namespace WPF_Test_PLC20260124
                                 new[] { lowWord, highWord });
 
                             AddLog("PC", "info", $"WRITE D32 packed: D{p.AddrIndex}={lowWord}, D{p.AddrIndex + 1}={highWord}", "D32");
+                        }
+                        else if (IsBufferType(t))
+                        {
+                            string bufferAddress = BuildBufferAddress(t, p.AddrIndex, p.AddrIndexText);
+                            ePLC.WriteDeviceBlock(
+                                NVKProject.PLC.ePLCControl.SubCommand.Word,
+                                NVKProject.PLC.ePLCControl.DeviceName.Buffer,
+                                bufferAddress,
+                                new[] { p.Value });
                         }
                         else if (t == "M" || t == "X" || t == "Y")
                         {
@@ -159,12 +179,18 @@ namespace WPF_Test_PLC20260124
                         }
 
                         anyWrite = true;
-                        AddLog("PC", "success", $"WRITE ack: {p.AddrType}{p.AddrIndex}={p.Value}", "ack");
+                        string ackLabel = IsBufferType(t)
+                            ? BuildBufferAddress(t, p.AddrIndex, p.AddrIndexText)
+                            : $"{p.AddrType}{p.AddrIndex}";
+                        AddLog("PC", "success", $"WRITE ack: {ackLabel}={p.Value}", "ack");
                     }
                     catch (Exception ex)
                     {
                         hasWriteError = true;
-                        AddLog("PC", "error", $"WRITE failed: {p.AddrType}{p.AddrIndex}={p.Value}", ex.Message);
+                        string errLabel = IsBufferType(p.AddrType)
+                            ? BuildBufferAddress(p.AddrType, p.AddrIndex, p.AddrIndexText)
+                            : $"{p.AddrType}{p.AddrIndex}";
+                        AddLog("PC", "error", $"WRITE failed: {errLabel}={p.Value}", ex.Message);
                     }
                 }
 
@@ -196,32 +222,40 @@ namespace WPF_Test_PLC20260124
             _hasPendingWrites = true;
         }
 
-        public void MarkPendingWrite(string addrType, int addrIndex, int value)
+        public void MarkPendingWrite(string addrType, int addrIndex, int value, string? addrIndexText = null)
         {
             string normType = string.IsNullOrWhiteSpace(addrType)
                 ? "D"
                 : addrType.Trim().ToUpperInvariant();
+            string normText = addrIndexText?.Trim().ToUpperInvariant() ?? string.Empty;
 
             lock (_pendingWriteLock)
             {
-                var existing = _pendingWriteItems.FirstOrDefault(x => x.AddrType == normType && x.AddrIndex == addrIndex);
+                var existing = _pendingWriteItems.FirstOrDefault(x =>
+                    x.AddrType == normType && x.AddrIndex == addrIndex
+                    && string.Equals(x.AddrIndexText ?? string.Empty, normText, StringComparison.OrdinalIgnoreCase));
                 if (existing == null)
                 {
                     _pendingWriteItems.Add(new PendingWriteItem
                     {
                         AddrType = normType,
                         AddrIndex = addrIndex,
+                        AddrIndexText = normText,
                         Value = value
                     });
                 }
                 else
                 {
                     existing.Value = value;
+                    existing.AddrIndexText = normText;
                 }
             }
 
             _hasPendingWrites = true;
-            AddLog("PC", "info", $"WRITE queued: {normType}{addrIndex}={value}", "queued");
+            string queuedLabel = IsBufferType(normType)
+                ? BuildBufferAddress(normType, addrIndex, normText)
+                : $"{normType}{addrIndex}";
+            AddLog("PC", "info", $"WRITE queued: {queuedLabel}={value}", "queued");
         }
 
         private void ClearPendingWrites()

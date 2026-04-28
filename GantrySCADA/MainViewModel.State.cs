@@ -71,6 +71,7 @@ namespace WPF_Test_PLC20260124
             public string AddrType { get; set; } = "D";
             public int AddrIndex { get; set; }
             public int Value { get; set; }
+            public string AddrIndexText { get; set; } = "";
         }
 
         public class LogItem
@@ -93,6 +94,7 @@ namespace WPF_Test_PLC20260124
         {
             public string AddrType { get; set; } = "D";
             public int AddrIndex { get; set; }
+            public string AddrIndexText { get; set; } = "";
             public int CurrentValue { get; set; }
             public DateTime LastUpdate { get; set; } = DateTime.Now;
         }
@@ -465,7 +467,28 @@ namespace WPF_Test_PLC20260124
         private static string NormalizeAddrType(string? addrType)
         {
             string t = string.IsNullOrWhiteSpace(addrType) ? "D" : addrType.Trim().ToUpperInvariant();
+            if (t.StartsWith("U", StringComparison.OrdinalIgnoreCase))
+                return t;
             return t is "D" or "M" or "X" or "Y" ? t : "D";
+        }
+
+        private static bool IsBufferType(string addrType)
+        {
+            return addrType.StartsWith("U", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static string BuildBufferAddress(string addrType, int addrIndex, string? addrIndexText = null)
+        {
+            string prefix = addrType.Trim().ToUpperInvariant();
+            prefix = prefix.Replace("\\", string.Empty).Replace("/", string.Empty);
+            if (!prefix.Contains("G", StringComparison.OrdinalIgnoreCase))
+                prefix += "G";
+
+            string hexIndex = !string.IsNullOrWhiteSpace(addrIndexText)
+                ? addrIndexText.Trim().ToUpperInvariant()
+                : addrIndex.ToString("X");
+
+            return prefix + hexIndex;
         }
 
         private int ReadCoordinateSourceValue(string addrType, int addrIndex, bool read32Bit, int fallbackValue)
@@ -484,6 +507,24 @@ namespace WPF_Test_PLC20260124
                     else
                     {
                         int[] words16 = ePLC.ReadDeviceBlock(ePLCControl.SubCommand.Word, ePLCControl.DeviceName.D, $"{addrIndex}", 1);
+                        if (words16 != null && words16.Length >= 1)
+                            return words16[0];
+                    }
+
+                    return fallbackValue;
+                }
+
+                if (IsBufferType(t))
+                {
+                    if (read32Bit)
+                    {
+                        int[] words32 = ePLC.ReadDeviceBlock(ePLCControl.SubCommand.Word, ePLCControl.DeviceName.Buffer, BuildBufferAddress(t, addrIndex), 2);
+                        if (words32 != null && words32.Length >= 2)
+                            return words32[0] | (words32[1] << 16);
+                    }
+                    else
+                    {
+                        int[] words16 = ePLC.ReadDeviceBlock(ePLCControl.SubCommand.Word, ePLCControl.DeviceName.Buffer, BuildBufferAddress(t, addrIndex), 1);
                         if (words16 != null && words16.Length >= 1)
                             return words16[0];
                     }

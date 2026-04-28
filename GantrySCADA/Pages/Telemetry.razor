@@ -64,7 +64,7 @@
                                 </span>
                                 <!-- Address Index -->
                                 <span class="font-mono text-sm font-bold text-on-surface">
-                                    @entry.AddrType@entry.AddrIndex
+                                    @FormatAddress(entry.AddrType, entry.AddrIndex, entry.AddrIndexText)
                                 </span>
                             </div>
                             <div class="text-right">
@@ -88,9 +88,9 @@
                 <div class="flex gap-2 bg-surface-container-lowest rounded-lg p-3 shadow-sm">
                     <select @bind="newReadType"
                             class="bg-surface-container-highest text-on-surface font-label text-xs font-bold uppercase rounded px-2 py-2 focus:outline-none focus:ring-2 focus:ring-primary/30">
-                        <option>D</option><option>M</option><option>X</option><option>Y</option>
+                        <option>D</option><option>M</option><option>X</option><option>Y</option><option>U0G</option>
                     </select>
-                    <input type="number" @bind="newReadIndex" placeholder="Address"
+                    <input type="text" @bind="newReadIndexText" placeholder="Address (dec or hex)"
                            class="flex-1 bg-surface-container-highest text-on-surface font-mono text-sm px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-primary/30" />
                     <button @onclick="AddReadEntry"
                             class="bg-gradient-to-r from-primary to-primary-container text-on-primary px-4 py-2 rounded font-label text-xs font-bold uppercase">
@@ -135,12 +135,12 @@
                             <!-- Type Selector -->
                             <select @bind="entry.AddrType"
                                     class="bg-surface-container-highest text-on-surface font-label text-xs font-bold uppercase rounded px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-primary/30 w-20">
-                                <option>D</option><option>M</option><option>X</option><option>Y</option>
+                                <option>D</option><option>M</option><option>X</option><option>Y</option><option>U0G</option>
                             </select>
 
                             <!-- Address Index -->
                             <div class="flex-shrink-0 w-28">
-                                <input type="number" @bind="entry.AddrIndex" placeholder="Address"
+                                <input type="text" @bind="entry.AddrIndexText" @bind:event="oninput" placeholder="Address"
                                        class="w-full bg-surface-container-highest text-on-surface font-mono text-sm px-3 py-2.5 rounded focus:outline-none focus:ring-2 focus:ring-primary/30" />
                             </div>
 
@@ -287,6 +287,7 @@
     {
         public string AddrType { get; set; } = "D";
         public int AddrIndex { get; set; }
+        public string AddrIndexText { get; set; } = "";
         public int Value { get; set; }
         public long UpdatedMs { get; set; }
         public bool JustUpdated { get; set; }
@@ -298,6 +299,7 @@
     {
         public string AddrType { get; set; } = "D";
         public int AddrIndex { get; set; }
+        public string AddrIndexText { get; set; } = "";
         public int WriteValue { get; set; }
         public WriteStatus Status { get; set; } = WriteStatus.None;
         public string ErrorMessage { get; set; } = "";
@@ -315,19 +317,19 @@
     // ─── State ─────────────────────────────────────────────────────
     static List<ReadEntry> _persistedReadEntries = new()
     {
-        new() { AddrType = "D", AddrIndex = 4000 },
-        new() { AddrType = "D", AddrIndex = 4001 },
-        new() { AddrType = "D", AddrIndex = 4002 },
-        new() { AddrType = "M", AddrIndex = 0 },
+        new() { AddrType = "D", AddrIndex = 4000, AddrIndexText = "4000" },
+        new() { AddrType = "D", AddrIndex = 4001, AddrIndexText = "4001" },
+        new() { AddrType = "D", AddrIndex = 4002, AddrIndexText = "4002" },
+        new() { AddrType = "M", AddrIndex = 0, AddrIndexText = "0" },
     };
 
     List<ReadEntry> readEntries => _persistedReadEntries;
 
     static List<PlcWriteItem> _persistedWriteEntries = new()
     {
-        new() { AddrType = "D", AddrIndex = 5000 },
-        new() { AddrType = "D", AddrIndex = 5001 },
-        new() { AddrType = "M", AddrIndex = 0 },
+        new() { AddrType = "D", AddrIndex = 5000, AddrIndexText = "5000" },
+        new() { AddrType = "D", AddrIndex = 5001, AddrIndexText = "5001" },
+        new() { AddrType = "M", AddrIndex = 0, AddrIndexText = "0" },
     };
 
     List<PlcWriteItem> writeEntries => _persistedWriteEntries;
@@ -344,7 +346,7 @@
 
     bool showAddRead = false;
     string newReadType = "D";
-    int newReadIndex = 0;
+    string newReadIndexText = "";
 
     System.Timers.Timer? _timer;
     bool _isRefreshingRead = false;
@@ -353,6 +355,10 @@
     protected override void OnInitialized()
     {
         ViewModel.AddLog("UI", "info", "Telemetry page loaded");
+        foreach (var entry in readEntries)
+            EnsureEntryAddressText(entry);
+        foreach (var entry in writeEntries)
+            EnsureEntryAddressText(entry);
         SyncAllReadEntriesToCustomMemory();
         ViewModel.PropertyChanged += OnViewModelChanged;
         _timer = new System.Timers.Timer(250);
@@ -400,9 +406,7 @@
             int newVal = 0;
             bool found = false;
 
-            var custom = ViewModel.CustomMemoryEntries.FirstOrDefault(x =>
-                x.AddrType.Equals(entry.AddrType, StringComparison.OrdinalIgnoreCase)
-                && x.AddrIndex == entry.AddrIndex);
+            var custom = FindCustomEntry(entry);
 
             if (custom != null)
             {
@@ -453,7 +457,7 @@
                 entry.Value = newVal;
                 entry.JustUpdated = true;
                 entry.UpdatedMs = 0;
-                AddLog("READ", $"{entry.AddrType}{entry.AddrIndex}", newVal, true);
+                AddLog("READ", FormatAddress(entry.AddrType, entry.AddrIndex, entry.AddrIndexText), newVal, true);
                 
                 // Trigger animation, then reset JustUpdated flag after 800ms (animation duration)
                 _ = Task.Delay(800).ContinueWith(_ =>
@@ -508,20 +512,29 @@
 
     void AddReadEntry()
     {
-        string normalizedType = string.IsNullOrWhiteSpace(newReadType)
-            ? "D"
-            : newReadType.Trim().ToUpperInvariant();
+        string normalizedType = NormalizeType(newReadType);
+        if (!TryParseAddressIndex(normalizedType, newReadIndexText, out int parsedIndex, out string parsedText))
+        {
+            ViewModel.AddLog("UI", "warning", $"Invalid address: {newReadType}{newReadIndexText}");
+            return;
+        }
 
-        bool exists = readEntries.Any(x => x.AddrType == normalizedType && x.AddrIndex == newReadIndex);
+        bool exists = readEntries.Any(x =>
+            x.AddrType == normalizedType
+            && x.AddrIndex == parsedIndex
+            && (IsBufferType(normalizedType)
+                ? string.Equals(x.AddrIndexText, parsedText, StringComparison.OrdinalIgnoreCase)
+                : true));
         if (!exists)
         {
-            readEntries.Add(new ReadEntry { AddrType = normalizedType, AddrIndex = newReadIndex });
-            ViewModel.AddCustomMemoryEntry(normalizedType, newReadIndex);
-            ViewModel.AddLog("UI", "info", $"Telemetry read entry added: {normalizedType}{newReadIndex}");
+            readEntries.Add(new ReadEntry { AddrType = normalizedType, AddrIndex = parsedIndex, AddrIndexText = parsedText });
+            string storageText = IsBufferType(normalizedType) ? parsedText : string.Empty;
+            ViewModel.AddCustomMemoryEntry(normalizedType, parsedIndex, storageText);
+            ViewModel.AddLog("UI", "info", $"Telemetry read entry added: {FormatAddress(normalizedType, parsedIndex, parsedText)}");
         }
 
         showAddRead = false;
-        newReadIndex = 0;
+        newReadIndexText = "";
     }
 
     void RemoveReadEntry(ReadEntry e)
@@ -530,18 +543,22 @@
 
         var custom = ViewModel.CustomMemoryEntries.FirstOrDefault(x =>
             x.AddrType.Equals(e.AddrType, StringComparison.OrdinalIgnoreCase)
-            && x.AddrIndex == e.AddrIndex);
+            && x.AddrIndex == e.AddrIndex
+            && (IsBufferType(e.AddrType)
+                ? string.Equals(x.AddrIndexText ?? string.Empty, e.AddrIndexText ?? string.Empty, StringComparison.OrdinalIgnoreCase)
+                : true));
         if (custom != null)
             ViewModel.RemoveCustomMemoryEntry(custom);
 
-        ViewModel.AddLog("UI", "info", $"Telemetry read entry removed: {e.AddrType}{e.AddrIndex}");
+        ViewModel.AddLog("UI", "info", $"Telemetry read entry removed: {FormatAddress(e.AddrType, e.AddrIndex, e.AddrIndexText)}");
     }
 
     void SyncAllReadEntriesToCustomMemory()
     {
         foreach (var entry in readEntries)
         {
-            ViewModel.AddCustomMemoryEntry(entry.AddrType, entry.AddrIndex);
+            string storageText = IsBufferType(entry.AddrType) ? entry.AddrIndexText : string.Empty;
+            ViewModel.AddCustomMemoryEntry(entry.AddrType, entry.AddrIndex, storageText);
         }
     }
 
@@ -563,7 +580,7 @@
             {
                 entry.Status = WriteStatus.ERR;
                 entry.ErrorMessage = $"{entry.AddrType} register is a BIT device - value must be 0 or 1 only.";
-                AddLog("WRITE", $"{entry.AddrType}{entry.AddrIndex}", entry.WriteValue, false);
+                AddLog("WRITE", FormatAddress(entry.AddrType, entry.AddrIndex, entry.AddrIndexText), entry.WriteValue, false);
                 return;
             }
         }
@@ -572,17 +589,25 @@
         {
             entry.Status = WriteStatus.ERR;
             entry.ErrorMessage = "PLC not connected.";
-            AddLog("WRITE", $"{entry.AddrType}{entry.AddrIndex}", entry.WriteValue, false);
+            AddLog("WRITE", FormatAddress(entry.AddrType, entry.AddrIndex, entry.AddrIndexText), entry.WriteValue, false);
             return;
         }
 
         try
         {
-            string normType = string.IsNullOrWhiteSpace(entry.AddrType)
-                ? "D"
-                : entry.AddrType.Trim().ToUpperInvariant();
+            string normType = NormalizeType(entry.AddrType);
+            if (!TryParseAddressIndex(normType, entry.AddrIndexText, out int parsedIndex, out string parsedText))
+            {
+                entry.Status = WriteStatus.ERR;
+                entry.ErrorMessage = "Invalid address format.";
+                AddLog("WRITE", FormatAddress(normType, entry.AddrIndex, entry.AddrIndexText), entry.WriteValue, false);
+                return;
+            }
 
-            if (normType == "D" || normType == "M" || normType == "X" || normType == "Y")
+            entry.AddrIndex = parsedIndex;
+            entry.AddrIndexText = parsedText;
+
+            if (normType == "D" || normType == "M" || normType == "X" || normType == "Y" || IsBufferType(normType))
             {
                 // Keep mirror buffers in sync when address is inside configured ranges.
                 if (normType == "D")
@@ -623,26 +648,27 @@
                         ViewModel.arr_W_Y[offsetY] = entry.WriteValue;
                 }
 
-                ViewModel.MarkPendingWrite(normType, entry.AddrIndex, entry.WriteValue);
+                string addrText = IsBufferType(normType) ? entry.AddrIndexText : string.Empty;
+                ViewModel.MarkPendingWrite(normType, entry.AddrIndex, entry.WriteValue, addrText);
                 entry.Status = WriteStatus.OK;
-                AddLog("WRITE", $"{normType}{entry.AddrIndex}", entry.WriteValue, true);
+                AddLog("WRITE", FormatAddress(normType, entry.AddrIndex, entry.AddrIndexText), entry.WriteValue, true);
             }
             else
             {
                 entry.Status = WriteStatus.ERR;
                 entry.ErrorMessage = $"Unknown address type: {normType}.";
-                AddLog("WRITE", $"{normType}{entry.AddrIndex}", entry.WriteValue, false);
+                AddLog("WRITE", FormatAddress(normType, entry.AddrIndex, entry.AddrIndexText), entry.WriteValue, false);
             }
         }
         catch (Exception ex)
         {
             entry.Status = WriteStatus.ERR;
             entry.ErrorMessage = ex.Message;
-            AddLog("WRITE", $"{entry.AddrType}{entry.AddrIndex}", entry.WriteValue, false);
+            AddLog("WRITE", FormatAddress(entry.AddrType, entry.AddrIndex, entry.AddrIndexText), entry.WriteValue, false);
         }
     }
 
-    void AddWriteEntry() => writeEntries.Add(new PlcWriteItem());
+    void AddWriteEntry() => writeEntries.Add(new PlcWriteItem { AddrIndexText = "0" });
     void RemoveWriteEntry(PlcWriteItem e) => writeEntries.Remove(e);
 
     // ─── Log ───────────────────────────────────────────────────────
@@ -669,8 +695,97 @@
         "M" => "#006c49",
         "X" => "#b45309",
         "Y" => "#7c3aed",
-        _   => "#727687"
+        _   => "#2a9d8f"
     };
+
+    string NormalizeType(string? addrType)
+    {
+        string t = string.IsNullOrWhiteSpace(addrType) ? "D" : addrType.Trim().ToUpperInvariant();
+        return t;
+    }
+
+    bool IsBufferType(string addrType)
+    {
+        return addrType.StartsWith("U", StringComparison.OrdinalIgnoreCase);
+    }
+
+    bool TryParseAddressIndex(string addrType, string input, out int index, out string normalizedText)
+    {
+        normalizedText = "";
+        index = 0;
+
+        string raw = input?.Trim() ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(raw))
+            raw = "0";
+
+        if (IsBufferType(addrType))
+        {
+            if (int.TryParse(raw, System.Globalization.NumberStyles.HexNumber, null, out int hexValue))
+            {
+                index = hexValue;
+                normalizedText = raw.ToUpperInvariant();
+                return true;
+            }
+
+            return false;
+        }
+
+        if (int.TryParse(raw, out int decValue))
+        {
+            index = decValue;
+            normalizedText = decValue.ToString();
+            return true;
+        }
+
+        return false;
+    }
+
+    void EnsureEntryAddressText(ReadEntry entry)
+    {
+        if (!string.IsNullOrWhiteSpace(entry.AddrIndexText))
+            return;
+
+        if (IsBufferType(entry.AddrType))
+            entry.AddrIndexText = entry.AddrIndex.ToString("X");
+        else
+            entry.AddrIndexText = entry.AddrIndex.ToString();
+    }
+
+    void EnsureEntryAddressText(PlcWriteItem entry)
+    {
+        if (!string.IsNullOrWhiteSpace(entry.AddrIndexText))
+            return;
+
+        if (IsBufferType(entry.AddrType))
+            entry.AddrIndexText = entry.AddrIndex.ToString("X");
+        else
+            entry.AddrIndexText = entry.AddrIndex.ToString();
+    }
+
+    string FormatAddress(string addrType, int addrIndex, string? addrIndexText)
+    {
+        string t = NormalizeType(addrType);
+        if (IsBufferType(t))
+        {
+            string prefix = t.Replace("\\", string.Empty).Replace("/", string.Empty);
+            if (!prefix.Contains("G", StringComparison.OrdinalIgnoreCase))
+                prefix += "G";
+            string indexText = string.IsNullOrWhiteSpace(addrIndexText) ? addrIndex.ToString("X") : addrIndexText.Trim().ToUpperInvariant();
+            return prefix + indexText;
+        }
+
+        return $"{t}{addrIndex}";
+    }
+
+    MainViewModel.CustomMemoryEntry? FindCustomEntry(ReadEntry entry)
+    {
+        return ViewModel.CustomMemoryEntries.FirstOrDefault(x =>
+            x.AddrType.Equals(entry.AddrType, StringComparison.OrdinalIgnoreCase)
+            && x.AddrIndex == entry.AddrIndex
+            && (IsBufferType(entry.AddrType)
+                ? string.Equals(x.AddrIndexText ?? string.Empty, entry.AddrIndexText ?? string.Empty, StringComparison.OrdinalIgnoreCase)
+                : true));
+    }
 
     public void Dispose()
     {

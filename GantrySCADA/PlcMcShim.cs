@@ -17,7 +17,8 @@ namespace NVKProject.PLC
             D,
             M,
             X,
-            Y
+            Y,
+            Buffer
         }
 
         private string _ipAddress = "127.0.0.1";
@@ -155,6 +156,13 @@ namespace NVKProject.PLC
 
         private static string BuildAddress(DeviceName deviceName, string address)
         {
+            if (deviceName == DeviceName.Buffer)
+            {
+                return string.IsNullOrWhiteSpace(address)
+                    ? "U0G0"
+                    : address.Trim().ToUpperInvariant();
+            }
+
             string prefix = deviceName.ToString();
             return string.IsNullOrWhiteSpace(address)
                 ? prefix + "0"
