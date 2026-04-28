@@ -1,8 +1,8 @@
 using CommunityToolkit.Mvvm.ComponentModel;
-using NVKProject.PLC;
+using DACDT.PLC;
 using System;
 
-namespace WPF_Test_PLC20260124
+namespace DACDT
 {
     public partial class MainViewModel : ObservableObject
     {

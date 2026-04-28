@@ -208,3 +208,11 @@ D:\DACDT_2026\DANCDT\GantrySCADA\obj\Debug\net8.0-windows\refint\GantrySCADA.dll
 D:\DACDT_2026\DANCDT\GantrySCADA\obj\Debug\net8.0-windows\GantrySCADA.pdb
 D:\DACDT_2026\DANCDT\GantrySCADA\obj\Debug\net8.0-windows\GantrySCADA.genruntimeconfig.cache
 D:\DACDT_2026\DANCDT\GantrySCADA\obj\Debug\net8.0-windows\ref\GantrySCADA.dll
+D:\DACDT_2026\DANCDT\GantrySCADA\obj\Debug\net8.0-windows\Interop.ActUtlTypeLib.dll
+D:\DACDT_2026\DANCDT\GantrySCADA\obj\Debug\net8.0-windows\Interop.ActUtlDataLoggingLib.dll
+D:\DACDT_2026\DANCDT\GantrySCADA\obj\Debug\net8.0-windows\Interop.ActUtlType64Lib.dll
+D:\DACDT_2026\DANCDT\GantrySCADA\obj\Debug\net8.0-windows\Interop.ActUtlDataLogging64Lib.dll
+D:\DACDT_2026\DANCDT\GantrySCADA\obj\Debug\net8.0-windows\GantrySCADA.csproj.ResolveComReference.cache
+D:\DACDT_2026\DANCDT\GantrySCADA\obj\Debug\net8.0-windows\DACDT_Content.g.cs
+D:\DACDT_2026\DANCDT\GantrySCADA\obj\Debug\net8.0-windows\DACDT_MarkupCompile.cache
+D:\DACDT_2026\DANCDT\GantrySCADA\obj\Debug\net8.0-windows\DACDT_MarkupCompile.lref

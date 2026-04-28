@@ -647,20 +647,7 @@
                     if (offsetY >= 0 && offsetY < ViewModel.arr_W_Y.Length)
                         ViewModel.arr_W_Y[offsetY] = entry.WriteValue;
                 }
-                else if (normType == "G")
-                {
-                    // Handle G register writes (e.g., G2000)
-                    int offsetG = entry.AddrIndex - ViewModel.G_W_Base;
-                    if (offsetG >= 0 && offsetG < ViewModel.arr_W_G.Length)
-                        ViewModel.arr_W_G[offsetG] = entry.WriteValue;
-                }
-                else if (normType == "Q")
-                {
-                    // Handle Q register writes (e.g., Q2000)
-                    int offsetQ = entry.AddrIndex - ViewModel.Q_W_Base;
-                    if (offsetQ >= 0 && offsetQ < ViewModel.arr_W_Q.Length)
-                        ViewModel.arr_W_Q[offsetQ] = entry.WriteValue;
-                }
+
 
                 ViewModel.MarkPendingWrite(normType, entry.AddrIndex, entry.WriteValue);
                 entry.Status = WriteStatus.OK;

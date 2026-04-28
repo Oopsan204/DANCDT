@@ -1,27 +1,60 @@
 <Project Sdk="Microsoft.NET.Sdk.Razor">
 
-  <PropertyGroup>
-    <OutputType>WinExe</OutputType>
-    <TargetFramework>net8.0-windows</TargetFramework>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <UseWPF>true</UseWPF>
-    <UseAppHost>false</UseAppHost>
-  </PropertyGroup>
+	<PropertyGroup>
+		<OutputType>WinExe</OutputType>
+		<TargetFramework>net8.0-windows</TargetFramework>
+		<Nullable>enable</Nullable>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<UseWPF>true</UseWPF>
+		<UseAppHost>false</UseAppHost>
+		<!-- Set project assembly and root namespace to DACDT -->
+		<AssemblyName>DACDT</AssemblyName>
+		<RootNamespace>DACDT</RootNamespace>
+	</PropertyGroup>
 
-  <ItemGroup>
-    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
-    <PackageReference Include="Microsoft.AspNetCore.Components.WebView.Wpf" Version="8.0.82" />
-    <PackageReference Include="netDxf" Version="2023.11.10" />
-  </ItemGroup>
+	<ItemGroup>
+	  <COMReference Include="ActUtlDataLogging64Lib">
+	    <WrapperTool>tlbimp</WrapperTool>
+	    <VersionMinor>0</VersionMinor>
+	    <VersionMajor>5</VersionMajor>
+	    <Guid>e27b7abd-bddb-4763-a886-321860281e73</Guid>
+	    <Lcid>0</Lcid>
+	    <Isolated>false</Isolated>
+	    <EmbedInteropTypes>true</EmbedInteropTypes>
+	  </COMReference>
+	  <COMReference Include="ActUtlType64Lib">
+	    <WrapperTool>tlbimp</WrapperTool>
+	    <VersionMinor>0</VersionMinor>
+	    <VersionMajor>5</VersionMajor>
+	    <Guid>719a5fab-eb1c-4b52-98bc-f8c9f6912d04</Guid>
+	    <Lcid>0</Lcid>
+	    <Isolated>false</Isolated>
+	    <EmbedInteropTypes>true</EmbedInteropTypes>
+	  </COMReference>
+	  <COMReference Include="ActUtlDataLoggingLib">
+	    <WrapperTool>tlbimp</WrapperTool>
+	    <VersionMinor>0</VersionMinor>
+	    <VersionMajor>1</VersionMajor>
+	    <Guid>b146a695-c42b-4af7-8038-79d814139b49</Guid>
+	    <Lcid>0</Lcid>
+	    <Isolated>false</Isolated>
+	    <EmbedInteropTypes>true</EmbedInteropTypes>
+	  </COMReference>
+	  <COMReference Include="ActUtlTypeLib">
+	    <WrapperTool>tlbimp</WrapperTool>
+	    <VersionMinor>0</VersionMinor>
+	    <VersionMajor>1</VersionMajor>
+	    <Guid>d217e54e-4a26-4a76-b0ab-57166b90f9af</Guid>
+	    <Lcid>0</Lcid>
+	    <Isolated>false</Isolated>
+	    <EmbedInteropTypes>true</EmbedInteropTypes>
+	  </COMReference>
+	</ItemGroup>
 
-  <ItemGroup>
-    <Reference Include="NVKProject.PLC">
-      <HintPath>NVKProject.PLC.dll</HintPath>
-    </Reference>
-    <Reference Include="NVKProject.Logger">
-      <HintPath>NVKProject.Logger.dll</HintPath>
-    </Reference>
-  </ItemGroup>
+	<ItemGroup>
+		<PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+		<PackageReference Include="Microsoft.AspNetCore.Components.WebView.Wpf" Version="8.0.82" />
+		<PackageReference Include="netDxf" Version="2023.11.10" />
+	</ItemGroup>
 
 </Project>

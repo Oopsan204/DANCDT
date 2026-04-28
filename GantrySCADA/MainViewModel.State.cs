@@ -1,11 +1,11 @@
 using CommunityToolkit.Mvvm.ComponentModel;
-using NVKProject.PLC;
+using DACDT.PLC;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 
-namespace WPF_Test_PLC20260124
+namespace DACDT
 {
     public partial class MainViewModel : ObservableObject
     {

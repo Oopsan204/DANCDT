@@ -11,12 +11,12 @@
 using System;
 using System.Reflection;
 
-[assembly: System.Reflection.AssemblyCompanyAttribute("GantrySCADA")]
+[assembly: System.Reflection.AssemblyCompanyAttribute("DACDT")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+34f794fec4491066978a4fa86954ee3e75da70c9")]
-[assembly: System.Reflection.AssemblyProductAttribute("GantrySCADA")]
-[assembly: System.Reflection.AssemblyTitleAttribute("GantrySCADA")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+60276dbd29d830adb62453722166022ade0fc0c4")]
+[assembly: System.Reflection.AssemblyProductAttribute("DACDT")]
+[assembly: System.Reflection.AssemblyTitleAttribute("DACDT")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
 [assembly: System.Runtime.Versioning.TargetPlatformAttribute("Windows7.0")]
 [assembly: System.Runtime.Versioning.SupportedOSPlatformAttribute("Windows7.0")]

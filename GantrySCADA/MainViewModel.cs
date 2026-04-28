@@ -1,221 +1,314 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using NVKProject.PLC;
+using DACDT.PLC;
 using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Input;
 
-namespace WPF_Test_PLC20260124
+namespace DACDT
 {
     public partial class MainViewModel : ObservableObject
     {
-        #region Commands
-        public ICommand ConnectCommand { get; }
-        public ICommand DisconnectCommand { get; }
-        public ICommand TestReadCommand { get; }
-        public ICommand TestWriteCommand { get; }
-        public ICommand TestBit { get; }
-        #endregion
+        #region Fields
+        private ePLCControl ePLC;
+        private int _ValuePLC = 1;
+        private int _Length = 99;
+        private int _StartAddress = 700;
+        private string ipAddress = "192.168.3.39";
+        private int port = 3000;
+        private int networkNo = 0;
+        private int stationNo = 0;
+        private int stationPLCNo = 255;
+        private bool status;
 
+
+        public int D_R_V = 4000;
+        public int D_W_V = 5000;
+        public int D_W_P = 3000;
+
+        // New: addresses to read as 32-bit (pairs)
+        // Default pairs: D1000+D1001, D1002+D1003, D1004+D1005, D2000+D2001, D2002+D2003, D2004+D2005
+        private int[] _arr_R32 = new int[6];
+
+        public int[] arr_W_Position = new int[99];
+        public int[] arr_R_V = new int[99];
+        public int[] arr_W_V = new int[99];
+        #endregion
+        #region Propeties
+        public int ValuePLC
+        {
+            get { return _ValuePLC; }
+            set { _ValuePLC = value; }
+        }
+        public int Length
+        {
+            get { return _Length; }
+            set { _Length = value; OnPropertyChanged(); }
+        }
+        public int StartAddress
+        {
+            get { return _StartAddress; }
+            set { _StartAddress = value; OnPropertyChanged(); }
+        }
+        public string IpAddress
+        {
+            get { return ipAddress; }
+            set { ipAddress = value; OnPropertyChanged(); }
+        }
+        public int Port
+        {
+            get { return port; }
+            set { port = value; OnPropertyChanged(); }
+        }
+        public int NetworkNo
+        {
+            get { return networkNo; }
+            set { networkNo = value; }
+        }
+        public int StationNo
+        {
+            get { return stationNo; }
+            set { stationNo = value; OnPropertyChanged(); }
+        }
+        public int StationPLCNo
+        {
+            get { return stationPLCNo; }
+            set { stationPLCNo = value; OnPropertyChanged(); }
+        }
+        public bool Status
+        {
+            get { return status; }
+            set { status = value; OnPropertyChanged(); }
+        }
+
+        // New: expose arr_R32 as property so UI can bind and get notifications
+        public int[] arr_R32
+        {
+            get { return _arr_R32; }
+            set { SetProperty(ref _arr_R32, value); }
+        }
+
+        // New: configurable base addresses and enable flag for 32-bit reads
+        private int _d32Base1 = 1000;
+        public int D32Base1
+        {
+            get { return _d32Base1; }
+            set { _d32Base1 = value; OnPropertyChanged(); }
+        }
+
+        private int _d32Base2 = 2000;
+        public int D32Base2
+        {
+            get { return _d32Base2; }
+            set { _d32Base2 = value; OnPropertyChanged(); }
+        }
+
+        // Address of the enable flag (default D3000)
+        private int _dReadEnable = 3000;
+        public int DReadEnable
+        {
+            get { return _dReadEnable; }
+            set { _dReadEnable = value; OnPropertyChanged(); }
+        }
+        #endregion
+        #region Commands
+        public ICommand ConnectCommand { get; set; }
+        public ICommand TestReadCommand { get; set; }
+        public ICommand TestWriteCommand { get; set; }
+        public ICommand TestBit { get; set; }
+        #endregion
+    }
+    public partial class MainViewModel : ObservableObject
+    {
         public MainViewModel()
         {
-            ePLC = new ePLCControl();
             ConnectCommand = new RelayCommand(ConnectPLC);
-            DisconnectCommand = new RelayCommand(DisconnectPLC);
             TestReadCommand = new RelayCommand(new Action(() => { }));
             TestWriteCommand = new RelayCommand(new Action(() => { }));
-            TestBit = new RelayCommand(new Action(() => { }));
 
-            AddLog("UI", "info", "Application started");
-            AddLog("PC", "info", "MainViewModel initialized");
-            AddLog("PC", "info", "Monitor thread started @ 100Hz");
-
-            InitializeDxfFeature();
         }
-
         private void ConnectPLC()
         {
-            AddLog("PLC", "info", $"Connection attempt -> {IpAddress}:{Port}");
+            ePLC = new ePLCControl();
+             ePLC.SetPLCProperties(IpAddress, Port, NetworkNo, StationPLCNo, StationNo);
+            ePLC.Open();
+            Status = ePLC.IsConnected;
 
-            try
-            {
-                lock (_plcSync)
-                {
-                    _monitorStopRequested = false;
-
-                    try
-                    {
-                        ePLC?.Close();
-                    }
-                    catch
-                    {
-                        // Ignore close errors from previous stale connection instance.
-                    }
-
-                    ePLC = new ePLCControl();
-                    ePLC.SetPLCProperties(IpAddress, Port, NetworkNo, StationPLCNo, StationNo);
-                    ePLC.Open();
-                    Status = ePLC.IsConnected;
-                }
-
-                AddLog("PLC", Status ? "success" : "error",
-                    Status ? "PLC connection established" : "PLC connection failed");
-
-                if (Status)
-                {
-                    StartMonitorThread();
-                }
-            }
-            catch (Exception ex)
-            {
-                Status = false;
-                AddLog("PLC", "error", $"PLC connection failed: {ex.Message}", "ConnectPLC");
-            }
-        }
-
-        private void DisconnectPLC()
-        {
-            _monitorStopRequested = true;
-            Status = false;
-            AddLog("PLC", "warning", "Connection closed by user");
-
-            lock (_plcSync)
-            {
-                try
-                {
-                    ePLC?.Close();
-                }
-                catch
-                {
-                    // Ignore close errors during manual disconnect.
-                }
-            }
-        }
-
-        private void StartMonitorThread()
-        {
-            lock (_plcSync)
-            {
-                if (_monitorThread != null && _monitorThread.IsAlive)
-                    return;
-
-                _monitorThread = new Thread(Monitor)
-                {
-                    IsBackground = true,
-                    Name = "PLC-Monitor"
-                };
-
-                _monitorThread.Start();
-            }
-        }
-
-        private void TryReconnectIfDue()
-        {
-            if (_monitorStopRequested)
-                return;
-
-            DateTime now = DateTime.Now;
-            if ((now - _lastReconnectAttempt) < _reconnectInterval)
-                return;
-
-            _lastReconnectAttempt = now;
-            AddLog("PLC", "warning", $"Reconnect attempt -> {IpAddress}:{Port}", "AutoReconnect 5s");
-
-            try
-            {
-                lock (_plcSync)
-                {
-                    try
-                    {
-                        ePLC?.Close();
-                    }
-                    catch
-                    {
-                        // Ignore stale transport close failures.
-                    }
-
-                    ePLC = new ePLCControl();
-                    ePLC.SetPLCProperties(IpAddress, Port, NetworkNo, StationPLCNo, StationNo);
-                    ePLC.Open();
-                    Status = ePLC.IsConnected;
-                }
-
-                if (Status)
-                {
-                    AddLog("PLC", "success", "PLC reconnected", "AutoReconnect 5s");
-                }
-            }
-            catch (Exception ex)
-            {
-                Status = false;
-                AddLog("PLC", "warning", $"Reconnect failed: {ex.Message}", "AutoReconnect 5s");
-            }
-        }
-
-        private bool IsConnectedSafe()
-        {
-            lock (_plcSync)
-            {
-                try
-                {
-                    return ePLC != null && ePLC.IsConnected;
-                }
-                catch
-                {
-                    return false;
-                }
-            }
+            Thread t1 = new Thread(Monitor);
+            t1.IsBackground = true;
+            t1.Start();
         }
 
         private void Monitor()
         {
-            if (_monitorRunning)
-                return;
-
-            _monitorRunning = true;
-            bool lostLogged = false;
-
-            try
+            while (Status)
             {
-                while (!_monitorStopRequested)
+                Thread.Sleep(10);
+                Status = ePLC.IsConnected;
+                if (Status)
                 {
-                    Thread.Sleep(10);
-
-                    bool connected = IsConnectedSafe();
-                    Status = connected;
-
-                    if (!connected)
-                    {
-                        if (!lostLogged && !_monitorStopRequested)
-                        {
-                            AddLog("PLC", "warning", "PLC connection lost unexpectedly");
-                            lostLogged = true;
-                        }
-
-                        TryReconnectIfDue();
-
-                        continue;
-                    }
-
-                    lostLogged = false;
-
-                    try
-                    {
-                        Read();
-                        Write();
-                        RefreshCustomMemory();
-                    }
-                    catch (Exception ex)
-                    {
-                        Status = false;
-                        AddLog("PC", "error", $"Monitor cycle error: {ex.Message}", ex.GetType().Name);
-                    }
+                    Read();
+                    Write();
                 }
             }
-            finally
+        }
+        private void Write()
+        {
+
+            ePLC.WriteDeviceBlock(ePLCControl.SubCommand.Word, ePLCControl.DeviceName.D, $"{D_W_V}", arr_W_V);
+            ePLC.WriteDeviceBlock(ePLCControl.SubCommand.Word, ePLCControl.DeviceName.D, $"{D_W_P}", arr_W_Position);
+        }
+        private void Read()
+        {
+            // Read enable flag at configurable address (DReadEnable). If non-zero -> proceed; otherwise skip reading 32-bit values.
+            try
             {
-                _monitorRunning = false;
+                int[] flag = ePLC.ReadDeviceBlock(ePLCControl.SubCommand.Word, ePLCControl.DeviceName.D, $"{DReadEnable}", 1);
+                if (flag == null || flag.Length == 0)
+                {
+                    // fallback: still read default block
+                    arr_R_V = ePLC.ReadDeviceBlock(ePLCControl.SubCommand.Word, ePLCControl.DeviceName.D, $"{D_R_V}", Length);
+                    return;
+                }
+
+                if (flag[0] != 0)
+                {
+                    // Read normal block (if still needed)
+                    arr_R_V = ePLC.ReadDeviceBlock(ePLCControl.SubCommand.Word, ePLCControl.DeviceName.D, $"{D_R_V}", Length);
+
+                    // Read blocks for 32-bit values using configurable bases
+                    int[] b1 = ePLC.ReadDeviceBlock(ePLCControl.SubCommand.Word, ePLCControl.DeviceName.D, $"{D32Base1}", 6);
+                    int[] b2 = ePLC.ReadDeviceBlock(ePLCControl.SubCommand.Word, ePLCControl.DeviceName.D, $"{D32Base2}", 6);
+
+                    if (b1 != null && b1.Length >= 6)
+                    {
+                        // combine pairs: (0,1), (2,3), (4,5)
+                        for (int i = 0; i < 3; i++)
+                        {
+                            int low = b1[i * 2];
+                            int high = b1[i * 2 + 1];
+                            _arr_R32[i] = low | (high << 16);
+                        }
+                    }
+
+                    if (b2 != null && b2.Length >= 6)
+                    {
+                        for (int i = 0; i < 3; i++)
+                        {
+                            int low = b2[i * 2];
+                            int high = b2[i * 2 + 1];
+                            _arr_R32[3 + i] = low | (high << 16);
+                        }
+                    }
+
+                    // notify property change if bound in UI
+                    OnPropertyChanged(nameof(arr_R32));
+                }
+                else
+                {
+                    // If flag is 0, still update arr_R_V (optional) or skip reading arr_R32
+                    arr_R_V = ePLC.ReadDeviceBlock(ePLCControl.SubCommand.Word, ePLCControl.DeviceName.D, $"{D_R_V}", Length);
+                }
             }
+            catch (Exception)
+            {
+                // on exception, try to read fallback block
+                try { arr_R_V = ePLC.ReadDeviceBlock(ePLCControl.SubCommand.Word, ePLCControl.DeviceName.D, $"{D_R_V}", Length); } catch { }
+            }
+        }
+        private bool ReadDevice(int iAddress)
+        {
+            if ((iAddress - D_R_V) > 0 && (iAddress - D_R_V) < arr_R_V.Length)
+            {
+                return arr_R_V[iAddress - D_R_V] == 0 ? false : true;
+            }
+            else
+            {
+                return false;
+            }
+        }
+        private void WriteDevice(int iAddress, bool value)
+        {
+            if ((iAddress - D_W_V) >= 0 && (iAddress - D_W_V) < arr_W_V.Length)
+            {
+                arr_W_V[iAddress - D_W_V] = value ? 1 : 0;
+            }
+        }
+
+        public void SetPosition(int iAddress, double value)
+        {
+            if ((iAddress - D_W_P) >= 0 && (iAddress - D_W_P + 1) < arr_W_Position.Length)
+            {
+                int index = iAddress - D_W_P;
+                SetCurrentPosition(arr_W_Position, index, value);
+            }
+        }
+        public double GetCurrentPosition(int[] arr, int index)
+        {
+            return arr[index] + (arr[index + 1] << 16);
+        }
+        public void SetCurrentPosition(int[] arr, int index, double value)
+        {
+            int v = (int)value;
+            arr[index] = v & 0xFFFF;
+            arr[index + 1] = (v >> 16) & 0xFFFF;
+        }
+        private int[] GetDataValue(int[] arr, int index)
+        {
+            if (arr.Length == 0)
+            {
+                return null;
+            }
+            int iVal = arr[index];
+            return ePLC.WordToBit(iVal).ToList().Select(x => int.Parse(x.ToString())).ToArray();
+        }
+        public bool GetBit(int word, int bit)
+        {
+            return ((word >> bit) & 1) == 1;
+        }
+
+        public int SetBit(int word, int bit, bool value)
+        {
+            if (value) return word | (1 << bit);
+            else return word & ~(1 << bit);
+        }
+        private int[] GetDataValue_(int[] arr, int index)
+        {
+            if (arr == null || index < 0 || index >= arr.Length)
+                return null;
+
+            int word = arr[index];
+            int[] bits = new int[16];
+
+            for (int i = 0; i < 16; i++)
+                bits[i] = (word >> i) & 1;
+
+            return bits;
+        }
+        private void SetDataValue_(int[] arr, int index, int[] bits)
+        {
+            if (arr == null || bits == null)
+                return;
+
+            if (index < 0 || index >= arr.Length)
+                return;
+
+            if (bits.Length < 16)
+                throw new ArgumentException("Bits must have at least 16 elements");
+
+            int word = 0;
+
+            for (int i = 0; i < 16; i++)
+            {
+                if (bits[i] == 1)
+                    word |= (1 << i);
+            }
+
+            arr[index] = word;
         }
     }
 }
