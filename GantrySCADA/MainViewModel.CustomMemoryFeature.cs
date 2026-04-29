@@ -48,8 +48,9 @@ namespace WPF_Test_PLC20260124
 
                     return false;
                 }
-                catch
+                catch (Exception ex)
                 {
+                    AddLog("PC", "error", $"Read Buffer error {normalizedType}{addrIndexText}: {ex.Message}");
                     return false;
                 }
             }

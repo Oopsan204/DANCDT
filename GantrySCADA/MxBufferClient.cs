@@ -52,8 +52,8 @@ namespace NVKProject.PLC
             if (_actUtl == null || !IsConnected)
                 throw new InvalidOperationException("MX Component is not connected.");
 
-            object data;
-            int rc = _actUtl!.ReadDeviceBlock2(device, length, out data);
+            short[] data = new short[length];
+            int rc = _actUtl!.ReadDeviceBlock2(device, length, ref data);
             if (rc != 0)
                 throw new InvalidOperationException($"MX ReadDeviceBlock2 failed: {rc}");
 
@@ -87,11 +87,14 @@ namespace NVKProject.PLC
                 return result;
             }
 
-            if (data is Array array)
+            if (data is Array arr)
             {
-                int[] result = new int[array.Length];
-                for (int i = 0; i < array.Length; i++)
-                    result[i] = Convert.ToInt32(array.GetValue(i));
+                int[] result = new int[arr.Length];
+                int i = 0;
+                foreach (var item in arr)
+                {
+                    result[i++] = Convert.ToInt32(item);
+                }
                 return result;
             }
 
