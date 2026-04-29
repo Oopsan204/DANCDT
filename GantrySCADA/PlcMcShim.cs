@@ -25,6 +25,8 @@ namespace NVKProject.PLC
         private int _port = 5000;
         private MelsecMcNet? _client;
         private bool _isConnected;
+        private MxBufferClient? _mxBuffer;
+        private int _mxLogicalStationNo;
 
         public bool IsConnected => _isConnected;
 
@@ -32,10 +34,16 @@ namespace NVKProject.PLC
         {
             _ipAddress = ipAddress;
             _port = port;
+            _mxLogicalStationNo = stationNo;
             if (_client != null)
             {
                 _client.IpAddress = _ipAddress;
                 _client.Port = _port;
+            }
+
+            if (_mxBuffer != null)
+            {
+                _mxBuffer.LogicalStationNumber = _mxLogicalStationNo;
             }
         }
 
@@ -53,12 +61,17 @@ namespace NVKProject.PLC
             }
 
             _isConnected = true;
+
+            _mxBuffer ??= new MxBufferClient();
+            _mxBuffer.LogicalStationNumber = _mxLogicalStationNo;
+            _mxBuffer.Open();
         }
 
         public void Close()
         {
             _client?.ConnectClose();
             _isConnected = false;
+            _mxBuffer?.Close();
         }
 
         public int[] ReadDeviceBlock(SubCommand subCommand, DeviceName deviceName, string address, int length)
@@ -69,6 +82,14 @@ namespace NVKProject.PLC
             }
 
             string fullAddress = BuildAddress(deviceName, address);
+
+            if (deviceName == DeviceName.Buffer)
+            {
+                if (_mxBuffer == null || !_mxBuffer.IsConnected)
+                    throw new InvalidOperationException("MX Component buffer client is not connected");
+
+                return _mxBuffer.ReadWords(fullAddress, length);
+            }
 
             if (subCommand == SubCommand.Bit)
             {
@@ -112,6 +133,15 @@ namespace NVKProject.PLC
             }
 
             string fullAddress = BuildAddress(deviceName, address);
+
+            if (deviceName == DeviceName.Buffer)
+            {
+                if (_mxBuffer == null || !_mxBuffer.IsConnected)
+                    throw new InvalidOperationException("MX Component buffer client is not connected");
+
+                _mxBuffer.WriteWords(fullAddress, values);
+                return;
+            }
 
             if (subCommand == SubCommand.Bit)
             {
