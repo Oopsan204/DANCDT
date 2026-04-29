@@ -21,9 +21,9 @@ namespace NVKProject.PLC
                 throw new InvalidOperationException("MX Component ActUtlType COM is not registered (ActUtlType64/ActUtlType).");
 
             _actUtl = Activator.CreateInstance(actType);
-            _actUtl.ActLogicalStationNumber = LogicalStationNumber;
+            _actUtl!.ActLogicalStationNumber = LogicalStationNumber;
 
-            int rc = _actUtl.Open();
+            int rc = _actUtl!.Open();
             if (rc != 0)
                 throw new InvalidOperationException($"MX Open failed: {rc}");
 
@@ -52,8 +52,8 @@ namespace NVKProject.PLC
             if (_actUtl == null || !IsConnected)
                 throw new InvalidOperationException("MX Component is not connected.");
 
-            object data;
-            int rc = _actUtl.ReadDeviceBlock2(device, length, out data);
+            short[] data = new short[length];
+            int rc = _actUtl!.ReadDeviceBlock2(device, length, out data);
             if (rc != 0)
                 throw new InvalidOperationException($"MX ReadDeviceBlock2 failed: {rc}");
 
@@ -65,8 +65,11 @@ namespace NVKProject.PLC
             if (_actUtl == null || !IsConnected)
                 throw new InvalidOperationException("MX Component is not connected.");
 
-            object data = values;
-            int rc = _actUtl.WriteDeviceBlock2(device, values.Length, ref data);
+            short[] shorts = new short[values.Length];
+            for (int i = 0; i < values.Length; i++)
+                shorts[i] = unchecked((short)values[i]);
+
+            int rc = _actUtl!.WriteDeviceBlock2(device, values.Length, ref shorts);
             if (rc != 0)
                 throw new InvalidOperationException($"MX WriteDeviceBlock2 failed: {rc}");
         }

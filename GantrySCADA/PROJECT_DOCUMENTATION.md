@@ -14,6 +14,7 @@
 8. [MainLayout - Navigation &amp; Highlighting](#mainlayout---navigation--highlighting)
 9. [Luồng giao tiếp dữ liệu](#luồng-giao-tiếp-dữ-liệu)
 10. [Thông tin PLC](#thông-tin-plc)
+11. [Tính năng DXF Trajectory (CAM)](#tính-năng-dxf-trajectory-cam)
 
 ---
 
@@ -2187,5 +2188,53 @@ Visual feedback: User sees which page is active
 
 ---
 
-**Tài liệu cập nhật**: April 17, 2026
-**Phiên bản dự án**: GantrySCADA v1.0+ (with Jog, Centralized Logging, Custom Memory Stream, Dynamic Navigation)
+**Tài liệu cập nhật**: April 29, 2026
+**Phiên bản dự án**: GantrySCADA v1.1 (with DXF Trajectory Support)
+
+---
+
+## 📐 Tính năng DXF Trajectory (CAM)
+
+**File**: `MainViewModel.DxfFeature.cs` + `netDxf.dll`
+
+### 📌 Mô tả tính năng
+Module DXF đóng vai trò như một hệ thống CAM (Computer-Aided Manufacturing) thu nhỏ, cho phép nạp bản vẽ kỹ thuật (.dxf) và biên dịch thành chuỗi lệnh điều khiển chuyển động nội suy cho robot Gantry.
+
+### 🔄 Các giai đoạn xử lý
+
+#### 1. Nạp và Phân tích DXF (`LoadDxfAdvanced`)
+- Sử dụng thư viện `netDxf` để trích xuất các thực thể: `Lines`, `Polylines2D`, `Circles`, `Arcs`.
+- Phân tách thành danh sách các quỹ đạo (`_dxfContours`).
+- Tính toán các thuộc tính: Độ dài, tọa độ tâm, góc xoay, điểm bắt đầu/kết thúc.
+- Xác định biên (Bounds) để tự động căn chỉnh khung nhìn và hỗ trợ hiển thị.
+
+#### 2. Xem trước quỹ đạo (Preview)
+- Hàm `GenerateSvgPath` chuyển đổi tọa độ CAD sang chuỗi Path SVG cho Blazor UI.
+- Tự động Scale và dịch chuyển tọa độ để hiển thị vừa vặn trong khung Preview (tỷ lệ chuẩn 200x200).
+- Hỗ trợ hiển thị các thực thể phức tạp như `Circle` và `Arc` bằng lệnh SVG `A` (Arc) chính xác.
+
+#### 3. Thiết lập tọa độ Robot
+- **Scale/Offset**: Tùy chỉnh tỷ lệ (Scale X/Y) và độ lệch (Offset X/Y) để khớp với không gian làm việc của bàn máy thực tế.
+- **Safety Validation**: Kiểm tra xem quỹ đạo (sau khi scale/offset) có vượt quá giới hạn an toàn của máy (ví dụ: 0-1000mm) trước khi truyền lệnh.
+
+#### 4. Biên dịch và Truyền lệnh xuống PLC (`DownloadTrajectoryToPlc`) ⭐
+Chuyển đổi các điểm hình học sang mã lệnh nội suy chuyên dụng của PLC (thường dùng cho các Module nội suy/Simple Motion):
+- **Tọa độ**: Chuyển mm sang micron (nhân 1000) để đạt độ phân giải integer cao trên PLC.
+- **Mã lệnh (Command Codes)**:
+  - `0xD00A`: Nội suy đoạn thẳng liên tục (Continuous Linear).
+  - `0xD00F`: Nội suy cung tròn CW (theo chiều kim đồng hồ).
+  - `0xD010`: Nội suy cung tròn CCW (ngược chiều kim đồng hồ).
+- **Kết thúc (END)**: Lệnh cuối cùng trong chuỗi được đánh dấu bằng bit `0x1000` (`Positioning complete`) để PLC tự động dừng hành trình.
+- **Vùng nhớ**: Ghi trực tiếp vào vùng đệm `D2000` (Trục X) và `D8000` (Trục Y) - user có thể dùng lệnh BMOV để chuyển vào U/G memory của module chuyển động.
+
+### 📍 Cấu trúc gói dữ liệu điểm (Point Data Structure)
+Mỗi điểm quỹ đạo được nạp vào PLC dưới dạng một khối 10-word (20 bytes):
+1. **Command Code** (0x...): Loại chuyển động
+2. **M-Code**: Mã phụ trợ
+3. **Dwell Time (Low/High)**: Thời gian chờ
+4. **Speed (Low/High)**: Tốc độ chuyển động (mm/s * scale)
+5. **Position (Low/High)**: Tọa độ đích (X hoặc Y)
+6. **Center/Aux (Low/High)**: Tọa độ tâm (nếu là cung tròn/đường tròn)
+
+---
+
