@@ -53,11 +53,25 @@ namespace NVKProject.PLC
                 throw new InvalidOperationException("MX Component is not connected.");
 
             short[] data = new short[length];
-            int rc = _actUtl!.ReadDeviceBlock2(device, length, ref data);
-            if (rc != 0)
-                throw new InvalidOperationException($"MX ReadDeviceBlock2 failed: {rc}");
+            int rc;
 
-            return ToIntArray(data, length);
+            if (TryParseUDevicePath(device, out int startIO, out int address))
+            {
+                rc = _actUtl!.ReadBuffer(startIO, address, length, ref data[0]);
+                if (rc != 0)
+                    throw new InvalidOperationException($"MX ReadBuffer failed: {rc}");
+            }
+            else
+            {
+                rc = _actUtl!.ReadDeviceBlock2(device, length, ref data[0]);
+                if (rc != 0)
+                    throw new InvalidOperationException($"MX ReadDeviceBlock2 failed: {rc}");
+            }
+
+            int[] result = new int[length];
+            for (int i = 0; i < length; i++)
+                result[i] = data[i];
+            return result;
         }
 
         public void WriteWords(string device, int[] values)
@@ -69,9 +83,29 @@ namespace NVKProject.PLC
             for (int i = 0; i < values.Length; i++)
                 shorts[i] = unchecked((short)values[i]);
 
-            int rc = _actUtl!.WriteDeviceBlock2(device, values.Length, ref shorts);
-            if (rc != 0)
-                throw new InvalidOperationException($"MX WriteDeviceBlock2 failed: {rc}");
+            int rc;
+            if (TryParseUDevicePath(device, out int startIO, out int address))
+            {
+                rc = _actUtl!.WriteBuffer(startIO, address, values.Length, ref shorts[0]);
+                if (rc != 0)
+                    throw new InvalidOperationException($"MX WriteBuffer failed: {rc}");
+            }
+            else
+            {
+                rc = _actUtl!.WriteDeviceBlock2(device, values.Length, ref shorts[0]);
+                if (rc != 0)
+                    throw new InvalidOperationException($"MX WriteDeviceBlock2 failed: {rc}");
+            }
+        }
+
+        private static bool TryParseUDevicePath(string devicePath, out int uNumber, out int gAddress)
+        {
+            uNumber = 0; gAddress = 0;
+            string s = devicePath.Replace("\\\\", "\\").Trim();
+            var m = System.Text.RegularExpressions.Regex.Match(s, @"^U([0-9A-F]+)\\G(\d+)$", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            if (!m.Success) return false;
+            return int.TryParse(m.Groups[1].Value, System.Globalization.NumberStyles.HexNumber, System.Globalization.CultureInfo.InvariantCulture, out uNumber)
+                && int.TryParse(m.Groups[2].Value, out gAddress);
         }
 
         private static int[] ToIntArray(object data, int length)
