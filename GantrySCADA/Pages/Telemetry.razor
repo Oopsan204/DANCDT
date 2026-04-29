@@ -722,10 +722,24 @@
 
         if (IsBufferType(addrType))
         {
-            if (int.TryParse(raw, System.Globalization.NumberStyles.HexNumber, null, out int hexValue))
+            string rawUpper = raw.ToUpperInvariant();
+            if (rawUpper.StartsWith("H") || rawUpper.StartsWith("0X"))
             {
-                index = hexValue;
-                normalizedText = raw.ToUpperInvariant();
+                string hex = rawUpper.StartsWith("H") ? rawUpper[1..] : rawUpper[2..];
+                if (int.TryParse(hex, System.Globalization.NumberStyles.HexNumber, null, out int hexValue))
+                {
+                    index = hexValue;
+                    normalizedText = hex;
+                    return true;
+                }
+
+                return false;
+            }
+
+            if (int.TryParse(rawUpper, out int decValueBuffer))
+            {
+                index = decValueBuffer;
+                normalizedText = decValueBuffer.ToString();
                 return true;
             }
 
@@ -749,7 +763,7 @@
 
         if (IsBufferType(entry.AddrType))
         {
-            entry.AddrIndexText = entry.AddrIndex.ToString("X");
+            entry.AddrIndexText = entry.AddrIndex.ToString();
             entry.Read32 = true;
         }
         else
@@ -762,7 +776,7 @@
             return;
 
         if (IsBufferType(entry.AddrType))
-            entry.AddrIndexText = entry.AddrIndex.ToString("X");
+            entry.AddrIndexText = entry.AddrIndex.ToString();
         else
             entry.AddrIndexText = entry.AddrIndex.ToString();
     }

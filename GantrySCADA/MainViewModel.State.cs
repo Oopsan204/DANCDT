@@ -488,11 +488,7 @@ namespace WPF_Test_PLC20260124
             if (!prefix.Contains("\\G", StringComparison.OrdinalIgnoreCase))
                 prefix = prefix.Replace("G", "\\G");
 
-            string hexIndex = !string.IsNullOrWhiteSpace(addrIndexText)
-                ? addrIndexText.Trim().ToUpperInvariant()
-                : addrIndex.ToString("X");
-
-            return prefix + hexIndex;
+            return prefix + addrIndex.ToString();
         }
 
         private int ReadCoordinateSourceValue(string addrType, int addrIndex, bool read32Bit, int fallbackValue)

@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("GantrySCADA")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+bef4825e59637d01a72b3c6beb7be398020cf0fc")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+14657006416a97663ec3ffe65def97e06b2778d1")]
 [assembly: System.Reflection.AssemblyProductAttribute("GantrySCADA")]
 [assembly: System.Reflection.AssemblyTitleAttribute("GantrySCADA")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
