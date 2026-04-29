@@ -734,20 +734,6 @@
         if (IsBufferType(addrType))
         {
             string rawUpper = raw.ToUpperInvariant();
-            if (rawUpper.StartsWith("D") || rawUpper.StartsWith("DEC:"))
-            {
-                string dec = rawUpper.StartsWith("DEC:") ? rawUpper[4..] : rawUpper[1..];
-                if (int.TryParse(dec, out int decValueBuffer))
-                {
-                    index = decValueBuffer;
-                    normalizedText = decValueBuffer.ToString();
-                    isHex = false;
-                    return true;
-                }
-
-                return false;
-            }
-
             if (rawUpper.StartsWith("H") || rawUpper.StartsWith("0X"))
             {
                 string hex = rawUpper.StartsWith("H") ? rawUpper[1..] : rawUpper[2..];
@@ -762,11 +748,11 @@
                 return false;
             }
 
-            if (int.TryParse(rawUpper, System.Globalization.NumberStyles.HexNumber, null, out int hexValueDefault))
+            if (int.TryParse(rawUpper, out int decValueBuffer))
             {
-                index = hexValueDefault;
-                normalizedText = rawUpper;
-                isHex = true;
+                index = decValueBuffer;
+                normalizedText = decValueBuffer.ToString();
+                isHex = false;
                 return true;
             }
 
@@ -790,9 +776,9 @@
 
         if (IsBufferType(entry.AddrType))
         {
-            entry.AddrIndexText = entry.AddrIndex.ToString("X");
+            entry.AddrIndexText = entry.AddrIndex.ToString();
             entry.Read32 = true;
-            entry.AddrIndexIsHex = true;
+            entry.AddrIndexIsHex = false;
         }
         else
             entry.AddrIndexText = entry.AddrIndex.ToString();
@@ -805,8 +791,8 @@
 
         if (IsBufferType(entry.AddrType))
         {
-            entry.AddrIndexText = entry.AddrIndex.ToString("X");
-            entry.AddrIndexIsHex = true;
+            entry.AddrIndexText = entry.AddrIndex.ToString();
+            entry.AddrIndexIsHex = false;
         }
         else
             entry.AddrIndexText = entry.AddrIndex.ToString();
