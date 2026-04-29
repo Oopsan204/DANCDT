@@ -291,5 +291,10 @@
             return document.documentElement.classList.contains('dark') ? 'dark' : 'light';
         };
     </script>
+    <script>
+        window.getBoundingClientRect = (element) => {
+            return element.getBoundingClientRect();
+        };
+    </script>
 </body>
 </html>

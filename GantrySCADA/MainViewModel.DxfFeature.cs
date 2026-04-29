@@ -60,6 +60,9 @@ namespace WPF_Test_PLC20260124
         private DxfContourInfo? _selectedContour;
         public DxfContourInfo? SelectedContour { get => _selectedContour; set => SetProperty(ref _selectedContour, value); }
 
+        private int _selectedPointIndex = -1;
+        public int SelectedPointIndex { get => _selectedPointIndex; set => SetProperty(ref _selectedPointIndex, value); }
+
         // Robot Coordinate Setup
         private double _dxfScaleX = 1.0;
         public double DxfScaleX { get => _dxfScaleX; set => SetProperty(ref _dxfScaleX, value); }
@@ -80,6 +83,13 @@ namespace WPF_Test_PLC20260124
         public double DxfYMin { get => _dxfYMin; set => SetProperty(ref _dxfYMin, value); }
         public double DxfYMax { get => _dxfYMax; set => SetProperty(ref _dxfYMax, value); }
         public double DxfZSafe { get => _dxfZSafe; set => SetProperty(ref _dxfZSafe, value); }
+
+        private double _dxfSvgScale = 1.0;
+        public double DxfSvgScale { get => _dxfSvgScale; set => SetProperty(ref _dxfSvgScale, value); }
+        private double _dxfSvgMinX;
+        public double DxfSvgMinX { get => _dxfSvgMinX; set => SetProperty(ref _dxfSvgMinX, value); }
+        private double _dxfSvgMinY;
+        public double DxfSvgMinY { get => _dxfSvgMinY; set => SetProperty(ref _dxfSvgMinY, value); }
 
         // Run State
         private bool _isDxfRunning;
@@ -112,8 +122,8 @@ namespace WPF_Test_PLC20260124
 
             try
             {
-                List<short> axis1Data = new List<short>();
-                List<short> axis2Data = new List<short>();
+                List<int> axis1Data = new List<int>();
+                List<int> axis2Data = new List<int>();
                 int pointCount = 0;
 
                 // Tốc độ mặc định, có thể thay đổi sau nếu cần
@@ -157,38 +167,36 @@ namespace WPF_Test_PLC20260124
                 if (pointCount > 0)
                 {
                     // Đổi mã lệnh của điểm cuối cùng thành Positioning complete (END) - 0x1...
-                    ushort lastCmd1 = (ushort)axis1Data[axis1Data.Count - 10];
-                    ushort lastCmd2 = (ushort)axis2Data[axis2Data.Count - 10];
+                    // Điểm cuối cùng bắt đầu tại index: (pointCount - 1) * 10
+                    int lastIdx = (pointCount - 1) * 10;
+                    ushort lastCmd1 = (ushort)axis1Data[lastIdx];
+                    ushort lastCmd2 = (ushort)axis2Data[lastIdx];
                     
                     lastCmd1 = (ushort)((lastCmd1 & 0x0FFF) | 0x1000);
                     lastCmd2 = (ushort)((lastCmd2 & 0x0FFF) | 0x1000);
                     
-                    axis1Data[axis1Data.Count - 10] = (short)lastCmd1;
-                    axis2Data[axis2Data.Count - 10] = (short)lastCmd2;
+                    axis1Data[lastIdx] = (int)lastCmd1;
+                    axis2Data[lastIdx] = (int)lastCmd2;
 
-                    // Note: MC Protocol C# library might require splitting large writes (e.g. max 960 words per packet)
-                    // Currently, queuing data to D2000 (Axis 1) and D8000 (Axis 2). 
-                    // Người dùng có thể dùng BMOV trong PLC để copy từ D2000 -> U0\G2000.
-                    
-                    // Here we convert short[] to int[] to fit the WriteDeviceBlock requirements
-                    int[] a1Ints = axis1Data.Select(x => (int)x).ToArray();
-                    int[] a2Ints = axis2Data.Select(x => (int)x).ToArray();
+                    // Chuyển sang mảng int[] để ghi xuống PLC
+                    int[] a1Arr = axis1Data.ToArray();
+                    int[] a2Arr = axis2Data.ToArray();
 
                     lock (_plcSync)
                     {
                         if (ePLC != null && ePLC.IsConnected)
                         {
-                            // Write Axis 1
+                            // Ghi trực tiếp vào Buffer memory của module (Simple Motion)
+                            // Axis 1: U0\G2000, Axis 2: U0\G8000
                             ePLC.WriteDeviceBlock(NVKProject.PLC.ePLCControl.SubCommand.Word, 
-                                                  NVKProject.PLC.ePLCControl.DeviceName.D, 
-                                                  "2000", a1Ints);
+                                                  NVKProject.PLC.ePLCControl.DeviceName.Buffer, 
+                                                  "U0\\G2000", a1Arr);
                             
-                            // Write Axis 2
                             ePLC.WriteDeviceBlock(NVKProject.PLC.ePLCControl.SubCommand.Word, 
-                                                  NVKProject.PLC.ePLCControl.DeviceName.D, 
-                                                  "8000", a2Ints);
+                                                  NVKProject.PLC.ePLCControl.DeviceName.Buffer, 
+                                                  "U0\\G8000", a2Arr);
                                                   
-                            AddLog("PLC", "success", $"Đã truyền {pointCount} điểm quỹ đạo xuống PLC (D2000 & D8000)");
+                            AddLog("PLC", "success", $"Đã truyền {pointCount} điểm quỹ đạo xuống Buffer PLC (U0\\G2000 & U0\\G8000)");
                         }
                         else
                         {
@@ -203,7 +211,7 @@ namespace WPF_Test_PLC20260124
             }
         }
 
-        private void AddTrajectoryPoint(List<short> ax1, List<short> ax2, ushort cmd, ushort mcode, uint dwell, uint speed, double posX, double posY, double cx, double cy)
+        private void AddTrajectoryPoint(List<int> ax1, List<int> ax2, ushort cmd, ushort mcode, uint dwell, uint speed, double posX, double posY, double cx, double cy)
         {
             // Scale tọa độ (mm) sang số nguyên (ví dụ: nhân 1000 để có độ phân giải um)
             int scaledX = (int)(posX * 1000.0);
@@ -212,28 +220,28 @@ namespace WPF_Test_PLC20260124
             int scaledCy = (int)(cy * 1000.0);
             
             // --- AXIS 1 (X & Center X) ---
-            ax1.Add((short)cmd);
-            ax1.Add((short)mcode);
-            ax1.Add((short)(dwell & 0xFFFF));
-            ax1.Add((short)(dwell >> 16));
-            ax1.Add((short)(speed & 0xFFFF));
-            ax1.Add((short)(speed >> 16));
-            ax1.Add((short)(scaledX & 0xFFFF)); // Vị trí X (Low)
-            ax1.Add((short)(scaledX >> 16));    // Vị trí X (High)
-            ax1.Add((short)(scaledCx & 0xFFFF)); // Tọa độ tâm X (Low)
-            ax1.Add((short)(scaledCx >> 16));    // Tọa độ tâm X (High)
+            ax1.Add((int)cmd);
+            ax1.Add((int)mcode);
+            ax1.Add((int)(dwell & 0xFFFF));
+            ax1.Add((int)(dwell >> 16));
+            ax1.Add((int)(speed & 0xFFFF));
+            ax1.Add((int)(speed >> 16));
+            ax1.Add((int)(scaledX & 0xFFFF)); // Vị trí X (Low)
+            ax1.Add((int)(scaledX >> 16));    // Vị trí X (High)
+            ax1.Add((int)(scaledCx & 0xFFFF)); // Tọa độ tâm X (Low)
+            ax1.Add((int)(scaledCx >> 16));    // Tọa độ tâm X (High)
 
             // --- AXIS 2 (Y & Center Y) ---
-            ax2.Add((short)cmd);
-            ax2.Add((short)mcode);
-            ax2.Add((short)(dwell & 0xFFFF));
-            ax2.Add((short)(dwell >> 16));
-            ax2.Add((short)(speed & 0xFFFF));
-            ax2.Add((short)(speed >> 16));
-            ax2.Add((short)(scaledY & 0xFFFF)); // Vị trí Y (Low)
-            ax2.Add((short)(scaledY >> 16));    // Vị trí Y (High)
-            ax2.Add((short)(scaledCy & 0xFFFF)); // Tọa độ tâm Y (Low)
-            ax2.Add((short)(scaledCy >> 16));    // Tọa độ tâm Y (High)
+            ax2.Add((int)cmd);
+            ax2.Add((int)mcode);
+            ax2.Add((int)(dwell & 0xFFFF));
+            ax2.Add((int)(dwell >> 16));
+            ax2.Add((int)(speed & 0xFFFF));
+            ax2.Add((int)(speed >> 16));
+            ax2.Add((int)(scaledY & 0xFFFF)); // Vị trí Y (Low)
+            ax2.Add((int)(scaledY >> 16));    // Vị trí Y (High)
+            ax2.Add((int)(scaledCy & 0xFFFF)); // Tọa độ tâm Y (Low)
+            ax2.Add((int)(scaledCy >> 16));    // Tọa độ tâm Y (High)
         }
 
         public bool LoadDxfAdvanced(string filePath)
@@ -424,11 +432,14 @@ namespace WPF_Test_PLC20260124
         {
             // Simple SVG generation logic: Scale visualization to fit roughly 200x200
             if (!points.Any()) return "";
-            double minX = points.Min(p => p.X);
-            double minY = points.Min(p => p.Y);
-            double width = points.Max(p => p.X) - minX;
-            double height = points.Max(p => p.Y) - minY;
-            double scale = 200 / Math.Max(width, height == 0 ? 1 : height);
+            DxfSvgMinX = points.Min(p => p.X);
+            DxfSvgMinY = points.Min(p => p.Y);
+            double width = points.Max(p => p.X) - DxfSvgMinX;
+            double height = points.Max(p => p.Y) - DxfSvgMinY;
+            DxfSvgScale = 200 / Math.Max(width, height == 0 ? 1 : height);
+            double scale = DxfSvgScale;
+            double minX = DxfSvgMinX;
+            double minY = DxfSvgMinY;
 
             var sb = new System.Text.StringBuilder();
             foreach (var contour in contours)

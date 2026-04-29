@@ -1,5 +1,6 @@
 @page "/dxf-run"
 @inject WPF_Test_PLC20260124.MainViewModel ViewModel
+@inject IJSRuntime JSRuntime
 @using System.IO
 
 <div class="h-[calc(100vh-60px)] w-full flex flex-col p-6 gap-6 bg-surface text-on-surface font-body overflow-hidden">
@@ -44,45 +45,60 @@
     <div class="flex-1 flex gap-6 min-h-0 overflow-hidden">
         
         <!-- View CAD Box (Center-Left) -->
-        <div class="flex-[2] bg-surface-container-lowest border border-primary-container/20 relative flex items-center justify-center overflow-hidden" style="background-image: linear-gradient(to right, rgba(59, 73, 75, 0.1) 1px, transparent 1px), linear-gradient(to bottom, rgba(59, 73, 75, 0.1) 1px, transparent 1px); background-size: 40px 40px;">
+        <div class="flex-[2] border border-primary-container/20 relative flex items-center justify-center overflow-hidden" style="background-color: #0d1117; background-image: linear-gradient(to right, rgba(100, 180, 200, 0.08) 1px, transparent 1px), linear-gradient(to bottom, rgba(100, 180, 200, 0.08) 1px, transparent 1px); background-size: 40px 40px;">
             @if (string.IsNullOrWhiteSpace(ViewModel.DxfPreviewPathData))
             {
                 <div class="flex flex-1 items-center justify-center">
-                    <span class="text-outline text-2xl tracking-widest font-headline uppercase opacity-50">NO SIGNAL / NO CAD LOADED</span>
+                    <span class="text-2xl tracking-widest font-headline uppercase opacity-50" style="color: #8b949e;">NO SIGNAL / NO CAD LOADED</span>
                 </div>
             }
             else
             {
                 <!-- X/Y/Z Readouts Overlay -->
                 <div class="absolute top-4 left-4 flex gap-2">
-                    <div class="bg-surface-container-high/80 backdrop-blur px-3 py-1 border border-outline-variant/20 text-[10px] font-mono uppercase text-outline">X: 0.000</div>
-                    <div class="bg-surface-container-high/80 backdrop-blur px-3 py-1 border border-outline-variant/20 text-[10px] font-mono uppercase text-outline">Y: 0.000</div>
-                    <div class="bg-surface-container-high/80 backdrop-blur px-3 py-1 border border-outline-variant/20 text-[10px] font-mono uppercase text-outline">Z: 0.000</div>
+                    <div class="px-3 py-1 border text-[10px] font-mono uppercase" style="background: rgba(13,17,23,0.85); border-color: rgba(100,180,200,0.2); color: #8b949e;">X: 0.000</div>
+                    <div class="px-3 py-1 border text-[10px] font-mono uppercase" style="background: rgba(13,17,23,0.85); border-color: rgba(100,180,200,0.2); color: #8b949e;">Y: 0.000</div>
+                    <div class="px-3 py-1 border text-[10px] font-mono uppercase" style="background: rgba(13,17,23,0.85); border-color: rgba(100,180,200,0.2); color: #8b949e;">Z: 0.000</div>
                 </div>
 
                 <!-- SVG CAD PREVIEW -->
-                <div class="absolute inset-0 flex items-center justify-center p-4" @ref="svgContainer" @onwheel="OnMouseWheel" @onwheel:preventDefault="true" @onmousedown="OnMouseDown" @onmousemove="OnMouseMove" @onmouseup="OnMouseUp" @onmouseleave="OnMouseLeave">
-                    <svg viewBox="0 0 200 200" class="w-full h-full drop-shadow-[0_0_10px_var(--c-secondary)]" preserveAspectRatio="none" style="transform: translate(@(PanX)px, @(PanY)px) scale(@(ZoomLevel)); transform-origin: center;">
+                <div class="absolute inset-0 flex items-center justify-center p-4" @ref="svgContainer" @onwheel="OnMouseWheel" @onwheel:preventDefault="true" @onmousedown="OnMouseDown" @onmousemove="OnMouseMove" @onmouseup="OnMouseUp" @onmouseleave="OnMouseLeave" @onclick="OnSvgClick">
+                    <svg viewBox="-5 -5 210 210" class="w-full h-full" preserveAspectRatio="none" style="transform: translate(@(PanX)px, @(PanY)px) scale(@(ZoomLevel)); transform-origin: center; filter: drop-shadow(0 0 8px rgba(0, 229, 255, 0.3));">
                         <g>
-                            <path d="@ViewModel.DxfPreviewPathData" stroke="var(--c-secondary)" stroke-width="0.5" fill="none" vector-effect="non-scaling-stroke" />
+                            <path d="@ViewModel.DxfPreviewPathData" stroke="#00e5ff" stroke-width="0.5" fill="none" vector-effect="non-scaling-stroke" />
+                            
+                            @if (ViewModel.SelectedPointIndex > 0)
+                            {
+                                var selPt = GetSelectedPointCoords();
+                                if (selPt.HasValue)
+                                {
+                                    double cx = (selPt.Value.X - ViewModel.DxfSvgMinX) * ViewModel.DxfSvgScale;
+                                    double cy = 200 - (selPt.Value.Y - ViewModel.DxfSvgMinY) * ViewModel.DxfSvgScale;
+                                    <circle cx="@cx" cy="@cy" r="3" fill="#ff3d00" stroke="#ffffff" stroke-width="0.5" vector-effect="non-scaling-stroke" />
+                                    <circle cx="@cx" cy="@cy" r="5" fill="none" stroke="#ff3d00" stroke-width="0.3" opacity="0.6" vector-effect="non-scaling-stroke">
+                                        <animate attributeName="r" from="3" to="10" dur="1.5s" repeatCount="indefinite" />
+                                        <animate attributeName="opacity" from="0.6" to="0" dur="1.5s" repeatCount="indefinite" />
+                                    </circle>
+                                }
+                            }
                         </g>
                     </svg>
                 </div>
                 
                 <!-- Mini Stats Overlay -->
-                <div class="absolute bottom-4 left-4 bg-surface-container-high/80 backdrop-blur border border-outline-variant/20 text-outline px-3 py-2 text-[10px] font-mono uppercase">
+                <div class="absolute bottom-4 left-4 border px-3 py-2 text-[10px] font-mono uppercase" style="background: rgba(13,17,23,0.85); border-color: rgba(100,180,200,0.2); color: #8b949e;">
                     Entities: @ViewModel.DxfEntityCount | Contours: @(ViewModel.DxfContours?.Count ?? 0) | Layers: @ViewModel.DxfLayerCount
                 </div>
                 
                 <!-- Zoom controls overlay -->
                 <div class="absolute bottom-4 right-4 flex flex-col gap-2">
-                    <button class="w-10 h-10 bg-surface-container-high border border-outline-variant/50 flex items-center justify-center hover:bg-surface-container-highest active:bg-primary transition-colors" @onclick="() => ZoomIn()" title="Zoom In"><span class="material-symbols-outlined text-on-surface">add</span></button>
-                    <button class="w-10 h-10 bg-surface-container-high border border-outline-variant/50 flex items-center justify-center hover:bg-surface-container-highest active:bg-primary transition-colors" @onclick="() => ZoomOut()" title="Zoom Out"><span class="material-symbols-outlined text-on-surface">remove</span></button>
-                    <button class="w-10 h-10 bg-surface-container-high border border-outline-variant/50 flex items-center justify-center hover:bg-surface-container-highest active:bg-primary transition-colors" @onclick="() => ResetZoomAndPan()" title="Reset View"><span class="material-symbols-outlined text-on-surface">fit_screen</span></button>
+                    <button class="w-10 h-10 border flex items-center justify-center transition-colors" style="background: rgba(13,17,23,0.85); border-color: rgba(100,180,200,0.2); color: #c9d1d9;" @onclick="() => ZoomIn()" title="Zoom In"><span class="material-symbols-outlined">add</span></button>
+                    <button class="w-10 h-10 border flex items-center justify-center transition-colors" style="background: rgba(13,17,23,0.85); border-color: rgba(100,180,200,0.2); color: #c9d1d9;" @onclick="() => ZoomOut()" title="Zoom Out"><span class="material-symbols-outlined">remove</span></button>
+                    <button class="w-10 h-10 border flex items-center justify-center transition-colors" style="background: rgba(13,17,23,0.85); border-color: rgba(100,180,200,0.2); color: #c9d1d9;" @onclick="() => ResetZoomAndPan()" title="Reset View"><span class="material-symbols-outlined">fit_screen</span></button>
                 </div>
                 
                 <!-- Zoom level indicator -->
-                <div class="absolute top-4 right-4 bg-surface-container-high/80 backdrop-blur border border-outline-variant/20 text-outline px-3 py-1 text-[10px] font-mono uppercase">
+                <div class="absolute top-4 right-4 border px-3 py-1 text-[10px] font-mono uppercase" style="background: rgba(13,17,23,0.85); border-color: rgba(100,180,200,0.2); color: #8b949e;">
                     Zoom: @(Math.Round(ZoomLevel * 100))% | Pan: (@(Math.Round(PanX)), @(Math.Round(PanY)))
                 </div>
             }
@@ -95,7 +111,7 @@
             <div class="flex-[3] flex flex-col bg-surface-container-low border border-outline-variant/20 overflow-hidden">
                 <div class="bg-surface-container-highest p-3 border-b border-outline-variant/30 flex justify-between items-center shrink-0">
                     <span class="font-headline font-bold uppercase text-xs tracking-widest">POINT_DATA_SET</span>
-                    <span class="text-[10px] text-primary-container font-mono">COUNT: @(ViewModel.DxfContours?.Sum(c => c.Points?.Count ?? 0) ?? 0)</span>
+                    <span class="text-[10px] text-primary-container font-mono">COUNT: @(GetTotalPointCount())</span>
                 </div>
                 <div class="flex-1 overflow-auto overflow-x-hidden [scrollbar-width:thin] [scrollbar-color:var(--c-outline-variant)_transparent]">
                     <table class="w-full text-left text-[11px] font-mono border-collapse">
@@ -117,15 +133,35 @@
                                     {
                                         foreach (var pt in contour.Points)
                                         {
-                                            string rowBg = stt % 2 == 0 ? "bg-surface-container-low" : "bg-surface";
-                                            <tr class="@rowBg h-8 hover:bg-surface-container-high transition-colors">
-                                                <td class="p-2 text-outline text-center">@stt.ToString("D4")</td>
+                                            int currentStt = stt;
+                                            bool isSelected = ViewModel.SelectedPointIndex == currentStt;
+                                            string rowBg = isSelected ? "bg-primary/20" : (stt % 2 == 0 ? "bg-surface-container-low" : "bg-surface");
+                                            string borderClass = isSelected ? "border-l-4 border-primary" : "";
+                                            
+                                            <tr class="@rowBg @borderClass h-8 hover:bg-surface-container-high transition-colors cursor-pointer" @onclick="() => SelectPoint(currentStt)">
+                                                <td class="p-2 text-outline text-center @(isSelected ? "text-primary font-bold" : "")">@stt.ToString("D4")</td>
                                                 <td class="p-2 text-on-surface">@(contour.IsCircle ? "CIRCLE" : (contour.IsArc ? "ARC" : "LINEAR"))</td>
                                                 <td class="p-2 text-primary-fixed-dim">@pt.X.ToString("F3")</td>
                                                 <td class="p-2 text-primary-fixed-dim">@pt.Y.ToString("F3")</td>
                                             </tr>
                                             stt++;
                                         }
+                                    }
+                                    @if (contour.HasCenter)
+                                    {
+                                        int ctrStt = stt;
+                                        bool isCtrSelected = ViewModel.SelectedPointIndex == ctrStt;
+                                        string ctrBg = isCtrSelected ? "bg-primary/20" : (stt % 2 == 0 ? "bg-surface-container-low" : "bg-surface");
+                                        string ctrBorder = isCtrSelected ? "border-l-4 border-primary" : "";
+                                        string ctrType = contour.IsCircle ? "CTR_CIR" : "CTR_ARC";
+                                        
+                                        <tr class="@ctrBg @ctrBorder h-8 hover:bg-surface-container-high transition-colors cursor-pointer" @onclick="() => SelectPoint(ctrStt)">
+                                            <td class="p-2 text-outline text-center @(isCtrSelected ? "text-primary font-bold" : "")">@stt.ToString("D4")</td>
+                                            <td class="p-2 text-secondary font-bold">@ctrType</td>
+                                            <td class="p-2 text-secondary">@contour.CenterX.ToString("F3")</td>
+                                            <td class="p-2 text-secondary">@contour.CenterY.ToString("F3")</td>
+                                        </tr>
+                                        stt++;
                                     }
                                 }
                             }
@@ -346,5 +382,135 @@
     private void ResumeClick()
     {
         ViewModel.AddLog("UI", "info", "User clicked [Resume DXF Run]");
+    }
+
+    private void SelectPoint(int stt)
+    {
+        ViewModel.SelectedPointIndex = stt;
+        var pt = GetSelectedPointCoords();
+        if (pt.HasValue)
+        {
+            ViewModel.AddLog("UI", "info", $"Selected Point #{stt}: ({pt.Value.X:F3}, {pt.Value.Y:F3})");
+        }
+    }
+
+    private (double X, double Y)? GetSelectedPointCoords()
+    {
+        if (ViewModel.SelectedPointIndex <= 0 || ViewModel.DxfContours == null) return null;
+        int stt = 1;
+        foreach (var contour in ViewModel.DxfContours)
+        {
+            if (contour.Points != null)
+            {
+                foreach (var pt in contour.Points)
+                {
+                    if (stt == ViewModel.SelectedPointIndex) return pt;
+                    stt++;
+                }
+            }
+            if (contour.HasCenter)
+            {
+                if (stt == ViewModel.SelectedPointIndex) return (contour.CenterX, contour.CenterY);
+                stt++;
+            }
+        }
+        return null;
+    }
+
+    private int GetTotalPointCount()
+    {
+        if (ViewModel.DxfContours == null) return 0;
+        int count = 0;
+        foreach (var c in ViewModel.DxfContours)
+        {
+            count += c.Points?.Count ?? 0;
+            if (c.HasCenter) count++;
+        }
+        return count;
+    }
+
+    private async Task OnSvgClick(MouseEventArgs e)
+    {
+        if (isMiddleMouseDown) return;
+        if (ViewModel.DxfContours == null || !ViewModel.DxfContours.Any()) return;
+
+        try
+        {
+            // 1. Get container bounds using JS
+            var rect = await JSRuntime.InvokeAsync<BoundingClientRect>("getBoundingClientRect", svgContainer);
+            if (rect == null) return;
+
+            // 2. Calculate coordinates relative to the container center (since transform-origin is center)
+            double centerX = rect.Left + rect.Width / 2;
+            double centerY = rect.Top + rect.Height / 2;
+
+            // 3. Reverse Pan and Zoom
+            double relativeX = (e.ClientX - centerX - PanX) / ZoomLevel;
+            double relativeY = (e.ClientY - centerY - PanY) / ZoomLevel;
+
+            // 4. Map back to 0-200 SVG coordinate space
+            // The SVG is centered and preserved aspect ratio 'none', so it fills the container.
+            double svgX = (relativeX / (rect.Width / 2)) * 100 + 100;
+            double svgY = (relativeY / (rect.Height / 2)) * 100 + 100;
+
+            // 5. Map back to DXF coordinate space
+            double dxfX = (svgX / ViewModel.DxfSvgScale) + ViewModel.DxfSvgMinX;
+            double dxfY = ((200 - svgY) / ViewModel.DxfSvgScale) + ViewModel.DxfSvgMinY;
+
+            // 6. Find the nearest point
+            double minDistanceSq = double.MaxValue;
+            int nearestStt = -1;
+            int stt = 1;
+
+            foreach (var contour in ViewModel.DxfContours)
+            {
+                if (contour.Points != null)
+                {
+                    foreach (var pt in contour.Points)
+                    {
+                        double dx = pt.X - dxfX;
+                        double dy = pt.Y - dxfY;
+                        double distSq = dx * dx + dy * dy;
+                        if (distSq < minDistanceSq)
+                        {
+                            minDistanceSq = distSq;
+                            nearestStt = stt;
+                        }
+                        stt++;
+                    }
+                }
+                if (contour.HasCenter)
+                {
+                    double dx = contour.CenterX - dxfX;
+                    double dy = contour.CenterY - dxfY;
+                    double distSq = dx * dx + dy * dy;
+                    if (distSq < minDistanceSq)
+                    {
+                        minDistanceSq = distSq;
+                        nearestStt = stt;
+                    }
+                    stt++;
+                }
+            }
+
+            // 7. Select if close enough (e.g., within 5 units in DXF space)
+            if (nearestStt != -1)
+            {
+                SelectPoint(nearestStt);
+                StateHasChanged();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"SvgClick error: {ex.Message}");
+        }
+    }
+
+    public class BoundingClientRect
+    {
+        public double Top { get; set; }
+        public double Left { get; set; }
+        public double Width { get; set; }
+        public double Height { get; set; }
     }
 }

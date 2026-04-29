@@ -61,6 +61,10 @@ namespace NVKProject.PLC
             }
 
             _isConnected = true;
+
+            _mxBuffer ??= new MxBufferClient();
+            _mxBuffer.LogicalStationNumber = _mxLogicalStationNo;
+            _mxBuffer.Open();
         }
 
         public void Close()
@@ -81,10 +85,9 @@ namespace NVKProject.PLC
 
             if (deviceName == DeviceName.Buffer)
             {
-                _mxBuffer ??= new MxBufferClient();
-                _mxBuffer.LogicalStationNumber = _mxLogicalStationNo;
-                if (!_mxBuffer.IsConnected)
-                    _mxBuffer.Open();
+                if (_mxBuffer == null || !_mxBuffer.IsConnected)
+                    throw new InvalidOperationException("MX Component buffer client is not connected");
+
                 return _mxBuffer.ReadWords(fullAddress, length);
             }
 
@@ -133,10 +136,9 @@ namespace NVKProject.PLC
 
             if (deviceName == DeviceName.Buffer)
             {
-                _mxBuffer ??= new MxBufferClient();
-                _mxBuffer.LogicalStationNumber = _mxLogicalStationNo;
-                if (!_mxBuffer.IsConnected)
-                    _mxBuffer.Open();
+                if (_mxBuffer == null || !_mxBuffer.IsConnected)
+                    throw new InvalidOperationException("MX Component buffer client is not connected");
+
                 _mxBuffer.WriteWords(fullAddress, values);
                 return;
             }

@@ -15,6 +15,7 @@
 9. [Luồng giao tiếp dữ liệu](#luồng-giao-tiếp-dữ-liệu)
 10. [Thông tin PLC](#thông-tin-plc)
 11. [Tính năng DXF Trajectory (CAM)](#tính-năng-dxf-trajectory-cam)
+12. [Cập nhật hiện trạng kiến trúc 2026-04-29](#cập-nhật-hiện-trạng-kiến-trúc-2026-04-29)
 
 ---
 
@@ -35,9 +36,139 @@
 .NET 8.0 WPF
 ├── Blazor WebView (Microsoft.AspNetCore.Components.WebView.Wpf 8.0.82)
 ├── MVVM Toolkit (CommunityToolkit.Mvvm 8.4.2)
-├── Custom PLC Library (NVKProject.PLC.dll)
-└── Custom Logger (NVKProject.Logger.dll)
+├── HslCommunication 11.0.0 (Mitsubishi MC Protocol)
+├── netDxf 2023.11.10 (DXF parsing/CAM preview)
+├── MX Component COM (ActUtlType64/ActUtlType cho buffer U\G)
+├── Custom Logger (NVKProject.Logger.dll)
+└── PLC shim source trong project (PlcMcShim.cs, MxBufferClient.cs)
 ```
+
+---
+
+## Cập nhật hiện trạng kiến trúc 2026-04-29
+
+Mục này phản ánh trạng thái code hiện tại trong workspace, dùng làm bản đồ nhanh trước khi sửa hoặc mở rộng hệ thống.
+
+### Kiểu ứng dụng và runtime
+
+- Ứng dụng là **WPF host Blazor Hybrid**.
+- Target framework: `net8.0-windows`.
+- Build target: `x86`, runtime `win-x86`.
+- Entry UI là `MainWindow.xaml`, host `BlazorWebView` trỏ tới `wwwroot/index.html`.
+- `App.xaml.cs` đăng ký `MainViewModel` dạng singleton trong DI container.
+
+### Luồng khởi động
+
+```
+App.xaml.cs
+  -> ServiceCollection
+  -> AddWpfBlazorWebView()
+  -> AddSingleton<MainViewModel>()
+  -> MainWindow.xaml
+  -> BlazorWebView
+  -> BlazorApp.razor Router
+  -> MainLayout.razor
+  -> Pages/*.razor
+```
+
+### Các file core hiện tại
+
+| File | Vai trò |
+| --- | --- |
+| `MainViewModel.cs` | Kết nối PLC, disconnect, monitor thread, auto reconnect |
+| `MainViewModel.State.cs` | State chung, mapping địa chỉ, log, custom memory, helper địa chỉ |
+| `MainViewModel.ReadFeature.cs` | Read cycle: D word, D32 coordinate, M/X/Y bit |
+| `MainViewModel.WriteFeature.cs` | Pending write queue, write D32/M/X/Y/buffer |
+| `MainViewModel.MotionAndLoggingFeature.cs` | JogStart/JogStop, bit helper, AddLog |
+| `MainViewModel.CustomMemoryFeature.cs` | Đọc custom memory từ Dashboard/Telemetry |
+| `MainViewModel.DxfFeature.cs` | Load DXF, SVG preview, compile trajectory, write D2000/D8000 |
+| `PlcMcShim.cs` | `NVKProject.PLC.ePLCControl` shim dùng HslCommunication MC Protocol |
+| `MxBufferClient.cs` | Client COM MX Component cho buffer memory `U...\G...` |
+| `PlcBitHelper.cs` | Helper thao tác bit/word |
+
+### PLC communication hiện tại
+
+Hệ thống có hai đường giao tiếp PLC:
+
+1. **MC Protocol qua TCP/IP**
+   - Implement trong `PlcMcShim.cs`.
+   - Dùng `HslCommunication.Profinet.Melsec.MelsecMcNet`.
+   - Hỗ trợ D word và M/X/Y bit.
+   - `BuildAddress()` chuyển kiểu device thành địa chỉ như `D4000`, `M3000`, `X0`, `Y0`.
+
+2. **MX Component COM cho buffer memory**
+   - Implement trong `MxBufferClient.cs`.
+   - Tự tìm ProgID `ActUtlType64.ActUtlType`, fallback `ActUtlType.ActUtlType`.
+   - Hỗ trợ `ReadBuffer/WriteBuffer` khi địa chỉ dạng `U...\G...`.
+   - Hỗ trợ fallback `ReadDeviceBlock2/WriteDeviceBlock2` nếu không parse được U/G buffer.
+
+### Monitor thread
+
+- Monitor chạy nền trong `MainViewModel.Monitor()`.
+- Chu kỳ hiện tại: `Thread.Sleep(10)`, tương đương mục tiêu khoảng 100 Hz.
+- Trong mỗi vòng khi PLC connected:
+  1. `Read()`
+  2. `Write()`
+  3. `RefreshCustomMemory()`
+- Nếu mất kết nối, hệ thống log warning và thử reconnect mỗi 5 giây.
+- `_plcSync` bảo vệ connect/disconnect và một số write lớn, còn `_pendingWriteLock` bảo vệ pending write queue.
+
+### Write queue
+
+UI không ghi PLC trực tiếp trong phần lớn trường hợp. UI gọi:
+
+```csharp
+ViewModel.MarkPendingWrite(addrType, addrIndex, value, addrIndexText, addrIndexIsHex);
+```
+
+Sau đó monitor thread gọi `Write()` để flush queue xuống PLC.
+
+Quy ước hiện tại:
+
+- `D`: ghi 32-bit thành 2 word liên tiếp, low word ở `Dn`, high word ở `Dn+1`.
+- `M/X/Y`: ưu tiên ghi bit đơn, nếu lỗi thì thử word fallback, cuối cùng thử ghi block mirror buffer.
+- `U...G...`: ghi qua MX Component COM, dùng `MxBufferClient`.
+
+### Read/coordinate mapping
+
+- `Read()` đọc block D tại `D_R_V` với độ dài `Length`.
+- Mặc định tọa độ X/Y/Z lấy từ:
+  - X: `PosAddrTypeX`, `PosAddrIndexX`, `PosAddrXRead32`
+  - Y: `PosAddrTypeY`, `PosAddrIndexY`, `PosAddrYRead32`
+  - Z: `PosAddrTypeZ`, `PosAddrIndexZ`, `PosAddrZRead32`
+- Dữ liệu tọa độ raw được lưu trong `arr_R32`.
+- Giá trị hiển thị dùng `GetFormattedPosition(raw, axis)` với scale/offset/decimal/unit cấu hình trong settings.
+
+### Các màn hình Blazor hiện tại
+
+| Page | Route | Vai trò |
+| --- | --- | --- |
+| `Dashboard.razor` | `/` | Connect/disconnect, jog, vị trí XYZ, velocity slider, custom memory quick view |
+| `Telemetry.razor` | `/telemetry` | Read/write D/M/X/Y/U buffer động, action history |
+| `LogMonitor.razor` | `/logmonitor` | Log UI/PC/PLC, filter, pause, export mock, terminal command mock |
+| `SystemSettings.razor` | `/settings` | Cấu hình địa chỉ, position source, scale, PLC connection |
+| `DxfRun.razor` | `/dxf-run` | Load/preview DXF, zoom/pan, bảng điểm, start download trajectory |
+
+### DXF/CAM hiện tại
+
+- `LoadDxfAdvanced()` đọc `Polyline2D`, `Line`, `Circle`, `Arc`.
+- `GenerateSvgPath()` tạo path preview SVG 200x200.
+- `DownloadTrajectoryToPlc()` compile contour thành dữ liệu 10-word/point.
+- Dữ liệu hiện ghi xuống:
+  - Axis 1/X: `D2000`
+  - Axis 2/Y: `D8000`
+- Circle/arc dùng center point; linear dùng từng điểm kế tiếp.
+- Điểm cuối được đánh dấu END bằng bit `0x1000`.
+
+### Build check
+
+Lệnh kiểm tra gần nhất:
+
+```powershell
+dotnet build GantrySCADA.csproj --no-restore
+```
+
+Kết quả tại 2026-04-29: build thành công, `0 Warning(s), 0 Error(s)`.
 
 ---
 
@@ -2189,7 +2320,7 @@ Visual feedback: User sees which page is active
 ---
 
 **Tài liệu cập nhật**: April 29, 2026
-**Phiên bản dự án**: GantrySCADA v1.1 (with DXF Trajectory Support)
+**Phiên bản dự án**: GantrySCADA v1.2 (WPF Blazor Hybrid + MC Protocol/MX Buffer + DXF Trajectory)
 
 ---
 
@@ -2237,4 +2368,3 @@ Mỗi điểm quỹ đạo được nạp vào PLC dưới dạng một khối 1
 6. **Center/Aux (Low/High)**: Tọa độ tâm (nếu là cung tròn/đường tròn)
 
 ---
-
