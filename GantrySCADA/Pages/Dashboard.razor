@@ -490,9 +490,9 @@
             if (!prefix.Contains("G", StringComparison.OrdinalIgnoreCase))
                 prefix += "G";
 
-            string indexText = string.IsNullOrWhiteSpace(entry.AddrIndexText)
-                ? entry.AddrIndex.ToString("X")
-                : entry.AddrIndexText.Trim().ToUpperInvariant();
+            string indexText = entry.AddrIndexIsHex
+                ? (string.IsNullOrWhiteSpace(entry.AddrIndexText) ? entry.AddrIndex.ToString("X") : entry.AddrIndexText.Trim().ToUpperInvariant())
+                : entry.AddrIndex.ToString();
             return prefix + indexText;
         }
 

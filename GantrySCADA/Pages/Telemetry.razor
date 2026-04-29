@@ -64,7 +64,7 @@
                                 </span>
                                 <!-- Address Index -->
                                 <span class="font-mono text-sm font-bold text-on-surface">
-                                    @FormatAddress(entry.AddrType, entry.AddrIndex, entry.AddrIndexText)
+                                    @FormatAddress(entry.AddrType, entry.AddrIndex, entry.AddrIndexText, entry.AddrIndexIsHex)
                                 </span>
                             </div>
                             <div class="text-right">
@@ -289,6 +289,7 @@
         public int AddrIndex { get; set; }
         public string AddrIndexText { get; set; } = "";
         public bool Read32 { get; set; }
+        public bool AddrIndexIsHex { get; set; }
         public int Value { get; set; }
         public long UpdatedMs { get; set; }
         public bool JustUpdated { get; set; }
@@ -301,6 +302,7 @@
         public string AddrType { get; set; } = "D";
         public int AddrIndex { get; set; }
         public string AddrIndexText { get; set; } = "";
+        public bool AddrIndexIsHex { get; set; }
         public int WriteValue { get; set; }
         public WriteStatus Status { get; set; } = WriteStatus.None;
         public string ErrorMessage { get; set; } = "";
@@ -458,7 +460,7 @@
                 entry.Value = newVal;
                 entry.JustUpdated = true;
                 entry.UpdatedMs = 0;
-                AddLog("READ", FormatAddress(entry.AddrType, entry.AddrIndex, entry.AddrIndexText), newVal, true);
+                AddLog("READ", FormatAddress(entry.AddrType, entry.AddrIndex, entry.AddrIndexText, entry.AddrIndexIsHex), newVal, true);
                 
                 // Trigger animation, then reset JustUpdated flag after 800ms (animation duration)
                 _ = Task.Delay(800).ContinueWith(_ =>
@@ -514,7 +516,7 @@
     void AddReadEntry()
     {
         string normalizedType = NormalizeType(newReadType);
-        if (!TryParseAddressIndex(normalizedType, newReadIndexText, out int parsedIndex, out string parsedText))
+        if (!TryParseAddressIndex(normalizedType, newReadIndexText, out int parsedIndex, out string parsedText, out bool parsedIsHex))
         {
             ViewModel.AddLog("UI", "warning", $"Invalid address: {newReadType}{newReadIndexText}");
             return;
@@ -529,10 +531,17 @@
         if (!exists)
         {
             bool read32 = IsBufferType(normalizedType);
-            readEntries.Add(new ReadEntry { AddrType = normalizedType, AddrIndex = parsedIndex, AddrIndexText = parsedText, Read32 = read32 });
+            readEntries.Add(new ReadEntry
+            {
+                AddrType = normalizedType,
+                AddrIndex = parsedIndex,
+                AddrIndexText = parsedText,
+                Read32 = read32,
+                AddrIndexIsHex = parsedIsHex
+            });
             string storageText = IsBufferType(normalizedType) ? parsedText : string.Empty;
-            ViewModel.AddCustomMemoryEntry(normalizedType, parsedIndex, storageText, read32);
-            ViewModel.AddLog("UI", "info", $"Telemetry read entry added: {FormatAddress(normalizedType, parsedIndex, parsedText)}");
+            ViewModel.AddCustomMemoryEntry(normalizedType, parsedIndex, storageText, read32, parsedIsHex);
+            ViewModel.AddLog("UI", "info", $"Telemetry read entry added: {FormatAddress(normalizedType, parsedIndex, parsedText, parsedIsHex)}");
         }
 
         showAddRead = false;
@@ -552,7 +561,7 @@
         if (custom != null)
             ViewModel.RemoveCustomMemoryEntry(custom);
 
-        ViewModel.AddLog("UI", "info", $"Telemetry read entry removed: {FormatAddress(e.AddrType, e.AddrIndex, e.AddrIndexText)}");
+        ViewModel.AddLog("UI", "info", $"Telemetry read entry removed: {FormatAddress(e.AddrType, e.AddrIndex, e.AddrIndexText, e.AddrIndexIsHex)}");
     }
 
     void SyncAllReadEntriesToCustomMemory()
@@ -560,7 +569,7 @@
         foreach (var entry in readEntries)
         {
             string storageText = IsBufferType(entry.AddrType) ? entry.AddrIndexText : string.Empty;
-            ViewModel.AddCustomMemoryEntry(entry.AddrType, entry.AddrIndex, storageText, entry.Read32);
+            ViewModel.AddCustomMemoryEntry(entry.AddrType, entry.AddrIndex, storageText, entry.Read32, entry.AddrIndexIsHex);
         }
     }
 
@@ -582,7 +591,7 @@
             {
                 entry.Status = WriteStatus.ERR;
                 entry.ErrorMessage = $"{entry.AddrType} register is a BIT device - value must be 0 or 1 only.";
-                AddLog("WRITE", FormatAddress(entry.AddrType, entry.AddrIndex, entry.AddrIndexText), entry.WriteValue, false);
+                AddLog("WRITE", FormatAddress(entry.AddrType, entry.AddrIndex, entry.AddrIndexText, entry.AddrIndexIsHex), entry.WriteValue, false);
                 return;
             }
         }
@@ -591,23 +600,24 @@
         {
             entry.Status = WriteStatus.ERR;
             entry.ErrorMessage = "PLC not connected.";
-            AddLog("WRITE", FormatAddress(entry.AddrType, entry.AddrIndex, entry.AddrIndexText), entry.WriteValue, false);
+            AddLog("WRITE", FormatAddress(entry.AddrType, entry.AddrIndex, entry.AddrIndexText, entry.AddrIndexIsHex), entry.WriteValue, false);
             return;
         }
 
         try
         {
             string normType = NormalizeType(entry.AddrType);
-            if (!TryParseAddressIndex(normType, entry.AddrIndexText, out int parsedIndex, out string parsedText))
+            if (!TryParseAddressIndex(normType, entry.AddrIndexText, out int parsedIndex, out string parsedText, out bool parsedIsHex))
             {
                 entry.Status = WriteStatus.ERR;
                 entry.ErrorMessage = "Invalid address format.";
-                AddLog("WRITE", FormatAddress(normType, entry.AddrIndex, entry.AddrIndexText), entry.WriteValue, false);
+                AddLog("WRITE", FormatAddress(normType, entry.AddrIndex, entry.AddrIndexText, entry.AddrIndexIsHex), entry.WriteValue, false);
                 return;
             }
 
             entry.AddrIndex = parsedIndex;
             entry.AddrIndexText = parsedText;
+            entry.AddrIndexIsHex = parsedIsHex;
 
             if (normType == "D" || normType == "M" || normType == "X" || normType == "Y" || IsBufferType(normType))
             {
@@ -651,22 +661,22 @@
                 }
 
                 string addrText = IsBufferType(normType) ? entry.AddrIndexText : string.Empty;
-                ViewModel.MarkPendingWrite(normType, entry.AddrIndex, entry.WriteValue, addrText);
+                ViewModel.MarkPendingWrite(normType, entry.AddrIndex, entry.WriteValue, addrText, entry.AddrIndexIsHex);
                 entry.Status = WriteStatus.OK;
-                AddLog("WRITE", FormatAddress(normType, entry.AddrIndex, entry.AddrIndexText), entry.WriteValue, true);
+                AddLog("WRITE", FormatAddress(normType, entry.AddrIndex, entry.AddrIndexText, entry.AddrIndexIsHex), entry.WriteValue, true);
             }
             else
             {
                 entry.Status = WriteStatus.ERR;
                 entry.ErrorMessage = $"Unknown address type: {normType}.";
-                AddLog("WRITE", FormatAddress(normType, entry.AddrIndex, entry.AddrIndexText), entry.WriteValue, false);
+                AddLog("WRITE", FormatAddress(normType, entry.AddrIndex, entry.AddrIndexText, entry.AddrIndexIsHex), entry.WriteValue, false);
             }
         }
         catch (Exception ex)
         {
             entry.Status = WriteStatus.ERR;
             entry.ErrorMessage = ex.Message;
-            AddLog("WRITE", FormatAddress(entry.AddrType, entry.AddrIndex, entry.AddrIndexText), entry.WriteValue, false);
+            AddLog("WRITE", FormatAddress(entry.AddrType, entry.AddrIndex, entry.AddrIndexText, entry.AddrIndexIsHex), entry.WriteValue, false);
         }
     }
 
@@ -711,10 +721,11 @@
         return addrType.StartsWith("U", StringComparison.OrdinalIgnoreCase);
     }
 
-    bool TryParseAddressIndex(string addrType, string input, out int index, out string normalizedText)
+    bool TryParseAddressIndex(string addrType, string input, out int index, out string normalizedText, out bool isHex)
     {
         normalizedText = "";
         index = 0;
+        isHex = false;
 
         string raw = input?.Trim() ?? string.Empty;
         if (string.IsNullOrWhiteSpace(raw))
@@ -723,6 +734,20 @@
         if (IsBufferType(addrType))
         {
             string rawUpper = raw.ToUpperInvariant();
+            if (rawUpper.StartsWith("D") || rawUpper.StartsWith("DEC:"))
+            {
+                string dec = rawUpper.StartsWith("DEC:") ? rawUpper[4..] : rawUpper[1..];
+                if (int.TryParse(dec, out int decValueBuffer))
+                {
+                    index = decValueBuffer;
+                    normalizedText = decValueBuffer.ToString();
+                    isHex = false;
+                    return true;
+                }
+
+                return false;
+            }
+
             if (rawUpper.StartsWith("H") || rawUpper.StartsWith("0X"))
             {
                 string hex = rawUpper.StartsWith("H") ? rawUpper[1..] : rawUpper[2..];
@@ -730,16 +755,18 @@
                 {
                     index = hexValue;
                     normalizedText = hex;
+                    isHex = true;
                     return true;
                 }
 
                 return false;
             }
 
-            if (int.TryParse(rawUpper, out int decValueBuffer))
+            if (int.TryParse(rawUpper, System.Globalization.NumberStyles.HexNumber, null, out int hexValueDefault))
             {
-                index = decValueBuffer;
-                normalizedText = decValueBuffer.ToString();
+                index = hexValueDefault;
+                normalizedText = rawUpper;
+                isHex = true;
                 return true;
             }
 
@@ -763,8 +790,9 @@
 
         if (IsBufferType(entry.AddrType))
         {
-            entry.AddrIndexText = entry.AddrIndex.ToString();
+            entry.AddrIndexText = entry.AddrIndex.ToString("X");
             entry.Read32 = true;
+            entry.AddrIndexIsHex = true;
         }
         else
             entry.AddrIndexText = entry.AddrIndex.ToString();
@@ -776,12 +804,15 @@
             return;
 
         if (IsBufferType(entry.AddrType))
-            entry.AddrIndexText = entry.AddrIndex.ToString();
+        {
+            entry.AddrIndexText = entry.AddrIndex.ToString("X");
+            entry.AddrIndexIsHex = true;
+        }
         else
             entry.AddrIndexText = entry.AddrIndex.ToString();
     }
 
-    string FormatAddress(string addrType, int addrIndex, string? addrIndexText)
+    string FormatAddress(string addrType, int addrIndex, string? addrIndexText, bool addrIndexIsHex)
     {
         string t = NormalizeType(addrType);
         if (IsBufferType(t))
@@ -789,7 +820,9 @@
             string prefix = t.Replace("\\", string.Empty).Replace("/", string.Empty);
             if (!prefix.Contains("G", StringComparison.OrdinalIgnoreCase))
                 prefix += "G";
-            string indexText = string.IsNullOrWhiteSpace(addrIndexText) ? addrIndex.ToString("X") : addrIndexText.Trim().ToUpperInvariant();
+            string indexText = addrIndexIsHex
+                ? (string.IsNullOrWhiteSpace(addrIndexText) ? addrIndex.ToString("X") : addrIndexText.Trim().ToUpperInvariant())
+                : addrIndex.ToString();
             return prefix + indexText;
         }
 

@@ -6,7 +6,7 @@ namespace WPF_Test_PLC20260124
 {
     public partial class MainViewModel : ObservableObject
     {
-        private bool TryReadValueCore(string addrType, int addrIndex, out int value, string? addrIndexText = null, bool read32 = false)
+        private bool TryReadValueCore(string addrType, int addrIndex, out int value, string? addrIndexText = null, bool read32 = false, bool addrIndexIsHex = false)
         {
             value = 0;
 
@@ -24,7 +24,7 @@ namespace WPF_Test_PLC20260124
                         int[] words32 = ePLC.ReadDeviceBlock(
                             ePLCControl.SubCommand.Word,
                             ePLCControl.DeviceName.Buffer,
-                            BuildBufferAddress(normalizedType, addrIndex, addrIndexText),
+                            BuildBufferAddress(normalizedType, addrIndex, addrIndexText, addrIndexIsHex),
                             2);
                         if (words32 != null && words32.Length >= 2)
                         {
@@ -37,7 +37,7 @@ namespace WPF_Test_PLC20260124
                         int[] word = ePLC.ReadDeviceBlock(
                             ePLCControl.SubCommand.Word,
                             ePLCControl.DeviceName.Buffer,
-                            BuildBufferAddress(normalizedType, addrIndex, addrIndexText),
+                            BuildBufferAddress(normalizedType, addrIndex, addrIndexText, addrIndexIsHex),
                             1);
                         if (word != null && word.Length > 0)
                         {
@@ -173,7 +173,7 @@ namespace WPF_Test_PLC20260124
                 if (exists)
                     return;
 
-                var entry = new CustomMemoryEntry { AddrType = normalizedType, AddrIndex = addrIndex, AddrIndexText = string.Empty, Read32 = false };
+                var entry = new CustomMemoryEntry { AddrType = normalizedType, AddrIndex = addrIndex, AddrIndexText = string.Empty, Read32 = false, AddrIndexIsHex = false };
                 CustomMemoryEntries.Add(entry);
                 AddLog("UI", "info", $"Added custom memory: {normalizedType}{addrIndex}");
                 OnPropertyChanged(nameof(CustomMemoryEntries));
@@ -184,7 +184,7 @@ namespace WPF_Test_PLC20260124
             }
         }
 
-        public void AddCustomMemoryEntry(string addrType, int addrIndex, string? addrIndexText, bool read32 = false)
+        public void AddCustomMemoryEntry(string addrType, int addrIndex, string? addrIndexText, bool read32 = false, bool addrIndexIsHex = false)
         {
             try
             {
@@ -204,12 +204,13 @@ namespace WPF_Test_PLC20260124
                     AddrType = normalizedType,
                     AddrIndex = addrIndex,
                     AddrIndexText = normalizedText,
-                    Read32 = read32
+                    Read32 = read32,
+                    AddrIndexIsHex = addrIndexIsHex
                 };
 
                 CustomMemoryEntries.Add(entry);
                 string addrLabel = IsBufferType(normalizedType)
-                    ? BuildBufferAddress(normalizedType, addrIndex, normalizedText)
+                    ? BuildBufferAddress(normalizedType, addrIndex, normalizedText, addrIndexIsHex)
                     : $"{normalizedType}{addrIndex}";
                 AddLog("UI", "info", $"Added custom memory: {addrLabel}");
                 OnPropertyChanged(nameof(CustomMemoryEntries));
@@ -246,7 +247,7 @@ namespace WPF_Test_PLC20260124
                 {
                     try
                     {
-                        if (TryReadValueCore(entry.AddrType, entry.AddrIndex, out int newValue, entry.AddrIndexText, entry.Read32))
+                        if (TryReadValueCore(entry.AddrType, entry.AddrIndex, out int newValue, entry.AddrIndexText, entry.Read32, entry.AddrIndexIsHex))
                         {
                             entry.CurrentValue = newValue;
                             entry.LastUpdate = DateTime.Now;

@@ -72,6 +72,7 @@ namespace WPF_Test_PLC20260124
             public int AddrIndex { get; set; }
             public int Value { get; set; }
             public string AddrIndexText { get; set; } = "";
+            public bool AddrIndexIsHex { get; set; }
         }
 
         public class LogItem
@@ -96,6 +97,7 @@ namespace WPF_Test_PLC20260124
             public int AddrIndex { get; set; }
             public string AddrIndexText { get; set; } = "";
             public bool Read32 { get; set; }
+            public bool AddrIndexIsHex { get; set; }
             public int CurrentValue { get; set; }
             public DateTime LastUpdate { get; set; } = DateTime.Now;
         }
@@ -478,7 +480,7 @@ namespace WPF_Test_PLC20260124
             return addrType.StartsWith("U", StringComparison.OrdinalIgnoreCase);
         }
 
-        private static string BuildBufferAddress(string addrType, int addrIndex, string? addrIndexText = null)
+        private static string BuildBufferAddress(string addrType, int addrIndex, string? addrIndexText = null, bool addrIndexIsHex = false)
         {
             string prefix = addrType.Trim().ToUpperInvariant();
             prefix = prefix.Replace("/", string.Empty).Replace("\\", string.Empty);
@@ -488,7 +490,11 @@ namespace WPF_Test_PLC20260124
             if (!prefix.Contains("\\G", StringComparison.OrdinalIgnoreCase))
                 prefix = prefix.Replace("G", "\\G");
 
-            return prefix + addrIndex.ToString();
+            string indexText = addrIndexIsHex
+                ? (string.IsNullOrWhiteSpace(addrIndexText) ? addrIndex.ToString("X") : addrIndexText.Trim().ToUpperInvariant())
+                : addrIndex.ToString();
+
+            return prefix + indexText;
         }
 
         private int ReadCoordinateSourceValue(string addrType, int addrIndex, bool read32Bit, int fallbackValue)

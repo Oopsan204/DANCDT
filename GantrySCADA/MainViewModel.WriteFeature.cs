@@ -23,6 +23,7 @@ namespace WPF_Test_PLC20260124
                             AddrType = x.AddrType,
                             AddrIndex = x.AddrIndex,
                             AddrIndexText = x.AddrIndexText,
+                            AddrIndexIsHex = x.AddrIndexIsHex,
                             Value = x.Value
                         })
                         .ToList();
@@ -34,7 +35,7 @@ namespace WPF_Test_PLC20260124
                 foreach (var p in pendingSnapshot)
                 {
                     string addrLabel = IsBufferType(p.AddrType)
-                        ? BuildBufferAddress(p.AddrType, p.AddrIndex, p.AddrIndexText)
+                        ? BuildBufferAddress(p.AddrType, p.AddrIndex, p.AddrIndexText, p.AddrIndexIsHex)
                         : $"{p.AddrType}{p.AddrIndex}";
                     AddLog("PC", "info", $"WRITE sent: {addrLabel}={p.Value}", "sent");
                 }
@@ -63,7 +64,7 @@ namespace WPF_Test_PLC20260124
                         }
                         else if (IsBufferType(t))
                         {
-                            string bufferAddress = BuildBufferAddress(t, p.AddrIndex, p.AddrIndexText);
+                            string bufferAddress = BuildBufferAddress(t, p.AddrIndex, p.AddrIndexText, p.AddrIndexIsHex);
                             ePLC.WriteDeviceBlock(
                                 NVKProject.PLC.ePLCControl.SubCommand.Word,
                                 NVKProject.PLC.ePLCControl.DeviceName.Buffer,
@@ -180,7 +181,7 @@ namespace WPF_Test_PLC20260124
 
                         anyWrite = true;
                         string ackLabel = IsBufferType(t)
-                            ? BuildBufferAddress(t, p.AddrIndex, p.AddrIndexText)
+                            ? BuildBufferAddress(t, p.AddrIndex, p.AddrIndexText, p.AddrIndexIsHex)
                             : $"{p.AddrType}{p.AddrIndex}";
                         AddLog("PC", "success", $"WRITE ack: {ackLabel}={p.Value}", "ack");
                     }
@@ -188,7 +189,7 @@ namespace WPF_Test_PLC20260124
                     {
                         hasWriteError = true;
                         string errLabel = IsBufferType(p.AddrType)
-                            ? BuildBufferAddress(p.AddrType, p.AddrIndex, p.AddrIndexText)
+                            ? BuildBufferAddress(p.AddrType, p.AddrIndex, p.AddrIndexText, p.AddrIndexIsHex)
                             : $"{p.AddrType}{p.AddrIndex}";
                         AddLog("PC", "error", $"WRITE failed: {errLabel}={p.Value}", ex.Message);
                     }
@@ -222,7 +223,7 @@ namespace WPF_Test_PLC20260124
             _hasPendingWrites = true;
         }
 
-        public void MarkPendingWrite(string addrType, int addrIndex, int value, string? addrIndexText = null)
+        public void MarkPendingWrite(string addrType, int addrIndex, int value, string? addrIndexText = null, bool addrIndexIsHex = false)
         {
             string normType = string.IsNullOrWhiteSpace(addrType)
                 ? "D"
@@ -241,6 +242,7 @@ namespace WPF_Test_PLC20260124
                         AddrType = normType,
                         AddrIndex = addrIndex,
                         AddrIndexText = normText,
+                        AddrIndexIsHex = addrIndexIsHex,
                         Value = value
                     });
                 }
@@ -248,12 +250,13 @@ namespace WPF_Test_PLC20260124
                 {
                     existing.Value = value;
                     existing.AddrIndexText = normText;
+                    existing.AddrIndexIsHex = addrIndexIsHex;
                 }
             }
 
             _hasPendingWrites = true;
             string queuedLabel = IsBufferType(normType)
-                ? BuildBufferAddress(normType, addrIndex, normText)
+                ? BuildBufferAddress(normType, addrIndex, normText, addrIndexIsHex)
                 : $"{normType}{addrIndex}";
             AddLog("PC", "info", $"WRITE queued: {queuedLabel}={value}", "queued");
         }
