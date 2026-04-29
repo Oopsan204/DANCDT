@@ -52,7 +52,7 @@ namespace NVKProject.PLC
             if (_actUtl == null || !IsConnected)
                 throw new InvalidOperationException("MX Component is not connected.");
 
-            short[] data = new short[length];
+            object data;
             int rc = _actUtl!.ReadDeviceBlock2(device, length, out data);
             if (rc != 0)
                 throw new InvalidOperationException($"MX ReadDeviceBlock2 failed: {rc}");
