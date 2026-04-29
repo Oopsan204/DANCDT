@@ -2349,22 +2349,41 @@ Module DXF đóng vai trò như một hệ thống CAM (Computer-Aided Manufactu
 - **Safety Validation**: Kiểm tra xem quỹ đạo (sau khi scale/offset) có vượt quá giới hạn an toàn của máy (ví dụ: 0-1000mm) trước khi truyền lệnh.
 
 #### 4. Biên dịch và Truyền lệnh xuống PLC (`DownloadTrajectoryToPlc`) ⭐
-Chuyển đổi các điểm hình học sang mã lệnh nội suy chuyên dụng của PLC (thường dùng cho các Module nội suy/Simple Motion):
-- **Tọa độ**: Chuyển mm sang micron (nhân 1000) để đạt độ phân giải integer cao trên PLC.
-- **Mã lệnh (Command Codes)**:
-  - `0xD00A`: Nội suy đoạn thẳng liên tục (Continuous Linear).
-  - `0xD00F`: Nội suy cung tròn CW (theo chiều kim đồng hồ).
-  - `0xD010`: Nội suy cung tròn CCW (ngược chiều kim đồng hồ).
-- **Kết thúc (END)**: Lệnh cuối cùng trong chuỗi được đánh dấu bằng bit `0x1000` (`Positioning complete`) để PLC tự động dừng hành trình.
-- **Vùng nhớ**: Ghi trực tiếp vào vùng đệm `D2000` (Trục X) và `D8000` (Trục Y) - user có thể dùng lệnh BMOV để chuyển vào U/G memory của module chuyển động.
+Chuyển đổi các điểm hình học sang mã lệnh nội suy chuyên dụng của PLC (Module Simple Motion):
 
-### 📍 Cấu trúc gói dữ liệu điểm (Point Data Structure)
-Mỗi điểm quỹ đạo được nạp vào PLC dưới dạng một khối 10-word (20 bytes):
-1. **Command Code** (0x...): Loại chuyển động
-2. **M-Code**: Mã phụ trợ
-3. **Dwell Time (Low/High)**: Thời gian chờ
-4. **Speed (Low/High)**: Tốc độ chuyển động (mm/s * scale)
-5. **Position (Low/High)**: Tọa độ đích (X hoặc Y)
-6. **Center/Aux (Low/High)**: Tọa độ tâm (nếu là cung tròn/đường tròn)
+- **Tọa độ**: Chuyển mm sang micron (nhân 1000) để đạt độ phân giải integer cao trên PLC.
+- **Vùng nhớ (Buffer Memory)**: Ghi trực tiếp vào vùng đệm của module (U0):
+    - **Trục 1 (X)**: Bắt đầu từ `U0\G2000`
+    - **Trục 2 (Y)**: Bắt đầu từ `U0\G8000`
+    - Mỗi điểm chiếm **10 word** liên tiếp.
+
+### 📍 Giao thức truyền dữ liệu quỹ đạo (10-word Buffer Frame)
+
+Mỗi điểm quỹ đạo nạp vào PLC (U0\G...) tuân theo cấu trúc sau:
+
+| Offset | Tên trường | Kiểu dữ liệu | Giải thích |
+| :--- | :--- | :--- | :--- |
+| **+0** | **Command Code** | Word (Hex) | Loại chuyển động & Chế độ dừng/chạy (Xem bảng mã dưới) |
+| **+1** | **M Code** | Word | Mã phụ trợ (mặc định: 0) |
+| **+2** | **Dwell Time** | Double Word | Thời gian chờ tại điểm (32-bit) |
+| **+4** | **Speed** | Double Word | Tốc độ chuyển động (32-bit, mm/s) |
+| **+6** | **Position** | Double Word | Tọa độ đích (32-bit, đơn vị µm) |
+| **+8** | **Center Coordinate** | Double Word | Tọa độ tâm (32-bit, đơn vị µm) - Chỉ dùng cho Circular |
+
+### 📊 Bảng mã lệnh nội suy (Command Codes)
+
+Hệ thống sử dụng các mã Hex kết hợp giữa mã gốc (0A, 0F, 10) và chế độ điều khiển:
+
+| Loại chuyển động | Chế độ dừng/chạy | Mã lệnh (Hex) | Giải thích |
+| :--- | :--- | :--- | :--- |
+| **A. ABS Linear 2** | Positioning complete (END) | **H100A** | Dừng hẳn tại đích. |
+| (Mã gốc: 0AH) | Continuous Positioning | **H500A** | Dừng 1 nhịp rồi chạy tiếp. |
+| | Continuous Path | **HD00A** | Chạy mượt liên tục không phanh. |
+| **B. ABS Circular CW** | Positioning complete (END) | **H100F** | Dừng hẳn tại đích. |
+| (Mã gốc: 0FH) | Continuous Positioning | **H500F** | Dừng 1 nhịp rồi chạy tiếp. |
+| | Continuous Path | **HD00F** | Chạy mượt liên tục không phanh. |
+| **C. ABS Circular CCW**| Positioning complete (END) | **H1010** | Dừng hẳn tại đích. |
+| (Mã gốc: 10H) | Continuous Positioning | **H5010** | Dừng 1 nhịp rồi chạy tiếp. |
+| | Continuous Path | **HD010** | Chạy mượt liên tục không phanh. |
 
 ---

@@ -52,6 +52,7 @@ namespace WPF_Test_PLC20260124
             public double EndAngleDeg { get; set; }
             public bool ArcClockwise { get; set; }
             public double ArcSweepDeg { get; set; }
+            public bool UsePump { get; set; } = true;
         }
 
         private List<DxfContourInfo> _dxfContours = new();
@@ -91,9 +92,23 @@ namespace WPF_Test_PLC20260124
         private double _dxfSvgMinY;
         public double DxfSvgMinY { get => _dxfSvgMinY; set => SetProperty(ref _dxfSvgMinY, value); }
 
+        // Trajectory Parameters
+        private int _dxfStartPointIndex = 1;
+        public int DxfStartPointIndex { get => _dxfStartPointIndex; set => SetProperty(ref _dxfStartPointIndex, value); }
+        private int _dxfGlueStartIndex;
+        public int DxfGlueStartIndex { get => _dxfGlueStartIndex; set => SetProperty(ref _dxfGlueStartIndex, value); }
+        private int _dxfGlueEndIndex;
+        public int DxfGlueEndIndex { get => _dxfGlueEndIndex; set => SetProperty(ref _dxfGlueEndIndex, value); }
+        private double _dxfZDown = -5.0;
+        public double DxfZDown { get => _dxfZDown; set => SetProperty(ref _dxfZDown, value); }
+        private uint _dxfDefaultSpeed = 1000;
+        public uint DxfDefaultSpeed { get => _dxfDefaultSpeed; set => SetProperty(ref _dxfDefaultSpeed, value); }
+
         // Run State
         private bool _isDxfRunning;
         public bool IsDxfRunning { get => _isDxfRunning; set => SetProperty(ref _isDxfRunning, value); }
+        private bool _isDxfPaused;
+        public bool IsDxfPaused { get => _isDxfPaused; set => SetProperty(ref _isDxfPaused, value); }
         private bool _isDryRun;
         public bool IsDryRun { get => _isDryRun; set => SetProperty(ref _isDryRun, value); }
         private int _dxfProgressCurrent, _dxfProgressTotal;
@@ -126,8 +141,8 @@ namespace WPF_Test_PLC20260124
                 List<int> axis2Data = new List<int>();
                 int pointCount = 0;
 
-                // Tốc độ mặc định, có thể thay đổi sau nếu cần
-                uint defaultSpeed = 1000; 
+                uint speed = DxfDefaultSpeed; 
+                int absolutePointIndex = 1; // Start counting points from 1
 
                 foreach (var contour in DxfContours)
                 {
@@ -137,19 +152,28 @@ namespace WPF_Test_PLC20260124
                     {
                         // CW (0x0F)
                         ushort cmd = 0xD00F; // Continuous Path
-                        AddTrajectoryPoint(axis1Data, axis2Data, cmd, 0, 0, defaultSpeed, 
+                        
+                        // Check if current absolute point is within glue range
+                        ushort mcode = (ushort)(absolutePointIndex >= DxfGlueStartIndex && absolutePointIndex <= DxfGlueEndIndex ? 1 : 0);
+                        
+                        AddTrajectoryPoint(axis1Data, axis2Data, cmd, mcode, 0, speed, 
                             contour.Points.Last().X, contour.Points.Last().Y, 
                             contour.CenterX, contour.CenterY);
                         pointCount++;
+                        absolutePointIndex++;
                     }
                     else if (contour.IsArc)
                     {
                         // CW (0x0F) or CCW (0x10)
                         ushort cmd = contour.ArcClockwise ? (ushort)0xD00F : (ushort)0xD010;
-                        AddTrajectoryPoint(axis1Data, axis2Data, cmd, 0, 0, defaultSpeed, 
+                        
+                        ushort mcode = (ushort)(absolutePointIndex >= DxfGlueStartIndex && absolutePointIndex <= DxfGlueEndIndex ? 1 : 0);
+                        
+                        AddTrajectoryPoint(axis1Data, axis2Data, cmd, mcode, 0, speed, 
                             contour.Points.Last().X, contour.Points.Last().Y, 
                             contour.CenterX, contour.CenterY);
                         pointCount++;
+                        absolutePointIndex++;
                     }
                     else
                     {
@@ -157,9 +181,13 @@ namespace WPF_Test_PLC20260124
                         for (int i = 1; i < contour.Points.Count; i++)
                         {
                             ushort cmd = 0xD00A; // Continuous Path
-                            AddTrajectoryPoint(axis1Data, axis2Data, cmd, 0, 0, defaultSpeed, 
+                            
+                            ushort mcode = (ushort)(absolutePointIndex >= DxfGlueStartIndex && absolutePointIndex <= DxfGlueEndIndex ? 1 : 0);
+
+                            AddTrajectoryPoint(axis1Data, axis2Data, cmd, mcode, 0, speed, 
                                 contour.Points[i].X, contour.Points[i].Y, 0, 0);
                             pointCount++;
+                            absolutePointIndex++;
                         }
                     }
                 }

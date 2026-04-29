@@ -165,14 +165,6 @@
                                     }
                                 }
                             }
-                            else
-                            {
-                                for (int i = 0; i < 5; i++)
-                                {
-                                    string rowBg = i % 2 == 1 ? "bg-surface-container-low" : "bg-surface";
-                                    <tr class="@rowBg h-8"><td class="p-2"></td><td class="p-2"></td><td class="p-2"></td><td class="p-2"></td></tr>
-                                }
-                            }
                         </tbody>
                     </table>
                 </div>
@@ -182,39 +174,107 @@
             <div class="flex-[2] flex flex-col bg-surface-container-lowest border border-outline-variant/50 overflow-hidden">
                 <div class="bg-surface-container-highest p-3 border-b border-outline-variant/30 flex justify-between items-center shrink-0">
                     <span class="font-headline font-bold uppercase text-xs tracking-widest">MOTION_KERNEL</span>
+                    <span class="text-[10px] text-primary-container font-mono">POINTS: @(GetMotionPointCount()) | SPEED: @(ViewModel.DxfDefaultSpeed)um/s</span>
                 </div>
                 <div class="flex-1 overflow-auto overflow-x-hidden [scrollbar-width:thin] [scrollbar-color:var(--c-outline-variant)_transparent]">
                     <table class="w-full text-left text-[11px] font-mono border-collapse">
                         <thead class="sticky top-0 bg-surface-container-lowest z-10 shadow-sm">
                             <tr>
-                                <th class="p-2 border-b border-outline-variant/20 text-outline uppercase font-medium">TYPE</th>
-                                <th class="p-2 border-b border-outline-variant/20 text-outline uppercase font-medium">M_CODE</th>
-                                <th class="p-2 border-b border-outline-variant/20 text-outline uppercase font-medium">DWELL</th>
+                                <th class="p-2 border-b border-outline-variant/20 text-outline uppercase font-medium w-10">STT</th>
+                                <th class="p-2 border-b border-outline-variant/20 text-outline uppercase font-medium">CMD</th>
+                                <th class="p-2 border-b border-outline-variant/20 text-outline uppercase font-medium">M</th>
                                 <th class="p-2 border-b border-outline-variant/20 text-outline uppercase font-medium">SPEED</th>
-                                <th class="p-2 border-b border-outline-variant/20 text-outline uppercase font-medium">END_PT</th>
-                                <th class="p-2 border-b border-outline-variant/20 text-outline uppercase font-medium">CENTER</th>
+                                <th class="p-2 border-b border-outline-variant/20 text-outline uppercase font-medium">X(µm)</th>
+                                <th class="p-2 border-b border-outline-variant/20 text-outline uppercase font-medium">Y(µm)</th>
+                                <th class="p-2 border-b border-outline-variant/20 text-outline uppercase font-medium">CX(µm)</th>
+                                <th class="p-2 border-b border-outline-variant/20 text-outline uppercase font-medium">CY(µm)</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-outline-variant/10">
                             @if (ViewModel.DxfContours != null && ViewModel.DxfContours.Count > 0)
                             {
-                                int rowIdx = 0;
+                                int motionIdx = 1;
+                                int totalMotionPts = GetMotionPointCount();
                                 foreach (var contour in ViewModel.DxfContours)
                                 {
-                                    string motionType = contour.IsCircle ? "CW" : (contour.IsArc ? (contour.ArcClockwise ? "CW" : "CCW") : "LIN");
-                                    string endPt = contour.Points.Any() ? $"{contour.Points.Last().X:F1},{contour.Points.Last().Y:F1}" : "N/A";
-                                    string centerPt = contour.HasCenter ? $"{contour.CenterX:F1},{contour.CenterY:F1}" : "N/A";
-                                    
-                                    string rowBg = rowIdx % 2 == 1 ? "bg-surface-container-lowest" : "bg-surface-container-low";
-                                    <tr class="@rowBg h-8 hover:bg-surface-container-high transition-colors">
-                                        <td class="p-2 text-on-surface font-bold">@motionType</td>
-                                        <td class="p-2 text-outline">0</td>
-                                        <td class="p-2 text-outline">0</td>
-                                        <td class="p-2 text-outline">1.0</td>
-                                        <td class="p-2 text-primary-fixed-dim">@endPt</td>
-                                        <td class="p-2 text-primary-fixed-dim">@centerPt</td>
-                                    </tr>
-                                    rowIdx++;
+                                    if (contour.Points == null || contour.Points.Count < 2) continue;
+
+                                    if (contour.IsCircle)
+                                    {
+                                        bool isLast = motionIdx == totalMotionPts;
+                                        ushort cmd = isLast ? (ushort)0x100F : (ushort)0xD00F;
+                                        bool glue = motionIdx >= ViewModel.DxfGlueStartIndex && motionIdx <= ViewModel.DxfGlueEndIndex;
+                                        var ep = contour.Points.Last();
+                                        string rowBg = motionIdx % 2 == 0 ? "bg-surface-container-lowest" : "bg-surface-container-low";
+                                        <tr class="@rowBg h-8 hover:bg-surface-container-high transition-colors">
+                                            <td class="p-2 text-outline text-center">@motionIdx</td>
+                                            <td class="p-2 text-on-surface font-bold">H@(cmd.ToString("X4"))</td>
+                                            <td class="p-2">
+                                                <div class="flex items-center gap-2">
+                                                    <div class="w-2 h-2 rounded-full @(glue ? "bg-secondary shadow-[0_0_8px_var(--c-secondary)]" : "bg-outline/20")"></div>
+                                                    <span class="@(glue ? "text-secondary font-bold" : "text-outline")">@(glue ? "1" : "0")</span>
+                                                </div>
+                                            </td>
+                                            <td class="p-2 text-outline">@ViewModel.DxfDefaultSpeed</td>
+                                            <td class="p-2 text-primary-fixed-dim">@((int)(ep.X * 1000))</td>
+                                            <td class="p-2 text-primary-fixed-dim">@((int)(ep.Y * 1000))</td>
+                                            <td class="p-2 text-secondary">@((int)(contour.CenterX * 1000))</td>
+                                            <td class="p-2 text-secondary">@((int)(contour.CenterY * 1000))</td>
+                                        </tr>
+                                        motionIdx++;
+                                    }
+                                    else if (contour.IsArc)
+                                    {
+                                        bool isLast = motionIdx == totalMotionPts;
+                                        ushort cmdBase = contour.ArcClockwise ? (ushort)0x000F : (ushort)0x0010;
+                                        ushort cmd = isLast ? (ushort)(0x1000 | cmdBase) : (ushort)(0xD000 | cmdBase);
+                                        bool glue = motionIdx >= ViewModel.DxfGlueStartIndex && motionIdx <= ViewModel.DxfGlueEndIndex;
+                                        var ep = contour.Points.Last();
+                                        string rowBg = motionIdx % 2 == 0 ? "bg-surface-container-lowest" : "bg-surface-container-low";
+                                        <tr class="@rowBg h-8 hover:bg-surface-container-high transition-colors">
+                                            <td class="p-2 text-outline text-center">@motionIdx</td>
+                                            <td class="p-2 text-on-surface font-bold">H@(cmd.ToString("X4"))</td>
+                                            <td class="p-2">
+                                                <div class="flex items-center gap-2">
+                                                    <div class="w-2 h-2 rounded-full @(glue ? "bg-secondary shadow-[0_0_8px_var(--c-secondary)]" : "bg-outline/20")"></div>
+                                                    <span class="@(glue ? "text-secondary font-bold" : "text-outline")">@(glue ? "1" : "0")</span>
+                                                </div>
+                                            </td>
+                                            <td class="p-2 text-outline">@ViewModel.DxfDefaultSpeed</td>
+                                            <td class="p-2 text-primary-fixed-dim">@((int)(ep.X * 1000))</td>
+                                            <td class="p-2 text-primary-fixed-dim">@((int)(ep.Y * 1000))</td>
+                                            <td class="p-2 text-secondary">@((int)(contour.CenterX * 1000))</td>
+                                            <td class="p-2 text-secondary">@((int)(contour.CenterY * 1000))</td>
+                                        </tr>
+                                        motionIdx++;
+                                    }
+                                    else
+                                    {
+                                        for (int i = 1; i < contour.Points.Count; i++)
+                                        {
+                                            bool isLast = motionIdx == totalMotionPts;
+                                            ushort cmd = isLast ? (ushort)0x100A : (ushort)0xD00A;
+                                            bool glue = motionIdx >= ViewModel.DxfGlueStartIndex && motionIdx <= ViewModel.DxfGlueEndIndex;
+                                            var pt = contour.Points[i];
+                                            string rowBg = motionIdx % 2 == 0 ? "bg-surface-container-lowest" : "bg-surface-container-low";
+                                            <tr class="@rowBg h-8 hover:bg-surface-container-high transition-colors">
+                                                <td class="p-2 text-outline text-center">@motionIdx</td>
+                                                <td class="p-2 text-on-surface font-bold">H@(cmd.ToString("X4"))</td>
+                                                <td class="p-2">
+                                                    <div class="flex items-center gap-2">
+                                                        <div class="w-2 h-2 rounded-full @(glue ? "bg-secondary shadow-[0_0_8px_var(--c-secondary)]" : "bg-outline/20")"></div>
+                                                        <span class="@(glue ? "text-secondary font-bold" : "text-outline")">@(glue ? "1" : "0")</span>
+                                                    </div>
+                                                </td>
+                                                <td class="p-2 text-outline">@ViewModel.DxfDefaultSpeed</td>
+                                                <td class="p-2 text-primary-fixed-dim">@((int)(pt.X * 1000))</td>
+                                                <td class="p-2 text-primary-fixed-dim">@((int)(pt.Y * 1000))</td>
+                                                <td class="p-2 text-outline">0</td>
+                                                <td class="p-2 text-outline">0</td>
+                                            </tr>
+                                            motionIdx++;
+                                        }
+                                    }
                                 }
                             }
                             else
@@ -222,7 +282,7 @@
                                 for (int i = 0; i < 3; i++)
                                 {
                                     string rowBg = i % 2 == 1 ? "bg-surface-container-lowest" : "bg-surface-container-low";
-                                    <tr class="@rowBg h-8"><td class="p-2"></td><td class="p-2"></td><td class="p-2"></td><td class="p-2"></td><td class="p-2"></td><td class="p-2"></td></tr>
+                                    <tr class="@rowBg h-8"><td class="p-2"></td><td class="p-2"></td><td class="p-2"></td><td class="p-2"></td><td class="p-2"></td><td class="p-2"></td><td class="p-2"></td><td class="p-2"></td></tr>
                                 }
                             }
                         </tbody>
@@ -234,50 +294,97 @@
     </div>
 
     <!-- Bottom Controls Area -->
-    <div class="h-20 bg-surface-container-highest border border-outline-variant/40 flex items-center justify-between px-6 shrink-0 z-10">
+    <div class="h-24 bg-surface-container-highest border border-outline-variant/40 flex items-center justify-between px-6 shrink-0 z-10 relative">
         <!-- Parameters (Left side of footer) -->
-        <div class="flex gap-2 flex-wrap h-full py-4 items-center">
-            <button class="bg-surface-container-low text-on-surface border border-outline-variant/30 h-full px-4 hover:bg-surface-container-high active:bg-surface transition-colors font-headline text-xs uppercase flex flex-col justify-center items-center">
+        <div class="flex gap-2 flex-wrap h-full py-3 items-center">
+            <!-- ĐIỂM Bắt đầu -->
+            <button class="bg-surface-container-low text-on-surface border border-outline-variant/30 h-full px-4 hover:bg-surface-container-high active:bg-surface transition-colors font-headline text-xs uppercase flex flex-col justify-center items-center min-w-[80px]"
+                    @onclick="SetStartPoint">
                 <span class="text-[9px] text-outline">ĐIỂM</span>
                 <span>Bắt đầu</span>
+                <span class="text-[10px] text-primary font-mono font-bold">@(ViewModel.DxfStartPointIndex > 0 ? $"#{ViewModel.DxfStartPointIndex:D4}" : "---")</span>
             </button>
-            <button class="bg-surface-container-low text-on-surface border border-outline-variant/30 h-full px-4 hover:bg-surface-container-high active:bg-surface transition-colors font-headline text-xs uppercase flex flex-col justify-center items-center">
+            <!-- BƠM KEO Bắt đầu -->
+            <button class="bg-surface-container-low text-on-surface border border-outline-variant/30 h-full px-4 hover:bg-surface-container-high active:bg-surface transition-colors font-headline text-xs uppercase flex flex-col justify-center items-center min-w-[80px]"
+                    @onclick="SetGlueStart">
                 <span class="text-[9px] text-outline">BƠM KEO</span>
                 <span>Bắt đầu</span>
+                <span class="text-[10px] text-secondary font-mono font-bold">@(ViewModel.DxfGlueStartIndex > 0 ? $"#{ViewModel.DxfGlueStartIndex:D4}" : "---")</span>
             </button>
-            <button class="bg-surface-container-low text-on-surface border border-outline-variant/30 h-full px-4 hover:bg-surface-container-high active:bg-surface transition-colors font-headline text-xs uppercase flex flex-col justify-center items-center">
+            <!-- BƠM KEO Kết thúc -->
+            <button class="bg-surface-container-low text-on-surface border border-outline-variant/30 h-full px-4 hover:bg-surface-container-high active:bg-surface transition-colors font-headline text-xs uppercase flex flex-col justify-center items-center min-w-[80px]"
+                    @onclick="SetGlueEnd">
                 <span class="text-[9px] text-outline">BƠM KEO</span>
                 <span>Kết thúc</span>
+                <span class="text-[10px] text-secondary font-mono font-bold">@(ViewModel.DxfGlueEndIndex > 0 ? $"#{ViewModel.DxfGlueEndIndex:D4}" : "---")</span>
             </button>
-            <button class="bg-surface-container-low text-on-surface border border-outline-variant/30 h-full px-4 hover:bg-surface-container-high active:bg-surface transition-colors font-headline text-xs uppercase flex flex-col justify-center items-center">
+            <!-- ĐỘ CAO Z Hạ -->
+            <button class="bg-surface-container-low text-on-surface border border-outline-variant/30 h-full px-4 hover:bg-surface-container-high active:bg-surface transition-colors font-headline text-xs uppercase flex flex-col justify-center items-center min-w-[80px]"
+                    @onclick='() => OpenParamPopup("zdown")'>
                 <span class="text-[9px] text-outline">ĐỘ CAO</span>
                 <span>Z Hạ</span>
+                <span class="text-[10px] text-primary font-mono font-bold">@(ViewModel.DxfZDown.ToString("F1"))mm</span>
             </button>
-            <button class="bg-surface-container-low text-on-surface border border-outline-variant/30 h-full px-4 hover:bg-surface-container-high active:bg-surface transition-colors font-headline text-xs uppercase flex flex-col justify-center items-center">
+            <!-- ĐỘ CAO Z An Toàn -->
+            <button class="bg-surface-container-low text-on-surface border border-outline-variant/30 h-full px-4 hover:bg-surface-container-high active:bg-surface transition-colors font-headline text-xs uppercase flex flex-col justify-center items-center min-w-[80px]"
+                    @onclick='() => OpenParamPopup("zsafe")'>
                 <span class="text-[9px] text-outline">ĐỘ CAO</span>
                 <span>Z An Toàn</span>
+                <span class="text-[10px] text-primary font-mono font-bold">@(ViewModel.DxfZSafe.ToString("F1"))mm</span>
             </button>
-            <button class="bg-surface-container-low text-on-surface border border-outline-variant/30 h-full px-6 hover:bg-surface-container-high active:bg-surface transition-colors font-headline text-xs uppercase flex flex-col justify-center items-center">
+            <!-- THIẾT LẬP Tốc độ -->
+            <button class="bg-surface-container-low text-on-surface border border-outline-variant/30 h-full px-6 hover:bg-surface-container-high active:bg-surface transition-colors font-headline text-xs uppercase flex flex-col justify-center items-center min-w-[80px]"
+                    @onclick='() => OpenParamPopup("speed")'>
                 <span class="text-[9px] text-outline">THIẾT LẬP</span>
                 <span>Tốc độ</span>
+                <span class="text-[10px] text-primary font-mono font-bold">@(ViewModel.DxfDefaultSpeed)um/s</span>
             </button>
         </div>
 
         <!-- Actions (Right side of footer) -->
         <div class="flex gap-4">
-            <button class="px-6 py-3 border border-primary-container text-primary-container font-headline font-black text-xs flex items-center gap-2 hover:bg-primary-container/10 transition-colors uppercase" @onclick="ResumeClick">
+            <button class="px-6 py-3 border font-headline font-black text-xs flex items-center gap-2 transition-colors uppercase
+                @(ViewModel.IsDxfPaused ? "border-secondary text-secondary hover:bg-secondary/10" : "border-primary-container text-primary-container hover:bg-primary-container/10")"
+                    @onclick="ResumeClick" disabled="@(!ViewModel.IsDxfPaused)">
                 <span class="material-symbols-outlined text-[18px]" style="font-variation-settings: 'FILL' 1;">replay</span>
                 RESUME
             </button>
-            <button class="px-6 py-3 bg-error-container/30 border border-error text-error font-headline font-black text-xs flex items-center gap-2 hover:bg-error-container/50 transition-colors uppercase" @onclick="PauseClick">
+            <button class="px-6 py-3 bg-error-container/30 border border-error text-error font-headline font-black text-xs flex items-center gap-2 hover:bg-error-container/50 transition-colors uppercase"
+                    @onclick="PauseClick" disabled="@(!ViewModel.IsDxfRunning || ViewModel.IsDxfPaused)">
                 <span class="material-symbols-outlined text-[18px]" style="font-variation-settings: 'FILL' 1;">pause</span>
                 PAUSE
             </button>
-            <button class="px-8 py-3 bg-primary-container text-on-primary-fixed font-headline font-black text-xs flex items-center gap-2 hover:bg-primary-fixed-dim transition-colors uppercase shadow-[0_0_15px_rgba(0,240,255,0.2)]" @onclick="StartClick">
+            <button class="px-8 py-3 bg-primary-container text-on-primary-fixed font-headline font-black text-xs flex items-center gap-2 hover:bg-primary-fixed-dim transition-colors uppercase shadow-[0_0_15px_rgba(0,240,255,0.2)]"
+                    @onclick="StartClick" disabled="@(ViewModel.IsDxfRunning)">
                 <span class="material-symbols-outlined text-[18px]" style="font-variation-settings: 'FILL' 1;">play_arrow</span>
                 START_NODE
             </button>
         </div>
+
+        <!-- Inline Parameter Popup -->
+        @if (!string.IsNullOrEmpty(paramPopupType))
+        {
+            <div class="absolute bottom-full left-0 mb-2 ml-4 bg-surface-container-highest border border-primary/50 shadow-2xl p-4 z-50 flex flex-col gap-3 min-w-[280px]"
+                 style="box-shadow: 0 0 20px rgba(0,229,255,0.15);">
+                <div class="flex justify-between items-center">
+                    <span class="font-headline font-bold text-xs uppercase tracking-widest text-on-surface">@GetPopupTitle()</span>
+                    <button class="text-outline hover:text-error transition-colors" @onclick="CloseParamPopup">
+                        <span class="material-symbols-outlined text-[18px]">close</span>
+                    </button>
+                </div>
+                <div class="flex gap-2 items-center">
+                    <input type="number" step="any" class="flex-1 bg-surface-container-low border border-outline-variant/50 text-on-surface px-3 py-2 text-sm font-mono focus:border-primary focus:outline-none"
+                           @bind="paramPopupValue" @bind:event="oninput" />
+                    <span class="text-outline text-xs font-mono">@GetPopupUnit()</span>
+                </div>
+                <div class="flex gap-2 justify-end">
+                    <button class="px-4 py-2 border border-outline-variant/30 text-outline text-xs font-headline uppercase hover:bg-surface-container-high transition-colors"
+                            @onclick="CloseParamPopup">HỦY</button>
+                    <button class="px-4 py-2 bg-primary-container text-on-primary-fixed text-xs font-headline font-bold uppercase hover:bg-primary-fixed-dim transition-colors"
+                            @onclick="ApplyParamPopup">ÁP DỤNG</button>
+                </div>
+            </div>
+        }
     </div>
 </div>
 
@@ -367,21 +474,124 @@
         ViewModel.AddLog("UI", "info", "Reset zoom and pan to default");
     }
 
+    // --- Parameter Popup State ---
+    private string paramPopupType = "";
+    private double paramPopupValue;
+
+    private void OpenParamPopup(string type)
+    {
+        paramPopupType = type;
+        paramPopupValue = type switch
+        {
+            "zdown" => ViewModel.DxfZDown,
+            "zsafe" => ViewModel.DxfZSafe,
+            "speed" => ViewModel.DxfDefaultSpeed,
+            _ => 0
+        };
+    }
+
+    private void CloseParamPopup() => paramPopupType = "";
+
+    private string GetPopupTitle() => paramPopupType switch
+    {
+        "zdown" => "ĐỘ CAO Z HẠ",
+        "zsafe" => "ĐỘ CAO Z AN TOÀN",
+        "speed" => "THIẾT LẬP TỐC ĐỘ",
+        _ => ""
+    };
+
+    private string GetPopupUnit() => paramPopupType switch
+    {
+        "zdown" => "mm",
+        "zsafe" => "mm",
+        "speed" => "um/s",
+        _ => ""
+    };
+
+    private void ApplyParamPopup()
+    {
+        switch (paramPopupType)
+        {
+            case "zdown":
+                ViewModel.DxfZDown = paramPopupValue;
+                ViewModel.AddLog("UI", "success", $"Z Hạ = {paramPopupValue:F1} mm");
+                break;
+            case "zsafe":
+                ViewModel.DxfZSafe = paramPopupValue;
+                ViewModel.AddLog("UI", "success", $"Z An toàn = {paramPopupValue:F1} mm");
+                break;
+            case "speed":
+                ViewModel.DxfDefaultSpeed = (uint)Math.Max(1, paramPopupValue);
+                ViewModel.AddLog("UI", "success", $"Tốc độ = {ViewModel.DxfDefaultSpeed} um/s");
+                break;
+        }
+        paramPopupType = "";
+    }
+
+    // --- Point Assignment ---
+    private void SetStartPoint()
+    {
+        if (ViewModel.SelectedPointIndex > 0)
+        {
+            ViewModel.DxfStartPointIndex = ViewModel.SelectedPointIndex;
+            ViewModel.AddLog("UI", "success", $"Điểm bắt đầu = #{ViewModel.DxfStartPointIndex:D4}");
+        }
+        else
+        {
+            ViewModel.AddLog("UI", "warning", "Chọn 1 điểm trong bảng trước khi gán.");
+        }
+    }
+
+    private void SetGlueStart()
+    {
+        if (ViewModel.SelectedPointIndex > 0)
+        {
+            ViewModel.DxfGlueStartIndex = ViewModel.SelectedPointIndex;
+            ViewModel.AddLog("UI", "success", $"Bơm keo bắt đầu = #{ViewModel.DxfGlueStartIndex:D4}");
+        }
+        else
+        {
+            ViewModel.AddLog("UI", "warning", "Chọn 1 điểm trong bảng trước khi gán.");
+        }
+    }
+
+    private void SetGlueEnd()
+    {
+        if (ViewModel.SelectedPointIndex > 0)
+        {
+            ViewModel.DxfGlueEndIndex = ViewModel.SelectedPointIndex;
+            ViewModel.AddLog("UI", "success", $"Bơm keo kết thúc = #{ViewModel.DxfGlueEndIndex:D4}");
+        }
+        else
+        {
+            ViewModel.AddLog("UI", "warning", "Chọn 1 điểm trong bảng trước khi gán.");
+        }
+    }
+
+    // --- Action Buttons ---
     private void StartClick()
     {
-        ViewModel.AddLog("UI", "info", "User clicked [Start DXF Run]");
+        if (ViewModel.DxfContours == null || ViewModel.DxfContours.Count == 0)
+        {
+            ViewModel.AddLog("UI", "warning", "Chưa nạp file DXF.");
+            return;
+        }
+        ViewModel.AddLog("UI", "info", $"Start DXF | Speed={ViewModel.DxfDefaultSpeed} | ZDown={ViewModel.DxfZDown:F1} | ZSafe={ViewModel.DxfZSafe:F1} | StartPt=#{ViewModel.DxfStartPointIndex}");
         ViewModel.IsDxfRunning = true;
+        ViewModel.IsDxfPaused = false;
         ViewModel.DownloadTrajectoryToPlc();
     }
 
     private void PauseClick()
     {
-        ViewModel.AddLog("UI", "info", "User clicked [Pause DXF Run]");
+        ViewModel.IsDxfPaused = true;
+        ViewModel.AddLog("UI", "warning", "DXF Run PAUSED");
     }
 
     private void ResumeClick()
     {
-        ViewModel.AddLog("UI", "info", "User clicked [Resume DXF Run]");
+        ViewModel.IsDxfPaused = false;
+        ViewModel.AddLog("UI", "info", "DXF Run RESUMED");
     }
 
     private void SelectPoint(int stt)
@@ -425,6 +635,21 @@
         {
             count += c.Points?.Count ?? 0;
             if (c.HasCenter) count++;
+        }
+        return count;
+    }
+
+    private int GetMotionPointCount()
+    {
+        if (ViewModel.DxfContours == null) return 0;
+        int count = 0;
+        foreach (var c in ViewModel.DxfContours)
+        {
+            if (c.Points == null || c.Points.Count < 2) continue;
+            if (c.IsCircle || c.IsArc)
+                count++;
+            else
+                count += c.Points.Count - 1; // Linear: skip first point
         }
         return count;
     }
