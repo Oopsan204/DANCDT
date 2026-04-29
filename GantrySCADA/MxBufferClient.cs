@@ -15,9 +15,10 @@ namespace NVKProject.PLC
             if (_actUtl != null && IsConnected)
                 return;
 
-            Type? actType = Type.GetTypeFromProgID("ActUtlType.ActUtlType");
+            Type? actType = Type.GetTypeFromProgID("ActUtlType64.ActUtlType")
+                ?? Type.GetTypeFromProgID("ActUtlType.ActUtlType");
             if (actType == null)
-                throw new InvalidOperationException("MX Component ActUtlType COM is not registered.");
+                throw new InvalidOperationException("MX Component ActUtlType COM is not registered (ActUtlType64/ActUtlType).");
 
             _actUtl = Activator.CreateInstance(actType);
             _actUtl.ActLogicalStationNumber = LogicalStationNumber;
