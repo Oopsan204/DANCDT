@@ -15,11 +15,17 @@ This project is a **WPF/Blazor Hybrid** application designed for controlling and
 - **Key Capabilities:**
   - Real-time PLC communication (Mitsubishi MC Protocol & MX Component).
   - Motion control (Jogging, Trajectory execution).
-  ### DXF/CAM processing (Generating motion paths from CAD files).
+  ### DXF/CAM processing (Advanced Trajectory Generation).
   - **Protocol:** Uses a 10-word buffer frame per trajectory point.
   - **Addressing:** Writes directly to Simple Motion module buffer memory:
       - Axis 1 (X): `U0\G2000`
       - Axis 2 (Y): `U0\G8000`
+  - **Advanced Features:**
+      - **Travel Moves:** Automatically inserts travel moves (G0) between contours with M-Code 0.
+      - **Per-point Speed:** Configurable speed for every individual motion segment.
+      - **Trajectory Editing:** UI support for reordering (Up/Down), deleting contours, and adding manual points.
+      - **Buffer Monitoring:** Real-time visualization of raw buffer data (Binary/Decimal) in the LogMonitor.
+      - **Entity Support:** Enhanced support for Polylines (auto-close), Lines, Circles, Arcs, and Points.
   - **Command Codes:**
       - Linear: `H100A` (END), `H500A` (Cont. Pos), `HD00A` (Cont. Path).
       - Circular CW: `H100F` (END), `H500F` (Cont. Pos), `HD00F` (Cont. Path).

@@ -104,6 +104,26 @@ namespace WPF_Test_PLC20260124
 
         private List<CustomMemoryEntry> _customMemoryEntries = new();
         public List<CustomMemoryEntry> CustomMemoryEntries => _customMemoryEntries;
+
+        public class BufferRegisterRecord
+        {
+            public string Address { get; set; } = "";
+            public int Value { get; set; }
+            public string BinaryString 
+            {
+                get 
+                {
+                    string bin = Convert.ToString((short)(Value & 0xFFFF), 2).PadLeft(16, '0');
+                    return string.Join(" ", bin.ToCharArray()); // For easier display in UI
+                }
+            }
+        }
+
+        private List<BufferRegisterRecord> _sentBufferRecords = new();
+        public List<BufferRegisterRecord> SentBufferRecords => _sentBufferRecords;
+
+        private List<BufferRegisterRecord> _sentBufferRecordsAxis2 = new();
+        public List<BufferRegisterRecord> SentBufferRecordsAxis2 => _sentBufferRecordsAxis2;
         #endregion
 
         #region Properties
@@ -435,6 +455,26 @@ namespace WPF_Test_PLC20260124
         {
             get => _posScaleZ;
             set { _posScaleZ = value; OnPropertyChanged(); }
+        }
+
+        private Dictionary<int, uint> _dxfPointSpeeds = new();
+        public Dictionary<int, uint> DxfPointSpeeds
+        {
+            get => _dxfPointSpeeds;
+            set { _dxfPointSpeeds = value; OnPropertyChanged(); }
+        }
+
+        public uint GetSpeedForPoint(int pointIndex)
+        {
+            if (_dxfPointSpeeds.TryGetValue(pointIndex, out uint speed))
+                return speed;
+            return DxfDefaultSpeed;
+        }
+
+        public void SetSpeedForPoint(int pointIndex, uint speed)
+        {
+            _dxfPointSpeeds[pointIndex] = speed;
+            OnPropertyChanged(nameof(DxfPointSpeeds));
         }
 
         private double _posOffsetX = 0;

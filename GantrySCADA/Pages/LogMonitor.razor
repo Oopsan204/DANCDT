@@ -349,6 +349,127 @@
         </div>
     </div>
 
+    <!-- ══ BUFFER MONITOR ══════════════════════════════════════════ -->
+    <div class="grid grid-cols-1 xl:grid-cols-2 gap-5 mt-5">
+        <!-- AXIS 1 -->
+        <div class="bg-surface-container-lowest rounded-lg shadow-sm border border-outline-variant/20 p-5">
+            <div class="flex items-center gap-2 mb-4">
+                <span class="material-symbols-outlined text-primary" style="font-size:16px;">memory</span>
+                <h2 class="font-label text-[10px] font-bold uppercase tracking-[0.05em] text-on-surface-variant">Buffer Write Monitor (Axis 1 - U0\G2000)</h2>
+                <div style="flex:1;"></div>
+                <button class="act-btn btn-outline" @onclick="() => InvokeAsync(StateHasChanged)" style="padding: 4px 10px;">
+                    <span class="material-symbols-outlined" style="font-size:12px;">refresh</span>
+                    Refresh
+                </button>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse" style="font-family: 'Consolas', 'Fira Code', monospace; font-size: 11px;">
+                    <thead>
+                        <tr class="bg-surface-container-low text-on-surface-variant uppercase tracking-wider text-[10px]">
+                            <th class="px-3 py-2 border border-outline-variant/20">Address</th>
+                            <th class="px-3 py-2 border border-outline-variant/20 text-center">Bits (15 → 0)</th>
+                            <th class="px-3 py-2 border border-outline-variant/20 text-right">Decimal</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (ViewModel.SentBufferRecords == null || ViewModel.SentBufferRecords.Count == 0)
+                        {
+                            <tr>
+                                <td colspan="3" class="px-3 py-6 text-center text-outline font-body text-xs">No buffer data captured yet. Run a DXF trajectory to populate.</td>
+                            </tr>
+                        }
+                        else
+                        {
+                            @foreach (var record in ViewModel.SentBufferRecords)
+                            {
+                                <tr class="hover:bg-surface-container-low transition-colors">
+                                    <td class="px-3 py-1 border border-outline-variant/20 font-bold text-on-surface" style="width: 120px;">@record.Address</td>
+                                    <td class="px-3 py-1 border border-outline-variant/20 text-center">
+                                        <div class="flex justify-center gap-[2px]">
+                                            @foreach (var bit in record.BinaryString.Replace(" ", ""))
+                                            {
+                                                if (bit == '1')
+                                                {
+                                                    <span class="inline-flex items-center justify-center w-[18px] h-[18px] bg-[#0000cc] text-white text-[10px] font-bold">1</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="inline-flex items-center justify-center w-[18px] h-[18px] bg-white text-outline border border-outline-variant/50 text-[10px]">0</span>
+                                                }
+                                            }
+                                        </div>
+                                    </td>
+                                    <td class="px-3 py-1 border border-outline-variant/20 text-right font-bold" style="width: 120px;">
+                                        @(unchecked((short)(record.Value & 0xFFFF)))
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- AXIS 2 -->
+        <div class="bg-surface-container-lowest rounded-lg shadow-sm border border-outline-variant/20 p-5">
+            <div class="flex items-center gap-2 mb-4">
+                <span class="material-symbols-outlined text-primary" style="font-size:16px;">memory</span>
+                <h2 class="font-label text-[10px] font-bold uppercase tracking-[0.05em] text-on-surface-variant">Buffer Write Monitor (Axis 2 - U0\G8000)</h2>
+                <div style="flex:1;"></div>
+                <button class="act-btn btn-outline" @onclick="() => InvokeAsync(StateHasChanged)" style="padding: 4px 10px;">
+                    <span class="material-symbols-outlined" style="font-size:12px;">refresh</span>
+                    Refresh
+                </button>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse" style="font-family: 'Consolas', 'Fira Code', monospace; font-size: 11px;">
+                    <thead>
+                        <tr class="bg-surface-container-low text-on-surface-variant uppercase tracking-wider text-[10px]">
+                            <th class="px-3 py-2 border border-outline-variant/20">Address</th>
+                            <th class="px-3 py-2 border border-outline-variant/20 text-center">Bits (15 → 0)</th>
+                            <th class="px-3 py-2 border border-outline-variant/20 text-right">Decimal</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (ViewModel.SentBufferRecordsAxis2 == null || ViewModel.SentBufferRecordsAxis2.Count == 0)
+                        {
+                            <tr>
+                                <td colspan="3" class="px-3 py-6 text-center text-outline font-body text-xs">No buffer data captured yet. Run a DXF trajectory to populate.</td>
+                            </tr>
+                        }
+                        else
+                        {
+                            @foreach (var record in ViewModel.SentBufferRecordsAxis2)
+                            {
+                                <tr class="hover:bg-surface-container-low transition-colors">
+                                    <td class="px-3 py-1 border border-outline-variant/20 font-bold text-on-surface" style="width: 120px;">@record.Address</td>
+                                    <td class="px-3 py-1 border border-outline-variant/20 text-center">
+                                        <div class="flex justify-center gap-[2px]">
+                                            @foreach (var bit in record.BinaryString.Replace(" ", ""))
+                                            {
+                                                if (bit == '1')
+                                                {
+                                                    <span class="inline-flex items-center justify-center w-[18px] h-[18px] bg-[#0000cc] text-white text-[10px] font-bold">1</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="inline-flex items-center justify-center w-[18px] h-[18px] bg-white text-outline border border-outline-variant/50 text-[10px]">0</span>
+                                                }
+                                            }
+                                        </div>
+                                    </td>
+                                    <td class="px-3 py-1 border border-outline-variant/20 text-right font-bold" style="width: 120px;">
+                                        @(unchecked((short)(record.Value & 0xFFFF)))
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
     <!-- ══ EXPANDED LOG DETAIL ════════════════════════════════════════ -->
     @if (expandedLog != null)
     {

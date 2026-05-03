@@ -146,47 +146,63 @@ namespace WPF_Test_PLC20260124
 
                 foreach (var contour in DxfContours)
                 {
-                    if (contour.Points == null || contour.Points.Count < 2) continue;
+                    if (contour.Points == null || contour.Points.Count == 0) continue;
 
+                    // 1. ALWAYS insert a travel move to the START of the contour
+                    ushort travelCmd = 0xD00A; // Continuous Path (Linear)
+                    ushort travelMCode = 0; // Turn OFF glue for travel moves
+                    
+                    if (absolutePointIndex >= DxfStartPointIndex)
+                    {
+                        AddTrajectoryPoint(axis1Data, axis2Data, travelCmd, travelMCode, 0, GetSpeedForPoint(absolutePointIndex), 
+                            contour.Points[0].X, contour.Points[0].Y, 0, 0);
+                        pointCount++;
+                    }
+                    absolutePointIndex++;
+
+                    // 2. Process the actual contour cut/glue
                     if (contour.IsCircle)
                     {
-                        // CW (0x0F)
-                        ushort cmd = 0xD00F; // Continuous Path
-                        
-                        // Check if current absolute point is within glue range
+                        ushort cmd = 0xD00F; // Continuous Path (Circle CW)
                         ushort mcode = (ushort)(absolutePointIndex >= DxfGlueStartIndex && absolutePointIndex <= DxfGlueEndIndex ? 1 : 0);
                         
-                        AddTrajectoryPoint(axis1Data, axis2Data, cmd, mcode, 0, speed, 
-                            contour.Points.Last().X, contour.Points.Last().Y, 
-                            contour.CenterX, contour.CenterY);
-                        pointCount++;
+                        if (absolutePointIndex >= DxfStartPointIndex)
+                        {
+                            AddTrajectoryPoint(axis1Data, axis2Data, cmd, mcode, 0, GetSpeedForPoint(absolutePointIndex), 
+                                contour.Points.Last().X, contour.Points.Last().Y, 
+                                contour.CenterX, contour.CenterY);
+                            pointCount++;
+                        }
                         absolutePointIndex++;
                     }
                     else if (contour.IsArc)
                     {
-                        // CW (0x0F) or CCW (0x10)
                         ushort cmd = contour.ArcClockwise ? (ushort)0xD00F : (ushort)0xD010;
-                        
                         ushort mcode = (ushort)(absolutePointIndex >= DxfGlueStartIndex && absolutePointIndex <= DxfGlueEndIndex ? 1 : 0);
                         
-                        AddTrajectoryPoint(axis1Data, axis2Data, cmd, mcode, 0, speed, 
-                            contour.Points.Last().X, contour.Points.Last().Y, 
-                            contour.CenterX, contour.CenterY);
-                        pointCount++;
+                        if (absolutePointIndex >= DxfStartPointIndex)
+                        {
+                            AddTrajectoryPoint(axis1Data, axis2Data, cmd, mcode, 0, GetSpeedForPoint(absolutePointIndex), 
+                                contour.Points.Last().X, contour.Points.Last().Y, 
+                                contour.CenterX, contour.CenterY);
+                            pointCount++;
+                        }
                         absolutePointIndex++;
                     }
                     else
                     {
-                        // Linear (0x0A)
+                        // Linear
                         for (int i = 1; i < contour.Points.Count; i++)
                         {
                             ushort cmd = 0xD00A; // Continuous Path
-                            
                             ushort mcode = (ushort)(absolutePointIndex >= DxfGlueStartIndex && absolutePointIndex <= DxfGlueEndIndex ? 1 : 0);
 
-                            AddTrajectoryPoint(axis1Data, axis2Data, cmd, mcode, 0, speed, 
-                                contour.Points[i].X, contour.Points[i].Y, 0, 0);
-                            pointCount++;
+                            if (absolutePointIndex >= DxfStartPointIndex)
+                            {
+                                AddTrajectoryPoint(axis1Data, axis2Data, cmd, mcode, 0, GetSpeedForPoint(absolutePointIndex), 
+                                    contour.Points[i].X, contour.Points[i].Y, 0, 0);
+                                pointCount++;
+                            }
                             absolutePointIndex++;
                         }
                     }
@@ -224,6 +240,26 @@ namespace WPF_Test_PLC20260124
                                                   NVKProject.PLC.ePLCControl.DeviceName.Buffer, 
                                                   "U0\\G8000", a2Arr);
                                                   
+                            // Update SentBufferRecords for visualization (up to first 30 words)
+                            _sentBufferRecords.Clear();
+                            _sentBufferRecordsAxis2.Clear();
+                            int recordCount = Math.Min(a1Arr.Length, 30);
+                            for (int i = 0; i < recordCount; i++)
+                            {
+                                _sentBufferRecords.Add(new BufferRegisterRecord
+                                {
+                                    Address = $"U0\\G{2000 + i}",
+                                    Value = a1Arr[i]
+                                });
+                                _sentBufferRecordsAxis2.Add(new BufferRegisterRecord
+                                {
+                                    Address = $"U0\\G{8000 + i}",
+                                    Value = a2Arr[i]
+                                });
+                            }
+                            OnPropertyChanged(nameof(SentBufferRecords));
+                            OnPropertyChanged(nameof(SentBufferRecordsAxis2));
+
                             AddLog("PLC", "success", $"Đã truyền {pointCount} điểm quỹ đạo xuống Buffer PLC (U0\\G2000 & U0\\G8000)");
                         }
                         else
@@ -297,6 +333,14 @@ namespace WPF_Test_PLC20260124
                 foreach (var pl in doc.Entities.Polylines2D)
                 {
                     var pts = pl.Vertexes.Select(v => (v.Position.X, v.Position.Y)).ToList();
+                    
+                    // Fix: If the polyline is closed, explicitly add the start point to the end
+                    // so the motion kernel actually executes the closing segment.
+                    if (pl.IsClosed && pts.Count > 0)
+                    {
+                        pts.Add(pts[0]);
+                    }
+
                     contours.Add(new DxfContourInfo
                     {
                         Name = $"Contour {cIdx++}",
@@ -304,6 +348,21 @@ namespace WPF_Test_PLC20260124
                         IsClosed = pl.IsClosed,
                         Layer = pl.Layer.Name,
                         Length = CalculateLength(pts)
+                    });
+                    allPoints.AddRange(pts);
+                }
+
+                // Extract Standalone Points
+                foreach (var pt in doc.Entities.Points)
+                {
+                    var pts = new List<(double X, double Y)> { (pt.Position.X, pt.Position.Y) };
+                    contours.Add(new DxfContourInfo
+                    {
+                        Name = $"Point {cIdx++}",
+                        Points = pts,
+                        IsClosed = false,
+                        Layer = pt.Layer.Name,
+                        Length = 0
                     });
                     allPoints.AddRange(pts);
                 }
@@ -444,6 +503,40 @@ namespace WPF_Test_PLC20260124
                 AddLog("PC", "error", DxfSummary, "BrowseAndLoadDxf");
                 return false;
             }
+        }
+
+        public void RefreshDxfData()
+        {
+            if (DxfContours == null || DxfContours.Count == 0) return;
+
+            var allPoints = new List<(double X, double Y)>();
+            foreach (var contour in DxfContours)
+            {
+                if (contour.Points != null) allPoints.AddRange(contour.Points);
+                if (contour.HasCenter)
+                {
+                    if (contour.IsCircle) AddCircleBoundsPoints(allPoints, contour.CenterX, contour.CenterY, contour.Radius);
+                    else if (contour.IsArc) AddArcBoundsPoints(allPoints, contour.CenterX, contour.CenterY, contour.Radius, contour.StartAngleDeg, contour.EndAngleDeg, contour.ArcClockwise, contour.Points[0], contour.Points.Last());
+                }
+            }
+
+            DxfSampleCount = allPoints.Count;
+
+            if (allPoints.Any())
+            {
+                DxfXMin = allPoints.Min(p => p.X);
+                DxfXMax = allPoints.Max(p => p.X);
+                DxfYMin = allPoints.Min(p => p.Y);
+                DxfYMax = allPoints.Max(p => p.Y);
+                DxfPreviewPathData = GenerateSvgPath(DxfContours, allPoints);
+            }
+            else
+            {
+                DxfPreviewPathData = "";
+            }
+
+            OnPropertyChanged(nameof(DxfContours));
+            OnPropertyChanged(nameof(DxfPreviewPathData));
         }
 
         private double CalculateLength(List<(double X, double Y)> pts)

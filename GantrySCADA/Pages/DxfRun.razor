@@ -65,8 +65,20 @@
                 <div class="absolute inset-0 flex items-center justify-center p-4" @ref="svgContainer" @onwheel="OnMouseWheel" @onwheel:preventDefault="true" @onmousedown="OnMouseDown" @onmousemove="OnMouseMove" @onmouseup="OnMouseUp" @onmouseleave="OnMouseLeave" @onclick="OnSvgClick">
                     <svg viewBox="-5 -5 210 210" class="w-full h-full" preserveAspectRatio="none" style="transform: translate(@(PanX)px, @(PanY)px) scale(@(ZoomLevel)); transform-origin: center; filter: drop-shadow(0 0 8px rgba(0, 229, 255, 0.3));">
                         <g>
-                            <path d="@ViewModel.DxfPreviewPathData" stroke="#00e5ff" stroke-width="0.5" fill="none" vector-effect="non-scaling-stroke" />
+                            <path d="@ViewModel.DxfPreviewPathData" stroke="#00e5ff" stroke-width="0.5" fill="none" vector-effect="non-scaling-stroke" opacity="@(SelectedMotionIndex > 0 ? "0.3" : "1.0")" />
                             
+                            @if (SelectedMotionIndex > 0)
+                            {
+                                string selPath = GetSelectedMotionSvgData();
+                                if (!string.IsNullOrEmpty(selPath))
+                                {
+                                    <path d="@selPath" stroke="#ff3d00" stroke-width="1.5" fill="none" vector-effect="non-scaling-stroke" stroke-dasharray="4 4">
+                                        <animate attributeName="stroke-dashoffset" from="8" to="0" dur="0.4s" repeatCount="indefinite" />
+                                    </path>
+                                    <path d="@selPath" stroke="#ff3d00" stroke-width="3" fill="none" vector-effect="non-scaling-stroke" opacity="0.4" />
+                                }
+                            }
+
                             @if (ViewModel.SelectedPointIndex > 0)
                             {
                                 var selPt = GetSelectedPointCoords();
@@ -111,7 +123,13 @@
             <div class="flex-[3] flex flex-col bg-surface-container-low border border-outline-variant/20 overflow-hidden">
                 <div class="bg-surface-container-highest p-3 border-b border-outline-variant/30 flex justify-between items-center shrink-0">
                     <span class="font-headline font-bold uppercase text-xs tracking-widest">POINT_DATA_SET</span>
-                    <span class="text-[10px] text-primary-container font-mono">COUNT: @(GetTotalPointCount())</span>
+                    <div class="flex gap-2">
+                        @if (ViewModel.SelectedPointIndex > 0)
+                        {
+                            <button class="bg-surface border border-outline-variant/30 px-2 py-0.5 text-[10px] text-primary hover:bg-surface-container-high transition-colors" @onclick="AddSelectedPointToMotion">+ ADD TO MOTION</button>
+                        }
+                        <span class="text-[10px] text-primary-container font-mono ml-2">COUNT: @(GetTotalPointCount())</span>
+                    </div>
                 </div>
                 <div class="flex-1 overflow-auto overflow-x-hidden [scrollbar-width:thin] [scrollbar-color:var(--c-outline-variant)_transparent]">
                     <table class="w-full text-left text-[11px] font-mono border-collapse">
@@ -174,7 +192,15 @@
             <div class="flex-[2] flex flex-col bg-surface-container-lowest border border-outline-variant/50 overflow-hidden">
                 <div class="bg-surface-container-highest p-3 border-b border-outline-variant/30 flex justify-between items-center shrink-0">
                     <span class="font-headline font-bold uppercase text-xs tracking-widest">MOTION_KERNEL</span>
-                    <span class="text-[10px] text-primary-container font-mono">POINTS: @(GetMotionPointCount()) | SPEED: @(ViewModel.DxfDefaultSpeed)um/s</span>
+                    <div class="flex gap-2">
+                        @if (SelectedMotionIndex > 0)
+                        {
+                            <button class="bg-surface border border-outline-variant/30 px-2 py-0.5 text-[10px] text-primary hover:bg-surface-container-high transition-colors" @onclick="MoveContourUp">▲ UP</button>
+                            <button class="bg-surface border border-outline-variant/30 px-2 py-0.5 text-[10px] text-primary hover:bg-surface-container-high transition-colors" @onclick="MoveContourDown">▼ DOWN</button>
+                            <button class="bg-error/20 border border-error/50 px-2 py-0.5 text-[10px] text-error hover:bg-error/30 transition-colors" @onclick="DeleteContour">✕ DEL</button>
+                        }
+                        <span class="text-[10px] text-primary-container font-mono ml-2">POINTS: @(GetMotionPointCount()) | SPEED: @(ViewModel.DxfDefaultSpeed)um/s</span>
+                    </div>
                 </div>
                 <div class="flex-1 overflow-auto overflow-x-hidden [scrollbar-width:thin] [scrollbar-color:var(--c-outline-variant)_transparent]">
                     <table class="w-full text-left text-[11px] font-mono border-collapse">
@@ -194,70 +220,59 @@
                             @if (ViewModel.DxfContours != null && ViewModel.DxfContours.Count > 0)
                             {
                                 int motionIdx = 1;
+                                int renderedPoints = 0;
                                 int totalMotionPts = GetMotionPointCount();
                                 foreach (var contour in ViewModel.DxfContours)
                                 {
-                                    if (contour.Points == null || contour.Points.Count < 2) continue;
+                                    if (contour.Points == null || contour.Points.Count == 0) continue;
 
+                                    // 1. Travel Move to Start Point
+                                    if (motionIdx >= ViewModel.DxfStartPointIndex)
+                                    {
+                                        renderedPoints++;
+                                        bool isLast = renderedPoints == totalMotionPts;
+                                        ushort cmd = isLast ? (ushort)0x100A : (ushort)0xD00A;
+                                        var pt = contour.Points[0];
+                                        string rowBg = motionIdx == SelectedMotionIndex ? "bg-primary/20" : (motionIdx % 2 == 0 ? "bg-surface-container-lowest" : "bg-surface-container-low");
+                                        string borderClass = motionIdx == SelectedMotionIndex ? "border-l-4 border-primary" : "";
+                                        int currentMotionIdx = motionIdx;
+                                        <tr class="@rowBg @borderClass h-8 hover:bg-surface-container-high transition-colors cursor-pointer" @onclick="() => SelectMotion(currentMotionIdx)">
+                                            <td class="p-2 text-outline text-center">@motionIdx</td>
+                                            <td class="p-2 text-on-surface font-bold">H@(cmd.ToString("X4"))</td>
+                                            <td class="p-2">
+                                                <div class="flex items-center gap-2">
+                                                    <div class="w-2 h-2 rounded-full bg-outline/20"></div>
+                                                    <span class="text-outline">0</span>
+                                                </div>
+                                            </td>
+                                            <td class="p-2">
+                                                <input type="number" 
+                                                       class="w-16 bg-surface border border-outline-variant/30 rounded px-1 py-0.5 text-xs text-primary-fixed focus:outline-none focus:border-primary"
+                                                       value="@ViewModel.GetSpeedForPoint(currentMotionIdx)"
+                                                       @onchange="@(e => ViewModel.SetSpeedForPoint(currentMotionIdx, Convert.ToUInt32(e.Value)))" />
+                                            </td>
+                                            <td class="p-2 text-primary-fixed-dim">@((int)(pt.X * 1000))</td>
+                                            <td class="p-2 text-primary-fixed-dim">@((int)(pt.Y * 1000))</td>
+                                            <td class="p-2 text-outline">0</td>
+                                            <td class="p-2 text-outline">0</td>
+                                        </tr>
+                                    }
+                                    motionIdx++;
+
+                                    // 2. Process actual contour
                                     if (contour.IsCircle)
                                     {
-                                        bool isLast = motionIdx == totalMotionPts;
-                                        ushort cmd = isLast ? (ushort)0x100F : (ushort)0xD00F;
-                                        bool glue = motionIdx >= ViewModel.DxfGlueStartIndex && motionIdx <= ViewModel.DxfGlueEndIndex;
-                                        var ep = contour.Points.Last();
-                                        string rowBg = motionIdx % 2 == 0 ? "bg-surface-container-lowest" : "bg-surface-container-low";
-                                        <tr class="@rowBg h-8 hover:bg-surface-container-high transition-colors">
-                                            <td class="p-2 text-outline text-center">@motionIdx</td>
-                                            <td class="p-2 text-on-surface font-bold">H@(cmd.ToString("X4"))</td>
-                                            <td class="p-2">
-                                                <div class="flex items-center gap-2">
-                                                    <div class="w-2 h-2 rounded-full @(glue ? "bg-secondary shadow-[0_0_8px_var(--c-secondary)]" : "bg-outline/20")"></div>
-                                                    <span class="@(glue ? "text-secondary font-bold" : "text-outline")">@(glue ? "1" : "0")</span>
-                                                </div>
-                                            </td>
-                                            <td class="p-2 text-outline">@ViewModel.DxfDefaultSpeed</td>
-                                            <td class="p-2 text-primary-fixed-dim">@((int)(ep.X * 1000))</td>
-                                            <td class="p-2 text-primary-fixed-dim">@((int)(ep.Y * 1000))</td>
-                                            <td class="p-2 text-secondary">@((int)(contour.CenterX * 1000))</td>
-                                            <td class="p-2 text-secondary">@((int)(contour.CenterY * 1000))</td>
-                                        </tr>
-                                        motionIdx++;
-                                    }
-                                    else if (contour.IsArc)
-                                    {
-                                        bool isLast = motionIdx == totalMotionPts;
-                                        ushort cmdBase = contour.ArcClockwise ? (ushort)0x000F : (ushort)0x0010;
-                                        ushort cmd = isLast ? (ushort)(0x1000 | cmdBase) : (ushort)(0xD000 | cmdBase);
-                                        bool glue = motionIdx >= ViewModel.DxfGlueStartIndex && motionIdx <= ViewModel.DxfGlueEndIndex;
-                                        var ep = contour.Points.Last();
-                                        string rowBg = motionIdx % 2 == 0 ? "bg-surface-container-lowest" : "bg-surface-container-low";
-                                        <tr class="@rowBg h-8 hover:bg-surface-container-high transition-colors">
-                                            <td class="p-2 text-outline text-center">@motionIdx</td>
-                                            <td class="p-2 text-on-surface font-bold">H@(cmd.ToString("X4"))</td>
-                                            <td class="p-2">
-                                                <div class="flex items-center gap-2">
-                                                    <div class="w-2 h-2 rounded-full @(glue ? "bg-secondary shadow-[0_0_8px_var(--c-secondary)]" : "bg-outline/20")"></div>
-                                                    <span class="@(glue ? "text-secondary font-bold" : "text-outline")">@(glue ? "1" : "0")</span>
-                                                </div>
-                                            </td>
-                                            <td class="p-2 text-outline">@ViewModel.DxfDefaultSpeed</td>
-                                            <td class="p-2 text-primary-fixed-dim">@((int)(ep.X * 1000))</td>
-                                            <td class="p-2 text-primary-fixed-dim">@((int)(ep.Y * 1000))</td>
-                                            <td class="p-2 text-secondary">@((int)(contour.CenterX * 1000))</td>
-                                            <td class="p-2 text-secondary">@((int)(contour.CenterY * 1000))</td>
-                                        </tr>
-                                        motionIdx++;
-                                    }
-                                    else
-                                    {
-                                        for (int i = 1; i < contour.Points.Count; i++)
+                                        if (motionIdx >= ViewModel.DxfStartPointIndex)
                                         {
-                                            bool isLast = motionIdx == totalMotionPts;
-                                            ushort cmd = isLast ? (ushort)0x100A : (ushort)0xD00A;
+                                            renderedPoints++;
+                                            bool isLast = renderedPoints == totalMotionPts;
+                                            ushort cmd = isLast ? (ushort)0x100F : (ushort)0xD00F;
                                             bool glue = motionIdx >= ViewModel.DxfGlueStartIndex && motionIdx <= ViewModel.DxfGlueEndIndex;
-                                            var pt = contour.Points[i];
-                                            string rowBg = motionIdx % 2 == 0 ? "bg-surface-container-lowest" : "bg-surface-container-low";
-                                            <tr class="@rowBg h-8 hover:bg-surface-container-high transition-colors">
+                                            var ep = contour.Points.Last();
+                                            string rowBg = motionIdx == SelectedMotionIndex ? "bg-primary/20" : (motionIdx % 2 == 0 ? "bg-surface-container-lowest" : "bg-surface-container-low");
+                                            string borderClass = motionIdx == SelectedMotionIndex ? "border-l-4 border-primary" : "";
+                                            int currentMotionIdx = motionIdx;
+                                            <tr class="@rowBg @borderClass h-8 hover:bg-surface-container-high transition-colors cursor-pointer" @onclick="() => SelectMotion(currentMotionIdx)">
                                                 <td class="p-2 text-outline text-center">@motionIdx</td>
                                                 <td class="p-2 text-on-surface font-bold">H@(cmd.ToString("X4"))</td>
                                                 <td class="p-2">
@@ -266,12 +281,91 @@
                                                         <span class="@(glue ? "text-secondary font-bold" : "text-outline")">@(glue ? "1" : "0")</span>
                                                     </div>
                                                 </td>
-                                                <td class="p-2 text-outline">@ViewModel.DxfDefaultSpeed</td>
-                                                <td class="p-2 text-primary-fixed-dim">@((int)(pt.X * 1000))</td>
-                                                <td class="p-2 text-primary-fixed-dim">@((int)(pt.Y * 1000))</td>
-                                                <td class="p-2 text-outline">0</td>
-                                                <td class="p-2 text-outline">0</td>
+                                                <td class="p-2">
+                                                    <input type="number" 
+                                                           class="w-16 bg-surface border border-outline-variant/30 rounded px-1 py-0.5 text-xs text-primary-fixed focus:outline-none focus:border-primary"
+                                                           value="@ViewModel.GetSpeedForPoint(currentMotionIdx)"
+                                                           @onchange="@(e => ViewModel.SetSpeedForPoint(currentMotionIdx, Convert.ToUInt32(e.Value)))" />
+                                                </td>
+                                                <td class="p-2 text-primary-fixed-dim">@((int)(ep.X * 1000))</td>
+                                                <td class="p-2 text-primary-fixed-dim">@((int)(ep.Y * 1000))</td>
+                                                <td class="p-2 text-secondary">@((int)(contour.CenterX * 1000))</td>
+                                                <td class="p-2 text-secondary">@((int)(contour.CenterY * 1000))</td>
                                             </tr>
+                                        }
+                                        motionIdx++;
+                                    }
+                                    else if (contour.IsArc)
+                                    {
+                                        if (motionIdx >= ViewModel.DxfStartPointIndex)
+                                        {
+                                            renderedPoints++;
+                                            bool isLast = renderedPoints == totalMotionPts;
+                                            ushort cmdBase = contour.ArcClockwise ? (ushort)0x000F : (ushort)0x0010;
+                                            ushort cmd = isLast ? (ushort)(0x1000 | cmdBase) : (ushort)(0xD000 | cmdBase);
+                                            bool glue = motionIdx >= ViewModel.DxfGlueStartIndex && motionIdx <= ViewModel.DxfGlueEndIndex;
+                                            var ep = contour.Points.Last();
+                                            string rowBg = motionIdx == SelectedMotionIndex ? "bg-primary/20" : (motionIdx % 2 == 0 ? "bg-surface-container-lowest" : "bg-surface-container-low");
+                                            string borderClass = motionIdx == SelectedMotionIndex ? "border-l-4 border-primary" : "";
+                                            int currentMotionIdx = motionIdx;
+                                            <tr class="@rowBg @borderClass h-8 hover:bg-surface-container-high transition-colors cursor-pointer" @onclick="() => SelectMotion(currentMotionIdx)">
+                                                <td class="p-2 text-outline text-center">@motionIdx</td>
+                                                <td class="p-2 text-on-surface font-bold">H@(cmd.ToString("X4"))</td>
+                                                <td class="p-2">
+                                                    <div class="flex items-center gap-2">
+                                                        <div class="w-2 h-2 rounded-full @(glue ? "bg-secondary shadow-[0_0_8px_var(--c-secondary)]" : "bg-outline/20")"></div>
+                                                        <span class="@(glue ? "text-secondary font-bold" : "text-outline")">@(glue ? "1" : "0")</span>
+                                                    </div>
+                                                </td>
+                                                <td class="p-2">
+                                                    <input type="number" 
+                                                           class="w-16 bg-surface border border-outline-variant/30 rounded px-1 py-0.5 text-xs text-primary-fixed focus:outline-none focus:border-primary"
+                                                           value="@ViewModel.GetSpeedForPoint(currentMotionIdx)"
+                                                           @onchange="@(e => ViewModel.SetSpeedForPoint(currentMotionIdx, Convert.ToUInt32(e.Value)))" />
+                                                </td>
+                                                <td class="p-2 text-primary-fixed-dim">@((int)(ep.X * 1000))</td>
+                                                <td class="p-2 text-primary-fixed-dim">@((int)(ep.Y * 1000))</td>
+                                                <td class="p-2 text-secondary">@((int)(contour.CenterX * 1000))</td>
+                                                <td class="p-2 text-secondary">@((int)(contour.CenterY * 1000))</td>
+                                            </tr>
+                                        }
+                                        motionIdx++;
+                                    }
+                                    else
+                                    {
+                                        for (int i = 1; i < contour.Points.Count; i++)
+                                        {
+                                            if (motionIdx >= ViewModel.DxfStartPointIndex)
+                                            {
+                                                renderedPoints++;
+                                                bool isLast = renderedPoints == totalMotionPts;
+                                                ushort cmd = isLast ? (ushort)0x100A : (ushort)0xD00A;
+                                                bool glue = motionIdx >= ViewModel.DxfGlueStartIndex && motionIdx <= ViewModel.DxfGlueEndIndex;
+                                                var pt = contour.Points[i];
+                                                string rowBg = motionIdx == SelectedMotionIndex ? "bg-primary/20" : (motionIdx % 2 == 0 ? "bg-surface-container-lowest" : "bg-surface-container-low");
+                                                string borderClass = motionIdx == SelectedMotionIndex ? "border-l-4 border-primary" : "";
+                                                int currentMotionIdx = motionIdx;
+                                                <tr class="@rowBg @borderClass h-8 hover:bg-surface-container-high transition-colors cursor-pointer" @onclick="() => SelectMotion(currentMotionIdx)">
+                                                    <td class="p-2 text-outline text-center">@motionIdx</td>
+                                                    <td class="p-2 text-on-surface font-bold">H@(cmd.ToString("X4"))</td>
+                                                    <td class="p-2">
+                                                        <div class="flex items-center gap-2">
+                                                            <div class="w-2 h-2 rounded-full @(glue ? "bg-secondary shadow-[0_0_8px_var(--c-secondary)]" : "bg-outline/20")"></div>
+                                                            <span class="@(glue ? "text-secondary font-bold" : "text-outline")">@(glue ? "1" : "0")</span>
+                                                        </div>
+                                                    </td>
+                                                    <td class="p-2">
+                                                        <input type="number" 
+                                                               class="w-16 bg-surface border border-outline-variant/30 rounded px-1 py-0.5 text-xs text-primary-fixed focus:outline-none focus:border-primary"
+                                                               value="@ViewModel.GetSpeedForPoint(currentMotionIdx)"
+                                                               @onchange="@(e => ViewModel.SetSpeedForPoint(currentMotionIdx, Convert.ToUInt32(e.Value)))" />
+                                                    </td>
+                                                    <td class="p-2 text-primary-fixed-dim">@((int)(pt.X * 1000))</td>
+                                                    <td class="p-2 text-primary-fixed-dim">@((int)(pt.Y * 1000))</td>
+                                                    <td class="p-2 text-outline">0</td>
+                                                    <td class="p-2 text-outline">0</td>
+                                                </tr>
+                                            }
                                             motionIdx++;
                                         }
                                     }
@@ -594,9 +688,18 @@
         ViewModel.AddLog("UI", "info", "DXF Run RESUMED");
     }
 
+    private int SelectedMotionIndex = -1;
+
+    private void SelectMotion(int motionIdx)
+    {
+        SelectedMotionIndex = motionIdx;
+        ViewModel.SelectedPointIndex = -1; // Unselect point from the other table
+    }
+
     private void SelectPoint(int stt)
     {
         ViewModel.SelectedPointIndex = stt;
+        SelectedMotionIndex = -1; // Unselect motion from the other table
         var pt = GetSelectedPointCoords();
         if (pt.HasValue)
         {
@@ -643,15 +746,219 @@
     {
         if (ViewModel.DxfContours == null) return 0;
         int count = 0;
+        int motionIdx = 1;
         foreach (var c in ViewModel.DxfContours)
         {
-            if (c.Points == null || c.Points.Count < 2) continue;
+            if (c.Points == null || c.Points.Count == 0) continue;
+            
+            // Travel move
+            if (motionIdx >= ViewModel.DxfStartPointIndex) count++;
+            motionIdx++;
+
             if (c.IsCircle || c.IsArc)
-                count++;
+            {
+                if (motionIdx >= ViewModel.DxfStartPointIndex) count++;
+                motionIdx++;
+            }
             else
-                count += c.Points.Count - 1; // Linear: skip first point
+            {
+                for (int i = 1; i < c.Points.Count; i++)
+                {
+                    if (motionIdx >= ViewModel.DxfStartPointIndex) count++;
+                    motionIdx++;
+                }
+            }
         }
         return count;
+    }
+
+    private string GetSelectedMotionSvgData()
+    {
+        if (SelectedMotionIndex <= 0 || ViewModel.DxfContours == null) return "";
+
+        int motionIdx = 1;
+        double scale = ViewModel.DxfSvgScale;
+        double minX = ViewModel.DxfSvgMinX;
+        double minY = ViewModel.DxfSvgMinY;
+        
+        string TrX(double x) => ((x - minX) * scale).ToString(System.Globalization.CultureInfo.InvariantCulture);
+        string TrY(double y) => (200 - (y - minY) * scale).ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+        double lastX = 0;
+        double lastY = 0;
+        bool hasLastPt = false;
+
+        foreach (var contour in ViewModel.DxfContours)
+        {
+            if (contour.Points == null || contour.Points.Count == 0) continue;
+
+            if (motionIdx >= ViewModel.DxfStartPointIndex)
+            {
+                if (motionIdx == SelectedMotionIndex)
+                {
+                    if (!hasLastPt) return "";
+                    return $"M {TrX(lastX)} {TrY(lastY)} L {TrX(contour.Points[0].X)} {TrY(contour.Points[0].Y)}";
+                }
+            }
+            lastX = contour.Points[0].X;
+            lastY = contour.Points[0].Y;
+            hasLastPt = true;
+            motionIdx++;
+
+            if (contour.IsCircle)
+            {
+                if (motionIdx >= ViewModel.DxfStartPointIndex)
+                {
+                    if (motionIdx == SelectedMotionIndex)
+                    {
+                        double cx = (contour.CenterX - minX) * scale;
+                        double cy = 200 - (contour.CenterY - minY) * scale;
+                        double r = contour.Radius * scale;
+                        string rStr = r.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                        string cxStr = cx.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                        string cyStr = cy.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                        return $"M {cx + r} {cy} A {rStr} {rStr} 0 1 1 {cx - r} {cy} A {rStr} {rStr} 0 1 1 {cx + r} {cy}";
+                    }
+                }
+                var pt = contour.Points.Last();
+                lastX = pt.X; lastY = pt.Y;
+                motionIdx++;
+            }
+            else if (contour.IsArc)
+            {
+                if (motionIdx >= ViewModel.DxfStartPointIndex)
+                {
+                    if (motionIdx == SelectedMotionIndex)
+                    {
+                        var pStart = (X: lastX, Y: lastY);
+                        var pEnd = contour.Points.Last();
+                        double sx = (pStart.X - minX) * scale;
+                        double sy = 200 - (pStart.Y - minY) * scale;
+                        double ex = (pEnd.X - minX) * scale;
+                        double ey = 200 - (pEnd.Y - minY) * scale;
+                        double r = contour.Radius * scale;
+                        
+                        double sweep = contour.ArcSweepDeg > 0 ? contour.ArcSweepDeg : 180;
+                        int largeArcFlag = sweep > 180.0 ? 1 : 0;
+                        int sweepFlag = contour.ArcClockwise ? 1 : 0;
+                        
+                        string sxStr = sx.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                        string syStr = sy.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                        string exStr = ex.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                        string eyStr = ey.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                        string rStr = r.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                        
+                        return $"M {sxStr} {syStr} A {rStr} {rStr} 0 {largeArcFlag} {sweepFlag} {exStr} {eyStr}";
+                    }
+                }
+                var pt = contour.Points.Last();
+                lastX = pt.X; lastY = pt.Y;
+                motionIdx++;
+            }
+            else
+            {
+                for (int i = 1; i < contour.Points.Count; i++)
+                {
+                    if (motionIdx >= ViewModel.DxfStartPointIndex)
+                    {
+                        if (motionIdx == SelectedMotionIndex)
+                        {
+                            return $"M {TrX(lastX)} {TrY(lastY)} L {TrX(contour.Points[i].X)} {TrY(contour.Points[i].Y)}";
+                        }
+                    }
+                    lastX = contour.Points[i].X;
+                    lastY = contour.Points[i].Y;
+                    motionIdx++;
+                }
+            }
+        }
+        return "";
+    }
+
+    private int FindContourIndexForMotion(int motionIdx)
+    {
+        if (ViewModel.DxfContours == null) return -1;
+        int mIdx = 1;
+        for (int i = 0; i < ViewModel.DxfContours.Count; i++)
+        {
+            var contour = ViewModel.DxfContours[i];
+            if (contour.Points == null || contour.Points.Count == 0) continue;
+            
+            int count = 1; // Travel move
+            if (contour.IsCircle || contour.IsArc) count++;
+            else count += contour.Points.Count - 1;
+
+            if (motionIdx >= mIdx && motionIdx < mIdx + count)
+                return i;
+            
+            mIdx += count;
+        }
+        return -1;
+    }
+
+    private int GetContourMotionCount(MainViewModel.DxfContourInfo contour)
+    {
+        if (contour.Points == null || contour.Points.Count == 0) return 0;
+        int count = 1;
+        if (contour.IsCircle || contour.IsArc) count++;
+        else count += contour.Points.Count - 1;
+        return count;
+    }
+
+    private void MoveContourUp()
+    {
+        int idx = FindContourIndexForMotion(SelectedMotionIndex);
+        if (idx > 0 && ViewModel.DxfContours != null)
+        {
+            var temp = ViewModel.DxfContours[idx];
+            ViewModel.DxfContours[idx] = ViewModel.DxfContours[idx - 1];
+            ViewModel.DxfContours[idx - 1] = temp;
+            ViewModel.RefreshDxfData();
+            SelectedMotionIndex -= GetContourMotionCount(ViewModel.DxfContours[idx]);
+        }
+    }
+
+    private void MoveContourDown()
+    {
+        int idx = FindContourIndexForMotion(SelectedMotionIndex);
+        if (ViewModel.DxfContours != null && idx >= 0 && idx < ViewModel.DxfContours.Count - 1)
+        {
+            var temp = ViewModel.DxfContours[idx];
+            ViewModel.DxfContours[idx] = ViewModel.DxfContours[idx + 1];
+            ViewModel.DxfContours[idx + 1] = temp;
+            ViewModel.RefreshDxfData();
+            SelectedMotionIndex += GetContourMotionCount(ViewModel.DxfContours[idx]);
+        }
+    }
+
+    private void DeleteContour()
+    {
+        int idx = FindContourIndexForMotion(SelectedMotionIndex);
+        if (idx >= 0 && ViewModel.DxfContours != null)
+        {
+            ViewModel.DxfContours.RemoveAt(idx);
+            ViewModel.RefreshDxfData();
+            SelectedMotionIndex = -1;
+        }
+    }
+
+    private void AddSelectedPointToMotion()
+    {
+        var pt = GetSelectedPointCoords();
+        if (pt.HasValue && ViewModel.DxfContours != null)
+        {
+            var newContour = new MainViewModel.DxfContourInfo
+            {
+                Name = $"Manual Point {ViewModel.DxfContours.Count + 1}",
+                Points = new List<(double X, double Y)> { pt.Value },
+                IsClosed = false,
+                Layer = "Manual",
+                Length = 0
+            };
+            ViewModel.DxfContours.Add(newContour);
+            ViewModel.RefreshDxfData();
+            ViewModel.AddLog("UI", "success", $"Added manual point to motion.", "DxfRun");
+        }
     }
 
     private async Task OnSvgClick(MouseEventArgs e)

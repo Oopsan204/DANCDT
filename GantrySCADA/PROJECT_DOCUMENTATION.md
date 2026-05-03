@@ -76,12 +76,12 @@ App.xaml.cs
 | File | Vai trò |
 | --- | --- |
 | `MainViewModel.cs` | Kết nối PLC, disconnect, monitor thread, auto reconnect |
-| `MainViewModel.State.cs` | State chung, mapping địa chỉ, log, custom memory, helper địa chỉ |
+| `MainViewModel.State.cs` | State chung, mapping địa chỉ, log, custom memory, buffer records |
 | `MainViewModel.ReadFeature.cs` | Read cycle: D word, D32 coordinate, M/X/Y bit |
 | `MainViewModel.WriteFeature.cs` | Pending write queue, write D32/M/X/Y/buffer |
 | `MainViewModel.MotionAndLoggingFeature.cs` | JogStart/JogStop, bit helper, AddLog |
 | `MainViewModel.CustomMemoryFeature.cs` | Đọc custom memory từ Dashboard/Telemetry |
-| `MainViewModel.DxfFeature.cs` | Load DXF, SVG preview, compile trajectory, write D2000/D8000 |
+| `MainViewModel.DxfFeature.cs` | Load DXF, Trajectory generation (Travel moves, per-point speed) |
 | `PlcMcShim.cs` | `NVKProject.PLC.ePLCControl` shim dùng HslCommunication MC Protocol |
 | `MxBufferClient.cs` | Client COM MX Component cho buffer memory `U...\G...` |
 | `PlcBitHelper.cs` | Helper thao tác bit/word |
@@ -169,6 +169,32 @@ dotnet build GantrySCADA.csproj --no-restore
 ```
 
 Kết quả tại 2026-04-29: build thành công, `0 Warning(s), 0 Error(s)`.
+
+---
+
+## Cập nhật hiện trạng kiến trúc 2026-05-03
+
+Mục này ghi nhận các thay đổi nâng cao trong hệ thống DXF/CAM và tính năng giám sát Buffer.
+
+### Cải tiến DXF/CAM Trajectory
+- **Hệ thống Travel Move (G0)**: Tự động chèn điểm di chuyển không làm việc (Travel) giữa các Contour. Điểm này luôn có M-Code = 0 (tắt bơm/keo) và lệnh nội suy mượt (HD00A).
+- **Điều khiển tốc độ từng điểm**: Mỗi đoạn chuyển động (Travel, Linear, Arc, Circle) hiện có thể cấu hình tốc độ (Speed) riêng biệt ngay trên UI `DxfRun.razor`.
+- **Biên tập Quỹ đạo (Edit Trajectory)**:
+    - Cho phép thay đổi thứ tự ưu tiên các Contour (Move Up/Down).
+    - Xóa các Contour không mong muốn.
+    - Thêm điểm thủ công (Manual Point) vào danh sách chuyển động từ bảng điểm CAD.
+- **Xử lý hình học nâng cao**:
+    - Tự động đóng kín Polyline (IsClosed) bằng cách nối điểm cuối về điểm đầu.
+    - Hỗ trợ thực thể `Point` từ file DXF.
+
+### Giám sát Buffer Memory (U0\G...)
+- **Buffer Monitor UI**: Tích hợp thêm tab giám sát vùng nhớ Buffer trong `LogMonitor.razor`.
+- **Visualization**: Hiển thị 30 Word dữ liệu đầu tiên được truyền xuống `U0\G2000` (Axis 1) và `U0\G8000` (Axis 2).
+- **Dữ liệu nhị phân**: Chuyển đổi Word sang dạng Bit (15 -> 0) trực quan để kiểm tra Command Code và M-Code.
+
+### Cập nhật UI/UX
+- **Highlighting**: Khi chọn một dòng trong bảng Motion, đoạn quỹ đạo tương ứng sẽ được highlight trên SVG Preview.
+- **Status tracking**: Theo dõi chi tiết số điểm thực tế đã truyền và số điểm bị bỏ qua dựa trên `DxfStartPointIndex`.
 
 ---
 
@@ -2387,3 +2413,63 @@ Hệ thống sử dụng các mã Hex kết hợp giữa mã gốc (0A, 0F, 10) 
 | | Continuous Path | **HD010** | Chạy mượt liên tục không phanh. |
 
 ---
+
+### 📦 Ví dụ Khung Truyền: Điểm 1 và Điểm 2
+
+Giả định tình huống chạy quỹ đạo đường thẳng (Linear):
+*   **Tốc độ:** 20,000 µm/s (`20000` ở từ thấp, `0` ở từ cao).
+*   **Bơm keo:** Cả điểm 1 và điểm 2 đều nằm trong vùng bơm keo (M-Code = 1).
+*   **Điểm 1 (Chạy liên tục):** Lệnh `HD00A`. Vị trí X = 15.5 mm (`15500` µm), Y = 20.0 mm (`20000` µm). 
+*   **Điểm 2 (Điểm kết thúc - END):** Lệnh `H100A`. Vị trí X = 50.0 mm (`50000` µm), Y = 50.0 mm (`50000` µm). 
+*   **Thời gian chờ (Dwell) & Tọa độ tâm:** Bằng `0`.
+
+#### 1. Trục 1 (X) - Ghi vào `U0\G2000`
+
+| Mảng Index | Địa chỉ PLC | Giá trị (Dec) | Ý nghĩa |
+| :--- | :--- | :--- | :--- |
+| **ĐIỂM 1** | | | |
+| `[0]` | `U0\G2000` | **53258** | Lệnh chạy (0xD00A - Linear Continuous) |
+| `[1]` | `U0\G2001` | **1** | M-Code (Bật keo) |
+| `[2]` | `U0\G2002` | **0** | Dwell (Từ thấp) |
+| `[3]` | `U0\G2003` | **0** | Dwell (Từ cao) |
+| `[4]` | `U0\G2004` | **20000** | Tốc độ (Từ thấp) |
+| `[5]` | `U0\G2005` | **0** | Tốc độ (Từ cao) |
+| `[6]` | `U0\G2006` | **15500** | Vị trí X (Ví dụ: 15.5 mm) |
+| `[7]` | `U0\G2007` | **0** | Vị trí X (Từ cao) |
+| `[8]` | `U0\G2008` | **0** | Toạ độ Tâm Cung Tròn X |
+| `[9]` | `U0\G2009` | **0** | Toạ độ Tâm Cung Tròn X (Từ cao) |
+| **ĐIỂM 2** | | | |
+| `[10]` | `U0\G2010` | **4106** | Lệnh dừng (0x100A - Linear END) |
+| `[11]` | `U0\G2011` | **1** | M-Code (Bật keo) |
+| `[12]` | `U0\G2012` | **0** | Dwell (Từ thấp) |
+| `[13]` | `U0\G2013` | **0** | Dwell (Từ cao) |
+| `[14]` | `U0\G2014` | **20000** | Tốc độ (Từ thấp) |
+| `[15]` | `U0\G2015` | **0** | Tốc độ (Từ cao) |
+| `[16]` | `U0\G2016` | **50000** | Vị trí X (Ví dụ: 50.0 mm) |
+| `[17]` | `U0\G2017` | **0** | Vị trí X (Từ cao) |
+| `[18]` | `U0\G2018` | **0** | Toạ độ Tâm Cung Tròn X |
+| `[19]` | `U0\G2019` | **0** | Toạ độ Tâm Cung Tròn X (Từ cao) |
+
+#### 2. Trục 2 (Y) - Ghi vào `U0\G8000`
+
+Tương tự như trục 1, mảng `axis2Data` sẽ ghi vào `U0\G8000`, chỉ khác vị trí Y ở `G8006`/`G8007` (Điểm 1) và `G8016`/`G8017` (Điểm 2).
+
+| Mảng Index | Địa chỉ PLC | Giá trị (Dec) | Ý nghĩa |
+| :--- | :--- | :--- | :--- |
+| **ĐIỂM 1** | | | |
+| `[0]` | `U0\G8000` | **53258** | Lệnh chạy (0xD00A - Linear Continuous) |
+| `[1]` | `U0\G8001` | **1** | M-Code (Bật keo) |
+| `[2]` | `U0\G8002` | **0** | Dwell (Từ thấp) |
+| `[3]` | `U0\G8003` | **0** | Dwell (Từ cao) |
+| `[4]` | `U0\G8004` | **20000** | Tốc độ (Từ thấp) |
+| `[5]` | `U0\G8005` | **0** | Tốc độ (Từ cao) |
+| `[6]` | `U0\G8006` | **20000** | Vị trí Y (Ví dụ: 20.0 mm) |
+| `[7]` | `U0\G8007` | **0** | Vị trí Y (Từ cao) |
+| `[8]` | `U0\G8008` | **0** | Toạ độ Tâm Cung Tròn Y |
+| `[9]` | `U0\G8009` | **0** | Toạ độ Tâm Cung Tròn Y (Từ cao) |
+| **ĐIỂM 2** | | | |
+| `[10]` | `U0\G8010` | **4106** | Lệnh dừng (0x100A - Linear END) |
+| `[11]` | `U0\G8011` | **1** | M-Code (Bật keo) |
+| `...` | `...` | `...` | *(Tiếp tục tương tự)* |
+| `[16]` | `U0\G8016` | **50000** | Vị trí Y (Ví dụ: 50.0 mm) |
+| `[17]` | `U0\G8017` | **0** | Vị trí Y (Từ cao) |
