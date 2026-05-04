@@ -137,23 +137,27 @@ namespace WPF_Test_PLC20260124
 
         public void AddLog(string source, string status, string message, string detail = "")
         {
-            if (_allLogs.Count > 0)
-                _allLogs[^1].IsNewest = false;
-
-            var log = new LogItem
+            // Thread-safe logging: protect _allLogs from Monitor thread + UI thread collision
+            lock (_logLock)
             {
-                Source = source,
-                Status = status,
-                Message = message,
-                Detail = detail,
-                IsNewest = true
-            };
+                if (_allLogs.Count > 0)
+                    _allLogs[^1].IsNewest = false;
 
-            _allLogs.Add(log);
-            if (_allLogs.Count > 500)
-                _allLogs.RemoveAt(0);
+                var log = new LogItem
+                {
+                    Source = source,
+                    Status = status,
+                    Message = message,
+                    Detail = detail,
+                    IsNewest = true
+                };
 
-            LogAdded?.Invoke(this, log);
+                _allLogs.Add(log);
+                if (_allLogs.Count > 500)
+                    _allLogs.RemoveAt(0);
+
+                LogAdded?.Invoke(this, log);
+            }
         }
     }
 }

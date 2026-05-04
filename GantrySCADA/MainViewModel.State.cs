@@ -87,6 +87,7 @@ namespace WPF_Test_PLC20260124
         }
 
         private List<LogItem> _allLogs = new();
+        private readonly object _logLock = new();  // Thread-safe logging
         public List<LogItem> AllLogs => _allLogs;
 
         public event EventHandler<LogItem>? LogAdded;
