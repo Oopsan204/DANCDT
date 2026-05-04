@@ -115,7 +115,7 @@ namespace WPF_Test_PLC20260124
 
         private bool ReadDevice(int iAddress)
         {
-            if ((iAddress - D_R_V) > 0 && (iAddress - D_R_V) < arr_R_V.Length)
+            if ((iAddress - D_R_V) >= 0 && (iAddress - D_R_V) < arr_R_V.Length)
             {
                 return arr_R_V[iAddress - D_R_V] != 0;
             }

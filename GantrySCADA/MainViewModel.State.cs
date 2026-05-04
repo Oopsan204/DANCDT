@@ -212,6 +212,12 @@ namespace WPF_Test_PLC20260124
             set { SetProperty(ref _arr_R32, value); }
         }
 
+        private bool _isDxfSending;
+        public bool IsDxfSending { get => _isDxfSending; set => SetProperty(ref _isDxfSending, value); }
+
+        private string _dxfSendStatus = "Ready";
+        public string DxfSendStatus { get => _dxfSendStatus; set => SetProperty(ref _dxfSendStatus, value); }
+
         private int _d32Base1 = 1000;
         public int D32Base1
         {

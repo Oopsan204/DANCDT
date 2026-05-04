@@ -127,6 +127,204 @@ namespace WPF_Test_PLC20260124
             DxfSummary = "DXF feature ready.";
         }
 
+        public async Task DownloadTrajectoryToPlcAsync(CancellationToken cancellationToken = default)
+        {
+            if (DxfContours == null || DxfContours.Count == 0)
+            {
+                AddLog("PC", "warning", "Không có dữ liệu DXF để truyền xuống PLC.");
+                return;
+            }
+
+            IsDxfSending = true;
+            DxfSendStatus = "Chuẩn bị...";
+            AddLog("UI", "info", "Bắt đầu truyền quỹ đạo DXF (Async)...");
+
+            try
+            {
+                // 1. Biên dịch quỹ đạo trên thread riêng để không chặn UI
+                DxfSendStatus = "Đang biên dịch...";
+                var (a1Arr, a2Arr, pointCount) = await Task.Run(() => CompileDxfTrajectory(cancellationToken), cancellationToken);
+
+                if (pointCount == 0)
+                {
+                    DxfSendStatus = "Lỗi: Không có điểm.";
+                    return;
+                }
+
+                // 2. Ghi xuống PLC
+                DxfSendStatus = $"Đang truyền {pointCount} điểm...";
+                await Task.Run(() => SendTrajectoryToPLC(a1Arr, a2Arr, pointCount), cancellationToken);
+
+                // 3. Đợi PLC xác nhận hoàn thành (M300)
+                DxfSendStatus = "Đang đợi PLC xác nhận (M300)...";
+                bool confirmed = await WaitForPLCConfirmation(TimeSpan.FromSeconds(10), cancellationToken);
+
+                if (confirmed)
+                {
+                    DxfSendStatus = "Hoàn thành";
+                    AddLog("PLC", "success", "PLC đã xác nhận hoàn thành quỹ đạo.");
+                }
+                else
+                {
+                    DxfSendStatus = "Timeout đợi M300";
+                    AddLog("PLC", "warning", "Timeout 10s đợi tín hiệu M300 từ PLC.");
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                DxfSendStatus = "Đã hủy";
+                AddLog("UI", "warning", "Hủy truyền quỹ đạo DXF.");
+            }
+            catch (Exception ex)
+            {
+                DxfSendStatus = "Lỗi hệ thống";
+                AddLog("PC", "error", $"Lỗi khi truyền quỹ đạo Async: {ex.Message}");
+            }
+            finally
+            {
+                IsDxfSending = false;
+            }
+        }
+
+        private (int[] a1Arr, int[] a2Arr, int pointCount) CompileDxfTrajectory(CancellationToken ct)
+        {
+            List<int> axis1Data = new List<int>();
+            List<int> axis2Data = new List<int>();
+            int pointCount = 0;
+            int absolutePointIndex = 1;
+
+            foreach (var contour in DxfContours)
+            {
+                ct.ThrowIfCancellationRequested();
+                if (contour.Points == null || contour.Points.Count == 0) continue;
+
+                // Travel move (G0)
+                ushort travelCmd = 0xD00A;
+                ushort travelMCode = 0;
+                if (absolutePointIndex >= DxfStartPointIndex)
+                {
+                    AddTrajectoryPoint(axis1Data, axis2Data, travelCmd, travelMCode, 0, GetSpeedForPoint(absolutePointIndex),
+                        contour.Points[0].X, contour.Points[0].Y, 0, 0);
+                    pointCount++;
+                }
+                absolutePointIndex++;
+
+                // Actual contour
+                if (contour.IsCircle)
+                {
+                    ushort cmd = 0xD00F;
+                    ushort mcode = (ushort)(absolutePointIndex >= DxfGlueStartIndex && absolutePointIndex <= DxfGlueEndIndex ? 1 : 0);
+                    if (absolutePointIndex >= DxfStartPointIndex)
+                    {
+                        AddTrajectoryPoint(axis1Data, axis2Data, cmd, mcode, 0, GetSpeedForPoint(absolutePointIndex),
+                            contour.Points.Last().X, contour.Points.Last().Y, contour.CenterX, contour.CenterY);
+                        pointCount++;
+                    }
+                    absolutePointIndex++;
+                }
+                else if (contour.IsArc)
+                {
+                    ushort cmd = contour.ArcClockwise ? (ushort)0xD00F : (ushort)0xD010;
+                    ushort mcode = (ushort)(absolutePointIndex >= DxfGlueStartIndex && absolutePointIndex <= DxfGlueEndIndex ? 1 : 0);
+                    if (absolutePointIndex >= DxfStartPointIndex)
+                    {
+                        AddTrajectoryPoint(axis1Data, axis2Data, cmd, mcode, 0, GetSpeedForPoint(absolutePointIndex),
+                            contour.Points.Last().X, contour.Points.Last().Y, contour.CenterX, contour.CenterY);
+                        pointCount++;
+                    }
+                    absolutePointIndex++;
+                }
+                else
+                {
+                    for (int i = 1; i < contour.Points.Count; i++)
+                    {
+                        ushort cmd = 0xD00A;
+                        ushort mcode = (ushort)(absolutePointIndex >= DxfGlueStartIndex && absolutePointIndex <= DxfGlueEndIndex ? 1 : 0);
+                        if (absolutePointIndex >= DxfStartPointIndex)
+                        {
+                            AddTrajectoryPoint(axis1Data, axis2Data, cmd, mcode, 0, GetSpeedForPoint(absolutePointIndex),
+                                contour.Points[i].X, contour.Points[i].Y, 0, 0);
+                            pointCount++;
+                        }
+                        absolutePointIndex++;
+                    }
+                }
+            }
+
+            if (pointCount > 0)
+            {
+                int lastIdx = (pointCount - 1) * 10;
+                axis1Data[lastIdx] = (int)((ushort)axis1Data[lastIdx] & 0x0FFF | 0x1000);
+                axis2Data[lastIdx] = (int)((ushort)axis2Data[lastIdx] & 0x0FFF | 0x1000);
+            }
+
+            return (axis1Data.ToArray(), axis2Data.ToArray(), pointCount);
+        }
+
+        private void SendTrajectoryToPLC(int[] a1Arr, int[] a2Arr, int pointCount)
+        {
+            lock (_plcSync)
+            {
+                if (ePLC != null && ePLC.IsConnected)
+                {
+                    ePLC.WriteDeviceBlock(NVKProject.PLC.ePLCControl.SubCommand.Word,
+                                          NVKProject.PLC.ePLCControl.DeviceName.Buffer,
+                                          "U0\\G2000", a1Arr);
+
+                    ePLC.WriteDeviceBlock(NVKProject.PLC.ePLCControl.SubCommand.Word,
+                                          NVKProject.PLC.ePLCControl.DeviceName.Buffer,
+                                          "U0\\G8000", a2Arr);
+
+                    // Cập nhật record để hiển thị UI
+                    _sentBufferRecords.Clear();
+                    _sentBufferRecordsAxis2.Clear();
+                    int recordCount = Math.Min(a1Arr.Length, 30);
+                    for (int i = 0; i < recordCount; i++)
+                    {
+                        _sentBufferRecords.Add(new BufferRegisterRecord { Address = $"U0\\G{2000 + i}", Value = a1Arr[i] });
+                        _sentBufferRecordsAxis2.Add(new BufferRegisterRecord { Address = $"U0\\G{8000 + i}", Value = a2Arr[i] });
+                    }
+                    OnPropertyChanged(nameof(SentBufferRecords));
+                    OnPropertyChanged(nameof(SentBufferRecordsAxis2));
+
+                    AddLog("PLC", "success", $"Đã truyền {pointCount} điểm xuống Buffer PLC.");
+                }
+                else
+                {
+                    throw new InvalidOperationException("Mất kết nối PLC trong quá trình truyền.");
+                }
+            }
+        }
+
+        private async Task<bool> WaitForPLCConfirmation(TimeSpan timeout, CancellationToken cancellationToken)
+        {
+            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+            while (stopwatch.Elapsed < timeout)
+            {
+                if (cancellationToken.IsCancellationRequested) return false;
+
+                try
+                {
+                    lock (_plcSync)
+                    {
+                        if (ePLC != null && ePLC.IsConnected)
+                        {
+                            // Đọc M300 (cần map đúng địa chỉ thực tế trong chương trình PLC)
+                            int[] mStatus = ePLC.ReadDeviceBlock(NVKProject.PLC.ePLCControl.SubCommand.Bit,
+                                                                 NVKProject.PLC.ePLCControl.DeviceName.M,
+                                                                 "300", 1);
+                            if (mStatus != null && mStatus.Length > 0 && mStatus[0] == 1)
+                                return true;
+                        }
+                    }
+                }
+                catch { /* Bỏ qua lỗi đọc tạm thời */ }
+
+                await Task.Delay(200, cancellationToken);
+            }
+            return false;
+        }
+
         public void DownloadTrajectoryToPlc()
         {
             if (DxfContours == null || DxfContours.Count == 0)
