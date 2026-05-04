@@ -367,7 +367,7 @@
                     <thead>
                         <tr class="bg-surface-container-low text-on-surface-variant uppercase tracking-wider text-[10px]">
                             <th class="px-3 py-2 border border-outline-variant/20">Address</th>
-                            <th class="px-3 py-2 border border-outline-variant/20 text-center">Bits (15 → 0)</th>
+                            <th class="px-3 py-2 border border-outline-variant/20 text-center">Hex</th>
                             <th class="px-3 py-2 border border-outline-variant/20 text-right">Decimal</th>
                         </tr>
                     </thead>
@@ -384,21 +384,7 @@
                             {
                                 <tr class="hover:bg-surface-container-low transition-colors">
                                     <td class="px-3 py-1 border border-outline-variant/20 font-bold text-on-surface" style="width: 120px;">@record.Address</td>
-                                    <td class="px-3 py-1 border border-outline-variant/20 text-center">
-                                        <div class="flex justify-center gap-[2px]">
-                                            @foreach (var bit in record.BinaryString.Replace(" ", ""))
-                                            {
-                                                if (bit == '1')
-                                                {
-                                                    <span class="inline-flex items-center justify-center w-[18px] h-[18px] bg-[#0000cc] text-white text-[10px] font-bold">1</span>
-                                                }
-                                                else
-                                                {
-                                                    <span class="inline-flex items-center justify-center w-[18px] h-[18px] bg-white text-outline border border-outline-variant/50 text-[10px]">0</span>
-                                                }
-                                            }
-                                        </div>
-                                    </td>
+                                    <td class="px-3 py-1 border border-outline-variant/20 text-center font-mono">@((record.Value & 0xFFFF).ToString("X4"))</td>
                                     <td class="px-3 py-1 border border-outline-variant/20 text-right font-bold" style="width: 120px;">
                                         @(unchecked((short)(record.Value & 0xFFFF)))
                                     </td>
@@ -440,38 +426,24 @@
                         else
                         {
                             @foreach (var record in ViewModel.SentBufferRecordsAxis2)
+                            {Hex</th>
+                            <th class="px-3 py-2 border border-outline-variant/20 text-right">Decimal</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (ViewModel.SentBufferRecordsAxis2 == null || ViewModel.SentBufferRecordsAxis2.Count == 0)
+                        {
+                            <tr>
+                                <td colspan="3" class="px-3 py-6 text-center text-outline font-body text-xs">No buffer data captured yet. Run a DXF trajectory to populate.</td>
+                            </tr>
+                        }
+                        else
+                        {
+                            @foreach (var record in ViewModel.SentBufferRecordsAxis2)
                             {
                                 <tr class="hover:bg-surface-container-low transition-colors">
                                     <td class="px-3 py-1 border border-outline-variant/20 font-bold text-on-surface" style="width: 120px;">@record.Address</td>
-                                    <td class="px-3 py-1 border border-outline-variant/20 text-center">
-                                        <div class="flex justify-center gap-[2px]">
-                                            @foreach (var bit in record.BinaryString.Replace(" ", ""))
-                                            {
-                                                if (bit == '1')
-                                                {
-                                                    <span class="inline-flex items-center justify-center w-[18px] h-[18px] bg-[#0000cc] text-white text-[10px] font-bold">1</span>
-                                                }
-                                                else
-                                                {
-                                                    <span class="inline-flex items-center justify-center w-[18px] h-[18px] bg-white text-outline border border-outline-variant/50 text-[10px]">0</span>
-                                                }
-                                            }
-                                        </div>
-                                    </td>
-                                    <td class="px-3 py-1 border border-outline-variant/20 text-right font-bold" style="width: 120px;">
-                                        @(unchecked((short)(record.Value & 0xFFFF)))
-                                    </td>
-                                </tr>
-                            }
-                        }
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-
-    <!-- ══ EXPANDED LOG DETAIL ════════════════════════════════════════ -->
-    @if (expandedLog != null)
+                                    <td class="px-3 py-1 border border-outline-variant/20 text-center font-mono">@((record.Value & 0xFFFF).ToString("X4"))
     {
         <div style="position:fixed; inset:0; background:rgba(13,28,46,0.3); z-index:100; display:flex; align-items:center; justify-content:center;"
              @onclick="() => expandedLog = null">
@@ -536,13 +508,33 @@
 
     System.Timers.Timer? _timer;
     Random _rng = new();
+    System.Timers.Timer? _renderDebounce;
+    EventHandler<WPF_Test_PLC20260124.MainViewModel.LogItem>? _logAddedHandler;
+    EventHandler? _propertyChangedHandler;
 
     // ──────────────────────────────────────── Lifecycle
     protected override void OnInitialized()
     {
-        // Subscribe to new logs from ViewModel
-        ViewModel.LogAdded += (s, log) => InvokeAsync(StateHasChanged);
-        ViewModel.PropertyChanged += OnVmChanged;
+        // Subscribe to new logs from ViewModel with debouncing (max 5 renders per second)
+        _logAddedHandler = (s, log) =>
+        {
+            if (_renderDebounce != null && _renderDebounce.Enabled)
+                return; // Already scheduled
+            
+            _renderDebounce?.Stop();
+            _renderDebounce?.Dispose();
+            _renderDebounce = new System.Timers.Timer(200); // Debounce: max re-render every 200ms
+            _renderDebounce.Elapsed += async (o, e) =>
+            {
+                await InvokeAsync(StateHasChanged);
+            };
+            _renderDebounce.AutoReset = false;
+            _renderDebounce.Start();
+        };
+        ViewModel.LogAdded += _logAddedHandler;
+        
+        _propertyChangedHandler = (s, e) => OnVmChanged(s, e);
+        ViewModel.PropertyChanged += _propertyChangedHandler;
         
         _timer = new System.Timers.Timer(1400);
         _timer.Elapsed += OnTick;
@@ -597,7 +589,8 @@
         var q = allLogs.Where(l => l.Source == src);
         if (!string.IsNullOrEmpty(filterStatus)) q = q.Where(l => l.Status == filterStatus);
         if (!string.IsNullOrEmpty(searchQuery))  q = q.Where(l => l.Message.Contains(searchQuery, StringComparison.OrdinalIgnoreCase) || l.Detail.Contains(searchQuery, StringComparison.OrdinalIgnoreCase));
-        return q;
+        return q.TakeLast(100);  // Only render last 100 logs to prevent memory exhaustion
+    }
     }
 
     // ──────────────────────────────────────── Render panel
@@ -708,7 +701,14 @@
         {
             Inject("PLC", "error", "Cannot send: PLC not connected", lastCommand);
         }
-        else
+        _renderDebounce?.Stop();
+        _renderDebounce?.Dispose();
+        
+        // Unsubscribe to prevent memory leak
+        if (_logAddedHandler != null)
+            ViewModel.LogAdded -= _logAddedHandler;
+        if (_propertyChangedHandler != null)
+            ViewModel.PropertyChanged -= _propertyChangedHandler
         {
             Inject("PC", "warning", $"Unknown command: {lastCommand}", "Expected: WRITE <addr> <value>");
         }

@@ -158,7 +158,7 @@ namespace WPF_Test_PLC20260124
                 };
 
                 _allLogs.Add(log);
-                if (_allLogs.Count > 500)
+                if (_allLogs.Count > 200)  // Reduced from 500 to prevent memory bloat
                     _allLogs.RemoveAt(0);
 
                 LogAdded?.Invoke(this, log);
