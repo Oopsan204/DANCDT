@@ -114,9 +114,19 @@ namespace WPF_Test_PLC20260124
             {
                 get 
                 {
-                    string bin = Convert.ToString((short)(Value & 0xFFFF), 2).PadLeft(16, '0');
-                    return string.Join(" ", bin.ToCharArray()); // For easier display in UI
+                    // Display as unsigned 16-bit
+                    ushort uval = (ushort)(Value & 0xFFFF);
+                    string bin = Convert.ToString(uval, 2).PadLeft(16, '0');
+                    return string.Join(" ", bin.ToCharArray());
                 }
+            }
+            public string HexString
+            {
+                get { return ((ushort)(Value & 0xFFFF)).ToString("X4"); }
+            }
+            public int DecimalValue
+            {
+                get { return (int)(ushort)(Value & 0xFFFF); }
             }
         }
 

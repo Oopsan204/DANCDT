@@ -409,10 +409,8 @@
                             {
                                 <tr class="hover:bg-surface-container-low transition-colors">
                                     <td class="px-3 py-1 border border-outline-variant/20 font-bold text-on-surface" style="width: 120px;">@record.Address</td>
-                                    <td class="px-3 py-1 border border-outline-variant/20 text-center font-mono">@((record.Value & 0xFFFF).ToString("X4"))</td>
-                                    <td class="px-3 py-1 border border-outline-variant/20 text-right font-bold" style="width: 120px;">
-                                        @(unchecked((short)(record.Value & 0xFFFF)))
-                                    </td>
+                                    <td class="px-3 py-1 border border-outline-variant/20 text-center font-mono">@record.HexString</td>
+                                    <td class="px-3 py-1 border border-outline-variant/20 text-right font-bold" style="width: 120px;">@record.DecimalValue</td>
                                 </tr>
                             }
                         }
@@ -454,10 +452,8 @@
                             {
                                 <tr class="hover:bg-surface-container-low transition-colors">
                                     <td class="px-3 py-1 border border-outline-variant/20 font-bold text-on-surface" style="width: 120px;">@record.Address</td>
-                                    <td class="px-3 py-1 border border-outline-variant/20 text-center font-mono">@((record.Value & 0xFFFF).ToString("X4"))</td>
-                                    <td class="px-3 py-1 border border-outline-variant/20 text-right font-bold" style="width: 120px;">
-                                        @(unchecked((short)(record.Value & 0xFFFF)))
-                                    </td>
+                                    <td class="px-3 py-1 border border-outline-variant/20 text-center font-mono">@record.HexString</td>
+                                    <td class="px-3 py-1 border border-outline-variant/20 text-right font-bold" style="width: 120px;">@record.DecimalValue</td>
                                 </tr>
                             }
                         }
