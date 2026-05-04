@@ -494,8 +494,8 @@ namespace WPF_Test_PLC20260124
             int scaledCy = (int)(cy * 1000.0);
             
             // --- AXIS 1 (X & Center X) ---
-            ax1.Add((int)cmd);
-            ax1.Add((int)mcode);
+            ax1.Add((int)(ushort)cmd);          // Ensure unsigned interpretation
+            ax1.Add((int)(ushort)mcode);
             ax1.Add((int)(dwell & 0xFFFF));
             ax1.Add((int)(dwell >> 16));
             ax1.Add((int)(speed & 0xFFFF));
@@ -506,8 +506,8 @@ namespace WPF_Test_PLC20260124
             ax1.Add((int)(scaledCx >> 16));    // Tọa độ tâm X (High)
 
             // --- AXIS 2 (Y & Center Y) ---
-            ax2.Add((int)cmd);
-            ax2.Add((int)mcode);
+            ax2.Add((int)(ushort)cmd);          // Ensure unsigned interpretation
+            ax2.Add((int)(ushort)mcode);
             ax2.Add((int)(dwell & 0xFFFF));
             ax2.Add((int)(dwell >> 16));
             ax2.Add((int)(speed & 0xFFFF));

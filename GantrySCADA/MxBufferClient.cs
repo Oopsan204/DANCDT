@@ -68,9 +68,10 @@ namespace NVKProject.PLC
                     throw new InvalidOperationException($"MX ReadDeviceBlock2 failed: {rc}");
             }
 
+            // Convert signed short to unsigned int (treat as ushort)
             int[] result = new int[length];
             for (int i = 0; i < length; i++)
-                result[i] = data[i];
+                result[i] = (int)(ushort)data[i];  // Cast to ushort first to get unsigned value
             return result;
         }
 
