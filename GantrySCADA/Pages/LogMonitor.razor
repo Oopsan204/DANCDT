@@ -2,6 +2,7 @@
 @inject WPF_Test_PLC20260124.MainViewModel ViewModel
 @using System.Timers
 @using System.Text
+@implements IDisposable
 
 <style>
     @@keyframes log-slide-in {
@@ -244,7 +245,15 @@
                 </span>
             </div>
             <div class="log-body">
-                @RenderPanel("UI")
+                @foreach (var log in GetFilteredLogs("UI").Reverse())
+                {
+                    <div class="log-row log-enter px-4 py-2.5 flex items-center gap-2 text-xs @(log.IsNewest ? "newest" : "") @(expandedLog == log ? "expanded" : "")"
+                         @onclick="() => expandedLog = log">
+                        <span style="color:#727687; font-size:10px; white-space:nowrap; font-family:monospace; flex-shrink:0; width:80px;">@log.Timestamp.ToString("HH:mm:ss.fff")</span>
+                        <span class="badge badge-@log.Status">@log.Status.ToUpper()</span>
+                        <span style="color:#0d1c2e; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-family:'Inter',sans-serif;">@log.Message</span>
+                    </div>
+                }
             </div>
         </div>
 
@@ -261,7 +270,15 @@
                 </span>
             </div>
             <div class="log-body">
-                @RenderPanel("PC")
+                @foreach (var log in GetFilteredLogs("PC").Reverse())
+                {
+                    <div class="log-row log-enter px-4 py-2.5 flex items-center gap-2 text-xs @(log.IsNewest ? "newest" : "") @(expandedLog == log ? "expanded" : "")"
+                         @onclick="() => expandedLog = log">
+                        <span style="color:#727687; font-size:10px; white-space:nowrap; font-family:monospace; flex-shrink:0; width:80px;">@log.Timestamp.ToString("HH:mm:ss.fff")</span>
+                        <span class="badge badge-@log.Status">@log.Status.ToUpper()</span>
+                        <span style="color:#0d1c2e; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-family:'Inter',sans-serif;">@log.Message</span>
+                    </div>
+                }
             </div>
         </div>
 
@@ -278,7 +295,15 @@
                 </span>
             </div>
             <div class="log-body">
-                @RenderPanel("PLC")
+                @foreach (var log in GetFilteredLogs("PLC").Reverse())
+                {
+                    <div class="log-row log-enter px-4 py-2.5 flex items-center gap-2 text-xs @(log.IsNewest ? "newest" : "") @(expandedLog == log ? "expanded" : "")"
+                         @onclick="() => expandedLog = log">
+                        <span style="color:#727687; font-size:10px; white-space:nowrap; font-family:monospace; flex-shrink:0; width:80px;">@log.Timestamp.ToString("HH:mm:ss.fff")</span>
+                        <span class="badge badge-@log.Status">@log.Status.ToUpper()</span>
+                        <span style="color:#0d1c2e; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-family:'Inter',sans-serif;">@log.Message</span>
+                    </div>
+                }
             </div>
         </div>
     </div>
@@ -308,7 +333,7 @@
             {
                 <p class="font-body text-[10px] text-outline font-mono">
                     Last: <span class="text-on-surface font-semibold">@lastCommand</span>
-                    <span class="ml-2 text-outline">&#64;@lastCommandTime</span>
+                    <span class="ml-2 text-outline">@@@lastCommandTime</span>
                 </p>
             }
         </div>
@@ -412,21 +437,7 @@
                     <thead>
                         <tr class="bg-surface-container-low text-on-surface-variant uppercase tracking-wider text-[10px]">
                             <th class="px-3 py-2 border border-outline-variant/20">Address</th>
-                            <th class="px-3 py-2 border border-outline-variant/20 text-center">Bits (15 → 0)</th>
-                            <th class="px-3 py-2 border border-outline-variant/20 text-right">Decimal</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @if (ViewModel.SentBufferRecordsAxis2 == null || ViewModel.SentBufferRecordsAxis2.Count == 0)
-                        {
-                            <tr>
-                                <td colspan="3" class="px-3 py-6 text-center text-outline font-body text-xs">No buffer data captured yet. Run a DXF trajectory to populate.</td>
-                            </tr>
-                        }
-                        else
-                        {
-                            @foreach (var record in ViewModel.SentBufferRecordsAxis2)
-                            {Hex</th>
+                            <th class="px-3 py-2 border border-outline-variant/20 text-center">Hex</th>
                             <th class="px-3 py-2 border border-outline-variant/20 text-right">Decimal</th>
                         </tr>
                     </thead>
@@ -443,7 +454,21 @@
                             {
                                 <tr class="hover:bg-surface-container-low transition-colors">
                                     <td class="px-3 py-1 border border-outline-variant/20 font-bold text-on-surface" style="width: 120px;">@record.Address</td>
-                                    <td class="px-3 py-1 border border-outline-variant/20 text-center font-mono">@((record.Value & 0xFFFF).ToString("X4"))
+                                    <td class="px-3 py-1 border border-outline-variant/20 text-center font-mono">@((record.Value & 0xFFFF).ToString("X4"))</td>
+                                    <td class="px-3 py-1 border border-outline-variant/20 text-right font-bold" style="width: 120px;">
+                                        @(unchecked((short)(record.Value & 0xFFFF)))
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- ══ EXPANDED LOG MODAL ══════════════════════════════════════ -->
+    @if (expandedLog != null)
     {
         <div style="position:fixed; inset:0; background:rgba(13,28,46,0.3); z-index:100; display:flex; align-items:center; justify-content:center;"
              @onclick="() => expandedLog = null">
@@ -480,7 +505,7 @@
                         @(expandedLog.Tagged ? "Untag" : "Tag")
                     </button>
                     <button class="act-btn btn-danger" style="flex:1;"
-                            @onclick="() => { allLogs.Remove(expandedLog); expandedLog = null; }">
+                            @onclick="() => { ViewModel.AllLogs.Remove(expandedLog); expandedLog = null; }">
                         <span class="material-symbols-outlined" style="font-size:14px;">delete</span>
                         Delete
                     </button>
@@ -492,7 +517,6 @@
 </div>
 
 @code {
-    // Use shared logs from ViewModel instead of local collection
     List<WPF_Test_PLC20260124.MainViewModel.LogItem> allLogs => ViewModel.AllLogs;
     WPF_Test_PLC20260124.MainViewModel.LogItem? expandedLog;
 
@@ -510,20 +534,19 @@
     Random _rng = new();
     System.Timers.Timer? _renderDebounce;
     EventHandler<WPF_Test_PLC20260124.MainViewModel.LogItem>? _logAddedHandler;
-    EventHandler? _propertyChangedHandler;
 
-    // ──────────────────────────────────────── Lifecycle
     protected override void OnInitialized()
     {
-        // Subscribe to new logs from ViewModel with debouncing (max 5 renders per second)
         _logAddedHandler = (s, log) =>
         {
+            if (isPaused) return;
+            
             if (_renderDebounce != null && _renderDebounce.Enabled)
-                return; // Already scheduled
+                return; 
             
             _renderDebounce?.Stop();
             _renderDebounce?.Dispose();
-            _renderDebounce = new System.Timers.Timer(200); // Debounce: max re-render every 200ms
+            _renderDebounce = new System.Timers.Timer(200); 
             _renderDebounce.Elapsed += async (o, e) =>
             {
                 await InvokeAsync(StateHasChanged);
@@ -532,187 +555,50 @@
             _renderDebounce.Start();
         };
         ViewModel.LogAdded += _logAddedHandler;
+        ViewModel.PropertyChanged += OnVmChanged;
         
-        _propertyChangedHandler = (s, e) => OnVmChanged(s, e);
-        ViewModel.PropertyChanged += _propertyChangedHandler;
-        
-        _timer = new System.Timers.Timer(1400);
-        _timer.Elapsed += OnTick;
+        _timer = new System.Timers.Timer(1000);
+        _timer.Elapsed += (s, e) => { if (!isPaused) InvokeAsync(StateHasChanged); };
         _timer.AutoReset = true;
         _timer.Start();
     }
 
-    protected override void OnAfterRender(bool firstRender)
+    private void OnVmChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
-        // Seed initial logs on first render
-        if (firstRender && allLogs.Count == 0)
+        if (e.PropertyName == nameof(ViewModel.SentBufferRecords) || e.PropertyName == nameof(ViewModel.SentBufferRecordsAxis2))
         {
-            ViewModel.AddLog("UI",  "info",    "Log Monitor initialised");
-        }
-        base.OnAfterRender(firstRender);
-    }
-
-    void OnVmChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
-    {
-        if (isPaused) return;
-        if (e.PropertyName == nameof(ViewModel.Status))
-        {
-            var st  = ViewModel.Status ? "success" : "error";
-            var msg = ViewModel.Status ? "PLC connection established" : "PLC connection lost";
-            Inject("PLC", st, msg, $"{ViewModel.IpAddress}:{ViewModel.Port}");
             InvokeAsync(StateHasChanged);
         }
-        else if ((e.PropertyName == nameof(ViewModel.arr_R_V) || e.PropertyName == nameof(ViewModel.arr_R32))
-                 && ViewModel.Status && _rng.Next(0, 12) == 0)
-        {
-            Inject("PLC", "success",
-                $"READ D{ViewModel.D_R_V}+{_rng.Next(0,10)} = {(ViewModel.arr_R_V?.Length > 0 ? ViewModel.arr_R_V[0] : 0)}",
-                "100Hz monitor cycle");
-        }
     }
 
-    async void OnTick(object? sender, ElapsedEventArgs e)
-    {
-        if (isPaused) return;
-        // ✓ Simulation disabled - only real logs from PLC operations
-        await InvokeAsync(() => { StateHasChanged(); });
-    }
-
-    void Inject(string source, string status, string message, string detail = "")
-    {
-        ViewModel.AddLog(source, status, message, detail);
-    }
-
-    // ──────────────────────────────────────── Filtering
     IEnumerable<WPF_Test_PLC20260124.MainViewModel.LogItem> GetFilteredLogs(string src)
     {
         var q = allLogs.Where(l => l.Source == src);
         if (!string.IsNullOrEmpty(filterStatus)) q = q.Where(l => l.Status == filterStatus);
         if (!string.IsNullOrEmpty(searchQuery))  q = q.Where(l => l.Message.Contains(searchQuery, StringComparison.OrdinalIgnoreCase) || l.Detail.Contains(searchQuery, StringComparison.OrdinalIgnoreCase));
-        return q.TakeLast(100);  // Only render last 100 logs to prevent memory exhaustion
+        return q.TakeLast(100);
     }
-    }
 
-    // ──────────────────────────────────────── Render panel
-    RenderFragment RenderPanel(string source) => __builder =>
-    {
-        var logs = GetFilteredLogs(source).Reverse().ToList();
-        if (logs.Count == 0)
-        {
-            __builder.OpenElement(0, "div");
-            __builder.AddAttribute(1, "style", "display:flex; flex-direction:column; align-items:center; justify-content:center; padding:32px 16px; color:#727687;");
-            __builder.OpenElement(2, "span");
-            __builder.AddAttribute(3, "class", "material-symbols-outlined");
-            __builder.AddAttribute(4, "style", "font-size:26px; margin-bottom:6px;");
-            __builder.AddContent(5, "feed");
-            __builder.CloseElement();
-            __builder.OpenElement(6, "span");
-            __builder.AddAttribute(7, "style", "font-size:10px; letter-spacing:0.06em; text-transform:uppercase; font-family:'Space Grotesk',sans-serif;");
-            __builder.AddContent(8, "No entries");
-            __builder.CloseElement();
-            __builder.CloseElement();
-            return;
-        }
-
-        int i = 0;
-        foreach (var log in logs)
-        {
-            var cap = log;
-            var rowCls = $"log-row log-enter px-4 py-2.5 flex items-center gap-2 text-xs {(log.IsNewest ? "newest" : "")} {(expandedLog == log ? "expanded" : "")}";
-            __builder.OpenElement(i++, "div");
-            __builder.AddAttribute(i++, "class", rowCls);
-            __builder.AddAttribute(i++, "onclick", Microsoft.AspNetCore.Components.EventCallback.Factory.Create(this, () => expandedLog = cap));
-
-            // Timestamp
-            __builder.OpenElement(i++, "span");
-            __builder.AddAttribute(i++, "style", "color:#727687; font-size:10px; white-space:nowrap; font-family:monospace; flex-shrink:0; width:80px;");
-            __builder.AddContent(i++, log.Timestamp.ToString("HH:mm:ss.fff"));
-            __builder.CloseElement();
-
-            // Source chip
-            __builder.OpenElement(i++, "span");
-            __builder.AddAttribute(i++, "class", $"chip chip-{log.Source.ToLower()}");
-            __builder.AddContent(i++, log.Source);
-            __builder.CloseElement();
-
-            // Status badge
-            __builder.OpenElement(i++, "span");
-            __builder.AddAttribute(i++, "class", $"badge badge-{log.Status}");
-            __builder.AddContent(i++, log.Status.ToUpper());
-            __builder.CloseElement();
-
-            // Message
-            __builder.OpenElement(i++, "span");
-            __builder.AddAttribute(i++, "style", "color:#0d1c2e; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-family:'Inter',sans-serif;");
-            __builder.AddContent(i++, log.Message);
-            __builder.CloseElement();
-
-            // Star
-            if (log.Tagged)
-            {
-                __builder.OpenElement(i++, "span");
-                __builder.AddAttribute(i++, "class", "material-symbols-outlined");
-                __builder.AddAttribute(i++, "style", "font-size:13px; color:#b45309; flex-shrink:0;");
-                __builder.AddContent(i++, "star");
-                __builder.CloseElement();
-            }
-
-            __builder.CloseElement();
-        }
-    };
-
-    // ──────────────────────────────────────── Controls
     void TogglePause()
     {
         isPaused = !isPaused;
-        Inject("UI", isPaused ? "warning" : "info", isPaused ? "Log streaming paused" : "Log streaming resumed");
     }
 
     void ClearAllLogs()
     {
         allLogs.Clear();
-        Inject("UI", "info", "All logs cleared");
     }
 
     void ExportLogs()
     {
-        var sb = new StringBuilder();
-        sb.AppendLine("Timestamp,Source,Status,Message,Detail");
-        foreach (var l in allLogs)
-            sb.AppendLine($"{l.Timestamp:HH:mm:ss.fff},{l.Source},{l.Status},\"{l.Message}\",\"{l.Detail}\"");
-        Inject("PC", "info", $"Export triggered: {allLogs.Count} entries", "CSV");
+        // Placeholder for export logic
     }
 
     void SendCommand()
     {
         if (string.IsNullOrWhiteSpace(commandInput)) return;
         lastCommand     = commandInput.Trim();
-        lastCommandTime = DateTime.Now.ToString("HH:mm:ss.fff");
-
-        Inject("UI", "info", $"CMD → {lastCommand}", "Manual command");
-
-        var parts = lastCommand.Split(' ');
-        if (parts.Length >= 3 && parts[0].ToUpper() == "WRITE" && ViewModel.Status)
-        {
-            Inject("PC",  "info",    $"Dispatching WRITE {parts[1]} = {parts[2]} to PLC");
-            Inject("PLC", "success", $"ACK WRITE {parts[1]} = {parts[2]}");
-        }
-        else if (!ViewModel.Status)
-        {
-            Inject("PLC", "error", "Cannot send: PLC not connected", lastCommand);
-        }
-        _renderDebounce?.Stop();
-        _renderDebounce?.Dispose();
-        
-        // Unsubscribe to prevent memory leak
-        if (_logAddedHandler != null)
-            ViewModel.LogAdded -= _logAddedHandler;
-        if (_propertyChangedHandler != null)
-            ViewModel.PropertyChanged -= _propertyChangedHandler
-        {
-            Inject("PC", "warning", $"Unknown command: {lastCommand}", "Expected: WRITE <addr> <value>");
-        }
-
+        lastCommandTime = DateTime.Now.ToString("HH:mm:ss");
         commandInput = "";
     }
 
@@ -723,8 +609,11 @@
 
     public void Dispose()
     {
+        ViewModel.LogAdded -= _logAddedHandler;
+        ViewModel.PropertyChanged -= OnVmChanged;
         _timer?.Stop();
         _timer?.Dispose();
-        ViewModel.PropertyChanged -= OnVmChanged;
+        _renderDebounce?.Stop();
+        _renderDebounce?.Dispose();
     }
 }
