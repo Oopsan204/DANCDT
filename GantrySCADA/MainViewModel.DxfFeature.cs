@@ -127,6 +127,13 @@ namespace WPF_Test_PLC20260124
             DxfSummary = "DXF feature ready.";
         }
 
+        public event EventHandler<string>? DxfDownloadComplete;
+
+        private void OnDxfDownloadComplete(string message)
+        {
+            DxfDownloadComplete?.Invoke(this, message);
+        }
+
         public async Task DownloadTrajectoryToPlcAsync(CancellationToken cancellationToken = default)
         {
             if (DxfContours == null || DxfContours.Count == 0)
@@ -163,6 +170,7 @@ namespace WPF_Test_PLC20260124
                 {
                     DxfSendStatus = "Hoàn thành";
                     AddLog("PLC", "success", "PLC đã xác nhận hoàn thành quỹ đạo.");
+                    OnDxfDownloadComplete($"Đã truyền thành công {pointCount} điểm quỹ đạo!");
                 }
                 else
                 {
@@ -265,13 +273,14 @@ namespace WPF_Test_PLC20260124
         {
             lock (_plcSync)
             {
-                if (ePLC != null && ePLC.IsConnected)
+                var plc = ePLC;
+                if (plc != null && plc.IsConnected)
                 {
-                    ePLC.WriteDeviceBlock(NVKProject.PLC.ePLCControl.SubCommand.Word,
+                    plc.WriteDeviceBlock(NVKProject.PLC.ePLCControl.SubCommand.Word,
                                           NVKProject.PLC.ePLCControl.DeviceName.Buffer,
                                           "U0\\G2000", a1Arr);
 
-                    ePLC.WriteDeviceBlock(NVKProject.PLC.ePLCControl.SubCommand.Word,
+                    plc.WriteDeviceBlock(NVKProject.PLC.ePLCControl.SubCommand.Word,
                                           NVKProject.PLC.ePLCControl.DeviceName.Buffer,
                                           "U0\\G8000", a2Arr);
 
@@ -307,10 +316,11 @@ namespace WPF_Test_PLC20260124
                 {
                     lock (_plcSync)
                     {
-                        if (ePLC != null && ePLC.IsConnected)
+                        var plc = ePLC;
+                        if (plc != null && plc.IsConnected)
                         {
                             // Đọc M300 (cần map đúng địa chỉ thực tế trong chương trình PLC)
-                            int[] mStatus = ePLC.ReadDeviceBlock(NVKProject.PLC.ePLCControl.SubCommand.Bit,
+                            int[] mStatus = plc.ReadDeviceBlock(NVKProject.PLC.ePLCControl.SubCommand.Bit,
                                                                  NVKProject.PLC.ePLCControl.DeviceName.M,
                                                                  "300", 1);
                             if (mStatus != null && mStatus.Length > 0 && mStatus[0] == 1)
@@ -426,15 +436,16 @@ namespace WPF_Test_PLC20260124
 
                     lock (_plcSync)
                     {
-                        if (ePLC != null && ePLC.IsConnected)
+                        var plc = ePLC;
+                        if (plc != null && plc.IsConnected)
                         {
                             // Ghi trực tiếp vào Buffer memory của module (Simple Motion)
                             // Axis 1: U0\G2000, Axis 2: U0\G8000
-                            ePLC.WriteDeviceBlock(NVKProject.PLC.ePLCControl.SubCommand.Word, 
+                            plc.WriteDeviceBlock(NVKProject.PLC.ePLCControl.SubCommand.Word, 
                                                   NVKProject.PLC.ePLCControl.DeviceName.Buffer, 
                                                   "U0\\G2000", a1Arr);
                             
-                            ePLC.WriteDeviceBlock(NVKProject.PLC.ePLCControl.SubCommand.Word, 
+                            plc.WriteDeviceBlock(NVKProject.PLC.ePLCControl.SubCommand.Word, 
                                                   NVKProject.PLC.ePLCControl.DeviceName.Buffer, 
                                                   "U0\\G8000", a2Arr);
                                                   
@@ -459,6 +470,7 @@ namespace WPF_Test_PLC20260124
                             OnPropertyChanged(nameof(SentBufferRecordsAxis2));
 
                             AddLog("PLC", "success", $"Đã truyền {pointCount} điểm quỹ đạo xuống Buffer PLC (U0\\G2000 & U0\\G8000)");
+                            OnDxfDownloadComplete($"Đã truyền thành công {pointCount} điểm quỹ đạo!");
                         }
                         else
                         {
@@ -710,11 +722,23 @@ namespace WPF_Test_PLC20260124
             var allPoints = new List<(double X, double Y)>();
             foreach (var contour in DxfContours)
             {
-                if (contour.Points != null) allPoints.AddRange(contour.Points);
-                if (contour.HasCenter)
+                var pts = contour.Points;
+                if (pts != null)
                 {
-                    if (contour.IsCircle) AddCircleBoundsPoints(allPoints, contour.CenterX, contour.CenterY, contour.Radius);
-                    else if (contour.IsArc) AddArcBoundsPoints(allPoints, contour.CenterX, contour.CenterY, contour.Radius, contour.StartAngleDeg, contour.EndAngleDeg, contour.ArcClockwise, contour.Points[0], contour.Points.Last());
+                    allPoints.AddRange(pts);
+                    if (contour.HasCenter)
+                    {
+                        if (contour.IsCircle)
+                        {
+                            AddCircleBoundsPoints(allPoints, contour.CenterX, contour.CenterY, contour.Radius);
+                        }
+                        else if (contour.IsArc && pts.Count > 0)
+                        {
+                            AddArcBoundsPoints(allPoints, contour.CenterX, contour.CenterY, contour.Radius, 
+                                contour.StartAngleDeg, contour.EndAngleDeg, contour.ArcClockwise, 
+                                pts[0], pts.Last());
+                        }
+                    }
                 }
             }
 

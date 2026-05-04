@@ -34,8 +34,11 @@ namespace WPF_Test_PLC20260124
                 return Array.Empty<int>();
             }
 
+            var plc = ePLC;
+            if (plc == null) return Array.Empty<int>();
+
             int iVal = arr[index];
-            return ePLC.WordToBit(iVal).ToList().Select(x => int.Parse(x.ToString())).ToArray();
+            return plc.WordToBit(iVal).ToList().Select(x => int.Parse(x.ToString())).ToArray();
         }
 
         public bool GetBit(int word, int bit)
@@ -89,7 +92,8 @@ namespace WPF_Test_PLC20260124
         {
             try
             {
-                if (ePLC == null || !ePLC.IsConnected || !Status)
+                var plc = ePLC;
+                if (plc == null || !plc.IsConnected || !Status)
                 {
                     AddLog("UI", "warning", $"Jog start ignored (PLC disconnected): M{markAddress}");
                     return;
@@ -114,7 +118,8 @@ namespace WPF_Test_PLC20260124
         {
             try
             {
-                if (ePLC == null || !ePLC.IsConnected || !Status)
+                var plc = ePLC;
+                if (plc == null || !plc.IsConnected || !Status)
                 {
                     AddLog("UI", "warning", $"Jog stop ignored (PLC disconnected): M{markAddress}");
                     return;

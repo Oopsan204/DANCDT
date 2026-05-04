@@ -10,7 +10,7 @@ namespace WPF_Test_PLC20260124
     public partial class MainViewModel : ObservableObject
     {
         #region Fields
-        private ePLCControl ePLC;
+        private ePLCControl? ePLC;
         private int _ValuePLC = 1;
         private int _Length = 99;
         private int _StartAddress = 700;
@@ -546,6 +546,9 @@ namespace WPF_Test_PLC20260124
 
         private int ReadCoordinateSourceValue(string addrType, int addrIndex, bool read32Bit, int fallbackValue)
         {
+            var plc = ePLC;
+            if (plc == null) return fallbackValue;
+
             try
             {
                 string t = NormalizeAddrType(addrType);
@@ -553,13 +556,13 @@ namespace WPF_Test_PLC20260124
                 {
                     if (read32Bit)
                     {
-                        int[] words32 = ePLC.ReadDeviceBlock(ePLCControl.SubCommand.Word, ePLCControl.DeviceName.D, $"{addrIndex}", 2);
+                        int[] words32 = plc.ReadDeviceBlock(ePLCControl.SubCommand.Word, ePLCControl.DeviceName.D, $"{addrIndex}", 2);
                         if (words32 != null && words32.Length >= 2)
                             return words32[0] | (words32[1] << 16);
                     }
                     else
                     {
-                        int[] words16 = ePLC.ReadDeviceBlock(ePLCControl.SubCommand.Word, ePLCControl.DeviceName.D, $"{addrIndex}", 1);
+                        int[] words16 = plc.ReadDeviceBlock(ePLCControl.SubCommand.Word, ePLCControl.DeviceName.D, $"{addrIndex}", 1);
                         if (words16 != null && words16.Length >= 1)
                             return words16[0];
                     }
@@ -571,13 +574,13 @@ namespace WPF_Test_PLC20260124
                 {
                     if (read32Bit)
                     {
-                        int[] words32 = ePLC.ReadDeviceBlock(ePLCControl.SubCommand.Word, ePLCControl.DeviceName.Buffer, BuildBufferAddress(t, addrIndex), 2);
+                        int[] words32 = plc.ReadDeviceBlock(ePLCControl.SubCommand.Word, ePLCControl.DeviceName.Buffer, BuildBufferAddress(t, addrIndex), 2);
                         if (words32 != null && words32.Length >= 2)
                             return words32[0] | (words32[1] << 16);
                     }
                     else
                     {
-                        int[] words16 = ePLC.ReadDeviceBlock(ePLCControl.SubCommand.Word, ePLCControl.DeviceName.Buffer, BuildBufferAddress(t, addrIndex), 1);
+                        int[] words16 = plc.ReadDeviceBlock(ePLCControl.SubCommand.Word, ePLCControl.DeviceName.Buffer, BuildBufferAddress(t, addrIndex), 1);
                         if (words16 != null && words16.Length >= 1)
                             return words16[0];
                     }
@@ -593,7 +596,7 @@ namespace WPF_Test_PLC20260124
                     _ => ePLCControl.DeviceName.D
                 };
 
-                int[] bit = ePLC.ReadDeviceBlock(ePLCControl.SubCommand.Bit, device, $"{addrIndex}", 1);
+                int[] bit = plc.ReadDeviceBlock(ePLCControl.SubCommand.Bit, device, $"{addrIndex}", 1);
                 if (bit != null && bit.Length >= 1)
                     return bit[0];
 

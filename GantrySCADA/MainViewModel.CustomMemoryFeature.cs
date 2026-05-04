@@ -10,7 +10,8 @@ namespace WPF_Test_PLC20260124
         {
             value = 0;
 
-            if (!Status || ePLC == null)
+            var plc = ePLC;
+            if (!Status || plc == null)
                 return false;
 
             string normalizedType = NormalizeAddrType(addrType);
@@ -21,7 +22,7 @@ namespace WPF_Test_PLC20260124
                 {
                     if (read32)
                     {
-                        int[] words32 = ePLC.ReadDeviceBlock(
+                        int[] words32 = plc.ReadDeviceBlock(
                             ePLCControl.SubCommand.Word,
                             ePLCControl.DeviceName.Buffer,
                             BuildBufferAddress(normalizedType, addrIndex, addrIndexText, addrIndexIsHex),
@@ -34,7 +35,7 @@ namespace WPF_Test_PLC20260124
                     }
                     else
                     {
-                        int[] word = ePLC.ReadDeviceBlock(
+                        int[] word = plc.ReadDeviceBlock(
                             ePLCControl.SubCommand.Word,
                             ePLCControl.DeviceName.Buffer,
                             BuildBufferAddress(normalizedType, addrIndex, addrIndexText, addrIndexIsHex),
@@ -72,7 +73,7 @@ namespace WPF_Test_PLC20260124
                 {
                     // Some PLC/driver combinations expose bit devices more reliably via BIT reads,
                     // while others may return data only through WORD reads. Try BIT first.
-                    int[] bit = ePLC.ReadDeviceBlock(ePLCControl.SubCommand.Bit, devName, $"{addrIndex}", 1);
+                    int[] bit = plc.ReadDeviceBlock(ePLCControl.SubCommand.Bit, devName, $"{addrIndex}", 1);
                     if (bit != null && bit.Length > 0)
                     {
                         int raw = bit[0];
@@ -89,7 +90,7 @@ namespace WPF_Test_PLC20260124
                         return true;
                     }
 
-                    int[] wordFallback = ePLC.ReadDeviceBlock(ePLCControl.SubCommand.Word, devName, $"{addrIndex}", 1);
+                    int[] wordFallback = plc.ReadDeviceBlock(ePLCControl.SubCommand.Word, devName, $"{addrIndex}", 1);
                     if (wordFallback != null && wordFallback.Length > 0)
                     {
                         int raw = wordFallback[0];
@@ -108,7 +109,7 @@ namespace WPF_Test_PLC20260124
                     return false;
                 }
 
-                int[] word = ePLC.ReadDeviceBlock(ePLCControl.SubCommand.Word, devName, $"{addrIndex}", 1);
+                int[] word = plc.ReadDeviceBlock(ePLCControl.SubCommand.Word, devName, $"{addrIndex}", 1);
                 if (word != null && word.Length > 0)
                 {
                     value = word[0];
@@ -123,7 +124,7 @@ namespace WPF_Test_PLC20260124
                 {
                     try
                     {
-                        int[] wordFallback = ePLC.ReadDeviceBlock(ePLCControl.SubCommand.Word, devName, $"{addrIndex}", 1);
+                        int[] wordFallback = plc.ReadDeviceBlock(ePLCControl.SubCommand.Word, devName, $"{addrIndex}", 1);
                         if (wordFallback != null && wordFallback.Length > 0)
                         {
                             int raw = wordFallback[0];
@@ -240,7 +241,8 @@ namespace WPF_Test_PLC20260124
         {
             try
             {
-                if (!Status || ePLC == null || CustomMemoryEntries.Count == 0)
+                var plc = ePLC;
+                if (!Status || plc == null || CustomMemoryEntries.Count == 0)
                     return;
 
                 var snapshot = CustomMemoryEntries.ToList();

@@ -8,6 +8,9 @@ namespace WPF_Test_PLC20260124
     {
         private void Read()
         {
+            var plc = ePLC;
+            if (plc == null) return;
+
             bool enableLegacyD32 = false;
 
             int[] newR32 = (arr_R32 != null && arr_R32.Length == 6)
@@ -16,14 +19,14 @@ namespace WPF_Test_PLC20260124
 
             try
             {
-                int[] flag = ePLC.ReadDeviceBlock(ePLCControl.SubCommand.Word, ePLCControl.DeviceName.D, $"{DReadEnable}", 1);
+                int[] flag = plc.ReadDeviceBlock(ePLCControl.SubCommand.Word, ePLCControl.DeviceName.D, $"{DReadEnable}", 1);
                 enableLegacyD32 = flag != null && flag.Length > 0 && flag[0] != 0;
             }
             catch { }
 
             try
             {
-                int[] newData = ePLC.ReadDeviceBlock(ePLCControl.SubCommand.Word, ePLCControl.DeviceName.D, $"{D_R_V}", Length);
+                int[] newData = plc.ReadDeviceBlock(ePLCControl.SubCommand.Word, ePLCControl.DeviceName.D, $"{D_R_V}", Length);
                 if (newData != null && newData.Length > 0)
                 {
                     Array.Copy(newData, _arr_R_V, Math.Min(newData.Length, _arr_R_V.Length));
@@ -42,8 +45,8 @@ namespace WPF_Test_PLC20260124
             {
                 try
                 {
-                    int[] b1 = ePLC.ReadDeviceBlock(ePLCControl.SubCommand.Word, ePLCControl.DeviceName.D, $"{D32Base1}", 6);
-                    int[] b2 = ePLC.ReadDeviceBlock(ePLCControl.SubCommand.Word, ePLCControl.DeviceName.D, $"{D32Base2}", 6);
+                    int[] b1 = plc.ReadDeviceBlock(ePLCControl.SubCommand.Word, ePLCControl.DeviceName.D, $"{D32Base1}", 6);
+                    int[] b2 = plc.ReadDeviceBlock(ePLCControl.SubCommand.Word, ePLCControl.DeviceName.D, $"{D32Base2}", 6);
 
                     if (b1 != null && b1.Length >= 6)
                     {
@@ -84,9 +87,12 @@ namespace WPF_Test_PLC20260124
 
         private void ReadBitRegisters()
         {
+            var plc = ePLC;
+            if (plc == null) return;
+
             try
             {
-                int[] mData = ePLC.ReadDeviceBlock(ePLCControl.SubCommand.Bit, ePLCControl.DeviceName.M, $"{M_R_Base}", 100);
+                int[] mData = plc.ReadDeviceBlock(ePLCControl.SubCommand.Bit, ePLCControl.DeviceName.M, $"{M_R_Base}", 100);
                 if (mData != null && mData.Length > 0)
                 {
                     int[] newM = new int[_arr_R_M.Length];
@@ -94,7 +100,7 @@ namespace WPF_Test_PLC20260124
                     arr_R_M = newM;
                 }
 
-                int[] xData = ePLC.ReadDeviceBlock(ePLCControl.SubCommand.Bit, ePLCControl.DeviceName.X, $"{X_R_Base}", 100);
+                int[] xData = plc.ReadDeviceBlock(ePLCControl.SubCommand.Bit, ePLCControl.DeviceName.X, $"{X_R_Base}", 100);
                 if (xData != null && xData.Length > 0)
                 {
                     int[] newX = new int[_arr_R_X.Length];
@@ -102,7 +108,7 @@ namespace WPF_Test_PLC20260124
                     arr_R_X = newX;
                 }
 
-                int[] yData = ePLC.ReadDeviceBlock(ePLCControl.SubCommand.Bit, ePLCControl.DeviceName.Y, $"{Y_R_Base}", 100);
+                int[] yData = plc.ReadDeviceBlock(ePLCControl.SubCommand.Bit, ePLCControl.DeviceName.Y, $"{Y_R_Base}", 100);
                 if (yData != null && yData.Length > 0)
                 {
                     int[] newY = new int[_arr_R_Y.Length];

@@ -12,6 +12,9 @@ namespace WPF_Test_PLC20260124
             if (!HasPendingWrites())
                 return;
 
+            var plc = ePLC;
+            if (plc == null) return;
+
             try
             {
                 List<PendingWriteItem> pendingSnapshot;
@@ -54,7 +57,7 @@ namespace WPF_Test_PLC20260124
                             int lowWord = p.Value & 0xFFFF;
                             int highWord = (p.Value >> 16) & 0xFFFF;
 
-                            ePLC.WriteDeviceBlock(
+                            plc.WriteDeviceBlock(
                                 NVKProject.PLC.ePLCControl.SubCommand.Word,
                                 NVKProject.PLC.ePLCControl.DeviceName.D,
                                 $"{p.AddrIndex}",
@@ -65,7 +68,7 @@ namespace WPF_Test_PLC20260124
                         else if (IsBufferType(t))
                         {
                             string bufferAddress = BuildBufferAddress(t, p.AddrIndex, p.AddrIndexText, p.AddrIndexIsHex);
-                            ePLC.WriteDeviceBlock(
+                            plc.WriteDeviceBlock(
                                 NVKProject.PLC.ePLCControl.SubCommand.Word,
                                 NVKProject.PLC.ePLCControl.DeviceName.Buffer,
                                 bufferAddress,
@@ -85,7 +88,7 @@ namespace WPF_Test_PLC20260124
 
                             try
                             {
-                                ePLC.WriteDeviceBlock(
+                                plc.WriteDeviceBlock(
                                     NVKProject.PLC.ePLCControl.SubCommand.Bit,
                                     devName,
                                     $"{p.AddrIndex}",
@@ -101,7 +104,7 @@ namespace WPF_Test_PLC20260124
                             {
                                 try
                                 {
-                                    ePLC.WriteDeviceBlock(
+                                    plc.WriteDeviceBlock(
                                         NVKProject.PLC.ePLCControl.SubCommand.Word,
                                         devName,
                                         $"{p.AddrIndex}",
@@ -124,7 +127,7 @@ namespace WPF_Test_PLC20260124
                                         if (offset >= 0 && offset < arr_W_M.Length)
                                         {
                                             arr_W_M[offset] = p.Value;
-                                            ePLC.WriteDeviceBlock(
+                                            plc.WriteDeviceBlock(
                                                 NVKProject.PLC.ePLCControl.SubCommand.Bit,
                                                 NVKProject.PLC.ePLCControl.DeviceName.M,
                                                 $"{M_W_Base}",
@@ -138,7 +141,7 @@ namespace WPF_Test_PLC20260124
                                         if (offset >= 0 && offset < arr_W_X.Length)
                                         {
                                             arr_W_X[offset] = p.Value;
-                                            ePLC.WriteDeviceBlock(
+                                            plc.WriteDeviceBlock(
                                                 NVKProject.PLC.ePLCControl.SubCommand.Bit,
                                                 NVKProject.PLC.ePLCControl.DeviceName.X,
                                                 $"{X_W_Base}",
@@ -152,7 +155,7 @@ namespace WPF_Test_PLC20260124
                                         if (offset >= 0 && offset < arr_W_Y.Length)
                                         {
                                             arr_W_Y[offset] = p.Value;
-                                            ePLC.WriteDeviceBlock(
+                                            plc.WriteDeviceBlock(
                                                 NVKProject.PLC.ePLCControl.SubCommand.Bit,
                                                 NVKProject.PLC.ePLCControl.DeviceName.Y,
                                                 $"{Y_W_Base}",

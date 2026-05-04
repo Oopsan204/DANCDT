@@ -52,9 +52,10 @@ namespace WPF_Test_PLC20260124
                         // Ignore close errors from previous stale connection instance.
                     }
 
-                    ePLC = new ePLCControl();
-                    ePLC.SetPLCProperties(IpAddress, Port, NetworkNo, StationPLCNo, StationNo);
-                    ePLC.Open();
+                    var newPlc = new ePLCControl();
+                    newPlc.SetPLCProperties(IpAddress, Port, NetworkNo, StationPLCNo, StationNo);
+                    newPlc.Open();
+                    ePLC = newPlc;
                     Status = ePLC.IsConnected;
                 }
 
@@ -134,9 +135,10 @@ namespace WPF_Test_PLC20260124
                         // Ignore stale transport close failures.
                     }
 
-                    ePLC = new ePLCControl();
-                    ePLC.SetPLCProperties(IpAddress, Port, NetworkNo, StationPLCNo, StationNo);
-                    ePLC.Open();
+                    var newPlc = new ePLCControl();
+                    newPlc.SetPLCProperties(IpAddress, Port, NetworkNo, StationPLCNo, StationNo);
+                    newPlc.Open();
+                    ePLC = newPlc;
                     Status = ePLC.IsConnected;
                 }
 

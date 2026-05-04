@@ -2,6 +2,7 @@
 @inject WPF_Test_PLC20260124.MainViewModel ViewModel
 @inject IJSRuntime JSRuntime
 @using System.IO
+@implements IDisposable
 
 <div class="h-[calc(100vh-60px)] w-full flex flex-col p-6 gap-6 bg-surface text-on-surface font-body overflow-hidden">
     
@@ -505,8 +506,29 @@
 
     protected override void OnInitialized()
     {
-        ViewModel.PropertyChanged += (_, _) => InvokeAsync(StateHasChanged);
+        ViewModel.PropertyChanged += OnViewModelPropertyChanged;
+        ViewModel.DxfDownloadComplete += OnDxfDownloadComplete;
         base.OnInitialized();
+    }
+
+    private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void OnDxfDownloadComplete(object? sender, string message)
+    {
+        InvokeAsync(async () => {
+            try {
+                await JSRuntime.InvokeVoidAsync("alert", message);
+            } catch { }
+        });
+    }
+
+    public void Dispose()
+    {
+        ViewModel.PropertyChanged -= OnViewModelPropertyChanged;
+        ViewModel.DxfDownloadComplete -= OnDxfDownloadComplete;
     }
 
     private async Task OnMouseWheel(WheelEventArgs e)
