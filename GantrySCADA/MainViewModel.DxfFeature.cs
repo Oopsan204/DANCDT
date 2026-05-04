@@ -276,9 +276,16 @@ namespace WPF_Test_PLC20260124
                 var plc = ePLC;
                 if (plc != null && plc.IsConnected)
                 {
+                    // Debug log: show first few values being sent
+                    string a1Debug = string.Join(", ", a1Arr.Take(10).Select(v => $"0x{((ushort)v):X4}"));
+                    AddLog("PC", "info", $"Axis1 buffer (first 10): {a1Debug}", $"Length={a1Arr.Length}");
+
                     plc.WriteDeviceBlock(NVKProject.PLC.ePLCControl.SubCommand.Word,
                                           NVKProject.PLC.ePLCControl.DeviceName.Buffer,
                                           "U0\\G2000", a1Arr);
+
+                    string a2Debug = string.Join(", ", a2Arr.Take(10).Select(v => $"0x{((ushort)v):X4}"));
+                    AddLog("PC", "info", $"Axis2 buffer (first 10): {a2Debug}", $"Length={a2Arr.Length}");
 
                     plc.WriteDeviceBlock(NVKProject.PLC.ePLCControl.SubCommand.Word,
                                           NVKProject.PLC.ePLCControl.DeviceName.Buffer,
@@ -296,7 +303,7 @@ namespace WPF_Test_PLC20260124
                     OnPropertyChanged(nameof(SentBufferRecords));
                     OnPropertyChanged(nameof(SentBufferRecordsAxis2));
 
-                    AddLog("PLC", "success", $"Đã truyền {pointCount} điểm xuống Buffer PLC.");
+                    AddLog("PLC", "success", $"Đã truyền {pointCount} điểm xuống Buffer PLC.", "U0\\G2000 & U0\\G8000");
                 }
                 else
                 {
