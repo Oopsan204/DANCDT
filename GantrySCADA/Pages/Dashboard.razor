@@ -106,6 +106,32 @@
                         Current Jog Base Address: <span class="mono">M@(ViewModel.M_W_Base)</span>
                     </div>
 
+                    <!-- Jog Speed Slider -->
+                    <div class="velocity-control mt-6">
+                        <div class="flex items-center justify-between mb-2" style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                            <div class="velocity-value">
+                                <span class="val" style="font-size: 28px; font-weight: 700; font-family: 'Space Grotesk', sans-serif;">@VelocityVal.ToString("F1")</span>
+                                <span class="unt" style="font-size: 12px; color: var(--c-on-surface-variant); margin-left: 4px;">mm/s</span>
+                            </div>
+                            <div class="state-indicator" style="display: flex; flex-direction: column; align-items: center; gap: 2px;">
+                                <span class="material-symbols-outlined @(ViewModel.Status ? "status-run" : "status-idle")" style="font-size: 20px;">
+                                    @(ViewModel.Status ? "speed" : "pause_circle")
+                                </span>
+                                <span class="state-text" style="font-size: 10px; font-weight: 800; font-family: 'Space Grotesk', sans-serif; letter-spacing: 0.05em;">JOG SPEED</span>
+                            </div>
+                        </div>
+                        <input type="range" class="nexus-slider" 
+                               min="0" max="100" step="0.5" 
+                               value="@VelocityVal" 
+                               @oninput="OnVelocityChange"
+                               @onchange="OnVelocityCommit" />
+                        <div class="slider-marks" style="display: flex; justify-content: space-between; font-size: 10px; font-weight: 800; color: var(--c-outline); margin-top: 4px;">
+                            <span>0</span>
+                            <span>50</span>
+                            <span>100</span>
+                        </div>
+                    </div>
+
                     <div class="global-commands">
                         <div class="global-title">Global Commands</div>
                         <div class="global-grid">
@@ -469,8 +495,17 @@
         double scaled = VelocityVal * ViewModel.VelocityWriteScale;
         int rawValue = (int)Math.Round(scaled, MidpointRounding.AwayFromZero);
 
-        ViewModel.MarkPendingWrite("D", ViewModel.VelocityWriteAddress, rawValue);
-        ViewModel.AddLog("UI", "info", $"Velocity setpoint queued: {VelocityVal:F1} m/s -> D{ViewModel.VelocityWriteAddress}={rawValue}", "Velocity slider");
+        // Ghi 16-bit vì đây là vận tốc đơn giản (thập phân)
+        ViewModel.MarkPendingWrite("D", ViewModel.VelocityWriteAddress, rawValue, null, false, false);
+        ViewModel.AddLog("UI", "info", $"Jog Velocity setpoint queued: {VelocityVal:F1} mm/s -> D{ViewModel.VelocityWriteAddress}={rawValue}", "Velocity slider");
+    }
+
+    private void OnVelocityChange(ChangeEventArgs e)
+    {
+        if (double.TryParse(e.Value?.ToString(), out double val))
+        {
+            VelocityVal = val;
+        }
     }
 
     private void Connect()
