@@ -25,6 +25,8 @@ namespace NVKProject.PLC
         private int _port = 5000;
         private bool _isConnected;
         private int _mxLogicalStationNo;
+        private int _mxNetworkNo;
+        private int _mxStationPlcNo;
         private PLCCommunication? _mx;
 
         public bool IsConnected => _isConnected;
@@ -34,8 +36,16 @@ namespace NVKProject.PLC
             _ipAddress = ipAddress;
             _port = port;
             _mxLogicalStationNo = stationNo;
+            _mxNetworkNo = networkNo;
+            _mxStationPlcNo = stationPLCNo;
             if (_mx != null)
+            {
                 _mx.LogicalStationNumber = _mxLogicalStationNo;
+                _mx.NetworkNumber = _mxNetworkNo;
+                _mx.StationNumber = _mxStationPlcNo;
+                _mx.IPAddress = _ipAddress;
+                _mx.Port = _port;
+            }
         }
 
         public void Open()
@@ -44,11 +54,13 @@ namespace NVKProject.PLC
             _mx.IPAddress = _ipAddress;
             _mx.Port = _port;
             _mx.LogicalStationNumber = _mxLogicalStationNo;
+            _mx.NetworkNumber = _mxNetworkNo;
+            _mx.StationNumber = _mxStationPlcNo;
 
             bool ok = _mx.Connect();
             _isConnected = ok && _mx.IsConnected;
             if (!_isConnected)
-                throw new InvalidOperationException("MX Component connect failed.");
+                throw new InvalidOperationException($"MX Component connect failed. LogicalStation={_mxLogicalStationNo}, Network={_mxNetworkNo}, Station={_mxStationPlcNo}, Host={_ipAddress}:{_port}.");
         }
 
         public void Close()

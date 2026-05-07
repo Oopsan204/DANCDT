@@ -13,6 +13,8 @@ namespace NVKProject.PLC
         public string IPAddress { get; set; }
         public int Port { get; set; } = 2000;
         public int LogicalStationNumber { get; set; } = 0;
+        public int NetworkNumber { get; set; } = 0;
+        public int StationNumber { get; set; } = 0;
         public bool IsConnected => isConnected;
 
         public PLCCommunication(string ipAddress, int port = 2000, int logicalStationNumber = 0)
@@ -38,14 +40,25 @@ namespace NVKProject.PLC
             try
             {
                 if (isConnected) return true;
+
                 plcDevice.ActLogicalStationNumber = LogicalStationNumber;
+
+                // Optional runtime Ethernet parameters (not all MX Component setups expose these).
+                // When not supported, they will be ignored and LogicalStationNumber config is used.
+                TrySetComProperty(plcDevice, "ActHostAddress", IPAddress);
+                TrySetComProperty(plcDevice, "ActPortNumber", Port);
+                TrySetComProperty(plcDevice, "ActNetworkNumber", NetworkNumber);
+                TrySetComProperty(plcDevice, "ActStationNumber", StationNumber);
+
                 int result = plcDevice.Open();
                 if (result == 0)
                 {
                     isConnected = true;
                     return true;
                 }
-                return false;
+
+                string err = GetErrorMessage(result);
+                throw new Exception($"MX Open failed: {result} ({err})");
             }
             catch (Exception ex)
             {
@@ -478,6 +491,22 @@ namespace NVKProject.PLC
         {
             try { if (isConnected) Disconnect(); } catch { }
             plcDevice = null;
+        }
+
+        private static void TrySetComProperty(dynamic comObject, string propertyName, object? value)
+        {
+            if (value == null) return;
+            try
+            {
+                var t = (object)comObject;
+                var prop = t.GetType().GetProperty(propertyName);
+                if (prop == null || !prop.CanWrite) return;
+                prop.SetValue(t, value);
+            }
+            catch
+            {
+                // Ignore: property not supported by this COM type or value rejected.
+            }
         }
     }
 }
