@@ -174,7 +174,7 @@ namespace WPF_Test_PLC20260124
                 if (exists)
                     return;
 
-                var entry = new CustomMemoryEntry { AddrType = normalizedType, AddrIndex = addrIndex, AddrIndexText = string.Empty, Read32 = false, AddrIndexIsHex = false };
+                var entry = new CustomMemoryEntry { AddrType = normalizedType, AddrIndex = addrIndex, AddrIndexText = string.Empty, DataType = PlcDataType.Int16, AddrIndexIsHex = false };
                 CustomMemoryEntries.Add(entry);
                 AddLog("UI", "info", $"Added custom memory: {normalizedType}{addrIndex}");
                 OnPropertyChanged(nameof(CustomMemoryEntries));
@@ -185,7 +185,7 @@ namespace WPF_Test_PLC20260124
             }
         }
 
-        public void AddCustomMemoryEntry(string addrType, int addrIndex, string? addrIndexText, bool read32 = false, bool addrIndexIsHex = false)
+        public void AddCustomMemoryEntry(string addrType, int addrIndex, string? addrIndexText, PlcDataType dataType = PlcDataType.Int16, bool addrIndexIsHex = false)
         {
             try
             {
@@ -198,14 +198,22 @@ namespace WPF_Test_PLC20260124
                     && string.Equals(x.AddrIndexText ?? string.Empty, normalizedText, StringComparison.OrdinalIgnoreCase));
 
                 if (exists)
+                {
+                    // Cập nhật DataType nếu entry đã tồn tại
+                    var existingEntry = CustomMemoryEntries.First(x =>
+                        x.AddrType.Equals(normalizedType, StringComparison.OrdinalIgnoreCase)
+                        && x.AddrIndex == addrIndex
+                        && string.Equals(x.AddrIndexText ?? string.Empty, normalizedText, StringComparison.OrdinalIgnoreCase));
+                    existingEntry.DataType = dataType;
                     return;
+                }
 
                 var entry = new CustomMemoryEntry
                 {
                     AddrType = normalizedType,
                     AddrIndex = addrIndex,
                     AddrIndexText = normalizedText,
-                    Read32 = read32,
+                    DataType = dataType,
                     AddrIndexIsHex = addrIndexIsHex
                 };
 

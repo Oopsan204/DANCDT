@@ -4,6 +4,8 @@ Thay đổi xong thì tự build lại
 
 cho tôi xem thay đổi j trc khi thay đổi code
 
+khi có thay đổi j hãy tự sửa lại file này
+
 # GantrySCADA Project Instructions
 
 This project is a **WPF/Blazor Hybrid** application designed for controlling and monitoring a **Gantry Robot** system via **PLC (Programmable Logic Controller)**.
@@ -13,13 +15,13 @@ This project is a **WPF/Blazor Hybrid** application designed for controlling and
 - **Technologies:** .NET 8.0, WPF, Blazor WebView, C#.
 - **Primary Purpose:** Industrial SCADA (Supervisory Control and Data Acquisition) for Gantry systems.
 - **Key Capabilities:**
-  - Real-time PLC communication (Mitsubishi MC Protocol & MX Component).
+  - Real-time PLC communication (Mitsubishi MX Component).
   - Motion control (Jogging, Trajectory execution).
-  ### DXF/CAM processing (Advanced Trajectory Generation).
+  - DXF/CAM processing (Advanced Trajectory Generation).
   - **Protocol:** Uses a 10-word buffer frame per trajectory point.
   - **Addressing:** Writes directly to Simple Motion module buffer memory:
       - Axis 1 (X): `U0\G2000`
-      - Axis 2 (Y): `U0\G8000`
+      - Axis 2 (Y): `U0\G3000`
   - **Advanced Features:**
       - **Travel Moves:** Automatically inserts travel moves (G0) between contours with M-Code 0.
       - **Per-point Speed:** Configurable speed for every individual motion segment.
@@ -41,7 +43,7 @@ The application follows the **MVVM (Model-View-ViewModel)** pattern with a Blazo
 - **Host:** `MainWindow.xaml` hosts a `BlazorWebView`.
 - **Core Logic:** `MainViewModel` (Singleton) manages all state and PLC interaction.
 - **Frontend:** Razor components in the `Pages/` directory.
-- **PLC Interface:** Dual-path communication via `PlcMcShim` (MC Protocol) and `MxBufferClient` (MX Component).
+- **PLC Interface:** Uses `ePLCControl` (wrapper) and `PLCCommunication` (low-level MX Component ActUtlType wrapper).
 
 ## 📂 Key Files & Directories
 
@@ -52,8 +54,8 @@ The application follows the **MVVM (Model-View-ViewModel)** pattern with a Blazo
   - `MainViewModel.MotionAndLoggingFeature.cs`: Jogging and centralized logging.
   - `MainViewModel.DxfFeature.cs`: DXF parsing and trajectory generation.
   - `MainViewModel.CustomMemoryFeature.cs`: Dynamic address monitoring.
-- `PlcMcShim.cs`: PLC shim dùng Mitsubishi **MX Component** (ActUtlType64/ActUtlType).
-- `MxBufferClient.cs`: Client for Mitsubishi MX Component (COM) for buffer memory access.
+- `PLCCommunication.cs`: Low-level wrapper for Mitsubishi **MX Component** (`ActUtlType`). Handles `U\G` buffer memory access and sequential multi-word reads.
+- `PlcMcShim.cs`: Defines `ePLCControl` class which provides a high-level API over `PLCCommunication`.
 - `Pages/`: Blazor pages (`Dashboard`, `Telemetry`, `LogMonitor`, `DxfRun`, `SystemSettings`).
 - `wwwroot/index.html`: Entry point for the Blazor UI.
 
@@ -63,7 +65,7 @@ The application follows the **MVVM (Model-View-ViewModel)** pattern with a Blazo
 
 - .NET 8.0 SDK.
 - **Target Architecture:** `x86` (Required for MX Component COM interop).
-- Mitsubishi MX Component installed (for `U...\G...` buffer access).
+- Mitsubishi MX Component installed.
 
 ### Commands
 
@@ -83,7 +85,7 @@ The application follows the **MVVM (Model-View-ViewModel)** pattern with a Blazo
 
 - **Monitor Loop:** The `Monitor()` thread runs at ~100Hz (10ms sleep).
 - **Write Queue:** Prefer `MarkPendingWrite()` over direct PLC writes for UI actions to ensure they are processed sequentially in the monitor loop.
-- **Addressing:** Use `BuildAddress()` and `PlcBitHelper` for consistent address formatting.
+- **Addressing:** Supports standard Mitsubishi addresses (D, M, X, Y) and Buffer Memory (`U...\G...`).
 
 ### Logging
 

@@ -16,6 +16,8 @@
 10. [Thông tin PLC](#thông-tin-plc)
 11. [Tính năng DXF Trajectory (CAM)](#tính-năng-dxf-trajectory-cam)
 12. [Cập nhật hiện trạng kiến trúc 2026-04-29](#cập-nhật-hiện-trạng-kiến-trúc-2026-04-29)
+13. [Cập nhật hiện trạng kiến trúc 2026-05-03](#cập-nhật-hiện-trạng-kiến-trúc-2026-05-03)
+14. [Cập nhật hiện trạng kiến trúc 2026-05-07](#cập-nhật-hiện-trạng-kiến-trúc-2026-05-07)
 
 ---
 
@@ -2465,3 +2467,31 @@ Tương tự như trục 1, mảng `axis2Data` sẽ ghi vào `U0\G8000`, chỉ k
 | `...` | `...` | `...` | *(Tiếp tục tương tự)* |
 | `[16]` | `U0\G8016` | **50000** | Vị trí Y (Ví dụ: 50.0 mm) |
 | `[17]` | `U0\G8017` | **0** | Vị trí Y (Từ cao) |
+
+---
+
+## Cập nhật hiện trạng kiến trúc 2026-05-07
+
+Mục này tổng hợp các cải tiến cuối cùng và trạng thái vận hành hiện tại của hệ thống.
+
+### Tối ưu hóa Trajectory và Buffer Management
+- **Quy trình Download**: Tự động chèn Travel Move (G0) mượt mà với M-Code = 0 để tắt thiết bị đầu cuối khi di chuyển giữa các contour.
+- **Command Code tinh chỉnh**: 
+    - `0xD00A`: Nội suy thẳng liên tục (Continuous Path).
+    - `0xD00F`/`0xD010`: Nội suy cung tròn CW/CCW liên tục.
+    - Điểm cuối cùng luôn tự động chuyển sang mã `0x1...` (ví dụ: `0x100A`) để báo hiệu kết thúc quỹ đạo (END).
+- **Phân bổ vùng nhớ Buffer**:
+    - Trục X: `U0\G2000`
+    - Trục Y: `U0\G8000`
+    - Cấu trúc 10-word/điểm đảm bảo tính tương thích cao với module Simple Motion Mitsubishi.
+
+### Hệ thống State và Cấu hình Nâng cao
+- **Per-axis Mapping**: Cho phép cấu hình linh hoạt địa chỉ Đọc/Ghi cho từng trục (Position, Speed, Error, Warning, Status) qua UI Settings.
+- **Safety Limits**: Tích hợp logic kiểm tra biên an toàn (Safety Boundary) trong `MainViewModel.DxfFeature.cs` để ngăn chặn robot di chuyển quá giới hạn vật lý.
+- **Bit Helper & Word Logic**: Sử dụng `PlcBitHelper` để xử lý chuyển đổi giữa tọa độ 32-bit và cặp Word 16-bit, đảm bảo tính nhất quán dữ liệu khi truyền xuống PLC.
+
+### Giám sát và Chẩn đoán
+- **Throttled Logging**: Hệ thống Log được tối ưu để chỉ ghi log trạng thái định kỳ (1 giây/lần) trong vòng lặp Monitor 100Hz, giúp tránh làm tràn bộ đệm Log trong khi vẫn đảm bảo khả năng giám sát thời gian thực.
+- **Buffer Monitor Visualizer**: Hỗ trợ xem trực tiếp 30 Word dữ liệu thô từ vùng nhớ `U0\G` giúp kỹ sư dễ dàng đối chiếu dữ liệu truyền tải với bảng mã lệnh thực tế.
+
+---

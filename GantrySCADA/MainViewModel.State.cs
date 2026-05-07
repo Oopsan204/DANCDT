@@ -6,6 +6,15 @@ using System.Threading;
 
 namespace WPF_Test_PLC20260124
 {
+    /// <summary>Kiểu dữ liệu khi đọc/ghi thanh ghi PLC trên tab Telemetry.</summary>
+    public enum PlcDataType
+    {
+        Int16,   // 1 word, có dấu  (-32768..32767)
+        UInt16,  // 1 word, không dấu (0..65535)
+        Int32,   // 2 words, có dấu  (Int32)
+        UInt32,  // 2 words, không dấu (UInt32)
+    }
+
     public partial class MainViewModel : ObservableObject
     {
         #region Fields
@@ -168,6 +177,8 @@ namespace WPF_Test_PLC20260124
             public int Value { get; set; }
             public string AddrIndexText { get; set; } = "";
             public bool AddrIndexIsHex { get; set; }
+            /// <summary>True = ghi 32-bit (2 word), False = ghi 16-bit (1 word).</summary>
+            public bool Write32 { get; set; } = true;
         }
 
         public class LogItem
@@ -192,7 +203,9 @@ namespace WPF_Test_PLC20260124
             public string AddrType { get; set; } = "D";
             public int AddrIndex { get; set; }
             public string AddrIndexText { get; set; } = "";
-            public bool Read32 { get; set; }
+            public PlcDataType DataType { get; set; } = PlcDataType.Int16;
+            /// <summary>Đọc 2 words (32-bit) khi True, 1 word (16-bit) khi False.</summary>
+            public bool Read32 => DataType == PlcDataType.Int32 || DataType == PlcDataType.UInt32;
             public bool AddrIndexIsHex { get; set; }
             public int CurrentValue { get; set; }
             public DateTime LastUpdate { get; set; } = DateTime.Now;

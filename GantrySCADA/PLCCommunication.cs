@@ -25,7 +25,7 @@ namespace WPF_Test_PLC20260124
             {
                 Type? actUtlType = Type.GetTypeFromProgID("ActUtlType.ActUtlType");
                 if (actUtlType == null) throw new Exception("MX Component chưa được cài đặt.");
-                plcDevice = Activator.CreateInstance(actUtlType!);
+                plcDevice = Activator.CreateInstance(actUtlType!) ?? throw new Exception("Không tạo được đối tượng ActUtlType.");
             }
             catch (Exception ex)
             {
@@ -238,7 +238,7 @@ namespace WPF_Test_PLC20260124
             }
 
             // Nếu là thanh ghi D, đọc 2 words liên tiếp để ghép thành 32-bit
-            if (deviceName.StartsWith("D", StringComparison.OrdinalIgnoreCase) && TryGetNextWordDevice(deviceName, out string nextWordDevice))
+            if (deviceName.StartsWith("D", StringComparison.OrdinalIgnoreCase) && TryGetNextWordDevice(deviceName, out string? nextWordDevice) && nextWordDevice != null)
             {
                 int resLow = plcDevice.GetDevice(deviceName, out int low);
                 if (resLow != 0) throw new Exception($"Lỗi GetDevice {deviceName}: {GetErrorMessage(resLow)}");
@@ -421,10 +421,10 @@ namespace WPF_Test_PLC20260124
                                  devicePath.StartsWith("R", StringComparison.OrdinalIgnoreCase) ||
                                  devicePath.StartsWith("U", StringComparison.OrdinalIgnoreCase);
 
-            if (is32BitTarget && TryGetNextWordDevice(devicePath, out string nextWordDevice))
+            if (is32BitTarget && TryGetNextWordDevice(devicePath, out string? nextWordDevice2) && nextWordDevice2 != null)
             {
                 usedMethod = "SetDevice2 x2 (Low word -> High word)";
-                return WriteInt32ByWords(devicePath, nextWordDevice, value);
+                return WriteInt32ByWords(devicePath, nextWordDevice2, value);
             }
 
             usedMethod = "SetDevice";
@@ -463,7 +463,7 @@ namespace WPF_Test_PLC20260124
             if (!int.TryParse(match.Groups["address"].Value, out int address)) return false;
 
             nextWordDevice = match.Groups["prefix"].Value + (address + 1).ToString(CultureInfo.InvariantCulture);
-            return true;
+            return nextWordDevice != null;
         }
 
         private static string GetInnermostMessage(Exception ex)
@@ -481,7 +481,7 @@ namespace WPF_Test_PLC20260124
         public void Dispose()
         {
             try { if (isConnected) Disconnect(); } catch { }
-            plcDevice = null;
+            plcDevice = null!;
         }
     }
 }

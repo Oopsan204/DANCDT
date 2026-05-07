@@ -1,6 +1,7 @@
 @page "/telemetry"
 @inject WPF_Test_PLC20260124.MainViewModel ViewModel
 @using System.Timers
+@using WPF_Test_PLC20260124
 
 <style>
     @@keyframes value-flash {
@@ -68,10 +69,23 @@
                                 </span>
                             </div>
                             <div class="text-right">
-                                <div class="font-headline text-2xl font-bold text-on-surface">@entry.Value</div>
+                                <div class="font-headline text-2xl font-bold text-on-surface">@FormatReadValue(entry.Value, entry.DataType)</div>
                                 <div class="text-[10px] font-body text-outline">upd @entry.UpdatedMs ms ago</div>
-                            </div>
                         </div>
+                    </div>
+
+                    @* DataType selector (inline) *@
+                    <div class="flex items-center gap-1 px-3 pb-2">
+                        <span class="text-[9px] font-label uppercase text-outline tracking-wider">Type:</span>
+                        @foreach (var dt in new[] { PlcDataType.Int16, PlcDataType.UInt16, PlcDataType.Int32, PlcDataType.UInt32 })
+                        {
+                            <button @onclick="() => OnReadEntryDataTypeChanged(entry, dt)"
+                                    class="px-2 py-0.5 rounded text-[9px] font-bold uppercase transition-all
+                                           @(entry.DataType == dt ? "bg-primary text-on-primary" : "bg-surface-container-highest text-outline hover:text-on-surface")">
+                                @dt.ToString().ToUpperInvariant()
+                            </button>
+                        }
+                    </div>
 
                         <!-- Remove button -->
                         <button @onclick="() => RemoveReadEntry(entry)"
@@ -92,6 +106,13 @@
                     </select>
                     <input type="text" @bind="newReadIndexText" placeholder="Address (dec or hex)"
                            class="flex-1 bg-surface-container-highest text-on-surface font-mono text-sm px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                    <select @bind="newReadDataType"
+                            class="bg-surface-container-highest text-on-surface font-label text-[10px] font-bold uppercase rounded px-2 py-2 focus:outline-none focus:ring-2 focus:ring-primary/30">
+                        <option value="@PlcDataType.Int16">INT16</option>
+                        <option value="@PlcDataType.UInt16">UINT16</option>
+                        <option value="@PlcDataType.Int32">INT32</option>
+                        <option value="@PlcDataType.UInt32">UINT32</option>
+                    </select>
                     <button @onclick="AddReadEntry"
                             class="bg-gradient-to-r from-primary to-primary-container text-on-primary px-4 py-2 rounded font-label text-xs font-bold uppercase">
                         Add
@@ -146,8 +167,21 @@
 
                             <!-- Value Input -->
                             <div class="flex-1">
-                                                <input type="number" @bind="entry.WriteValue" placeholder="Value (-2147483648..2147483647 for D32)"
+                                <input type="number" @bind="entry.WriteValue"
+                                       placeholder="@GetWriteValuePlaceholder(entry.DataType)"
                                        class="w-full bg-surface-container-highest text-on-surface font-mono text-sm px-3 py-2.5 rounded focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                            </div>
+
+                            <!-- DataType Selector -->
+                            <div class="flex flex-col gap-0.5">
+                                @foreach (var dt in new[] { PlcDataType.Int16, PlcDataType.UInt16, PlcDataType.Int32, PlcDataType.UInt32 })
+                                {
+                                    <button @onclick="() => entry.DataType = dt"
+                                            class="px-1.5 py-0.5 rounded text-[8px] font-bold uppercase leading-tight transition-all
+                                                   @(entry.DataType == dt ? "bg-tertiary text-on-tertiary" : "bg-surface-container text-outline hover:text-on-surface")">
+                                        @dt.ToString().ToUpperInvariant()
+                                    </button>
+                                }
                             </div>
 
                             <!-- Write Button -->
@@ -288,9 +322,12 @@
         public string AddrType { get; set; } = "D";
         public int AddrIndex { get; set; }
         public string AddrIndexText { get; set; } = "";
-        public bool Read32 { get; set; }
+        /// <summary>Kiểu dữ liệu: Int16/UInt16 (1 word) hoặc Int32/UInt32 (2 words).</summary>
+        public PlcDataType DataType { get; set; } = PlcDataType.Int32;
+        /// <summary>Đọc 2 words khi True (Int32/UInt32), 1 word khi False.</summary>
+        public bool Read32 => DataType == PlcDataType.Int32 || DataType == PlcDataType.UInt32;
         public bool AddrIndexIsHex { get; set; }
-        public int Value { get; set; }
+        public int Value { get; set; }   // raw int từ PLC
         public long UpdatedMs { get; set; }
         public bool JustUpdated { get; set; }
         public int PrevValue { get; set; }
@@ -303,7 +340,11 @@
         public int AddrIndex { get; set; }
         public string AddrIndexText { get; set; } = "";
         public bool AddrIndexIsHex { get; set; }
-        public int WriteValue { get; set; }
+        /// <summary>Kiểu ghi: Int16/UInt16 = 1 word, Int32/UInt32 = 2 words.</summary>
+        public PlcDataType DataType { get; set; } = PlcDataType.Int32;
+        public bool Write32 => DataType == PlcDataType.Int32 || DataType == PlcDataType.UInt32;
+        /// <summary>Giá trị nhập từ UI (long để hỗ trợ UInt32).</summary>
+        public long WriteValue { get; set; }
         public WriteStatus Status { get; set; } = WriteStatus.None;
         public string ErrorMessage { get; set; } = "";
     }
@@ -320,10 +361,10 @@
     // ─── State ─────────────────────────────────────────────────────
     static List<ReadEntry> _persistedReadEntries = new()
     {
-        new() { AddrType = "D", AddrIndex = 4000, AddrIndexText = "4000" },
-        new() { AddrType = "D", AddrIndex = 4001, AddrIndexText = "4001" },
-        new() { AddrType = "D", AddrIndex = 4002, AddrIndexText = "4002" },
-        new() { AddrType = "M", AddrIndex = 0, AddrIndexText = "0" },
+        new() { AddrType = "D", AddrIndex = 4000, AddrIndexText = "4000", DataType = PlcDataType.Int32 },
+        new() { AddrType = "D", AddrIndex = 4001, AddrIndexText = "4001", DataType = PlcDataType.Int32 },
+        new() { AddrType = "D", AddrIndex = 4002, AddrIndexText = "4002", DataType = PlcDataType.Int32 },
+        new() { AddrType = "M", AddrIndex = 0,    AddrIndexText = "0",    DataType = PlcDataType.Int16 },
     };
 
     List<ReadEntry> readEntries => _persistedReadEntries;
@@ -350,6 +391,7 @@
     bool showAddRead = false;
     string newReadType = "D";
     string newReadIndexText = "";
+    PlcDataType newReadDataType = PlcDataType.Int32;
 
     System.Timers.Timer? _timer;
     bool _isRefreshingRead = false;
@@ -530,22 +572,22 @@
                 : true));
         if (!exists)
         {
-            bool read32 = IsBufferType(normalizedType);
             readEntries.Add(new ReadEntry
             {
                 AddrType = normalizedType,
                 AddrIndex = parsedIndex,
                 AddrIndexText = parsedText,
-                Read32 = read32,
+                DataType = newReadDataType,
                 AddrIndexIsHex = parsedIsHex
             });
             string storageText = IsBufferType(normalizedType) ? parsedText : string.Empty;
-            ViewModel.AddCustomMemoryEntry(normalizedType, parsedIndex, storageText, read32, parsedIsHex);
+            ViewModel.AddCustomMemoryEntry(normalizedType, parsedIndex, storageText, newReadDataType, parsedIsHex);
             ViewModel.AddLog("UI", "info", $"Telemetry read entry added: {FormatAddress(normalizedType, parsedIndex, parsedText, parsedIsHex)}");
         }
 
         showAddRead = false;
         newReadIndexText = "";
+        newReadDataType = PlcDataType.Int32;
     }
 
     void RemoveReadEntry(ReadEntry e)
@@ -569,8 +611,18 @@
         foreach (var entry in readEntries)
         {
             string storageText = IsBufferType(entry.AddrType) ? entry.AddrIndexText : string.Empty;
-            ViewModel.AddCustomMemoryEntry(entry.AddrType, entry.AddrIndex, storageText, entry.Read32, entry.AddrIndexIsHex);
+            ViewModel.AddCustomMemoryEntry(entry.AddrType, entry.AddrIndex, storageText, entry.DataType, entry.AddrIndexIsHex);
         }
+    }
+
+    /// <summary>
+    /// Khi người dùng đổi DataType của một ReadEntry, cập nhật CustomMemoryEntry tương ứng.
+    /// </summary>
+    void OnReadEntryDataTypeChanged(ReadEntry entry, PlcDataType newDt)
+    {
+        entry.DataType = newDt;
+        string storageText = IsBufferType(entry.AddrType) ? entry.AddrIndexText : string.Empty;
+        ViewModel.AddCustomMemoryEntry(entry.AddrType, entry.AddrIndex, storageText, newDt, entry.AddrIndexIsHex);
     }
 
     // ─── Write Logic ───────────────────────────────────────────────
@@ -578,20 +630,32 @@
     {
         entry.ErrorMessage = "";
 
-        // Validate based on address type
-        if (entry.AddrType == "D")
+        // --- Validate theo DataType ---
+        if (entry.AddrType == "M" || entry.AddrType == "X" || entry.AddrType == "Y")
         {
-            // D writes are packed as 32-bit into Dn (low) + Dn+1 (high).
-            // entry.WriteValue is int, already constrained to Int32 range by type.
-        }
-        else if (entry.AddrType == "M" || entry.AddrType == "X" || entry.AddrType == "Y")
-        {
-            // M, X, Y are bit devices: only 0 or 1
             if (entry.WriteValue != 0 && entry.WriteValue != 1)
             {
                 entry.Status = WriteStatus.ERR;
-                entry.ErrorMessage = $"{entry.AddrType} register is a BIT device - value must be 0 or 1 only.";
-                AddLog("WRITE", FormatAddress(entry.AddrType, entry.AddrIndex, entry.AddrIndexText, entry.AddrIndexIsHex), entry.WriteValue, false);
+                entry.ErrorMessage = $"{entry.AddrType} là BIT device - chỉ nhập 0 hoặc 1.";
+                AddLog("WRITE", FormatAddress(entry.AddrType, entry.AddrIndex, entry.AddrIndexText, entry.AddrIndexIsHex), (int)entry.WriteValue, false);
+                return;
+            }
+        }
+        else
+        {
+            (long min, long max, string label) = entry.DataType switch
+            {
+                PlcDataType.Int16  => (-32768L,      32767L,      "INT16  (-32768..32767)"),
+                PlcDataType.UInt16 => (0L,            65535L,      "UINT16 (0..65535)"),
+                PlcDataType.Int32  => ((long)int.MinValue, (long)int.MaxValue, "INT32"),
+                PlcDataType.UInt32 => (0L,            4294967295L, "UINT32 (0..4294967295)"),
+                _                  => ((long)int.MinValue, (long)int.MaxValue, "INT32")
+            };
+            if (entry.WriteValue < min || entry.WriteValue > max)
+            {
+                entry.Status = WriteStatus.ERR;
+                entry.ErrorMessage = $"Giá trị ngoài dải {label}";
+                AddLog("WRITE", FormatAddress(entry.AddrType, entry.AddrIndex, entry.AddrIndexText, entry.AddrIndexIsHex), (int)entry.WriteValue, false);
                 return;
             }
         }
@@ -599,8 +663,8 @@
         if (!ViewModel.Status)
         {
             entry.Status = WriteStatus.ERR;
-            entry.ErrorMessage = "PLC not connected.";
-            AddLog("WRITE", FormatAddress(entry.AddrType, entry.AddrIndex, entry.AddrIndexText, entry.AddrIndexIsHex), entry.WriteValue, false);
+            entry.ErrorMessage = "PLC chưa kết nối.";
+            AddLog("WRITE", FormatAddress(entry.AddrType, entry.AddrIndex, entry.AddrIndexText, entry.AddrIndexIsHex), (int)entry.WriteValue, false);
             return;
         }
 
@@ -611,7 +675,7 @@
             {
                 entry.Status = WriteStatus.ERR;
                 entry.ErrorMessage = "Invalid address format.";
-                AddLog("WRITE", FormatAddress(normType, entry.AddrIndex, entry.AddrIndexText, entry.AddrIndexIsHex), entry.WriteValue, false);
+                AddLog("WRITE", FormatAddress(normType, entry.AddrIndex, entry.AddrIndexText, entry.AddrIndexIsHex), (int)entry.WriteValue, false);
                 return;
             }
 
@@ -619,25 +683,34 @@
             entry.AddrIndexText = parsedText;
             entry.AddrIndexIsHex = parsedIsHex;
 
+            // Tính raw int theo DataType
+            int rawValue = entry.DataType switch
+            {
+                PlcDataType.Int16  => (short)entry.WriteValue,
+                PlcDataType.UInt16 => (int)(ushort)entry.WriteValue,
+                PlcDataType.UInt32 => unchecked((int)(uint)entry.WriteValue),
+                _                  => (int)entry.WriteValue   // Int32
+            };
+
             if (normType == "D" || normType == "M" || normType == "X" || normType == "Y" || IsBufferType(normType))
             {
-                // Keep mirror buffers in sync when address is inside configured ranges.
+                // Cập nhật mirror buffers
                 if (normType == "D")
                 {
-                    int lowWord = entry.WriteValue & 0xFFFF;
-                    int highWord = (entry.WriteValue >> 16) & 0xFFFF;
+                    int lowWord  = rawValue & 0xFFFF;
+                    int highWord = (rawValue >> 16) & 0xFFFF;
 
                     int offsetP = entry.AddrIndex - ViewModel.D_W_P;
                     if (offsetP >= 0 && (offsetP + 1) < ViewModel.arr_W_P.Length)
                     {
-                        ViewModel.arr_W_P[offsetP] = lowWord;
+                        ViewModel.arr_W_P[offsetP]     = lowWord;
                         ViewModel.arr_W_P[offsetP + 1] = highWord;
                     }
 
                     int offsetV = entry.AddrIndex - ViewModel.D_W_V;
                     if (offsetV >= 0 && (offsetV + 1) < ViewModel.arr_W_V.Length)
                     {
-                        ViewModel.arr_W_V[offsetV] = lowWord;
+                        ViewModel.arr_W_V[offsetV]     = lowWord;
                         ViewModel.arr_W_V[offsetV + 1] = highWord;
                     }
                 }
@@ -645,38 +718,38 @@
                 {
                     int offsetM = entry.AddrIndex - ViewModel.M_W_Base;
                     if (offsetM >= 0 && offsetM < ViewModel.arr_W_M.Length)
-                        ViewModel.arr_W_M[offsetM] = entry.WriteValue;
+                        ViewModel.arr_W_M[offsetM] = rawValue;
                 }
                 else if (normType == "X")
                 {
                     int offsetX = entry.AddrIndex - ViewModel.X_W_Base;
                     if (offsetX >= 0 && offsetX < ViewModel.arr_W_X.Length)
-                        ViewModel.arr_W_X[offsetX] = entry.WriteValue;
+                        ViewModel.arr_W_X[offsetX] = rawValue;
                 }
                 else if (normType == "Y")
                 {
                     int offsetY = entry.AddrIndex - ViewModel.Y_W_Base;
                     if (offsetY >= 0 && offsetY < ViewModel.arr_W_Y.Length)
-                        ViewModel.arr_W_Y[offsetY] = entry.WriteValue;
+                        ViewModel.arr_W_Y[offsetY] = rawValue;
                 }
 
                 string addrText = IsBufferType(normType) ? entry.AddrIndexText : string.Empty;
-                ViewModel.MarkPendingWrite(normType, entry.AddrIndex, entry.WriteValue, addrText, entry.AddrIndexIsHex);
+                ViewModel.MarkPendingWrite(normType, entry.AddrIndex, rawValue, addrText, entry.AddrIndexIsHex, entry.Write32);
                 entry.Status = WriteStatus.OK;
-                AddLog("WRITE", FormatAddress(normType, entry.AddrIndex, entry.AddrIndexText, entry.AddrIndexIsHex), entry.WriteValue, true);
+                AddLog("WRITE", FormatAddress(normType, entry.AddrIndex, entry.AddrIndexText, entry.AddrIndexIsHex), rawValue, true);
             }
             else
             {
                 entry.Status = WriteStatus.ERR;
                 entry.ErrorMessage = $"Unknown address type: {normType}.";
-                AddLog("WRITE", FormatAddress(normType, entry.AddrIndex, entry.AddrIndexText, entry.AddrIndexIsHex), entry.WriteValue, false);
+                AddLog("WRITE", FormatAddress(normType, entry.AddrIndex, entry.AddrIndexText, entry.AddrIndexIsHex), (int)entry.WriteValue, false);
             }
         }
         catch (Exception ex)
         {
             entry.Status = WriteStatus.ERR;
             entry.ErrorMessage = ex.Message;
-            AddLog("WRITE", FormatAddress(entry.AddrType, entry.AddrIndex, entry.AddrIndexText, entry.AddrIndexIsHex), entry.WriteValue, false);
+            AddLog("WRITE", FormatAddress(entry.AddrType, entry.AddrIndex, entry.AddrIndexText, entry.AddrIndexIsHex), (int)entry.WriteValue, false);
         }
     }
 
@@ -708,6 +781,26 @@
         "X" => "#b45309",
         "Y" => "#7c3aed",
         _   => "#2a9d8f"
+    };
+
+    /// <summary>Chuyển raw int từ PLC sang chuỗi hiển thị theo DataType.</summary>
+    static string FormatReadValue(int raw, PlcDataType dt) => dt switch
+    {
+        PlcDataType.Int16  => ((short)(raw & 0xFFFF)).ToString(),
+        PlcDataType.UInt16 => ((ushort)(raw & 0xFFFF)).ToString(),
+        PlcDataType.Int32  => raw.ToString(),
+        PlcDataType.UInt32 => ((uint)raw).ToString(),
+        _                  => raw.ToString()
+    };
+
+    /// <summary>Placeholder hint cho ô nhập value theo DataType.</summary>
+    static string GetWriteValuePlaceholder(PlcDataType dt) => dt switch
+    {
+        PlcDataType.Int16  => "INT16  (-32768..32767)",
+        PlcDataType.UInt16 => "UINT16 (0..65535)",
+        PlcDataType.Int32  => "INT32  (-2147483648..2147483647)",
+        PlcDataType.UInt32 => "UINT32 (0..4294967295)",
+        _                  => "Value"
     };
 
     string NormalizeType(string? addrType)
@@ -791,7 +884,7 @@
         if (IsBufferType(entry.AddrType))
         {
             entry.AddrIndexText = entry.AddrIndex.ToString("X");
-            entry.Read32 = true;
+            entry.DataType = PlcDataType.Int32;  // Buffer mặc định đọc 32-bit
             entry.AddrIndexIsHex = true;
         }
         else

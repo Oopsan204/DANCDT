@@ -27,7 +27,8 @@ namespace WPF_Test_PLC20260124
                             AddrIndex = x.AddrIndex,
                             AddrIndexText = x.AddrIndexText,
                             AddrIndexIsHex = x.AddrIndexIsHex,
-                            Value = x.Value
+                            Value = x.Value,
+                            Write32 = x.Write32
                         })
                         .ToList();
                 }
@@ -53,17 +54,29 @@ namespace WPF_Test_PLC20260124
 
                         if (t == "D")
                         {
-                            // Always write D as 32-bit using 2 consecutive words: low at Dn, high at Dn+1.
-                            int lowWord = p.Value & 0xFFFF;
-                            int highWord = (p.Value >> 16) & 0xFFFF;
-
-                            plc.WriteDeviceBlock(
-                                ePLCControl.SubCommand.Word,
-                                ePLCControl.DeviceName.D,
-                                $"{p.AddrIndex}",
-                                new[] { lowWord, highWord });
-
-                            AddLog("PC", "info", $"WRITE D32 packed: D{p.AddrIndex}={lowWord}, D{p.AddrIndex + 1}={highWord}", "D32");
+                            if (p.Write32)
+                            {
+                                // Ghi 32-bit: low word ở Dn, high word ở Dn+1
+                                int lowWord = p.Value & 0xFFFF;
+                                int highWord = (p.Value >> 16) & 0xFFFF;
+                                plc.WriteDeviceBlock(
+                                    ePLCControl.SubCommand.Word,
+                                    ePLCControl.DeviceName.D,
+                                    $"{p.AddrIndex}",
+                                    new[] { lowWord, highWord });
+                                AddLog("PC", "info", $"WRITE D32: D{p.AddrIndex}={lowWord}, D{p.AddrIndex + 1}={highWord}", "D32");
+                            }
+                            else
+                            {
+                                // Ghi 16-bit: chỉ 1 word tại Dn
+                                int wordVal = p.Value & 0xFFFF;
+                                plc.WriteDeviceBlock(
+                                    ePLCControl.SubCommand.Word,
+                                    ePLCControl.DeviceName.D,
+                                    $"{p.AddrIndex}",
+                                    new[] { wordVal });
+                                AddLog("PC", "info", $"WRITE D16: D{p.AddrIndex}={wordVal}", "D16");
+                            }
                         }
                         else if (IsBufferType(t))
                         {
@@ -224,6 +237,47 @@ namespace WPF_Test_PLC20260124
         public void MarkPendingWrite()
         {
             _hasPendingWrites = true;
+        }
+
+        /// <summary>Ghi với chỉ định 16-bit hay 32-bit (dùng từ Telemetry).</summary>
+        public void MarkPendingWrite(string addrType, int addrIndex, int value, string? addrIndexText, bool addrIndexIsHex, bool write32)
+        {
+            string normType = string.IsNullOrWhiteSpace(addrType)
+                ? "D"
+                : addrType.Trim().ToUpperInvariant();
+            string normText = addrIndexText?.Trim().ToUpperInvariant() ?? string.Empty;
+
+            lock (_pendingWriteLock)
+            {
+                var existing = _pendingWriteItems.FirstOrDefault(x =>
+                    x.AddrType == normType && x.AddrIndex == addrIndex
+                    && string.Equals(x.AddrIndexText ?? string.Empty, normText, StringComparison.OrdinalIgnoreCase));
+                if (existing == null)
+                {
+                    _pendingWriteItems.Add(new PendingWriteItem
+                    {
+                        AddrType = normType,
+                        AddrIndex = addrIndex,
+                        AddrIndexText = normText,
+                        AddrIndexIsHex = addrIndexIsHex,
+                        Value = value,
+                        Write32 = write32
+                    });
+                }
+                else
+                {
+                    existing.Value = value;
+                    existing.AddrIndexText = normText;
+                    existing.AddrIndexIsHex = addrIndexIsHex;
+                    existing.Write32 = write32;
+                }
+            }
+
+            _hasPendingWrites = true;
+            string queuedLabel = IsBufferType(normType)
+                ? BuildBufferAddress(normType, addrIndex, normText, addrIndexIsHex)
+                : $"{normType}{addrIndex}";
+            AddLog("PC", "info", $"WRITE queued [{(write32 ? "32-bit" : "16-bit")}]: {queuedLabel}={value}", "queued");
         }
 
         public void MarkPendingWrite(string addrType, int addrIndex, int value, string? addrIndexText = null, bool addrIndexIsHex = false)

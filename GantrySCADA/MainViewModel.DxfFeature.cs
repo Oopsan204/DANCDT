@@ -143,6 +143,8 @@ namespace WPF_Test_PLC20260124
             }
 
             IsDxfSending = true;
+            IsDxfRunning = true;
+            IsDxfPaused = false;
             DxfSendStatus = "Chuẩn bị...";
             AddLog("UI", "info", "Bắt đầu truyền quỹ đạo DXF (Async)...");
 
@@ -191,7 +193,38 @@ namespace WPF_Test_PLC20260124
             finally
             {
                 IsDxfSending = false;
+                IsDxfRunning = false;
             }
+        }
+
+        private async Task<bool> WaitForPLCConfirmation(TimeSpan timeout, CancellationToken cancellationToken)
+        {
+            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+            while (stopwatch.Elapsed < timeout)
+            {
+                if (cancellationToken.IsCancellationRequested) return false;
+
+                try
+                {
+                    lock (_plcSync)
+                    {
+                        var plc = ePLC;
+                        if (plc != null && plc.IsConnected)
+                        {
+                            // Đọc M300 (cần map đúng địa chỉ thực tế trong chương trình PLC)
+                            int[] mStatus = plc.ReadDeviceBlock(ePLCControl.SubCommand.Bit,
+                                                                 ePLCControl.DeviceName.M,
+                                                                 "300", 1);
+                            if (mStatus != null && mStatus.Length > 0 && mStatus[0] == 1)
+                                return true;
+                        }
+                    }
+                }
+                catch { /* Bỏ qua lỗi đọc tạm thời */ }
+
+                await Task.Delay(200, cancellationToken);
+            }
+            return false;
         }
 
         private (int[] a1Arr, int[] a2Arr, int pointCount) CompileDxfTrajectory(CancellationToken ct)
@@ -276,265 +309,76 @@ namespace WPF_Test_PLC20260124
                 var plc = ePLC;
                 if (plc != null && plc.IsConnected)
                 {
-                    // Debug log: show first few values being sent
-                    string a1Debug = string.Join(", ", a1Arr.Take(10).Select(v => $"0x{((ushort)v):X4}"));
-                    AddLog("PC", "info", $"Axis1 buffer (first 10): {a1Debug}", $"Length={a1Arr.Length}");
-                    
-                    // Test: Create test array with known values
-                    int[] testA1 = new int[10];
-                    testA1[0] = 0xAAAA;  // Test pattern
-                    testA1[1] = 0x5555;
-                    for (int i = 2; i < testA1.Length; i++) testA1[i] = 0;
-                    AddLog("PC", "warning", $"TEST: Sending test pattern to U0\\G2000: 0xAAAA, 0x5555", "DEBUG");
-
-                    plc.WriteDeviceBlock(ePLCControl.SubCommand.Word,
-                                          ePLCControl.DeviceName.Buffer,
-                                          "U0\\G2000", testA1);  // Send test first
-
-                    // Now send actual
+                    // Ghi trực tiếp vào Buffer memory của module (Simple Motion)
+                    // Axis 1: U0\G2000, Axis 2: U0\G3000
                     plc.WriteDeviceBlock(ePLCControl.SubCommand.Word,
                                           ePLCControl.DeviceName.Buffer,
                                           "U0\\G2000", a1Arr);
 
-                    string a2Debug = string.Join(", ", a2Arr.Take(10).Select(v => $"0x{((ushort)v):X4}"));
-                    AddLog("PC", "info", $"Axis2 buffer (first 10): {a2Debug}", $"Length={a2Arr.Length}");
-
                     plc.WriteDeviceBlock(ePLCControl.SubCommand.Word,
                                           ePLCControl.DeviceName.Buffer,
-                                          "U0\\G8000", a2Arr);
+                                          "U0\\G3000", a2Arr);
 
-                    // Cập nhật record để hiển thị UI
+                    // Update SentBufferRecords for visualization (up to first 30 words)
                     _sentBufferRecords.Clear();
                     _sentBufferRecordsAxis2.Clear();
                     int recordCount = Math.Min(a1Arr.Length, 30);
                     for (int i = 0; i < recordCount; i++)
                     {
-                        _sentBufferRecords.Add(new BufferRegisterRecord { Address = $"U0\\G{2000 + i}", Value = a1Arr[i] });
-                        _sentBufferRecordsAxis2.Add(new BufferRegisterRecord { Address = $"U0\\G{8000 + i}", Value = a2Arr[i] });
+                        _sentBufferRecords.Add(new BufferRegisterRecord
+                        {
+                            Address = $"U0\\G{2000 + i}",
+                            Value = a1Arr[i]
+                        });
+                        _sentBufferRecordsAxis2.Add(new BufferRegisterRecord
+                        {
+                            Address = $"U0\\G{3000 + i}",
+                            Value = a2Arr[i]
+                        });
                     }
                     OnPropertyChanged(nameof(SentBufferRecords));
                     OnPropertyChanged(nameof(SentBufferRecordsAxis2));
 
-                    AddLog("PLC", "success", $"Đã truyền {pointCount} điểm xuống Buffer PLC.", "U0\\G2000 & U0\\G8000");
+                    AddLog("PLC", "success", $"Đã truyền {pointCount} điểm quỹ đạo xuống Buffer PLC (U0\\G2000 & U0\\G3000)");
                 }
                 else
                 {
-                    throw new InvalidOperationException("Mất kết nối PLC trong quá trình truyền.");
+                    throw new InvalidOperationException("Chưa kết nối PLC, không thể truyền lệnh quỹ đạo.");
                 }
-            }
-        }
-
-        private async Task<bool> WaitForPLCConfirmation(TimeSpan timeout, CancellationToken cancellationToken)
-        {
-            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
-            while (stopwatch.Elapsed < timeout)
-            {
-                if (cancellationToken.IsCancellationRequested) return false;
-
-                try
-                {
-                    lock (_plcSync)
-                    {
-                        var plc = ePLC;
-                        if (plc != null && plc.IsConnected)
-                        {
-                            // Đọc M300 (cần map đúng địa chỉ thực tế trong chương trình PLC)
-                            int[] mStatus = plc.ReadDeviceBlock(ePLCControl.SubCommand.Bit,
-                                                                 ePLCControl.DeviceName.M,
-                                                                 "300", 1);
-                            if (mStatus != null && mStatus.Length > 0 && mStatus[0] == 1)
-                                return true;
-                        }
-                    }
-                }
-                catch { /* Bỏ qua lỗi đọc tạm thời */ }
-
-                await Task.Delay(200, cancellationToken);
-            }
-            return false;
-        }
-
-        public void DownloadTrajectoryToPlc()
-        {
-            if (DxfContours == null || DxfContours.Count == 0)
-            {
-                AddLog("PC", "warning", "Không có dữ liệu DXF để truyền xuống PLC.");
-                return;
-            }
-
-            try
-            {
-                List<int> axis1Data = new List<int>();
-                List<int> axis2Data = new List<int>();
-                int pointCount = 0;
-
-                uint speed = DxfDefaultSpeed; 
-                int absolutePointIndex = 1; // Start counting points from 1
-
-                foreach (var contour in DxfContours)
-                {
-                    if (contour.Points == null || contour.Points.Count == 0) continue;
-
-                    // 1. ALWAYS insert a travel move to the START of the contour
-                    ushort travelCmd = 0xD00A; // Continuous Path (Linear)
-                    ushort travelMCode = 0; // Turn OFF glue for travel moves
-                    
-                    if (absolutePointIndex >= DxfStartPointIndex)
-                    {
-                        AddTrajectoryPoint(axis1Data, axis2Data, travelCmd, travelMCode, 0, GetSpeedForPoint(absolutePointIndex), 
-                            contour.Points[0].X, contour.Points[0].Y, 0, 0);
-                        pointCount++;
-                    }
-                    absolutePointIndex++;
-
-                    // 2. Process the actual contour cut/glue
-                    if (contour.IsCircle)
-                    {
-                        ushort cmd = 0xD00F; // Continuous Path (Circle CW)
-                        ushort mcode = (ushort)(absolutePointIndex >= DxfGlueStartIndex && absolutePointIndex <= DxfGlueEndIndex ? 1 : 0);
-                        
-                        if (absolutePointIndex >= DxfStartPointIndex)
-                        {
-                            AddTrajectoryPoint(axis1Data, axis2Data, cmd, mcode, 0, GetSpeedForPoint(absolutePointIndex), 
-                                contour.Points.Last().X, contour.Points.Last().Y, 
-                                contour.CenterX, contour.CenterY);
-                            pointCount++;
-                        }
-                        absolutePointIndex++;
-                    }
-                    else if (contour.IsArc)
-                    {
-                        ushort cmd = contour.ArcClockwise ? (ushort)0xD00F : (ushort)0xD010;
-                        ushort mcode = (ushort)(absolutePointIndex >= DxfGlueStartIndex && absolutePointIndex <= DxfGlueEndIndex ? 1 : 0);
-                        
-                        if (absolutePointIndex >= DxfStartPointIndex)
-                        {
-                            AddTrajectoryPoint(axis1Data, axis2Data, cmd, mcode, 0, GetSpeedForPoint(absolutePointIndex), 
-                                contour.Points.Last().X, contour.Points.Last().Y, 
-                                contour.CenterX, contour.CenterY);
-                            pointCount++;
-                        }
-                        absolutePointIndex++;
-                    }
-                    else
-                    {
-                        // Linear
-                        for (int i = 1; i < contour.Points.Count; i++)
-                        {
-                            ushort cmd = 0xD00A; // Continuous Path
-                            ushort mcode = (ushort)(absolutePointIndex >= DxfGlueStartIndex && absolutePointIndex <= DxfGlueEndIndex ? 1 : 0);
-
-                            if (absolutePointIndex >= DxfStartPointIndex)
-                            {
-                                AddTrajectoryPoint(axis1Data, axis2Data, cmd, mcode, 0, GetSpeedForPoint(absolutePointIndex), 
-                                    contour.Points[i].X, contour.Points[i].Y, 0, 0);
-                                pointCount++;
-                            }
-                            absolutePointIndex++;
-                        }
-                    }
-                }
-
-                if (pointCount > 0)
-                {
-                    // Đổi mã lệnh của điểm cuối cùng thành Positioning complete (END) - 0x1...
-                    // Điểm cuối cùng bắt đầu tại index: (pointCount - 1) * 10
-                    int lastIdx = (pointCount - 1) * 10;
-                    ushort lastCmd1 = (ushort)axis1Data[lastIdx];
-                    ushort lastCmd2 = (ushort)axis2Data[lastIdx];
-                    
-                    lastCmd1 = (ushort)((lastCmd1 & 0x0FFF) | 0x1000);
-                    lastCmd2 = (ushort)((lastCmd2 & 0x0FFF) | 0x1000);
-                    
-                    axis1Data[lastIdx] = (int)lastCmd1;
-                    axis2Data[lastIdx] = (int)lastCmd2;
-
-                    // Chuyển sang mảng int[] để ghi xuống PLC
-                    int[] a1Arr = axis1Data.ToArray();
-                    int[] a2Arr = axis2Data.ToArray();
-
-                    lock (_plcSync)
-                    {
-                        var plc = ePLC;
-                        if (plc != null && plc.IsConnected)
-                        {
-                            // Ghi trực tiếp vào Buffer memory của module (Simple Motion)
-                            // Axis 1: U0\G2000, Axis 2: U0\G8000
-                            plc.WriteDeviceBlock(ePLCControl.SubCommand.Word, 
-                                                  ePLCControl.DeviceName.Buffer, 
-                                                  "U0\\G2000", a1Arr);
-                            
-                            plc.WriteDeviceBlock(ePLCControl.SubCommand.Word, 
-                                                  ePLCControl.DeviceName.Buffer, 
-                                                  "U0\\G8000", a2Arr);
-                                                  
-                            // Update SentBufferRecords for visualization (up to first 30 words)
-                            _sentBufferRecords.Clear();
-                            _sentBufferRecordsAxis2.Clear();
-                            int recordCount = Math.Min(a1Arr.Length, 30);
-                            for (int i = 0; i < recordCount; i++)
-                            {
-                                _sentBufferRecords.Add(new BufferRegisterRecord
-                                {
-                                    Address = $"U0\\G{2000 + i}",
-                                    Value = a1Arr[i]
-                                });
-                                _sentBufferRecordsAxis2.Add(new BufferRegisterRecord
-                                {
-                                    Address = $"U0\\G{8000 + i}",
-                                    Value = a2Arr[i]
-                                });
-                            }
-                            OnPropertyChanged(nameof(SentBufferRecords));
-                            OnPropertyChanged(nameof(SentBufferRecordsAxis2));
-
-                            AddLog("PLC", "success", $"Đã truyền {pointCount} điểm quỹ đạo xuống Buffer PLC (U0\\G2000 & U0\\G8000)");
-                            OnDxfDownloadComplete($"Đã truyền thành công {pointCount} điểm quỹ đạo!");
-                        }
-                        else
-                        {
-                            AddLog("PLC", "error", "Chưa kết nối PLC, không thể truyền lệnh quỹ đạo.");
-                        }
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                AddLog("PC", "error", $"Lỗi khi biên dịch/truyền quỹ đạo: {ex.Message}");
             }
         }
 
         private void AddTrajectoryPoint(List<int> ax1, List<int> ax2, ushort cmd, ushort mcode, uint dwell, uint speed, double posX, double posY, double cx, double cy)
         {
-            // Scale tọa độ (mm) sang số nguyên (ví dụ: nhân 1000 để có độ phân giải um)
+            // Scale mm sang um (x1000)
             int scaledX = (int)(posX * 1000.0);
             int scaledY = (int)(posY * 1000.0);
             int scaledCx = (int)(cx * 1000.0);
             int scaledCy = (int)(cy * 1000.0);
             
             // --- AXIS 1 (X & Center X) ---
-            ax1.Add((int)(ushort)cmd);          // Ensure unsigned interpretation
-            ax1.Add((int)(ushort)mcode);
-            ax1.Add((int)(dwell & 0xFFFF));
-            ax1.Add((int)(dwell >> 16));
-            ax1.Add((int)(speed & 0xFFFF));
-            ax1.Add((int)(speed >> 16));
-            ax1.Add((int)(scaledX & 0xFFFF)); // Vị trí X (Low)
-            ax1.Add((int)(scaledX >> 16));    // Vị trí X (High)
-            ax1.Add((int)(scaledCx & 0xFFFF)); // Tọa độ tâm X (Low)
-            ax1.Add((int)(scaledCx >> 16));    // Tọa độ tâm X (High)
+            ax1.Add((int)(ushort)cmd);          // +0: Positioning Identifier
+            ax1.Add((int)(ushort)mcode);        // +1: M Code
+            ax1.Add((int)(dwell & 0xFFFF));     // +2: Dwell Time (Low)
+            ax1.Add((int)(dwell >> 16));        // +3: Dwell Time (High)
+            ax1.Add((int)(speed & 0xFFFF));     // +4: Command Speed (Low)
+            ax1.Add((int)(speed >> 16));        // +5: Command Speed (High)
+            ax1.Add((int)(scaledX & 0xFFFF));   // +6: Position Address (Low)
+            ax1.Add((int)(scaledX >> 16));      // +7: Position Address (High)
+            ax1.Add((int)(scaledCx & 0xFFFF));  // +8: Arc Address (Low)
+            ax1.Add((int)(scaledCx >> 16));     // +9: Arc Address (High)
 
             // --- AXIS 2 (Y & Center Y) ---
-            ax2.Add((int)(ushort)cmd);          // Ensure unsigned interpretation
+            ax2.Add((int)(ushort)cmd);
             ax2.Add((int)(ushort)mcode);
             ax2.Add((int)(dwell & 0xFFFF));
             ax2.Add((int)(dwell >> 16));
             ax2.Add((int)(speed & 0xFFFF));
             ax2.Add((int)(speed >> 16));
-            ax2.Add((int)(scaledY & 0xFFFF)); // Vị trí Y (Low)
-            ax2.Add((int)(scaledY >> 16));    // Vị trí Y (High)
-            ax2.Add((int)(scaledCy & 0xFFFF)); // Tọa độ tâm Y (Low)
-            ax2.Add((int)(scaledCy >> 16));    // Tọa độ tâm Y (High)
+            ax2.Add((int)(scaledY & 0xFFFF));
+            ax2.Add((int)(scaledY >> 16));
+            ax2.Add((int)(scaledCy & 0xFFFF));
+            ax2.Add((int)(scaledCy >> 16));
         }
 
         public bool LoadDxfAdvanced(string filePath)

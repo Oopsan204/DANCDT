@@ -694,7 +694,7 @@
     }
 
     // --- Action Buttons ---
-    private void StartClick()
+    private async Task StartClick()
     {
         if (ViewModel.DxfContours == null || ViewModel.DxfContours.Count == 0)
         {
@@ -702,9 +702,9 @@
             return;
         }
         ViewModel.AddLog("UI", "info", $"Start DXF | Speed={ViewModel.DxfDefaultSpeed} | ZDown={ViewModel.DxfZDown:F1} | ZSafe={ViewModel.DxfZSafe:F1} | StartPt=#{ViewModel.DxfStartPointIndex}");
-        ViewModel.IsDxfRunning = true;
-        ViewModel.IsDxfPaused = false;
-        ViewModel.DownloadTrajectoryToPlc();
+        
+        // CancellationTokenSource can be used here if needed, but for now we use default
+        await ViewModel.DownloadTrajectoryToPlcAsync();
     }
 
     private void PauseClick()

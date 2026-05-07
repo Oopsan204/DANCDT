@@ -28,7 +28,11 @@ namespace WPF_Test_PLC20260124
                 int[] newData = plc.ReadDeviceBlock(ePLCControl.SubCommand.Word, ePLCControl.DeviceName.D, $"{D_R_V}", Length);
                 if (newData != null && newData.Length > 0)
                 {
-                    Array.Copy(newData, _arr_R_V, Math.Min(newData.Length, _arr_R_V.Length));
+                    // MX Component often returns Word values as unsigned 0..65535.
+                    // Convert each 16-bit word to signed Int16 so -1 shows as -1 (not 65535).
+                    int n = Math.Min(newData.Length, _arr_R_V.Length);
+                    for (int i = 0; i < n; i++)
+                        _arr_R_V[i] = unchecked((short)(ushort)newData[i]);
                     OnPropertyChanged(nameof(arr_R_V));
                 }
             }
