@@ -16,10 +16,6 @@
     <PackageReference Include="netDxf" Version="2023.11.10" />
   </ItemGroup>
 
-  <ItemGroup>
-    <Reference Include="NVKProject.Logger">
-      <HintPath>NVKProject.Logger.dll</HintPath>
-    </Reference>
-  </ItemGroup>
+
 
 </Project>

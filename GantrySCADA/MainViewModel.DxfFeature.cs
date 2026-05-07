@@ -287,20 +287,20 @@ namespace WPF_Test_PLC20260124
                     for (int i = 2; i < testA1.Length; i++) testA1[i] = 0;
                     AddLog("PC", "warning", $"TEST: Sending test pattern to U0\\G2000: 0xAAAA, 0x5555", "DEBUG");
 
-                    plc.WriteDeviceBlock(NVKProject.PLC.ePLCControl.SubCommand.Word,
-                                          NVKProject.PLC.ePLCControl.DeviceName.Buffer,
+                    plc.WriteDeviceBlock(ePLCControl.SubCommand.Word,
+                                          ePLCControl.DeviceName.Buffer,
                                           "U0\\G2000", testA1);  // Send test first
 
                     // Now send actual
-                    plc.WriteDeviceBlock(NVKProject.PLC.ePLCControl.SubCommand.Word,
-                                          NVKProject.PLC.ePLCControl.DeviceName.Buffer,
+                    plc.WriteDeviceBlock(ePLCControl.SubCommand.Word,
+                                          ePLCControl.DeviceName.Buffer,
                                           "U0\\G2000", a1Arr);
 
                     string a2Debug = string.Join(", ", a2Arr.Take(10).Select(v => $"0x{((ushort)v):X4}"));
                     AddLog("PC", "info", $"Axis2 buffer (first 10): {a2Debug}", $"Length={a2Arr.Length}");
 
-                    plc.WriteDeviceBlock(NVKProject.PLC.ePLCControl.SubCommand.Word,
-                                          NVKProject.PLC.ePLCControl.DeviceName.Buffer,
+                    plc.WriteDeviceBlock(ePLCControl.SubCommand.Word,
+                                          ePLCControl.DeviceName.Buffer,
                                           "U0\\G8000", a2Arr);
 
                     // Cập nhật record để hiển thị UI
@@ -339,8 +339,8 @@ namespace WPF_Test_PLC20260124
                         if (plc != null && plc.IsConnected)
                         {
                             // Đọc M300 (cần map đúng địa chỉ thực tế trong chương trình PLC)
-                            int[] mStatus = plc.ReadDeviceBlock(NVKProject.PLC.ePLCControl.SubCommand.Bit,
-                                                                 NVKProject.PLC.ePLCControl.DeviceName.M,
+                            int[] mStatus = plc.ReadDeviceBlock(ePLCControl.SubCommand.Bit,
+                                                                 ePLCControl.DeviceName.M,
                                                                  "300", 1);
                             if (mStatus != null && mStatus.Length > 0 && mStatus[0] == 1)
                                 return true;
@@ -460,12 +460,12 @@ namespace WPF_Test_PLC20260124
                         {
                             // Ghi trực tiếp vào Buffer memory của module (Simple Motion)
                             // Axis 1: U0\G2000, Axis 2: U0\G8000
-                            plc.WriteDeviceBlock(NVKProject.PLC.ePLCControl.SubCommand.Word, 
-                                                  NVKProject.PLC.ePLCControl.DeviceName.Buffer, 
+                            plc.WriteDeviceBlock(ePLCControl.SubCommand.Word, 
+                                                  ePLCControl.DeviceName.Buffer, 
                                                   "U0\\G2000", a1Arr);
                             
-                            plc.WriteDeviceBlock(NVKProject.PLC.ePLCControl.SubCommand.Word, 
-                                                  NVKProject.PLC.ePLCControl.DeviceName.Buffer, 
+                            plc.WriteDeviceBlock(ePLCControl.SubCommand.Word, 
+                                                  ePLCControl.DeviceName.Buffer, 
                                                   "U0\\G8000", a2Arr);
                                                   
                             // Update SentBufferRecords for visualization (up to first 30 words)

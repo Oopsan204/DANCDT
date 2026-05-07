@@ -2,7 +2,7 @@ using System;
 using System.Globalization;
 using System.Text.RegularExpressions;
 
-namespace NVKProject.PLC
+namespace WPF_Test_PLC20260124
 {
     public sealed class ePLCControl
     {
@@ -41,8 +41,6 @@ namespace NVKProject.PLC
             if (_mx != null)
             {
                 _mx.LogicalStationNumber = _mxLogicalStationNo;
-                _mx.NetworkNumber = _mxNetworkNo;
-                _mx.StationNumber = _mxStationPlcNo;
                 _mx.IPAddress = _ipAddress;
                 _mx.Port = _port;
             }
@@ -54,8 +52,6 @@ namespace NVKProject.PLC
             _mx.IPAddress = _ipAddress;
             _mx.Port = _port;
             _mx.LogicalStationNumber = _mxLogicalStationNo;
-            _mx.NetworkNumber = _mxNetworkNo;
-            _mx.StationNumber = _mxStationPlcNo;
 
             bool ok = _mx.Connect();
             _isConnected = ok && _mx.IsConnected;

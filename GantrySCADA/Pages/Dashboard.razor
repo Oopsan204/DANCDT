@@ -449,7 +449,6 @@
 
 @code {
     private double VelocityVal = 1.5;
-    private bool showAddMemory = false;
     private string newMemoryType = "D";
     private int newMemoryIndex = 0;
 
@@ -533,7 +532,6 @@
         {
             ViewModel.AddCustomMemoryEntry(newMemoryType, newMemoryIndex);
             newMemoryIndex = 0;
-            showAddMemory = false;
         }
     }
 

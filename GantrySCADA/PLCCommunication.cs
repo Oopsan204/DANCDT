@@ -1,20 +1,19 @@
 using System;
 using System.Globalization;
 using System.Text.RegularExpressions;
+using System.Runtime.InteropServices;
 
-namespace NVKProject.PLC
+namespace WPF_Test_PLC20260124
 {
-    public sealed class PLCCommunication : IDisposable
+    public class PLCCommunication : IDisposable
     {
-        private dynamic plcDevice;
+        private dynamic plcDevice = null!;
         private bool isConnected = false;
         private readonly object commLock = new object();
 
         public string IPAddress { get; set; }
         public int Port { get; set; } = 2000;
         public int LogicalStationNumber { get; set; } = 0;
-        public int NetworkNumber { get; set; } = 0;
-        public int StationNumber { get; set; } = 0;
         public bool IsConnected => isConnected;
 
         public PLCCommunication(string ipAddress, int port = 2000, int logicalStationNumber = 0)
@@ -24,11 +23,9 @@ namespace NVKProject.PLC
             LogicalStationNumber = logicalStationNumber;
             try
             {
-                // App targets x86; prefer 32-bit MX Component COM registration first.
-                Type? actUtlType = Type.GetTypeFromProgID("ActUtlType.ActUtlType")
-                    ?? Type.GetTypeFromProgID("ActUtlType64.ActUtlType");
-                if (actUtlType == null) throw new Exception("MX Component chưa được cài đặt (ActUtlType64/ActUtlType).");
-                plcDevice = Activator.CreateInstance(actUtlType);
+                Type? actUtlType = Type.GetTypeFromProgID("ActUtlType.ActUtlType");
+                if (actUtlType == null) throw new Exception("MX Component chưa được cài đặt.");
+                plcDevice = Activator.CreateInstance(actUtlType!);
             }
             catch (Exception ex)
             {
@@ -41,24 +38,14 @@ namespace NVKProject.PLC
             try
             {
                 if (isConnected) return true;
-
                 plcDevice.ActLogicalStationNumber = LogicalStationNumber;
-
-                // MX Component typically uses the connection defined by LogicalStationNumber in
-                // "Communication Setup Utility". Overriding host/port at runtime can cause Open()
-                // to fail when the configured protocol/port differs from UI inputs.
-                //
-                // If you *really* need runtime overrides later, we can add a user-facing toggle.
-
                 int result = plcDevice.Open();
                 if (result == 0)
                 {
                     isConnected = true;
                     return true;
                 }
-
-                string err = GetErrorMessage(result);
-                throw new Exception($"MX Open failed: {result} ({err})");
+                return false;
             }
             catch (Exception ex)
             {
@@ -85,10 +72,10 @@ namespace NVKProject.PLC
             }
         }
 
-        public object ReadDevice(string deviceName, int count = 1)
+        public object? ReadDevice(string deviceName, int count = 1)
         {
             if (!isConnected) throw new InvalidOperationException("Chưa kết nối PLC");
-            object readValue = null;
+            object? readValue = null;
             int result = plcDevice.ReadDevice(deviceName, count, ref readValue);
             if (result == 0) return readValue;
             throw new Exception($"Lỗi ReadDevice: {result}");
@@ -105,18 +92,22 @@ namespace NVKProject.PLC
 
             try
             {
+                int[] ints = new int[count];
                 lock (commLock)
                 {
-                    short[] data = new short[count];
-                    int rc = plcDevice.ReadBuffer(startIO, address, count, out data[0]);
-                    if (rc != 0)
-                        throw new Exception($"ReadBuffer U{startIO:X}\\G{address} x{count} failed: {rc:X}");
-
-                    int[] result = new int[count];
                     for (int i = 0; i < count; i++)
-                        result[i] = (int)(ushort)data[i];
-                    return result;
+                    {
+                        string devName = $"U{startIO:X}\\G{address + i}";
+                        int value = 0;
+                        int result = plcDevice.GetDevice(devName, out value);
+                        if (result != 0)
+                        {
+                            throw new Exception($"GetDevice {devName} failed: {result:X}");
+                        }
+                        ints[i] = value;
+                    }
                 }
+                return ints;
             }
             catch (Exception ex)
             {
@@ -174,7 +165,7 @@ namespace NVKProject.PLC
             // try ReadDevice (multi-word read) if available
             try
             {
-                object readValue = null;
+                object? readValue = null;
                 int result = plcDevice.ReadDevice(deviceName, count, ref readValue);
                 if (result == 0)
                 {
@@ -317,7 +308,7 @@ namespace NVKProject.PLC
                     sData[0] = (short)(sData[0] & ~0x0003);
 
                     // Bước 3: Ghi giá trị mới (00, 01, 11)
-                    sData[0] = (short)(sData[0] | (da1Value & 0x0003));
+                    sData[0] = (short)((ushort)sData[0] | (ushort)(da1Value & 0x0003));
 
                     // Bước 4: Ghi xuống PLC
                     return plcDevice.WriteBuffer(startIO, address, 1, ref sData[0]);
@@ -350,7 +341,7 @@ namespace NVKProject.PLC
 
                     // Keep upper bits, replace only Positioning Identifier field (b0..b4).
                     sData[0] = (short)(sData[0] & ~0x001F);
-                    sData[0] = (short)(sData[0] | (identifierValue & 0x001F));
+                    sData[0] = (short)((ushort)sData[0] | (ushort)(identifierValue & 0x001F));
 
                     return plcDevice.WriteBuffer(startIO, address, 1, ref sData[0]);
                 }
@@ -463,7 +454,7 @@ namespace NVKProject.PLC
 
 
 
-        private static bool TryGetNextWordDevice(string devicePath, out string nextWordDevice)
+        private static bool TryGetNextWordDevice(string devicePath, out string? nextWordDevice)
         {
             nextWordDevice = null;
             var match = Regex.Match(devicePath.Trim(), @"^(?<prefix>.*?)(?<address>\d+)$", RegexOptions.IgnoreCase);
@@ -483,57 +474,14 @@ namespace NVKProject.PLC
 
         public string GetErrorMessage(int errorCode)
         {
-            try
-            {
-                // Some versions expose GetErrorMessage(int) -> string
-                object? obj = plcDevice;
-                var t = obj.GetType();
-                var m1 = t.GetMethod("GetErrorMessage", new[] { typeof(int) });
-                if (m1 != null)
-                {
-                    object? msg = m1.Invoke(obj, new object[] { errorCode });
-                    if (msg is string s && !string.IsNullOrWhiteSpace(s))
-                        return s;
-                }
-
-                // Some versions expose GetErrorMessage(int, ref string)
-                var m2 = t.GetMethod("GetErrorMessage", new[] { typeof(int), typeof(string).MakeByRefType() });
-                if (m2 != null)
-                {
-                    object?[] args = new object?[] { errorCode, string.Empty };
-                    m2.Invoke(obj, args);
-                    if (args[1] is string s2 && !string.IsNullOrWhiteSpace(s2))
-                        return s2;
-                }
-            }
-            catch
-            {
-                // Ignore and fall back to code only.
-            }
-
-            return $"Mã lỗi: {errorCode}";
+            try { return plcDevice.GetErrorMessage(errorCode); }
+            catch { return $"Mã lỗi: {errorCode}"; }
         }
 
         public void Dispose()
         {
             try { if (isConnected) Disconnect(); } catch { }
             plcDevice = null;
-        }
-
-        private static void TrySetComProperty(dynamic comObject, string propertyName, object? value)
-        {
-            if (value == null) return;
-            try
-            {
-                var t = (object)comObject;
-                var prop = t.GetType().GetProperty(propertyName);
-                if (prop == null || !prop.CanWrite) return;
-                prop.SetValue(t, value);
-            }
-            catch
-            {
-                // Ignore: property not supported by this COM type or value rejected.
-            }
         }
     }
 }
