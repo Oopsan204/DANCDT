@@ -360,7 +360,7 @@ namespace WPF_Test_PLC20260124
             ax1.Add((int)(ushort)cmd);                       // +0: Positioning Identifier (16-bit)
             ax1.Add((int)(ushort)mcode);                     // +1: M Code (16-bit)
             ax1.Add((int)(dwell & 0xFFFF));                  // +2: Dwell Time (Low 16-bit)
-            ax1.Add((int)((dwell >> 16) & 0xFFFF));          // +3: Dwell Time (High 16-bit)
+            ax1.Add(0);                                      // +3: Reserved / Empty (New Structure)
             ax1.Add((int)(speed & 0xFFFF));                  // +4: Command Speed (Low 16-bit)
             ax1.Add((int)((speed >> 16) & 0xFFFF));          // +5: Command Speed (High 16-bit)
             ax1.Add((int)(scaledX & 0xFFFF));                // +6: Position Address (Low 16-bit)
@@ -369,16 +369,16 @@ namespace WPF_Test_PLC20260124
             ax1.Add((int)((scaledCx >> 16) & 0xFFFF));       // +9: Arc Address (High 16-bit)
 
             // --- AXIS 2 (Y & Center Y) ---
-            ax2.Add((int)(ushort)cmd);
-            ax2.Add((int)(ushort)mcode);
-            ax2.Add((int)(dwell & 0xFFFF));
-            ax2.Add((int)((dwell >> 16) & 0xFFFF));
-            ax2.Add((int)(speed & 0xFFFF));
-            ax2.Add((int)((speed >> 16) & 0xFFFF));
-            ax2.Add((int)(scaledY & 0xFFFF));
-            ax2.Add((int)((scaledY >> 16) & 0xFFFF));
-            ax2.Add((int)(scaledCy & 0xFFFF));
-            ax2.Add((int)((scaledCy >> 16) & 0xFFFF));
+            ax2.Add((int)(ushort)cmd);                       // +0
+            ax2.Add((int)(ushort)mcode);                     // +1
+            ax2.Add((int)(dwell & 0xFFFF));                  // +2
+            ax2.Add(0);                                      // +3: Reserved / Empty
+            ax2.Add((int)(speed & 0xFFFF));                  // +4
+            ax2.Add((int)((speed >> 16) & 0xFFFF));          // +5
+            ax2.Add((int)(scaledY & 0xFFFF));                // +6
+            ax2.Add((int)((scaledY >> 16) & 0xFFFF));        // +7
+            ax2.Add((int)(scaledCy & 0xFFFF));               // +8
+            ax2.Add((int)((scaledCy >> 16) & 0xFFFF));       // +9
         }
 
         public bool LoadDxfAdvanced(string filePath)

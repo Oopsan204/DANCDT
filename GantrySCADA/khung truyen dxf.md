@@ -18,8 +18,8 @@ Mỗi điểm (trajectory point) được cấu thành từ 10 thanh ghi 16-bit:
 | :----------- | :-------------------------------- | :-------------- | :----------------------------------------------------- |
 | **+0** | **Positioning Identifier**  | 16-bit          | Mã lệnh chạy (Control Code) & Operation Pattern.    |
 | **+1** | **M Code**                  | 16-bit          | Mã phụ (ví dụ:`1` - Bật keo, `0` - Tắt keo). |
-| **+2** | **Dwell Time (Low)**        | 32-bit (L)      | Thời gian chờ tại điểm (đơn vị: ms).           |
-| **+3** | **Dwell Time (High)**       | 32-bit (H)      |                                                        |
+| **+2** | **Dwell Time (Low)**        | 16-bit          | Thời gian chờ tại điểm (đơn vị: ms).           |
+| **+3** |                                   |                 |                                                        |
 | **+4** | **Command Speed (Low)**     | 32-bit (L)      | Tốc độ di chuyển.                                  |
 | **+5** | **Command Speed (High)**    | 32-bit (H)      |                                                        |
 | **+6** | **Position Address (Low)**  | 32-bit (L)      | Tọa độ đích (mm, tỉ lệ x1000 = µm).            |
@@ -58,3 +58,9 @@ Thanh ghi này quyết định cách thức robot di chuyển qua điểm đó.
 *Lưu ý: Dữ liệu tâm (Arc Address) của trục X được ghi vào word +8/+9 của Axis 1, tâm trục Y vào word +8/+9 của Axis 2.*
 
 ![1778147130249](image/khungtruyendxf/1778147130249.png)
+
+![1778148273406](image/khungtruyendxf/1778148273406.png)
+
+![1778148279976](image/khungtruyendxf/1778148279976.png)
+
+![1778149370054](image/khungtruyendxf/1778149370054.png)

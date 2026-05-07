@@ -19,6 +19,14 @@ This project is a **WPF/Blazor Hybrid** application designed for controlling and
   - Motion control (Jogging, Trajectory execution).
   - DXF/CAM processing (Advanced Trajectory Generation).
   - **Protocol:** Uses a 10-word buffer frame per trajectory point.
+  - **Frame Structure (per point):**
+      - `+0`: Positioning Identifier
+      - `+1`: M-Code
+      - `+2`: Dwell Time (16-bit)
+      - `+3`: Reserved (0)
+      - `+4/+5`: Command Speed (32-bit)
+      - `+6/+7`: Position Address (32-bit)
+      - `+8/+9`: Arc Address (32-bit)
   - **Addressing:** Writes directly to Simple Motion module buffer memory:
       - Axis 1 (X): `U0\G2000`
       - Axis 2 (Y): `U0\G3000`
