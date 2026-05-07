@@ -24,8 +24,9 @@ namespace NVKProject.PLC
             LogicalStationNumber = logicalStationNumber;
             try
             {
-                Type? actUtlType = Type.GetTypeFromProgID("ActUtlType64.ActUtlType")
-                    ?? Type.GetTypeFromProgID("ActUtlType.ActUtlType");
+                // App targets x86; prefer 32-bit MX Component COM registration first.
+                Type? actUtlType = Type.GetTypeFromProgID("ActUtlType.ActUtlType")
+                    ?? Type.GetTypeFromProgID("ActUtlType64.ActUtlType");
                 if (actUtlType == null) throw new Exception("MX Component chưa được cài đặt (ActUtlType64/ActUtlType).");
                 plcDevice = Activator.CreateInstance(actUtlType);
             }
@@ -43,12 +44,11 @@ namespace NVKProject.PLC
 
                 plcDevice.ActLogicalStationNumber = LogicalStationNumber;
 
-                // Optional runtime Ethernet parameters (not all MX Component setups expose these).
-                // When not supported, they will be ignored and LogicalStationNumber config is used.
-                TrySetComProperty(plcDevice, "ActHostAddress", IPAddress);
-                TrySetComProperty(plcDevice, "ActPortNumber", Port);
-                TrySetComProperty(plcDevice, "ActNetworkNumber", NetworkNumber);
-                TrySetComProperty(plcDevice, "ActStationNumber", StationNumber);
+                // MX Component typically uses the connection defined by LogicalStationNumber in
+                // "Communication Setup Utility". Overriding host/port at runtime can cause Open()
+                // to fail when the configured protocol/port differs from UI inputs.
+                //
+                // If you *really* need runtime overrides later, we can add a user-facing toggle.
 
                 int result = plcDevice.Open();
                 if (result == 0)
@@ -483,8 +483,35 @@ namespace NVKProject.PLC
 
         public string GetErrorMessage(int errorCode)
         {
-            try { return plcDevice.GetErrorMessage(errorCode); }
-            catch { return $"Mã lỗi: {errorCode}"; }
+            try
+            {
+                // Some versions expose GetErrorMessage(int) -> string
+                object? obj = plcDevice;
+                var t = obj.GetType();
+                var m1 = t.GetMethod("GetErrorMessage", new[] { typeof(int) });
+                if (m1 != null)
+                {
+                    object? msg = m1.Invoke(obj, new object[] { errorCode });
+                    if (msg is string s && !string.IsNullOrWhiteSpace(s))
+                        return s;
+                }
+
+                // Some versions expose GetErrorMessage(int, ref string)
+                var m2 = t.GetMethod("GetErrorMessage", new[] { typeof(int), typeof(string).MakeByRefType() });
+                if (m2 != null)
+                {
+                    object?[] args = new object?[] { errorCode, string.Empty };
+                    m2.Invoke(obj, args);
+                    if (args[1] is string s2 && !string.IsNullOrWhiteSpace(s2))
+                        return s2;
+                }
+            }
+            catch
+            {
+                // Ignore and fall back to code only.
+            }
+
+            return $"Mã lỗi: {errorCode}";
         }
 
         public void Dispose()
