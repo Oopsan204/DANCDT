@@ -407,6 +407,434 @@
                 </div>
             </div>
 
+            <div class="settings-card">
+                <div class="card-header accent-blue">
+                    <span class="material-symbols-outlined">view_list</span>
+                    <div>
+                        <h3 class="card-title">Axis Monitor Mapping</h3>
+                        <p class="card-subtitle">Configure PLC addresses for Dashboard Axis Monitor</p>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <table class="config-table">
+                        <thead>
+                            <tr>
+                                <th>Axis</th>
+                                <th>Item</th>
+                                <th>Addr Type</th>
+                                <th>Address Index</th>
+                                <th>32-bit</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><span class="axis-badge axis-x">AX1</span></td>
+                                <td class="param-name">Position</td>
+                                <td>
+                                    <select class="scale-select" style="max-width:90px;" @bind="ViewModel.Axis1PositionAddrType">
+                                        <option value="D">D</option>
+                                        <option value="M">M</option>
+                                        <option value="X">X</option>
+                                        <option value="Y">Y</option>
+                                        <option value="U0G">U0G</option>
+                                    </select>
+                                </td>
+                                <td><input class="addr-input" type="number" min="0" @bind="ViewModel.Axis1PositionAddrIndex" /></td>
+                                <td>
+                                    <label class="mono-val" style="display:flex;align-items:center;gap:6px;">
+                                        <input type="checkbox" @bind="ViewModel.Axis1PositionRead32" />
+                                        32-bit
+                                    </label>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td><span class="axis-badge axis-x">AX1</span></td>
+                                <td class="param-name">Speed</td>
+                                <td>
+                                    <select class="scale-select" style="max-width:90px;" @bind="ViewModel.Axis1SpeedAddrType">
+                                        <option value="D">D</option>
+                                        <option value="M">M</option>
+                                        <option value="X">X</option>
+                                        <option value="Y">Y</option>
+                                        <option value="U0G">U0G</option>
+                                    </select>
+                                </td>
+                                <td><input class="addr-input" type="number" min="0" @bind="ViewModel.Axis1SpeedAddrIndex" /></td>
+                                <td>
+                                    <label class="mono-val" style="display:flex;align-items:center;gap:6px;">
+                                        <input type="checkbox" @bind="ViewModel.Axis1SpeedRead32" />
+                                        32-bit
+                                    </label>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td><span class="axis-badge axis-x">AX1</span></td>
+                                <td class="param-name">Error Code</td>
+                                <td>
+                                    <select class="scale-select" style="max-width:90px;" @bind="ViewModel.Axis1ErrorAddrType">
+                                        <option value="D">D</option>
+                                        <option value="M">M</option>
+                                        <option value="X">X</option>
+                                        <option value="Y">Y</option>
+                                        <option value="U0G">U0G</option>
+                                    </select>
+                                </td>
+                                <td><input class="addr-input" type="number" min="0" @bind="ViewModel.Axis1ErrorAddrIndex" /></td>
+                                <td class="mono-val">--</td>
+                            </tr>
+                            <tr>
+                                <td><span class="axis-badge axis-x">AX1</span></td>
+                                <td class="param-name">Warning Code</td>
+                                <td>
+                                    <select class="scale-select" style="max-width:90px;" @bind="ViewModel.Axis1WarningAddrType">
+                                        <option value="D">D</option>
+                                        <option value="M">M</option>
+                                        <option value="X">X</option>
+                                        <option value="Y">Y</option>
+                                        <option value="U0G">U0G</option>
+                                    </select>
+                                </td>
+                                <td><input class="addr-input" type="number" min="0" @bind="ViewModel.Axis1WarningAddrIndex" /></td>
+                                <td class="mono-val">--</td>
+                            </tr>
+                            <tr>
+                                <td><span class="axis-badge axis-x">AX1</span></td>
+                                <td class="param-name">Axis Status</td>
+                                <td>
+                                    <select class="scale-select" style="max-width:90px;" @bind="ViewModel.Axis1StatusAddrType">
+                                        <option value="D">D</option>
+                                        <option value="M">M</option>
+                                        <option value="X">X</option>
+                                        <option value="Y">Y</option>
+                                        <option value="U0G">U0G</option>
+                                    </select>
+                                </td>
+                                <td><input class="addr-input" type="number" min="0" @bind="ViewModel.Axis1StatusAddrIndex" /></td>
+                                <td class="mono-val">--</td>
+                            </tr>
+                            <tr>
+                                <td><span class="axis-badge axis-x">AX1</span></td>
+                                <td class="param-name">Start No</td>
+                                <td>
+                                    <select class="scale-select" style="max-width:90px;" @bind="ViewModel.Axis1StartAddrType">
+                                        <option value="D">D</option>
+                                        <option value="M">M</option>
+                                        <option value="X">X</option>
+                                        <option value="Y">Y</option>
+                                        <option value="U0G">U0G</option>
+                                    </select>
+                                </td>
+                                <td><input class="addr-input" type="number" min="0" @bind="ViewModel.Axis1StartAddrIndex" /></td>
+                                <td class="mono-val">--</td>
+                            </tr>
+
+                            <tr>
+                                <td><span class="axis-badge axis-y">AX2</span></td>
+                                <td class="param-name">Position</td>
+                                <td>
+                                    <select class="scale-select" style="max-width:90px;" @bind="ViewModel.Axis2PositionAddrType">
+                                        <option value="D">D</option>
+                                        <option value="M">M</option>
+                                        <option value="X">X</option>
+                                        <option value="Y">Y</option>
+                                        <option value="U0G">U0G</option>
+                                    </select>
+                                </td>
+                                <td><input class="addr-input" type="number" min="0" @bind="ViewModel.Axis2PositionAddrIndex" /></td>
+                                <td>
+                                    <label class="mono-val" style="display:flex;align-items:center;gap:6px;">
+                                        <input type="checkbox" @bind="ViewModel.Axis2PositionRead32" />
+                                        32-bit
+                                    </label>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td><span class="axis-badge axis-y">AX2</span></td>
+                                <td class="param-name">Speed</td>
+                                <td>
+                                    <select class="scale-select" style="max-width:90px;" @bind="ViewModel.Axis2SpeedAddrType">
+                                        <option value="D">D</option>
+                                        <option value="M">M</option>
+                                        <option value="X">X</option>
+                                        <option value="Y">Y</option>
+                                        <option value="U0G">U0G</option>
+                                    </select>
+                                </td>
+                                <td><input class="addr-input" type="number" min="0" @bind="ViewModel.Axis2SpeedAddrIndex" /></td>
+                                <td>
+                                    <label class="mono-val" style="display:flex;align-items:center;gap:6px;">
+                                        <input type="checkbox" @bind="ViewModel.Axis2SpeedRead32" />
+                                        32-bit
+                                    </label>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td><span class="axis-badge axis-y">AX2</span></td>
+                                <td class="param-name">Error Code</td>
+                                <td>
+                                    <select class="scale-select" style="max-width:90px;" @bind="ViewModel.Axis2ErrorAddrType">
+                                        <option value="D">D</option>
+                                        <option value="M">M</option>
+                                        <option value="X">X</option>
+                                        <option value="Y">Y</option>
+                                        <option value="U0G">U0G</option>
+                                    </select>
+                                </td>
+                                <td><input class="addr-input" type="number" min="0" @bind="ViewModel.Axis2ErrorAddrIndex" /></td>
+                                <td class="mono-val">--</td>
+                            </tr>
+                            <tr>
+                                <td><span class="axis-badge axis-y">AX2</span></td>
+                                <td class="param-name">Warning Code</td>
+                                <td>
+                                    <select class="scale-select" style="max-width:90px;" @bind="ViewModel.Axis2WarningAddrType">
+                                        <option value="D">D</option>
+                                        <option value="M">M</option>
+                                        <option value="X">X</option>
+                                        <option value="Y">Y</option>
+                                        <option value="U0G">U0G</option>
+                                    </select>
+                                </td>
+                                <td><input class="addr-input" type="number" min="0" @bind="ViewModel.Axis2WarningAddrIndex" /></td>
+                                <td class="mono-val">--</td>
+                            </tr>
+                            <tr>
+                                <td><span class="axis-badge axis-y">AX2</span></td>
+                                <td class="param-name">Axis Status</td>
+                                <td>
+                                    <select class="scale-select" style="max-width:90px;" @bind="ViewModel.Axis2StatusAddrType">
+                                        <option value="D">D</option>
+                                        <option value="M">M</option>
+                                        <option value="X">X</option>
+                                        <option value="Y">Y</option>
+                                        <option value="U0G">U0G</option>
+                                    </select>
+                                </td>
+                                <td><input class="addr-input" type="number" min="0" @bind="ViewModel.Axis2StatusAddrIndex" /></td>
+                                <td class="mono-val">--</td>
+                            </tr>
+                            <tr>
+                                <td><span class="axis-badge axis-y">AX2</span></td>
+                                <td class="param-name">Start No</td>
+                                <td>
+                                    <select class="scale-select" style="max-width:90px;" @bind="ViewModel.Axis2StartAddrType">
+                                        <option value="D">D</option>
+                                        <option value="M">M</option>
+                                        <option value="X">X</option>
+                                        <option value="Y">Y</option>
+                                        <option value="U0G">U0G</option>
+                                    </select>
+                                </td>
+                                <td><input class="addr-input" type="number" min="0" @bind="ViewModel.Axis2StartAddrIndex" /></td>
+                                <td class="mono-val">--</td>
+                            </tr>
+
+                            <tr>
+                                <td><span class="axis-badge axis-z">AX3</span></td>
+                                <td class="param-name">Position</td>
+                                <td>
+                                    <select class="scale-select" style="max-width:90px;" @bind="ViewModel.Axis3PositionAddrType">
+                                        <option value="D">D</option>
+                                        <option value="M">M</option>
+                                        <option value="X">X</option>
+                                        <option value="Y">Y</option>
+                                        <option value="U0G">U0G</option>
+                                    </select>
+                                </td>
+                                <td><input class="addr-input" type="number" min="0" @bind="ViewModel.Axis3PositionAddrIndex" /></td>
+                                <td>
+                                    <label class="mono-val" style="display:flex;align-items:center;gap:6px;">
+                                        <input type="checkbox" @bind="ViewModel.Axis3PositionRead32" />
+                                        32-bit
+                                    </label>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td><span class="axis-badge axis-z">AX3</span></td>
+                                <td class="param-name">Speed</td>
+                                <td>
+                                    <select class="scale-select" style="max-width:90px;" @bind="ViewModel.Axis3SpeedAddrType">
+                                        <option value="D">D</option>
+                                        <option value="M">M</option>
+                                        <option value="X">X</option>
+                                        <option value="Y">Y</option>
+                                        <option value="U0G">U0G</option>
+                                    </select>
+                                </td>
+                                <td><input class="addr-input" type="number" min="0" @bind="ViewModel.Axis3SpeedAddrIndex" /></td>
+                                <td>
+                                    <label class="mono-val" style="display:flex;align-items:center;gap:6px;">
+                                        <input type="checkbox" @bind="ViewModel.Axis3SpeedRead32" />
+                                        32-bit
+                                    </label>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td><span class="axis-badge axis-z">AX3</span></td>
+                                <td class="param-name">Error Code</td>
+                                <td>
+                                    <select class="scale-select" style="max-width:90px;" @bind="ViewModel.Axis3ErrorAddrType">
+                                        <option value="D">D</option>
+                                        <option value="M">M</option>
+                                        <option value="X">X</option>
+                                        <option value="Y">Y</option>
+                                        <option value="U0G">U0G</option>
+                                    </select>
+                                </td>
+                                <td><input class="addr-input" type="number" min="0" @bind="ViewModel.Axis3ErrorAddrIndex" /></td>
+                                <td class="mono-val">--</td>
+                            </tr>
+                            <tr>
+                                <td><span class="axis-badge axis-z">AX3</span></td>
+                                <td class="param-name">Warning Code</td>
+                                <td>
+                                    <select class="scale-select" style="max-width:90px;" @bind="ViewModel.Axis3WarningAddrType">
+                                        <option value="D">D</option>
+                                        <option value="M">M</option>
+                                        <option value="X">X</option>
+                                        <option value="Y">Y</option>
+                                        <option value="U0G">U0G</option>
+                                    </select>
+                                </td>
+                                <td><input class="addr-input" type="number" min="0" @bind="ViewModel.Axis3WarningAddrIndex" /></td>
+                                <td class="mono-val">--</td>
+                            </tr>
+                            <tr>
+                                <td><span class="axis-badge axis-z">AX3</span></td>
+                                <td class="param-name">Axis Status</td>
+                                <td>
+                                    <select class="scale-select" style="max-width:90px;" @bind="ViewModel.Axis3StatusAddrType">
+                                        <option value="D">D</option>
+                                        <option value="M">M</option>
+                                        <option value="X">X</option>
+                                        <option value="Y">Y</option>
+                                        <option value="U0G">U0G</option>
+                                    </select>
+                                </td>
+                                <td><input class="addr-input" type="number" min="0" @bind="ViewModel.Axis3StatusAddrIndex" /></td>
+                                <td class="mono-val">--</td>
+                            </tr>
+                            <tr>
+                                <td><span class="axis-badge axis-z">AX3</span></td>
+                                <td class="param-name">Start No</td>
+                                <td>
+                                    <select class="scale-select" style="max-width:90px;" @bind="ViewModel.Axis3StartAddrType">
+                                        <option value="D">D</option>
+                                        <option value="M">M</option>
+                                        <option value="X">X</option>
+                                        <option value="Y">Y</option>
+                                        <option value="U0G">U0G</option>
+                                    </select>
+                                </td>
+                                <td><input class="addr-input" type="number" min="0" @bind="ViewModel.Axis3StartAddrIndex" /></td>
+                                <td class="mono-val">--</td>
+                            </tr>
+
+                            <tr>
+                                <td><span class="axis-badge axis-x">AX4</span></td>
+                                <td class="param-name">Position</td>
+                                <td>
+                                    <select class="scale-select" style="max-width:90px;" @bind="ViewModel.Axis4PositionAddrType">
+                                        <option value="D">D</option>
+                                        <option value="M">M</option>
+                                        <option value="X">X</option>
+                                        <option value="Y">Y</option>
+                                        <option value="U0G">U0G</option>
+                                    </select>
+                                </td>
+                                <td><input class="addr-input" type="number" min="0" @bind="ViewModel.Axis4PositionAddrIndex" /></td>
+                                <td>
+                                    <label class="mono-val" style="display:flex;align-items:center;gap:6px;">
+                                        <input type="checkbox" @bind="ViewModel.Axis4PositionRead32" />
+                                        32-bit
+                                    </label>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td><span class="axis-badge axis-x">AX4</span></td>
+                                <td class="param-name">Speed</td>
+                                <td>
+                                    <select class="scale-select" style="max-width:90px;" @bind="ViewModel.Axis4SpeedAddrType">
+                                        <option value="D">D</option>
+                                        <option value="M">M</option>
+                                        <option value="X">X</option>
+                                        <option value="Y">Y</option>
+                                        <option value="U0G">U0G</option>
+                                    </select>
+                                </td>
+                                <td><input class="addr-input" type="number" min="0" @bind="ViewModel.Axis4SpeedAddrIndex" /></td>
+                                <td>
+                                    <label class="mono-val" style="display:flex;align-items:center;gap:6px;">
+                                        <input type="checkbox" @bind="ViewModel.Axis4SpeedRead32" />
+                                        32-bit
+                                    </label>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td><span class="axis-badge axis-x">AX4</span></td>
+                                <td class="param-name">Error Code</td>
+                                <td>
+                                    <select class="scale-select" style="max-width:90px;" @bind="ViewModel.Axis4ErrorAddrType">
+                                        <option value="D">D</option>
+                                        <option value="M">M</option>
+                                        <option value="X">X</option>
+                                        <option value="Y">Y</option>
+                                        <option value="U0G">U0G</option>
+                                    </select>
+                                </td>
+                                <td><input class="addr-input" type="number" min="0" @bind="ViewModel.Axis4ErrorAddrIndex" /></td>
+                                <td class="mono-val">--</td>
+                            </tr>
+                            <tr>
+                                <td><span class="axis-badge axis-x">AX4</span></td>
+                                <td class="param-name">Warning Code</td>
+                                <td>
+                                    <select class="scale-select" style="max-width:90px;" @bind="ViewModel.Axis4WarningAddrType">
+                                        <option value="D">D</option>
+                                        <option value="M">M</option>
+                                        <option value="X">X</option>
+                                        <option value="Y">Y</option>
+                                        <option value="U0G">U0G</option>
+                                    </select>
+                                </td>
+                                <td><input class="addr-input" type="number" min="0" @bind="ViewModel.Axis4WarningAddrIndex" /></td>
+                                <td class="mono-val">--</td>
+                            </tr>
+                            <tr>
+                                <td><span class="axis-badge axis-x">AX4</span></td>
+                                <td class="param-name">Axis Status</td>
+                                <td>
+                                    <select class="scale-select" style="max-width:90px;" @bind="ViewModel.Axis4StatusAddrType">
+                                        <option value="D">D</option>
+                                        <option value="M">M</option>
+                                        <option value="X">X</option>
+                                        <option value="Y">Y</option>
+                                        <option value="U0G">U0G</option>
+                                    </select>
+                                </td>
+                                <td><input class="addr-input" type="number" min="0" @bind="ViewModel.Axis4StatusAddrIndex" /></td>
+                                <td class="mono-val">--</td>
+                            </tr>
+                            <tr>
+                                <td><span class="axis-badge axis-x">AX4</span></td>
+                                <td class="param-name">Start No</td>
+                                <td>
+                                    <select class="scale-select" style="max-width:90px;" @bind="ViewModel.Axis4StartAddrType">
+                                        <option value="D">D</option>
+                                        <option value="M">M</option>
+                                        <option value="X">X</option>
+                                        <option value="Y">Y</option>
+                                        <option value="U0G">U0G</option>
+                                    </select>
+                                </td>
+                                <td><input class="addr-input" type="number" min="0" @bind="ViewModel.Axis4StartAddrIndex" /></td>
+                                <td class="mono-val">--</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
             <!-- Card 2: Live Preview -->
             <div class="settings-card">
                 <div class="card-header accent-cyan">
@@ -677,5 +1105,65 @@
         ViewModel.PosOffsetX = 0;
         ViewModel.PosOffsetY = 0;
         ViewModel.PosOffsetZ = 0;
+
+        ViewModel.Axis1PositionAddrType = "D";
+        ViewModel.Axis1PositionAddrIndex = 0;
+        ViewModel.Axis1PositionRead32 = true;
+        ViewModel.Axis1SpeedAddrType = "D";
+        ViewModel.Axis1SpeedAddrIndex = 4;
+        ViewModel.Axis1SpeedRead32 = true;
+        ViewModel.Axis1ErrorAddrType = "U0G";
+        ViewModel.Axis1ErrorAddrIndex = 806;
+        ViewModel.Axis1WarningAddrType = "U0G";
+        ViewModel.Axis1WarningAddrIndex = 807;
+        ViewModel.Axis1StatusAddrType = "U0G";
+        ViewModel.Axis1StatusAddrIndex = 809;
+        ViewModel.Axis1StartAddrType = "U0G";
+        ViewModel.Axis1StartAddrIndex = 1500;
+
+        ViewModel.Axis2PositionAddrType = "D";
+        ViewModel.Axis2PositionAddrIndex = 10;
+        ViewModel.Axis2PositionRead32 = true;
+        ViewModel.Axis2SpeedAddrType = "D";
+        ViewModel.Axis2SpeedAddrIndex = 14;
+        ViewModel.Axis2SpeedRead32 = true;
+        ViewModel.Axis2ErrorAddrType = "U0G";
+        ViewModel.Axis2ErrorAddrIndex = 906;
+        ViewModel.Axis2WarningAddrType = "U0G";
+        ViewModel.Axis2WarningAddrIndex = 907;
+        ViewModel.Axis2StatusAddrType = "U0G";
+        ViewModel.Axis2StatusAddrIndex = 909;
+        ViewModel.Axis2StartAddrType = "U0G";
+        ViewModel.Axis2StartAddrIndex = 1600;
+
+        ViewModel.Axis3PositionAddrType = "D";
+        ViewModel.Axis3PositionAddrIndex = 20;
+        ViewModel.Axis3PositionRead32 = true;
+        ViewModel.Axis3SpeedAddrType = "D";
+        ViewModel.Axis3SpeedAddrIndex = 24;
+        ViewModel.Axis3SpeedRead32 = true;
+        ViewModel.Axis3ErrorAddrType = "U0G";
+        ViewModel.Axis3ErrorAddrIndex = 1006;
+        ViewModel.Axis3WarningAddrType = "U0G";
+        ViewModel.Axis3WarningAddrIndex = 1007;
+        ViewModel.Axis3StatusAddrType = "U0G";
+        ViewModel.Axis3StatusAddrIndex = 1009;
+        ViewModel.Axis3StartAddrType = "U0G";
+        ViewModel.Axis3StartAddrIndex = 1700;
+
+        ViewModel.Axis4PositionAddrType = "D";
+        ViewModel.Axis4PositionAddrIndex = 30;
+        ViewModel.Axis4PositionRead32 = true;
+        ViewModel.Axis4SpeedAddrType = "D";
+        ViewModel.Axis4SpeedAddrIndex = 34;
+        ViewModel.Axis4SpeedRead32 = true;
+        ViewModel.Axis4ErrorAddrType = "U0G";
+        ViewModel.Axis4ErrorAddrIndex = 1106;
+        ViewModel.Axis4WarningAddrType = "U0G";
+        ViewModel.Axis4WarningAddrIndex = 1107;
+        ViewModel.Axis4StatusAddrType = "U0G";
+        ViewModel.Axis4StatusAddrIndex = 1109;
+        ViewModel.Axis4StartAddrType = "U0G";
+        ViewModel.Axis4StartAddrIndex = 1800;
     }
 }

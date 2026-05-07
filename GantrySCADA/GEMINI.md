@@ -52,7 +52,7 @@ The application follows the **MVVM (Model-View-ViewModel)** pattern with a Blazo
   - `MainViewModel.MotionAndLoggingFeature.cs`: Jogging and centralized logging.
   - `MainViewModel.DxfFeature.cs`: DXF parsing and trajectory generation.
   - `MainViewModel.CustomMemoryFeature.cs`: Dynamic address monitoring.
-- `PlcMcShim.cs`: Shim for `HslCommunication` Melsec MC Protocol.
+- `PlcMcShim.cs`: PLC shim dùng Mitsubishi **MX Component** (ActUtlType64/ActUtlType).
 - `MxBufferClient.cs`: Client for Mitsubishi MX Component (COM) for buffer memory access.
 - `Pages/`: Blazor pages (`Dashboard`, `Telemetry`, `LogMonitor`, `DxfRun`, `SystemSettings`).
 - `wwwroot/index.html`: Entry point for the Blazor UI.

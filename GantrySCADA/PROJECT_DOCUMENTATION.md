@@ -36,9 +36,8 @@
 .NET 8.0 WPF
 ├── Blazor WebView (Microsoft.AspNetCore.Components.WebView.Wpf 8.0.82)
 ├── MVVM Toolkit (CommunityToolkit.Mvvm 8.4.2)
-├── HslCommunication 11.0.0 (Mitsubishi MC Protocol)
 ├── netDxf 2023.11.10 (DXF parsing/CAM preview)
-├── MX Component COM (ActUtlType64/ActUtlType cho buffer U\G)
+├── MX Component COM (ActUtlType64/ActUtlType cho D/M/X/Y và buffer U\G)
 ├── Custom Logger (NVKProject.Logger.dll)
 └── PLC shim source trong project (PlcMcShim.cs, MxBufferClient.cs)
 ```
@@ -82,25 +81,18 @@ App.xaml.cs
 | `MainViewModel.MotionAndLoggingFeature.cs` | JogStart/JogStop, bit helper, AddLog |
 | `MainViewModel.CustomMemoryFeature.cs` | Đọc custom memory từ Dashboard/Telemetry |
 | `MainViewModel.DxfFeature.cs` | Load DXF, Trajectory generation (Travel moves, per-point speed) |
-| `PlcMcShim.cs` | `NVKProject.PLC.ePLCControl` shim dùng HslCommunication MC Protocol |
+| `PlcMcShim.cs` | `NVKProject.PLC.ePLCControl` shim dùng MX Component (ActUtlType) |
 | `MxBufferClient.cs` | Client COM MX Component cho buffer memory `U...\G...` |
 | `PlcBitHelper.cs` | Helper thao tác bit/word |
 
 ### PLC communication hiện tại
 
-Hệ thống có hai đường giao tiếp PLC:
+Hệ thống hiện dùng **MX Component COM** làm đường giao tiếp chính:
 
-1. **MC Protocol qua TCP/IP**
-   - Implement trong `PlcMcShim.cs`.
-   - Dùng `HslCommunication.Profinet.Melsec.MelsecMcNet`.
-   - Hỗ trợ D word và M/X/Y bit.
-   - `BuildAddress()` chuyển kiểu device thành địa chỉ như `D4000`, `M3000`, `X0`, `Y0`.
-
-2. **MX Component COM cho buffer memory**
-   - Implement trong `MxBufferClient.cs`.
-   - Tự tìm ProgID `ActUtlType64.ActUtlType`, fallback `ActUtlType.ActUtlType`.
-   - Hỗ trợ `ReadBuffer/WriteBuffer` khi địa chỉ dạng `U...\G...`.
-   - Hỗ trợ fallback `ReadDeviceBlock2/WriteDeviceBlock2` nếu không parse được U/G buffer.
+1. **MX Component COM (ActUtlType64/ActUtlType) cho D/M/X/Y và buffer U\G**
+   - Implement wrapper trong `PLCCommunication.cs`.
+   - `PlcMcShim.cs` gọi vào MX Component để đọc/ghi D/M/X/Y và buffer `U...\G...`.
+   - Buffer ưu tiên `ReadBuffer/WriteBuffer` (nhanh) khi địa chỉ dạng `U...\G...`.
 
 ### Monitor thread
 

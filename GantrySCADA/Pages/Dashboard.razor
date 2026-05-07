@@ -105,165 +105,169 @@
                         <span class="material-symbols-outlined">info</span>
                         Current Jog Base Address: <span class="mono">M@(ViewModel.M_W_Base)</span>
                     </div>
+
+                    <div class="global-commands">
+                        <div class="global-title">Global Commands</div>
+                        <div class="global-grid">
+                            <button class="btn-danger @(ViewModel.GlobalEmergencyStopEnabled ? "btn-toggle-active" : "")" @onclick="ToggleEmergencyStop">
+                                <span class="material-symbols-outlined">emergency</span>
+                                EMERGENCY STOP
+                            </button>
+                            <button class="btn-primary @(ViewModel.GlobalGoHomeEnabled ? "btn-toggle-active" : "")" @onclick="ToggleGoHome">
+                                <span class="material-symbols-outlined">home</span>
+                                GO HOME
+                            </button>
+                            <button class="btn-primary @(ViewModel.GlobalResetFaultEnabled ? "btn-toggle-active" : "")" @onclick="ToggleResetFault">
+                                <span class="material-symbols-outlined">restart_alt</span>
+                                RESET FAULT
+                            </button>
+                            <button class="btn-primary @(ViewModel.GlobalStartEnabled ? "btn-toggle-active" : "")" @onclick="ToggleStart">
+                                <span class="material-symbols-outlined">play_arrow</span>
+                                START
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
         </section>
 
-        <!-- ── RIGHT COLUMN: TELEMETRY ─────────────────────────────── -->
+        <!-- ── RIGHT COLUMN: AXIS MONITOR ───────────────────────────── -->
         <section class="col-span-12 lg:col-span-8 space-y-6">
-            
-            <!-- Position Display Grid -->
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <!-- X Position -->
-                <div class="telemetry-card axis-x">
-                    <div class="card-inner">
-                        <div class="card-label">Coordinate X</div>
-                        <div class="value-row">
-                            <span class="value">@ViewModel.GetFormattedPosition(ViewModel.arr_R32.Length > 0 ? ViewModel.arr_R32[0] : 0, "X")</span>
-                            <span class="unit">@ViewModel.PosUnit</span>
-                        </div>
-                        <div class="raw-value">Raw: @(ViewModel.arr_R32.Length > 0 ? ViewModel.arr_R32[0] : 0)</div>
-                    </div>
-                    <div class="card-accent"></div>
-                </div>
-
-                <!-- Y Position -->
-                <div class="telemetry-card axis-y">
-                    <div class="card-inner">
-                        <div class="card-label">Coordinate Y</div>
-                        <div class="value-row">
-                            <span class="value">@ViewModel.GetFormattedPosition(ViewModel.arr_R32.Length > 1 ? ViewModel.arr_R32[1] : 0, "Y")</span>
-                            <span class="unit">@ViewModel.PosUnit</span>
-                        </div>
-                        <div class="raw-value">Raw: @(ViewModel.arr_R32.Length > 1 ? ViewModel.arr_R32[1] : 0)</div>
-                    </div>
-                    <div class="card-accent"></div>
-                </div>
-
-                <!-- Z Position -->
-                <div class="telemetry-card axis-z">
-                    <div class="card-inner">
-                        <div class="card-label">Coordinate Z</div>
-                        <div class="value-row">
-                            <span class="value">@ViewModel.GetFormattedPosition(ViewModel.arr_R32.Length > 2 ? ViewModel.arr_R32[2] : 0, "Z")</span>
-                            <span class="unit">@ViewModel.PosUnit</span>
-                        </div>
-                        <div class="raw-value">Raw: @(ViewModel.arr_R32.Length > 2 ? ViewModel.arr_R32[2] : 0)</div>
-                    </div>
-                    <div class="card-accent"></div>
-                </div>
-            </div>
-
-            <!-- Enhanced Velocity & Status -->
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <!-- Target Velocity Slider Card -->
-                <div class="col-span-1 md:col-span-2 nexus-card velocity-card">
-                    <div class="card-header pb-2">
-                        <span class="material-symbols-outlined header-icon">speed</span>
-                        <div>
-                            <h2 class="header-title">Process Velocity</h2>
-                            <p class="header-subtitle">Target Write Velocity (@($"D{ViewModel.VelocityWriteAddress}"))</p>
-                        </div>
-                    </div>
-                    <div class="card-body">
-                        <div class="flex items-center gap-6">
-                            <div class="velocity-value">
-                                <span class="val">@VelocityVal</span>
-                                <span class="unt">m/s</span>
-                            </div>
-                            <div class="slider-container flex-1">
-                                <input type="range" min="0" max="5.0" step="0.1" @bind="VelocityVal" @bind:event="oninput" @onchange="OnVelocityCommit"
-                                       class="nexus-slider" />
-                                <div class="slider-marks">
-                                    <span>0.0</span>
-                                    <span>2.5</span>
-                                    <span>5.0</span>
-                                </div>
-                            </div>
-                        </div>
+            <div class="nexus-card axis-monitor-card">
+                <div class="card-header">
+                    <span class="material-symbols-outlined header-icon">tune</span>
+                    <div>
+                        <h2 class="header-title">Axis Monitor</h2>
+                        <p class="header-subtitle">Real-time coordinate and axis status monitoring</p>
                     </div>
                 </div>
 
-                <!-- System State Card -->
-                <div class="nexus-card state-card">
-                    <div class="card-body flex flex-col items-center justify-center text-center p-6 h-full">
-                        <p class="header-subtitle uppercase tracking-widest mb-2 font-bold">System Integrity</p>
-                        <div class="state-indicator @(ViewModel.Status ? "status-run" : "status-idle")">
-                            <span class="material-symbols-outlined text-4xl mb-1">
-                                @(ViewModel.Status ? "dynamic_form" : "motion_photos_off")
-                            </span>
-                            <span class="state-text">@(ViewModel.Status ? "OPERATIONAL" : "IDLE / STOP")</span>
+                <div class="card-body axis-monitor-grid">
+                    <div class="axis-tile tint-green">
+                        <div class="axis-title">
+                            <span class="axis-name">AXIS 1</span>
+                            <span class="axis-chip">AXIS 1</span>
+                        </div>
+                        <div class="axis-row">
+                            <div class="axis-label">Current Position (mm) @($"{ViewModel.Axis1PositionAddrType}{ViewModel.Axis1PositionAddrIndex}")</div>
+                            <div class="axis-value">@FormatAxisValue(ViewModel.Status, ViewModel.Axis1PositionValue)</div>
+                        </div>
+                        <div class="axis-row">
+                            <div class="axis-label">Current Speed (mm/min) @($"{ViewModel.Axis1SpeedAddrType}{ViewModel.Axis1SpeedAddrIndex}")</div>
+                            <div class="axis-value">@FormatAxisValue(ViewModel.Status, ViewModel.Axis1SpeedValue)</div>
+                        </div>
+                        <div class="axis-row">
+                            <div class="axis-label">Error Code @($"{ViewModel.Axis1ErrorAddrType}{ViewModel.Axis1ErrorAddrIndex}")</div>
+                            <div class="axis-value">@FormatAxisValue(ViewModel.Status, ViewModel.Axis1ErrorValue)</div>
+                        </div>
+                        <div class="axis-row">
+                            <div class="axis-label">Warning Code @($"{ViewModel.Axis1WarningAddrType}{ViewModel.Axis1WarningAddrIndex}")</div>
+                            <div class="axis-value">@FormatAxisValue(ViewModel.Status, ViewModel.Axis1WarningValue)</div>
+                        </div>
+                        <div class="axis-row">
+                            <div class="axis-label">Axis Status @($"{ViewModel.Axis1StatusAddrType}{ViewModel.Axis1StatusAddrIndex}")</div>
+                            <div class="axis-value">@FormatAxisValue(ViewModel.Status, ViewModel.Axis1StatusValue)</div>
+                        </div>
+                        <div class="axis-row">
+                            <div class="axis-label">Start No. @($"{ViewModel.Axis1StartAddrType}{ViewModel.Axis1StartAddrIndex}")</div>
+                            <div class="axis-value">@FormatAxisValue(ViewModel.Status, ViewModel.Axis1StartValue)</div>
                         </div>
                     </div>
-                </div>
-            </div>
 
-            <!-- Memory Stream Debugger (Nexus Style) -->
-            <div class="nexus-card memory-card">
-                <div class="card-header border-none">
-                    <div class="flex items-center gap-3">
-                        <span class="material-symbols-outlined header-icon bg-primary/10 text-primary p-2 rounded-lg">stream</span>
-                        <div>
-                            <h2 class="header-title">Real-Time Data Stream</h2>
-                            <p class="header-subtitle">Live PLC Register Monitoring</p>
+                    <div class="axis-tile tint-blue">
+                        <div class="axis-title">
+                            <span class="axis-name">AXIS 2</span>
+                            <span class="axis-chip">AXIS 2</span>
+                        </div>
+                        <div class="axis-row">
+                            <div class="axis-label">Current Position (mm) @($"{ViewModel.Axis2PositionAddrType}{ViewModel.Axis2PositionAddrIndex}")</div>
+                            <div class="axis-value">@FormatAxisValue(ViewModel.Status, ViewModel.Axis2PositionValue)</div>
+                        </div>
+                        <div class="axis-row">
+                            <div class="axis-label">Current Speed (mm/min) @($"{ViewModel.Axis2SpeedAddrType}{ViewModel.Axis2SpeedAddrIndex}")</div>
+                            <div class="axis-value">@FormatAxisValue(ViewModel.Status, ViewModel.Axis2SpeedValue)</div>
+                        </div>
+                        <div class="axis-row">
+                            <div class="axis-label">Error Code @($"{ViewModel.Axis2ErrorAddrType}{ViewModel.Axis2ErrorAddrIndex}")</div>
+                            <div class="axis-value">@FormatAxisValue(ViewModel.Status, ViewModel.Axis2ErrorValue)</div>
+                        </div>
+                        <div class="axis-row">
+                            <div class="axis-label">Warning Code @($"{ViewModel.Axis2WarningAddrType}{ViewModel.Axis2WarningAddrIndex}")</div>
+                            <div class="axis-value">@FormatAxisValue(ViewModel.Status, ViewModel.Axis2WarningValue)</div>
+                        </div>
+                        <div class="axis-row">
+                            <div class="axis-label">Axis Status @($"{ViewModel.Axis2StatusAddrType}{ViewModel.Axis2StatusAddrIndex}")</div>
+                            <div class="axis-value">@FormatAxisValue(ViewModel.Status, ViewModel.Axis2StatusValue)</div>
+                        </div>
+                        <div class="axis-row">
+                            <div class="axis-label">Start No. @($"{ViewModel.Axis2StartAddrType}{ViewModel.Axis2StartAddrIndex}")</div>
+                            <div class="axis-value">@FormatAxisValue(ViewModel.Status, ViewModel.Axis2StartValue)</div>
                         </div>
                     </div>
-                    <button class="btn-ghost ml-auto text-[10px]" @onclick="() => showAddMemory = !showAddMemory">
-                        <span class="material-symbols-outlined text-sm">add</span> ADD REGISTER
-                    </button>
-                </div>
-                
-                @if (showAddMemory)
-                {
-                    <div class="memory-add-panel animate-fade-in">
-                        <div class="flex gap-4 p-4 bg-surface-container-high rounded-xl mb-4 border border-outline-variant">
-                            <div class="flex-1">
-                                <label class="nexus-label">Type</label>
-                                <select class="nexus-input py-2" @bind="newMemoryType">
-                                    <option value="D">D (Word)</option>
-                                    <option value="M">M (Bit)</option>
-                                    <option value="X">X (Input)</option>
-                                    <option value="Y">Y (Output)</option>
-                                </select>
-                            </div>
-                            <div class="flex-1">
-                                <label class="nexus-label">Address</label>
-                                <input class="nexus-input py-2" type="number" @bind="newMemoryIndex" />
-                            </div>
-                            <div class="flex items-end pb-1">
-                                <button class="btn-primary py-2 px-6" @onclick="AddMemoryEntry">ADD</button>
-                            </div>
-                        </div>
-                    </div>
-                }
 
-                <div class="memory-monitor-window">
-                    @if (ViewModel.CustomMemoryEntries != null && ViewModel.CustomMemoryEntries.Count > 0)
-                    {
-                        <div class="memory-grid">
-                            @foreach (var entry in ViewModel.CustomMemoryEntries)
-                            {
-                                <div class="memory-entry">
-                                    <div class="entry-tag">@FormatCustomMemoryAddress(entry)</div>
-                                    <div class="entry-val">@entry.CurrentValue</div>
-                                    <button class="entry-del" @onclick="() => ViewModel.RemoveCustomMemoryEntry(entry)">
-                                        <span class="material-symbols-outlined">close</span>
-                                    </button>
-                                </div>
-                            }
+                    <div class="axis-tile tint-red">
+                        <div class="axis-title">
+                            <span class="axis-name">AXIS 3</span>
+                            <span class="axis-chip">AXIS 3</span>
                         </div>
-                    }
-                    else
-                    {
-                        <div class="empty-state">
-                            <span class="material-symbols-outlined text-4xl opacity-20">biotech</span>
-                            <p>No registers being monitored.</p>
-                            <p class="text-[10px] opacity-50 mt-1">Configure memory addresses to view real-time data flow.</p>
+                        <div class="axis-row">
+                            <div class="axis-label">Current Position (mm) @($"{ViewModel.Axis3PositionAddrType}{ViewModel.Axis3PositionAddrIndex}")</div>
+                            <div class="axis-value">@FormatAxisValue(ViewModel.Status, ViewModel.Axis3PositionValue)</div>
                         </div>
-                    }
+                        <div class="axis-row">
+                            <div class="axis-label">Current Speed (mm/min) @($"{ViewModel.Axis3SpeedAddrType}{ViewModel.Axis3SpeedAddrIndex}")</div>
+                            <div class="axis-value">@FormatAxisValue(ViewModel.Status, ViewModel.Axis3SpeedValue)</div>
+                        </div>
+                        <div class="axis-row">
+                            <div class="axis-label">Error Code @($"{ViewModel.Axis3ErrorAddrType}{ViewModel.Axis3ErrorAddrIndex}")</div>
+                            <div class="axis-value">@FormatAxisValue(ViewModel.Status, ViewModel.Axis3ErrorValue)</div>
+                        </div>
+                        <div class="axis-row">
+                            <div class="axis-label">Warning Code @($"{ViewModel.Axis3WarningAddrType}{ViewModel.Axis3WarningAddrIndex}")</div>
+                            <div class="axis-value">@FormatAxisValue(ViewModel.Status, ViewModel.Axis3WarningValue)</div>
+                        </div>
+                        <div class="axis-row">
+                            <div class="axis-label">Axis Status @($"{ViewModel.Axis3StatusAddrType}{ViewModel.Axis3StatusAddrIndex}")</div>
+                            <div class="axis-value">@FormatAxisValue(ViewModel.Status, ViewModel.Axis3StatusValue)</div>
+                        </div>
+                        <div class="axis-row">
+                            <div class="axis-label">Start No. @($"{ViewModel.Axis3StartAddrType}{ViewModel.Axis3StartAddrIndex}")</div>
+                            <div class="axis-value">@FormatAxisValue(ViewModel.Status, ViewModel.Axis3StartValue)</div>
+                        </div>
+                    </div>
+
+                    <div class="axis-tile tint-orange">
+                        <div class="axis-title">
+                            <span class="axis-name">AXIS 4</span>
+                            <span class="axis-chip">AXIS 4</span>
+                        </div>
+                        <div class="axis-row">
+                            <div class="axis-label">Current Position (mm) @($"{ViewModel.Axis4PositionAddrType}{ViewModel.Axis4PositionAddrIndex}")</div>
+                            <div class="axis-value">@FormatAxisValue(ViewModel.Status, ViewModel.Axis4PositionValue)</div>
+                        </div>
+                        <div class="axis-row">
+                            <div class="axis-label">Current Speed (mm/min) @($"{ViewModel.Axis4SpeedAddrType}{ViewModel.Axis4SpeedAddrIndex}")</div>
+                            <div class="axis-value">@FormatAxisValue(ViewModel.Status, ViewModel.Axis4SpeedValue)</div>
+                        </div>
+                        <div class="axis-row">
+                            <div class="axis-label">Error Code @($"{ViewModel.Axis4ErrorAddrType}{ViewModel.Axis4ErrorAddrIndex}")</div>
+                            <div class="axis-value">@FormatAxisValue(ViewModel.Status, ViewModel.Axis4ErrorValue)</div>
+                        </div>
+                        <div class="axis-row">
+                            <div class="axis-label">Warning Code @($"{ViewModel.Axis4WarningAddrType}{ViewModel.Axis4WarningAddrIndex}")</div>
+                            <div class="axis-value">@FormatAxisValue(ViewModel.Status, ViewModel.Axis4WarningValue)</div>
+                        </div>
+                        <div class="axis-row">
+                            <div class="axis-label">Axis Status @($"{ViewModel.Axis4StatusAddrType}{ViewModel.Axis4StatusAddrIndex}")</div>
+                            <div class="axis-value">@FormatAxisValue(ViewModel.Status, ViewModel.Axis4StatusValue)</div>
+                        </div>
+                        <div class="axis-row">
+                            <div class="axis-label">Start No. @($"{ViewModel.Axis4StartAddrType}{ViewModel.Axis4StartAddrIndex}")</div>
+                            <div class="axis-value">@FormatAxisValue(ViewModel.Status, ViewModel.Axis4StartValue)</div>
+                        </div>
+                    </div>
                 </div>
             </div>
-
         </section>
     </div>
 </div>
@@ -359,6 +363,50 @@
     .axis-y .card-accent { background: var(--c-accent-y); shadow: 0 0 20px var(--c-accent-y); }
     .axis-z .card-accent { background: var(--c-accent-z); shadow: 0 0 20px var(--c-accent-z); }
 
+    /* ── Axis Monitor ────────────────────────────────────── */
+    .axis-monitor-card {
+        background: radial-gradient(120% 120% at 20% 0%, rgba(59, 130, 246, 0.08), transparent 60%),
+                    radial-gradient(120% 120% at 100% 0%, rgba(34, 197, 94, 0.08), transparent 60%),
+                    var(--c-surface-container-lowest);
+    }
+    .axis-monitor-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 16px;
+    }
+    .axis-tile {
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(242, 246, 252, 0.96));
+        border: 1px solid var(--c-outline-variant);
+        border-radius: 16px;
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        min-height: 260px;
+        position: relative;
+        overflow: hidden;
+    }
+    html.dark .axis-tile { background: linear-gradient(180deg, rgba(10, 20, 40, 0.7), rgba(10, 20, 40, 0.3)); }
+
+    .axis-title { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+    .axis-name { font-family: 'Space Grotesk', sans-serif; font-weight: 800; font-size: 12px; letter-spacing: 0.06em; color: var(--c-on-surface); }
+    .axis-chip {
+        font-size: 10px;
+        font-weight: 800;
+        padding: 4px 10px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.08);
+        color: var(--c-on-surface);
+    }
+    .axis-row { display: flex; flex-direction: column; gap: 2px; }
+    .axis-label { font-size: 10px; font-weight: 700; color: var(--c-on-surface-variant); text-transform: uppercase; letter-spacing: 0.05em; }
+    .axis-value { font-family: 'Roboto Mono', monospace; font-size: 14px; font-weight: 700; color: var(--c-on-surface); }
+
+    .axis-tile.tint-green { border-top: 4px solid #16a34a; }
+    .axis-tile.tint-blue { border-top: 4px solid #2563eb; }
+    .axis-tile.tint-red { border-top: 4px solid #dc2626; }
+    .axis-tile.tint-orange { border-top: 4px solid #f97316; }
+
     /* ── Velocity & State ─────────────────────────────────── */
     .velocity-value { display: flex; flex-direction: column; min-width: 80px; }
     .velocity-value .val { font-size: 38px; font-weight: 700; font-family: 'Space Grotesk', sans-serif; line-height: 1; }
@@ -388,6 +436,13 @@
     .entry-del { position: absolute; top: 4px; right: 4px; border: none; background: transparent; color: var(--c-outline); cursor: pointer; opacity: 0; transition: 0.2s; }
     .memory-entry:hover .entry-del { opacity: 1; }
     .empty-state { padding: 60px 0; text-align: center; color: var(--c-outline); }
+
+    .global-commands { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--c-outline-variant); }
+    .global-title { font-size: 10px; font-weight: 800; color: var(--c-on-surface-variant); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 10px; }
+    .global-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    .global-grid .btn-primary,
+    .global-grid .btn-danger { padding: 10px; font-size: 11px; }
+    .btn-toggle-active { box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.35), 0 8px 16px rgba(34, 197, 94, 0.18); }
 
     @@keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
 </style>
@@ -482,6 +537,49 @@
         }
     }
 
+    private Task ToggleEmergencyStop()
+    {
+        return ToggleGlobalCommand("Emergency Stop", ViewModel.GlobalEmergencyStopAddress,
+            () => ViewModel.GlobalEmergencyStopEnabled,
+            enabled => ViewModel.GlobalEmergencyStopEnabled = enabled);
+    }
+
+    private Task ToggleGoHome()
+    {
+        return ToggleGlobalCommand("Go Home", ViewModel.GlobalGoHomeAddress,
+            () => ViewModel.GlobalGoHomeEnabled,
+            enabled => ViewModel.GlobalGoHomeEnabled = enabled);
+    }
+
+    private Task ToggleResetFault()
+    {
+        return ToggleGlobalCommand("Reset Fault", ViewModel.GlobalResetFaultAddress,
+            () => ViewModel.GlobalResetFaultEnabled,
+            enabled => ViewModel.GlobalResetFaultEnabled = enabled);
+    }
+
+    private Task ToggleStart()
+    {
+        return ToggleGlobalCommand("Start", ViewModel.GlobalStartAddress,
+            () => ViewModel.GlobalStartEnabled,
+            enabled => ViewModel.GlobalStartEnabled = enabled);
+    }
+
+    private Task ToggleGlobalCommand(string label, int address, Func<bool> getState, Action<bool> setState)
+    {
+        if (!ViewModel.Status)
+        {
+            ViewModel.AddLog("UI", "warning", $"{label} ignored (PLC disconnected)");
+            return Task.CompletedTask;
+        }
+
+        bool nextState = !getState();
+        setState(nextState);
+        ViewModel.AddLog("UI", "info", $"{label} -> {(nextState ? "ON" : "OFF")}", "Global command");
+        ViewModel.MarkPendingWrite("M", address, nextState ? 1 : 0);
+        return Task.CompletedTask;
+    }
+
     private string FormatCustomMemoryAddress(MainViewModel.CustomMemoryEntry entry)
     {
         if (entry.AddrType.StartsWith("U", StringComparison.OrdinalIgnoreCase))
@@ -497,5 +595,10 @@
         }
 
         return $"{entry.AddrType}{entry.AddrIndex}";
+    }
+
+    private static string FormatAxisValue(bool connected, int value)
+    {
+        return connected ? value.ToString() : "--";
     }
 }

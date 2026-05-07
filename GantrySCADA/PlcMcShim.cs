@@ -1,6 +1,6 @@
 using System;
-using HslCommunication;
-using HslCommunication.Profinet.Melsec;
+using System.Globalization;
+using System.Text.RegularExpressions;
 
 namespace NVKProject.PLC
 {
@@ -23,10 +23,9 @@ namespace NVKProject.PLC
 
         private string _ipAddress = "127.0.0.1";
         private int _port = 5000;
-        private MelsecMcNet? _client;
         private bool _isConnected;
-        private MxBufferClient? _mxBuffer;
         private int _mxLogicalStationNo;
+        private PLCCommunication? _mx;
 
         public bool IsConnected => _isConnected;
 
@@ -35,141 +34,81 @@ namespace NVKProject.PLC
             _ipAddress = ipAddress;
             _port = port;
             _mxLogicalStationNo = stationNo;
-            if (_client != null)
-            {
-                _client.IpAddress = _ipAddress;
-                _client.Port = _port;
-            }
-
-            if (_mxBuffer != null)
-            {
-                _mxBuffer.LogicalStationNumber = _mxLogicalStationNo;
-            }
+            if (_mx != null)
+                _mx.LogicalStationNumber = _mxLogicalStationNo;
         }
 
         public void Open()
         {
-            _client ??= new MelsecMcNet(_ipAddress, _port);
-            _client.IpAddress = _ipAddress;
-            _client.Port = _port;
+            _mx ??= new PLCCommunication(_ipAddress, _port, _mxLogicalStationNo);
+            _mx.IPAddress = _ipAddress;
+            _mx.Port = _port;
+            _mx.LogicalStationNumber = _mxLogicalStationNo;
 
-            OperateResult connectResult = _client.ConnectServer();
-            if (!connectResult.IsSuccess)
-            {
-                _isConnected = false;
-                throw new InvalidOperationException($"MC Connect failed: {connectResult.Message}");
-            }
-
-            _isConnected = true;
-
-            _mxBuffer ??= new MxBufferClient();
-            _mxBuffer.LogicalStationNumber = _mxLogicalStationNo;
-            _mxBuffer.Open();
+            bool ok = _mx.Connect();
+            _isConnected = ok && _mx.IsConnected;
+            if (!_isConnected)
+                throw new InvalidOperationException("MX Component connect failed.");
         }
 
         public void Close()
         {
-            _client?.ConnectClose();
-            _isConnected = false;
-            _mxBuffer?.Close();
+            try
+            {
+                _mx?.Disconnect();
+            }
+            finally
+            {
+                _isConnected = false;
+            }
         }
 
         public int[] ReadDeviceBlock(SubCommand subCommand, DeviceName deviceName, string address, int length)
         {
-            if (_client == null)
-            {
-                throw new InvalidOperationException("MC client is not initialized");
-            }
+            if (_mx == null || !_mx.IsConnected)
+                throw new InvalidOperationException("MX Component is not connected");
 
             string fullAddress = BuildAddress(deviceName, address);
 
             if (deviceName == DeviceName.Buffer)
             {
-                if (_mxBuffer == null || !_mxBuffer.IsConnected)
-                    throw new InvalidOperationException("MX Component buffer client is not connected");
+                if (!TryParseUDevicePath(fullAddress, out int startIO, out int gAddress))
+                    throw new ArgumentException($"Invalid buffer address: {fullAddress}", nameof(address));
 
-                return _mxBuffer.ReadWords(fullAddress, length);
+                return _mx.ReadBuffer(startIO, gAddress, length);
             }
 
-            if (subCommand == SubCommand.Bit)
-            {
-                OperateResult<bool[]> result = _client.ReadBool(fullAddress, (ushort)length);
-                if (!result.IsSuccess || result.Content == null)
-                {
-                    throw new InvalidOperationException($"MC ReadBit failed: {result.Message}");
-                }
-
-                bool[] bits = result.Content;
-                int[] values = new int[bits.Length];
-                for (int i = 0; i < bits.Length; i++)
-                {
-                    values[i] = bits[i] ? 1 : 0;
-                }
-
-                return values;
-            }
-
-            OperateResult<short[]> wordResult = _client.ReadInt16(fullAddress, (ushort)length);
-            if (!wordResult.IsSuccess || wordResult.Content == null)
-            {
-                throw new InvalidOperationException($"MC ReadWord failed: {wordResult.Message}");
-            }
-
-            short[] words = wordResult.Content;
-            int[] data = new int[words.Length];
-            for (int i = 0; i < words.Length; i++)
-            {
-                data[i] = words[i];
-            }
-
-            return data;
+            // For D/M/X/Y, MX Component APIs differ between device types and driver versions.
+            // Delegate to PLCCommunication which already falls back appropriately.
+            return _mx.ReadDeviceRange(fullAddress, length);
         }
 
         public void WriteDeviceBlock(SubCommand subCommand, DeviceName deviceName, string address, int[] values)
         {
-            if (_client == null)
-            {
-                throw new InvalidOperationException("MC client is not initialized");
-            }
+            if (_mx == null || !_mx.IsConnected)
+                throw new InvalidOperationException("MX Component is not connected");
 
             string fullAddress = BuildAddress(deviceName, address);
 
             if (deviceName == DeviceName.Buffer)
             {
-                if (_mxBuffer == null || !_mxBuffer.IsConnected)
-                    throw new InvalidOperationException("MX Component buffer client is not connected");
+                if (!TryParseUDevicePath(fullAddress, out int startIO, out int gAddress))
+                    throw new ArgumentException($"Invalid buffer address: {fullAddress}", nameof(address));
 
-                _mxBuffer.WriteWords(fullAddress, values);
-                return;
-            }
-
-            if (subCommand == SubCommand.Bit)
-            {
-                bool[] bits = new bool[values.Length];
+                short[] data = new short[values.Length];
                 for (int i = 0; i < values.Length; i++)
-                {
-                    bits[i] = values[i] != 0;
-                }
+                    data[i] = unchecked((short)values[i]);
 
-                OperateResult writeBitResult = _client.Write(fullAddress, bits);
-                if (!writeBitResult.IsSuccess)
-                {
-                    throw new InvalidOperationException($"MC WriteBit failed: {writeBitResult.Message}");
-                }
-
+                _mx.WriteBuffer(startIO, gAddress, data);
                 return;
             }
 
-            short[] words = new short[values.Length];
+            // Delegate to MX Component helper.
+            // For bit devices, PLCCommunication will use SetDevice/SetDevice2 as needed.
             for (int i = 0; i < values.Length; i++)
             {
-                words[i] = unchecked((short)values[i]);
-            }
-
-            OperateResult writeWordResult = _client.Write(fullAddress, words);
-            if (!writeWordResult.IsSuccess)
-            {
-                throw new InvalidOperationException($"MC WriteWord failed: {writeWordResult.Message}");
+                string elementAddress = values.Length == 1 ? fullAddress : IncrementDeviceAddress(fullAddress, i);
+                _mx.WriteDeviceValue(elementAddress, values[i]);
             }
         }
 
@@ -203,6 +142,26 @@ namespace NVKProject.PLC
             return string.IsNullOrWhiteSpace(address)
                 ? prefix + "0"
                 : prefix + address.Trim();
+        }
+
+        private static bool TryParseUDevicePath(string devicePath, out int uNumber, out int gAddress)
+        {
+            uNumber = 0;
+            gAddress = 0;
+            string s = devicePath.Replace("\\\\", "\\").Trim();
+            Match m = Regex.Match(s, @"^U([0-9A-F]+)\\G(\d+)$", RegexOptions.IgnoreCase);
+            if (!m.Success) return false;
+            return int.TryParse(m.Groups[1].Value, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out uNumber)
+                && int.TryParse(m.Groups[2].Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out gAddress);
+        }
+
+        private static string IncrementDeviceAddress(string device, int offset)
+        {
+            Match m = Regex.Match(device.Trim(), @"^(?<prefix>[A-Za-z]+)(?<addr>\d+)$", RegexOptions.IgnoreCase);
+            if (!m.Success) return device;
+            string prefix = m.Groups["prefix"].Value;
+            int addr = int.Parse(m.Groups["addr"].Value, CultureInfo.InvariantCulture);
+            return prefix + (addr + offset).ToString(CultureInfo.InvariantCulture);
         }
     }
 }

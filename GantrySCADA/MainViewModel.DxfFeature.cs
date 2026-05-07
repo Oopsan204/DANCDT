@@ -279,7 +279,19 @@ namespace WPF_Test_PLC20260124
                     // Debug log: show first few values being sent
                     string a1Debug = string.Join(", ", a1Arr.Take(10).Select(v => $"0x{((ushort)v):X4}"));
                     AddLog("PC", "info", $"Axis1 buffer (first 10): {a1Debug}", $"Length={a1Arr.Length}");
+                    
+                    // Test: Create test array with known values
+                    int[] testA1 = new int[10];
+                    testA1[0] = 0xAAAA;  // Test pattern
+                    testA1[1] = 0x5555;
+                    for (int i = 2; i < testA1.Length; i++) testA1[i] = 0;
+                    AddLog("PC", "warning", $"TEST: Sending test pattern to U0\\G2000: 0xAAAA, 0x5555", "DEBUG");
 
+                    plc.WriteDeviceBlock(NVKProject.PLC.ePLCControl.SubCommand.Word,
+                                          NVKProject.PLC.ePLCControl.DeviceName.Buffer,
+                                          "U0\\G2000", testA1);  // Send test first
+
+                    // Now send actual
                     plc.WriteDeviceBlock(NVKProject.PLC.ePLCControl.SubCommand.Word,
                                           NVKProject.PLC.ePLCControl.DeviceName.Buffer,
                                           "U0\\G2000", a1Arr);

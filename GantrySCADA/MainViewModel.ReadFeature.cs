@@ -75,6 +75,34 @@ namespace WPF_Test_PLC20260124
 
             arr_R32 = newR32;
 
+            Axis1PositionValue = ReadCoordinateSourceValue(Axis1PositionAddrType, Axis1PositionAddrIndex, Axis1PositionRead32, Axis1PositionValue);
+            Axis1SpeedValue = ReadCoordinateSourceValue(Axis1SpeedAddrType, Axis1SpeedAddrIndex, Axis1SpeedRead32, Axis1SpeedValue);
+            Axis1ErrorValue = ReadCoordinateSourceValue(Axis1ErrorAddrType, Axis1ErrorAddrIndex, false, Axis1ErrorValue);
+            Axis1WarningValue = ReadCoordinateSourceValue(Axis1WarningAddrType, Axis1WarningAddrIndex, false, Axis1WarningValue);
+            Axis1StatusValue = ReadCoordinateSourceValue(Axis1StatusAddrType, Axis1StatusAddrIndex, false, Axis1StatusValue);
+            Axis1StartValue = ReadCoordinateSourceValue(Axis1StartAddrType, Axis1StartAddrIndex, false, Axis1StartValue);
+
+            Axis2PositionValue = ReadCoordinateSourceValue(Axis2PositionAddrType, Axis2PositionAddrIndex, Axis2PositionRead32, Axis2PositionValue);
+            Axis2SpeedValue = ReadCoordinateSourceValue(Axis2SpeedAddrType, Axis2SpeedAddrIndex, Axis2SpeedRead32, Axis2SpeedValue);
+            Axis2ErrorValue = ReadCoordinateSourceValue(Axis2ErrorAddrType, Axis2ErrorAddrIndex, false, Axis2ErrorValue);
+            Axis2WarningValue = ReadCoordinateSourceValue(Axis2WarningAddrType, Axis2WarningAddrIndex, false, Axis2WarningValue);
+            Axis2StatusValue = ReadCoordinateSourceValue(Axis2StatusAddrType, Axis2StatusAddrIndex, false, Axis2StatusValue);
+            Axis2StartValue = ReadCoordinateSourceValue(Axis2StartAddrType, Axis2StartAddrIndex, false, Axis2StartValue);
+
+            Axis3PositionValue = ReadCoordinateSourceValue(Axis3PositionAddrType, Axis3PositionAddrIndex, Axis3PositionRead32, Axis3PositionValue);
+            Axis3SpeedValue = ReadCoordinateSourceValue(Axis3SpeedAddrType, Axis3SpeedAddrIndex, Axis3SpeedRead32, Axis3SpeedValue);
+            Axis3ErrorValue = ReadCoordinateSourceValue(Axis3ErrorAddrType, Axis3ErrorAddrIndex, false, Axis3ErrorValue);
+            Axis3WarningValue = ReadCoordinateSourceValue(Axis3WarningAddrType, Axis3WarningAddrIndex, false, Axis3WarningValue);
+            Axis3StatusValue = ReadCoordinateSourceValue(Axis3StatusAddrType, Axis3StatusAddrIndex, false, Axis3StatusValue);
+            Axis3StartValue = ReadCoordinateSourceValue(Axis3StartAddrType, Axis3StartAddrIndex, false, Axis3StartValue);
+
+            Axis4PositionValue = ReadCoordinateSourceValue(Axis4PositionAddrType, Axis4PositionAddrIndex, Axis4PositionRead32, Axis4PositionValue);
+            Axis4SpeedValue = ReadCoordinateSourceValue(Axis4SpeedAddrType, Axis4SpeedAddrIndex, Axis4SpeedRead32, Axis4SpeedValue);
+            Axis4ErrorValue = ReadCoordinateSourceValue(Axis4ErrorAddrType, Axis4ErrorAddrIndex, false, Axis4ErrorValue);
+            Axis4WarningValue = ReadCoordinateSourceValue(Axis4WarningAddrType, Axis4WarningAddrIndex, false, Axis4WarningValue);
+            Axis4StatusValue = ReadCoordinateSourceValue(Axis4StatusAddrType, Axis4StatusAddrIndex, false, Axis4StatusValue);
+            Axis4StartValue = ReadCoordinateSourceValue(Axis4StartAddrType, Axis4StartAddrIndex, false, Axis4StartValue);
+
             ReadBitRegisters();
 
             if ((DateTime.Now - _lastReadLogTime).TotalSeconds >= 1.0)
