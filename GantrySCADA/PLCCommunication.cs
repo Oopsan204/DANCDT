@@ -269,7 +269,8 @@ namespace WPF_Test_PLC20260124
 
         /// <summary>
         /// Ghi dữ liệu vào Buffer Memory module thông minh.
-        /// Xử lý triệt để lỗi "Could not convert argument 0".
+        /// Ghi từng word riêng biệt qua SetDevice2 để tránh lỗi COM marshal short[].
+        /// MX Component WriteBuffer(ref data[0]) chỉ ghi 1 word qua dynamic COM interop.
         /// </summary>
         public int WriteBuffer(int startIO, int address, short[] data)
         {
@@ -277,7 +278,16 @@ namespace WPF_Test_PLC20260124
             if (data == null || data.Length == 0) throw new ArgumentException("Khong co du lieu de ghi.", nameof(data));
             try
             {
-                return plcDevice.WriteBuffer(startIO, address, data.Length, ref data[0]);
+                // Ghi từng word riêng qua SetDevice2 vì COM interop dynamic
+                // không marshal short[] đúng khi dùng ref data[0].
+                for (int i = 0; i < data.Length; i++)
+                {
+                    string devName = $"U{startIO:X}\\G{address + i}";
+                    int result = plcDevice.SetDevice2(devName, data[i]);
+                    if (result != 0)
+                        return result;
+                }
+                return 0;
             }
             catch (Exception ex)
             {
@@ -311,7 +321,7 @@ namespace WPF_Test_PLC20260124
                     sData[0] = (short)((ushort)sData[0] | (ushort)(da1Value & 0x0003));
 
                     // Bước 4: Ghi xuống PLC
-                    return plcDevice.WriteBuffer(startIO, address, 1, ref sData[0]);
+                    return WriteBuffer(startIO, address, sData);
                 }
                 catch (Exception ex)
                 {
@@ -343,7 +353,7 @@ namespace WPF_Test_PLC20260124
                     sData[0] = (short)(sData[0] & ~0x001F);
                     sData[0] = (short)((ushort)sData[0] | (ushort)(identifierValue & 0x001F));
 
-                    return plcDevice.WriteBuffer(startIO, address, 1, ref sData[0]);
+                    return WriteBuffer(startIO, address, sData);
                 }
                 catch (Exception ex)
                 {
