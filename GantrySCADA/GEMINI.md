@@ -1,4 +1,4 @@
-# Trả lời bằng tiếng việt 
+# Trả lời bằng tiếng việt
 
 Thay đổi xong thì tự build lại
 
@@ -20,28 +20,31 @@ This project is a **WPF/Blazor Hybrid** application designed for controlling and
   - DXF/CAM processing (Advanced Trajectory Generation).
   - **Protocol:** Uses a 10-word buffer frame per trajectory point.
   - **Frame Structure (per point):**
-      - `+0`: Positioning Identifier
-      - `+1`: M-Code
-      - `+2`: Dwell Time (16-bit)
-      - `+3`: Reserved (0)
-      - `+4/+5`: Command Speed (32-bit)
-      - `+6/+7`: Position Address (32-bit)
-      - `+8/+9`: Arc Address (32-bit)
-  - **Addressing:** Writes directly to Simple Motion module buffer memory:
-      - Axis 1 (X): `U0\G2000`
-      - Axis 2 (Y): `U0\G3000`
-  - **Advanced Features:**
-      - **Travel Moves:** Automatically inserts travel moves (G0) between contours with M-Code 0.
-      - **Per-point Speed:** Configurable speed for every individual motion segment.
-      - **Trajectory Editing:** UI support for reordering (Up/Down), deleting contours, and adding manual points.
-      - **Buffer Monitoring:** Real-time visualization of raw buffer data (Binary/Decimal) in the LogMonitor.
-      - **Entity Support:** Enhanced support for Polylines (auto-close), Lines, Circles, Arcs, and Points.
-  - **Command Codes:**
-      - Linear: `H100A` (END), `H500A` (Cont. Pos), `HD00A` (Cont. Path).
-      - Circular CW: `H100F` (END), `H500F` (Cont. Pos), `HD00F` (Cont. Path).
-      - Circular CCW: `H1010` (END), `H5010` (Cont. Pos), `HD010` (Cont. Path).
-  - **Data Scaling:** Coordinates and center points are scaled by 1000 (mm to µm).
 
+    - `+0`: Positioning Identifier
+    - `+1`: M-Code
+    - `+2`: Dwell Time (16-bit)
+    - `+3`: Reserved (0)
+    - `+4/+5`: Command Speed (32-bit)
+    - `+6/+7`: Position Address (32-bit)
+    - `+8/+9`: Arc Address (32-bit)
+  - **Addressing:** Writes directly to Simple Motion module buffer memory:
+
+    - Axis 1 (X): `U0\G2000`
+    - Axis 2 (Y): `U0\G3000`
+  - **Advanced Features:**
+
+    - **Travel Moves:** Automatically inserts travel moves (G0) between contours with M-Code 0.
+    - **Per-point Speed:** Configurable speed for every individual motion segment.
+    - **Trajectory Editing:** UI support for reordering (Up/Down), deleting contours, and adding manual points.
+    - **Buffer Monitoring:** Real-time visualization of raw buffer data (Binary/Decimal) in the LogMonitor.
+    - **Entity Support:** Enhanced support for Polylines (auto-close), Lines, Circles, Arcs, and Points.
+  - **Command Codes:**
+
+    - Linear: `H100A` (END), `H500A` (Cont. Pos), `HD00A` (Cont. Path).
+    - Circular CW: `H100F` (END), `H500F` (Cont. Pos), `HD00F` (Cont. Path).
+    - Circular CCW: `H1010` (END), `H5010` (Cont. Pos), `HD010` (Cont. Path).
+  - **Data Scaling:** Coordinates and center points are scaled by 1000 (mm to µm).
   - Centralized logging and telemetry.
 
 ## 🏗️ Architecture
@@ -110,3 +113,5 @@ The application follows the **MVVM (Model-View-ViewModel)** pattern with a Blazo
 
 - The project **must** be built for `x86` to maintain compatibility with Mitsubishi COM libraries.
 - PLC communication timeouts and errors are handled by an auto-reconnect mechanism in the monitor loop.
+
+  ![1778164620234](image/GEMINI/1778164620234.png)

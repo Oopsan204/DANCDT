@@ -492,12 +492,13 @@
 
         ViewModel.VelocitySetpoint = VelocityVal;
 
-        double scaled = VelocityVal * ViewModel.VelocityWriteScale;
-        int rawValue = (int)Math.Round(scaled, MidpointRounding.AwayFromZero);
+        // Chuyển đổi sang float 32-bit bits để ghi xuống PLC (IEEE 754)
+        float fVal = (float)VelocityVal;
+        int rawValue = BitConverter.SingleToInt32Bits(fVal);
 
-        // Ghi 16-bit vì đây là vận tốc đơn giản (thập phân)
-        ViewModel.MarkPendingWrite("D", ViewModel.VelocityWriteAddress, rawValue, null, false, false);
-        ViewModel.AddLog("UI", "info", $"Jog Velocity setpoint queued: {VelocityVal:F1} mm/s -> D{ViewModel.VelocityWriteAddress}={rawValue}", "Velocity slider");
+        // Ghi 32-bit (2 words) vì PLC yêu cầu kiểu float 32-bit tại D406
+        ViewModel.MarkPendingWrite("D", ViewModel.VelocityWriteAddress, rawValue, null, false, true);
+        ViewModel.AddLog("UI", "info", $"Jog Velocity setpoint queued: {VelocityVal:F1} mm/s (FLOAT32) -> D{ViewModel.VelocityWriteAddress}", "Velocity slider");
     }
 
     private void OnVelocityChange(ChangeEventArgs e)

@@ -164,21 +164,10 @@ namespace WPF_Test_PLC20260124
                 DxfSendStatus = $"Đang truyền {pointCount} điểm...";
                 await Task.Run(() => SendTrajectoryToPLC(a1Arr, a2Arr, pointCount), cancellationToken);
 
-                // 3. Đợi PLC xác nhận hoàn thành (M300)
-                DxfSendStatus = "Đang đợi PLC xác nhận (M300)...";
-                bool confirmed = await WaitForPLCConfirmation(TimeSpan.FromSeconds(10), cancellationToken);
-
-                if (confirmed)
-                {
-                    DxfSendStatus = "Hoàn thành";
-                    AddLog("PLC", "success", "PLC đã xác nhận hoàn thành quỹ đạo.");
-                    OnDxfDownloadComplete($"Đã truyền thành công {pointCount} điểm quỹ đạo!");
-                }
-                else
-                {
-                    DxfSendStatus = "Timeout đợi M300";
-                    AddLog("PLC", "warning", "Timeout 10s đợi tín hiệu M300 từ PLC.");
-                }
+                // 3. Hoàn thành ngay (Bỏ logic đợi M300)
+                DxfSendStatus = "Hoàn thành";
+                AddLog("PLC", "success", $"Đã truyền thành công {pointCount} điểm quỹ đạo xuống PLC.");
+                OnDxfDownloadComplete($"Đã truyền thành công {pointCount} điểm quỹ đạo!");
             }
             catch (OperationCanceledException)
             {
@@ -195,36 +184,6 @@ namespace WPF_Test_PLC20260124
                 IsDxfSending = false;
                 IsDxfRunning = false;
             }
-        }
-
-        private async Task<bool> WaitForPLCConfirmation(TimeSpan timeout, CancellationToken cancellationToken)
-        {
-            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
-            while (stopwatch.Elapsed < timeout)
-            {
-                if (cancellationToken.IsCancellationRequested) return false;
-
-                try
-                {
-                    lock (_plcSync)
-                    {
-                        var plc = ePLC;
-                        if (plc != null && plc.IsConnected)
-                        {
-                            // Đọc M300 (cần map đúng địa chỉ thực tế trong chương trình PLC)
-                            int[] mStatus = plc.ReadDeviceBlock(ePLCControl.SubCommand.Bit,
-                                                                 ePLCControl.DeviceName.M,
-                                                                 "300", 1);
-                            if (mStatus != null && mStatus.Length > 0 && mStatus[0] == 1)
-                                return true;
-                        }
-                    }
-                }
-                catch { /* Bỏ qua lỗi đọc tạm thời */ }
-
-                await Task.Delay(200, cancellationToken);
-            }
-            return false;
         }
 
         private (int[] a1Arr, int[] a2Arr, int pointCount) CompileDxfTrajectory(CancellationToken ct)
@@ -244,7 +203,7 @@ namespace WPF_Test_PLC20260124
                 ushort travelMCode = 0;
                 if (absolutePointIndex >= DxfStartPointIndex)
                 {
-                    AddTrajectoryPoint(axis1Data, axis2Data, travelCmd, travelMCode, 0, GetSpeedForPoint(absolutePointIndex),
+                    AddTrajectoryPoint(axis1Data, axis2Data, travelCmd, travelMCode, GetDwellForPoint(absolutePointIndex), GetSpeedForPoint(absolutePointIndex),
                         contour.Points[0].X, contour.Points[0].Y, 0, 0);
                     pointCount++;
                 }
@@ -257,7 +216,7 @@ namespace WPF_Test_PLC20260124
                     ushort mcode = (ushort)(absolutePointIndex >= DxfGlueStartIndex && absolutePointIndex <= DxfGlueEndIndex ? 1 : 0);
                     if (absolutePointIndex >= DxfStartPointIndex)
                     {
-                        AddTrajectoryPoint(axis1Data, axis2Data, cmd, mcode, 0, GetSpeedForPoint(absolutePointIndex),
+                        AddTrajectoryPoint(axis1Data, axis2Data, cmd, mcode, GetDwellForPoint(absolutePointIndex), GetSpeedForPoint(absolutePointIndex),
                             contour.Points.Last().X, contour.Points.Last().Y, contour.CenterX, contour.CenterY);
                         pointCount++;
                     }
@@ -269,7 +228,7 @@ namespace WPF_Test_PLC20260124
                     ushort mcode = (ushort)(absolutePointIndex >= DxfGlueStartIndex && absolutePointIndex <= DxfGlueEndIndex ? 1 : 0);
                     if (absolutePointIndex >= DxfStartPointIndex)
                     {
-                        AddTrajectoryPoint(axis1Data, axis2Data, cmd, mcode, 0, GetSpeedForPoint(absolutePointIndex),
+                        AddTrajectoryPoint(axis1Data, axis2Data, cmd, mcode, GetDwellForPoint(absolutePointIndex), GetSpeedForPoint(absolutePointIndex),
                             contour.Points.Last().X, contour.Points.Last().Y, contour.CenterX, contour.CenterY);
                         pointCount++;
                     }
@@ -283,7 +242,7 @@ namespace WPF_Test_PLC20260124
                         ushort mcode = (ushort)(absolutePointIndex >= DxfGlueStartIndex && absolutePointIndex <= DxfGlueEndIndex ? 1 : 0);
                         if (absolutePointIndex >= DxfStartPointIndex)
                         {
-                            AddTrajectoryPoint(axis1Data, axis2Data, cmd, mcode, 0, GetSpeedForPoint(absolutePointIndex),
+                            AddTrajectoryPoint(axis1Data, axis2Data, cmd, mcode, GetDwellForPoint(absolutePointIndex), GetSpeedForPoint(absolutePointIndex),
                                 contour.Points[i].X, contour.Points[i].Y, 0, 0);
                             pointCount++;
                         }
@@ -294,6 +253,11 @@ namespace WPF_Test_PLC20260124
 
             if (pointCount > 0)
             {
+                // Set FIRST point to END (1000 bits) -> "Chạy dừng"
+                axis1Data[0] = (int)((ushort)axis1Data[0] & 0x0FFF | 0x1000);
+                axis2Data[0] = (int)((ushort)axis2Data[0] & 0x0FFF | 0x1000);
+
+                // Set LAST point to END (1000 bits)
                 int lastIdx = (pointCount - 1) * 10;
                 axis1Data[lastIdx] = (int)((ushort)axis1Data[lastIdx] & 0x0FFF | 0x1000);
                 axis2Data[lastIdx] = (int)((ushort)axis2Data[lastIdx] & 0x0FFF | 0x1000);

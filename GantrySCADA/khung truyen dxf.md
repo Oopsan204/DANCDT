@@ -64,3 +64,5 @@ Thanh ghi này quyết định cách thức robot di chuyển qua điểm đó.
 ![1778148279976](image/khungtruyendxf/1778148279976.png)
 
 ![1778149370054](image/khungtruyendxf/1778149370054.png)
+
+![1778165431755](image/khungtruyendxf/1778165431755.png)

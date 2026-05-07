@@ -1121,6 +1121,20 @@ namespace WPF_Test_PLC20260124
             set { _dxfPointSpeeds = value; OnPropertyChanged(); }
         }
 
+        private Dictionary<int, uint> _dxfPointDwells = new();
+        public Dictionary<int, uint> DxfPointDwells
+        {
+            get => _dxfPointDwells;
+            set { _dxfPointDwells = value; OnPropertyChanged(); }
+        }
+
+        private uint _dxfDefaultDwell = 0;
+        public uint DxfDefaultDwell
+        {
+            get => _dxfDefaultDwell;
+            set => SetProperty(ref _dxfDefaultDwell, value);
+        }
+
         public uint GetSpeedForPoint(int pointIndex)
         {
             if (_dxfPointSpeeds.TryGetValue(pointIndex, out uint speed))
@@ -1132,6 +1146,19 @@ namespace WPF_Test_PLC20260124
         {
             _dxfPointSpeeds[pointIndex] = speed;
             OnPropertyChanged(nameof(DxfPointSpeeds));
+        }
+
+        public uint GetDwellForPoint(int pointIndex)
+        {
+            if (_dxfPointDwells.TryGetValue(pointIndex, out uint dwell))
+                return dwell;
+            return DxfDefaultDwell;
+        }
+
+        public void SetDwellForPoint(int pointIndex, uint dwell)
+        {
+            _dxfPointDwells[pointIndex] = dwell;
+            OnPropertyChanged(nameof(DxfPointDwells));
         }
 
         private double _posOffsetX = 0;
