@@ -234,6 +234,10 @@ namespace WPF_Test_PLC20260124
             }
             public int DecimalValue
             {
+                get { return (int)(short)(Value & 0xFFFF); }
+            }
+            public int UnsignedValue
+            {
                 get { return (int)(ushort)(Value & 0xFFFF); }
             }
         }

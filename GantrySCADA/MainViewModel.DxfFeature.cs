@@ -351,34 +351,34 @@ namespace WPF_Test_PLC20260124
         private void AddTrajectoryPoint(List<int> ax1, List<int> ax2, ushort cmd, ushort mcode, uint dwell, uint speed, double posX, double posY, double cx, double cy)
         {
             // Scale mm sang um (x1000)
-            int scaledX = (int)(posX * 1000.0);
-            int scaledY = (int)(posY * 1000.0);
-            int scaledCx = (int)(cx * 1000.0);
-            int scaledCy = (int)(cy * 1000.0);
+            int scaledX = (int)Math.Round(posX * 1000.0);
+            int scaledY = (int)Math.Round(posY * 1000.0);
+            int scaledCx = (int)Math.Round(cx * 1000.0);
+            int scaledCy = (int)Math.Round(cy * 1000.0);
             
             // --- AXIS 1 (X & Center X) ---
-            ax1.Add((int)(ushort)cmd);          // +0: Positioning Identifier
-            ax1.Add((int)(ushort)mcode);        // +1: M Code
-            ax1.Add((int)(dwell & 0xFFFF));     // +2: Dwell Time (Low)
-            ax1.Add((int)(dwell >> 16));        // +3: Dwell Time (High)
-            ax1.Add((int)(speed & 0xFFFF));     // +4: Command Speed (Low)
-            ax1.Add((int)(speed >> 16));        // +5: Command Speed (High)
-            ax1.Add((int)(scaledX & 0xFFFF));   // +6: Position Address (Low)
-            ax1.Add((int)(scaledX >> 16));      // +7: Position Address (High)
-            ax1.Add((int)(scaledCx & 0xFFFF));  // +8: Arc Address (Low)
-            ax1.Add((int)(scaledCx >> 16));     // +9: Arc Address (High)
+            ax1.Add((int)(ushort)cmd);                       // +0: Positioning Identifier (16-bit)
+            ax1.Add((int)(ushort)mcode);                     // +1: M Code (16-bit)
+            ax1.Add((int)(dwell & 0xFFFF));                  // +2: Dwell Time (Low 16-bit)
+            ax1.Add((int)((dwell >> 16) & 0xFFFF));          // +3: Dwell Time (High 16-bit)
+            ax1.Add((int)(speed & 0xFFFF));                  // +4: Command Speed (Low 16-bit)
+            ax1.Add((int)((speed >> 16) & 0xFFFF));          // +5: Command Speed (High 16-bit)
+            ax1.Add((int)(scaledX & 0xFFFF));                // +6: Position Address (Low 16-bit)
+            ax1.Add((int)((scaledX >> 16) & 0xFFFF));        // +7: Position Address (High 16-bit)
+            ax1.Add((int)(scaledCx & 0xFFFF));               // +8: Arc Address (Low 16-bit)
+            ax1.Add((int)((scaledCx >> 16) & 0xFFFF));       // +9: Arc Address (High 16-bit)
 
             // --- AXIS 2 (Y & Center Y) ---
             ax2.Add((int)(ushort)cmd);
             ax2.Add((int)(ushort)mcode);
             ax2.Add((int)(dwell & 0xFFFF));
-            ax2.Add((int)(dwell >> 16));
+            ax2.Add((int)((dwell >> 16) & 0xFFFF));
             ax2.Add((int)(speed & 0xFFFF));
-            ax2.Add((int)(speed >> 16));
+            ax2.Add((int)((speed >> 16) & 0xFFFF));
             ax2.Add((int)(scaledY & 0xFFFF));
-            ax2.Add((int)(scaledY >> 16));
+            ax2.Add((int)((scaledY >> 16) & 0xFFFF));
             ax2.Add((int)(scaledCy & 0xFFFF));
-            ax2.Add((int)(scaledCy >> 16));
+            ax2.Add((int)((scaledCy >> 16) & 0xFFFF));
         }
 
         public bool LoadDxfAdvanced(string filePath)
