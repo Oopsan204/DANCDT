@@ -20,12 +20,12 @@ Mỗi điểm (trajectory point) được cấu thành từ 10 thanh ghi 16-bit:
 | **+1** | **M Code**                  | 16-bit          | Mã phụ (ví dụ:`1` - Bật keo, `0` - Tắt keo). |
 | **+2** | **Dwell Time (Low)**        | 16-bit          | Thời gian chờ tại điểm (đơn vị: ms).           |
 | **+3** |                                   |                 |                                                        |
-| **+4** | **Command Speed (Low)**     | 32-bit (L)      | Tốc độ di chuyển.                                  |
-| **+5** | **Command Speed (High)**    | 32-bit (H)      |                                                        |
-| **+6** | **Position Address (Low)**  | 32-bit (L)      | Tọa độ đích (mm, tỉ lệ x1000 = µm).            |
-| **+7** | **Position Address (High)** | 32-bit (H)      |                                                        |
-| **+8** | **Arc Address (Low)**       | 32-bit (L)      | Tọa độ tâm cung tròn (mm, tỉ lệ x1000 = µm).   |
-| **+9** | **Arc Address (High)**      | 32-bit (H)      |                                                        |
+| **+4** | **Command Speed (Low)**     | 32-bit          | Tốc độ di chuyển.                                  |
+| **+5** | **Command Speed (High)**    | 32-bit          |                                                        |
+| **+6** | **Position Address (Low)**  | 32-bit          | Tọa độ đích (mm, tỉ lệ x1000 = µm).            |
+| **+7** | **Position Address (High)** | 32-bit          |                                                        |
+| **+8** | **Arc Address (Low)**       | 32-bit          | Tọa độ tâm cung tròn (mm, tỉ lệ x1000 = µm).   |
+| **+9** | **Arc Address (High)**      | 32-bit         |                                                        |
 
 ## 3. Chi Tiết Positioning Identifier (Offset +0)
 
@@ -60,9 +60,5 @@ Thanh ghi này quyết định cách thức robot di chuyển qua điểm đó.
 ![1778147130249](image/khungtruyendxf/1778147130249.png)
 
 ![1778148273406](image/khungtruyendxf/1778148273406.png)
-
-![1778148279976](image/khungtruyendxf/1778148279976.png)
-
-![1778149370054](image/khungtruyendxf/1778149370054.png)
 
 ![1778165431755](image/khungtruyendxf/1778165431755.png)

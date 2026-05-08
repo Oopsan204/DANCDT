@@ -218,6 +218,15 @@ namespace WPF_Test_PLC20260124
         {
             public string Address { get; set; } = "";
             public int Value { get; set; }
+
+            /// <summary>Label mô tả vị trí trong frame (ví dụ "+0 Cmd", "+6 Pos.L")</summary>
+            public string Label { get; set; } = "";
+
+            /// <summary>Nếu đây là word thứ 2 (High) của cặp 32-bit thì để null, word thứ 1 (Low) chứa giá trị 32-bit đã ghép</summary>
+            public int? Int32Value { get; set; }
+
+            public bool IsLowWord => Int32Value.HasValue;
+
             public string BinaryString 
             {
                 get 
@@ -232,6 +241,7 @@ namespace WPF_Test_PLC20260124
             {
                 get { return ((ushort)(Value & 0xFFFF)).ToString("X4"); }
             }
+            /// <summary>Giá trị signed 16-bit (chỉ dùng cho word đứng một mình)</summary>
             public int DecimalValue
             {
                 get { return (int)(short)(Value & 0xFFFF); }
