@@ -6,6 +6,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading;
 
 namespace WPF_Test_PLC20260124
 {
@@ -304,17 +305,39 @@ namespace WPF_Test_PLC20260124
                     _sentBufferRecords.Clear();
                     _sentBufferRecordsAxis2.Clear();
                     int recordCount = Math.Min(a1Arr.Length, 30);
+                    // Tên field trong frame 10-word: +0..+9
+                    string[] frameLabels = { "+0 Cmd", "+1 MCode", "+2 Dwell", "+3 Rsv",
+                                             "+4 Spd.L", "+5 Spd.H", "+6 Pos.L", "+7 Pos.H",
+                                             "+8 Arc.L", "+9 Arc.H" };
+                    // Các cặp word 32-bit: offset của Low word → ghép với offset+1
+                    var pairs32 = new HashSet<int> { 4, 6, 8 };
+
                     for (int i = 0; i < recordCount; i++)
                     {
+                        int frameOff = i % 10; // vị trí trong frame 10-word
+                        string lbl = frameLabels[frameOff];
+
+                        // Ghép 32-bit nếu đây là Low word của cặp 32-bit và còn word kế
+                        int? val32_1 = null, val32_2 = null;
+                        if (pairs32.Contains(frameOff) && i + 1 < a1Arr.Length)
+                        {
+                            val32_1 = a1Arr[i] | (a1Arr[i + 1] << 16);
+                            val32_2 = a2Arr[i] | (a2Arr[i + 1] << 16);
+                        }
+
                         _sentBufferRecords.Add(new BufferRegisterRecord
                         {
                             Address = $"U0\\G{2000 + i}",
-                            Value = a1Arr[i]
+                            Value = a1Arr[i],
+                            Label = lbl,
+                            Int32Value = val32_1
                         });
                         _sentBufferRecordsAxis2.Add(new BufferRegisterRecord
                         {
                             Address = $"U0\\G{3000 + i}",
-                            Value = a2Arr[i]
+                            Value = a2Arr[i],
+                            Label = lbl,
+                            Int32Value = val32_2
                         });
                     }
                     OnPropertyChanged(nameof(SentBufferRecords));

@@ -103,9 +103,14 @@ namespace WPF_Test_PLC20260124
                 if (!TryParseUDevicePath(fullAddress, out int startIO, out int gAddress))
                     throw new ArgumentException($"Invalid buffer address: {fullAddress}", nameof(address));
 
+                // Convert int[] to short[] - treating each int as a 16-bit unsigned value
+                // This preserves the bit pattern (e.g., 65535 stays as 0xFFFF, not -1)
                 short[] data = new short[values.Length];
                 for (int i = 0; i < values.Length; i++)
-                    data[i] = unchecked((short)values[i]);
+                {
+                    // Cast as unsigned first to preserve bit pattern, then cast to signed short
+                    data[i] = unchecked((short)(ushort)(values[i] & 0xFFFF));
+                }
 
                 _mx.WriteBuffer(startIO, gAddress, data);
                 return;
