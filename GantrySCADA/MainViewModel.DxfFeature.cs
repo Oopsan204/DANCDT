@@ -186,6 +186,14 @@ namespace WPF_Test_PLC20260124
             }
         }
 
+        // === Helper: Mã hóa Command Code đúng cấu trúc QD75 ===
+        // Bit 0-3: Pattern (0=END, 1=Cont Pos, 3=Cont Path)
+        // Bit 4-7: Motion Type (0x0A=Linear, 0x0F=Arc CW, 0x10=Arc CCW)
+        private ushort EncodeCommandCode(int pattern, int motionType)
+        {
+            return (ushort)((pattern & 0x0F) | (motionType & 0xF0));
+        }
+
         private (int[] a1Arr, int[] a2Arr, int pointCount) CompileDxfTrajectory(CancellationToken ct)
         {
             List<int> axis1Data = new List<int>();
@@ -198,8 +206,8 @@ namespace WPF_Test_PLC20260124
                 ct.ThrowIfCancellationRequested();
                 if (contour.Points == null || contour.Points.Count == 0) continue;
 
-                // Travel move (G0)
-                ushort travelCmd = 0xD00A;
+                // Travel move (G0) - Pattern 3 (Continuous Path) + Linear (0x0A)
+                ushort travelCmd = EncodeCommandCode(3, 0x0A);
                 ushort travelMCode = 0;
                 if (absolutePointIndex >= DxfStartPointIndex)
                 {
@@ -212,7 +220,8 @@ namespace WPF_Test_PLC20260124
                 // Actual contour
                 if (contour.IsCircle)
                 {
-                    ushort cmd = 0xD00F;
+                    // Pattern 3 (Continuous Path) + Arc CW (0x0F)
+                    ushort cmd = EncodeCommandCode(3, 0x0F);
                     ushort mcode = (ushort)(absolutePointIndex >= DxfGlueStartIndex && absolutePointIndex <= DxfGlueEndIndex ? 1 : 0);
                     if (absolutePointIndex >= DxfStartPointIndex)
                     {
@@ -224,7 +233,9 @@ namespace WPF_Test_PLC20260124
                 }
                 else if (contour.IsArc)
                 {
-                    ushort cmd = contour.ArcClockwise ? (ushort)0xD00F : (ushort)0xD010;
+                    // Pattern 3 (Continuous Path) + Arc (CW/CCW)
+                    int motionType = contour.ArcClockwise ? 0x0F : 0x10;
+                    ushort cmd = EncodeCommandCode(3, motionType);
                     ushort mcode = (ushort)(absolutePointIndex >= DxfGlueStartIndex && absolutePointIndex <= DxfGlueEndIndex ? 1 : 0);
                     if (absolutePointIndex >= DxfStartPointIndex)
                     {
@@ -238,7 +249,8 @@ namespace WPF_Test_PLC20260124
                 {
                     for (int i = 1; i < contour.Points.Count; i++)
                     {
-                        ushort cmd = 0xD00A;
+                        // Pattern 3 (Continuous Path) + Linear (0x0A)
+                        ushort cmd = EncodeCommandCode(3, 0x0A);
                         ushort mcode = (ushort)(absolutePointIndex >= DxfGlueStartIndex && absolutePointIndex <= DxfGlueEndIndex ? 1 : 0);
                         if (absolutePointIndex >= DxfStartPointIndex)
                         {
@@ -253,14 +265,19 @@ namespace WPF_Test_PLC20260124
 
             if (pointCount > 0)
             {
-                // Set FIRST point to END (1000 bits) -> "Chạy dừng"
-                axis1Data[0] = (int)((ushort)axis1Data[0] & 0x0FFF | 0x1000);
-                axis2Data[0] = (int)((ushort)axis2Data[0] & 0x0FFF | 0x1000);
+                // Set FIRST point to Pattern 0 (END) -> "Chạy dừng"
+                // Extract motion type from first point, set pattern to 0
+                int firstCmd = (int)(ushort)axis1Data[0];
+                int firstMotionType = firstCmd & 0xF0;
+                axis1Data[0] = EncodeCommandCode(0, firstMotionType);
+                axis2Data[0] = EncodeCommandCode(0, firstMotionType);
 
-                // Set LAST point to END (1000 bits)
+                // Set LAST point to Pattern 0 (END)
                 int lastIdx = (pointCount - 1) * 10;
-                axis1Data[lastIdx] = (int)((ushort)axis1Data[lastIdx] & 0x0FFF | 0x1000);
-                axis2Data[lastIdx] = (int)((ushort)axis2Data[lastIdx] & 0x0FFF | 0x1000);
+                int lastCmd = (int)(ushort)axis1Data[lastIdx];
+                int lastMotionType = lastCmd & 0xF0;
+                axis1Data[lastIdx] = EncodeCommandCode(0, lastMotionType);
+                axis2Data[lastIdx] = EncodeCommandCode(0, lastMotionType);
             }
 
             return (axis1Data.ToArray(), axis2Data.ToArray(), pointCount);
