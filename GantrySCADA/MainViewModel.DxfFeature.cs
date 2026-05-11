@@ -191,7 +191,15 @@ namespace WPF_Test_PLC20260124
         // Bit 4-7: Motion Type (0x0A=Linear, 0x0F=Arc CW, 0x10=Arc CCW)
         private ushort EncodeCommandCode(int pattern, int motionType)
         {
-            return (ushort)((pattern & 0x0F) | (motionType & 0xF0));
+            // Pattern 0=END (0x1000), 1=Cont Pos (0x5000), 3=Cont Path (0xD000)
+            ushort baseCmd = pattern switch
+            {
+                0 => 0x1000,
+                1 => 0x5000,
+                3 => 0xD000,
+                _ => 0x1000
+            };
+            return (ushort)(baseCmd | (motionType & 0x00FF));
         }
 
         private (int[] a1Arr, int[] a2Arr, int pointCount) CompileDxfTrajectory(CancellationToken ct)
@@ -326,6 +334,108 @@ namespace WPF_Test_PLC20260124
                 {
                     throw new InvalidOperationException("Chưa kết nối PLC, không thể truyền lệnh quỹ đạo.");
                 }
+            }
+        }
+
+        public async Task StartTrajectoryAsync(int startCode = 1)
+        {
+            try
+            {
+                if (!Status)
+                {
+                    AddLog("UI", "warning", "Không thể chạy: PLC chưa kết nối.");
+                    return;
+                }
+
+                // --- BƯỚC 2: KIỂM TRA ĐIỀU KIỆN AN TOÀN (START CONDITIONS) ---
+                if (ePLC != null && ePLC.IsConnected)
+                {
+                    // 2.1 Kiểm tra Mã lỗi Trục 1 (U0\G806)
+                    try 
+                    {
+                        int[] errData = ePLC.ReadDeviceBlock(ePLCControl.SubCommand.Word, ePLCControl.DeviceName.Buffer, "U0\\G806", 1);
+                        if (errData != null && errData.Length > 0 && errData[0] != 0)
+                        {
+                            AddLog("UI", "error", $"Trục 1 đang báo lỗi (Mã {errData[0]}). Vui lòng RST_ERR trước khi chạy!");
+                            return;
+                        }
+
+                        // 2.2 Kiểm tra Cờ bận Trục 1 (XC)
+                        int[] busyFlag = ePLC.ReadDeviceBlock(ePLCControl.SubCommand.Bit, ePLCControl.DeviceName.X, "C", 1);
+                        if (busyFlag != null && busyFlag.Length > 0 && busyFlag[0] == 1)
+                        {
+                            AddLog("UI", "warning", "Trục 1 đang bận (BUSY - XC). Vui lòng chờ lệnh trước hoàn thành.");
+                            return;
+                        }
+                    }
+                    catch (Exception readEx)
+                    {
+                        AddLog("UI", "warning", $"Không thể kiểm tra an toàn, tiếp tục gửi lệnh... Lỗi: {readEx.Message}");
+                    }
+                }
+
+                IsDxfRunning = true;
+                DxfSendStatus = "Đang chạy...";
+                AddLog("UI", "info", $"Khởi động trục 1 với mã lệnh: {startCode}");
+
+                // 1. Ghi mã lệnh (ví dụ: 1) vào Cd.3 (U0\G1500)
+                MarkPendingWrite("U0G", 1500, startCode, null, false, false);
+
+                // Chờ 50ms để lệnh Write được đẩy xuống PLC qua vòng lặp Monitor
+                await Task.Delay(50);
+
+                // 2. Kích tín hiệu Start (Y10) lên ON
+                MarkPendingWrite("Y", 10, 1, null, false, false);
+
+                // Chờ 100ms tạo sườn lên (Pulse) rồi tắt Y10
+                await Task.Delay(100);
+                MarkPendingWrite("Y", 10, 0, null, false, false);
+
+                AddLog("UI", "success", "Đã gửi tín hiệu Start (Y10) thành công.");
+            }
+            catch (Exception ex)
+            {
+                IsDxfRunning = false;
+                DxfSendStatus = "Lỗi khi chạy";
+                AddLog("PC", "error", $"Lỗi StartTrajectory: {ex.Message}");
+            }
+        }
+
+        public async Task StopTrajectoryAsync()
+        {
+            try
+            {
+                AddLog("UI", "warning", "Đang gửi tín hiệu Dừng (Y4)...");
+                
+                // Bật tín hiệu dừng (Y4)
+                MarkPendingWrite("Y", 4, 1, null, false, false);
+                await Task.Delay(100);
+                MarkPendingWrite("Y", 4, 0, null, false, false);
+
+                IsDxfRunning = false;
+                DxfSendStatus = "Đã dừng";
+            }
+            catch (Exception ex)
+            {
+                AddLog("PC", "error", $"Lỗi StopTrajectory: {ex.Message}");
+            }
+        }
+
+        public async Task ResetAxis1ErrorAsync()
+        {
+            try
+            {
+                AddLog("UI", "info", "Đang Reset lỗi Trục 1 (U0\\G1502)...");
+                MarkPendingWrite("U0G", 1502, 1, null, false, false);
+                
+                await Task.Delay(100);
+                MarkPendingWrite("U0G", 1502, 0, null, false, false);
+                
+                AddLog("UI", "success", "Lệnh Reset lỗi đã được gửi.");
+            }
+            catch (Exception ex)
+            {
+                AddLog("PC", "error", $"Lỗi Reset: {ex.Message}");
             }
         }
 
