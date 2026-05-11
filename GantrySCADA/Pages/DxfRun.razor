@@ -241,16 +241,15 @@
                                     if (motionIdx >= ViewModel.DxfStartPointIndex)
                                     {
                                         renderedPoints++;
-                                        bool isFirst = renderedPoints == 1;
                                         bool isLast = renderedPoints == totalMotionPts;
-                                        ushort cmd = (isFirst || isLast) ? (ushort)0x100A : (ushort)0xD00A;
+                                        string cmdHex = isLast ? ViewModel.GetEncodedCommandHex(0, 0x0A, 1) : ViewModel.GetEncodedCommandHex(2, 0x0A, 1);
                                         var pt = contour.Points[0];
                                         string rowBg = motionIdx == SelectedMotionIndex ? "bg-primary/20" : (motionIdx % 2 == 0 ? "bg-surface-container-lowest" : "bg-surface-container-low");
                                         string borderClass = motionIdx == SelectedMotionIndex ? "border-l-4 border-primary" : "";
                                         int currentMotionIdx = motionIdx;
                                         <tr class="@rowBg @borderClass h-8 hover:bg-surface-container-high transition-colors cursor-pointer" @onclick="() => SelectMotion(currentMotionIdx)">
                                             <td class="p-2 text-outline text-center">@motionIdx</td>
-                                            <td class="p-2 text-on-surface font-bold">H@(cmd.ToString("X4"))</td>
+                                            <td class="p-2 text-on-surface font-bold">@cmdHex</td>
                                             <td class="p-2">
                                                 <div class="flex items-center gap-2">
                                                     <div class="w-2 h-2 rounded-full bg-outline/20"></div>
@@ -284,7 +283,7 @@
                                         {
                                             renderedPoints++;
                                             bool isLast = renderedPoints == totalMotionPts;
-                                            ushort cmd = isLast ? (ushort)0x100F : (ushort)0xD00F;
+                                            string cmdHex = isLast ? ViewModel.GetEncodedCommandHex(0, 0x0F, 1) : ViewModel.GetEncodedCommandHex(2, 0x0F, 1);
                                             bool glue = motionIdx >= ViewModel.DxfGlueStartIndex && motionIdx <= ViewModel.DxfGlueEndIndex;
                                             var ep = contour.Points.Last();
                                             string rowBg = motionIdx == SelectedMotionIndex ? "bg-primary/20" : (motionIdx % 2 == 0 ? "bg-surface-container-lowest" : "bg-surface-container-low");
@@ -292,7 +291,7 @@
                                             int currentMotionIdx = motionIdx;
                                             <tr class="@rowBg @borderClass h-8 hover:bg-surface-container-high transition-colors cursor-pointer" @onclick="() => SelectMotion(currentMotionIdx)">
                                                 <td class="p-2 text-outline text-center">@motionIdx</td>
-                                                <td class="p-2 text-on-surface font-bold">H@(cmd.ToString("X4"))</td>
+                                                <td class="p-2 text-on-surface font-bold">@cmdHex</td>
                                                 <td class="p-2">
                                                     <div class="flex items-center gap-2">
                                                         <div class="w-2 h-2 rounded-full @(glue ? "bg-secondary shadow-[0_0_8px_var(--c-secondary)]" : "bg-outline/20")"></div>
@@ -321,12 +320,9 @@
                                     }
                                     else if (contour.IsArc)
                                     {
-                                        if (motionIdx >= ViewModel.DxfStartPointIndex)
-                                        {
-                                            renderedPoints++;
                                             bool isLast = renderedPoints == totalMotionPts;
-                                            ushort cmdBase = contour.ArcClockwise ? (ushort)0x000F : (ushort)0x0010;
-                                            ushort cmd = isLast ? (ushort)(0x1000 | cmdBase) : (ushort)(0xD000 | cmdBase);
+                                            int motionType = contour.ArcClockwise ? 0x0F : 0x10;
+                                            string cmdHex = isLast ? ViewModel.GetEncodedCommandHex(0, motionType, 1) : ViewModel.GetEncodedCommandHex(2, motionType, 1);
                                             bool glue = motionIdx >= ViewModel.DxfGlueStartIndex && motionIdx <= ViewModel.DxfGlueEndIndex;
                                             var ep = contour.Points.Last();
                                             string rowBg = motionIdx == SelectedMotionIndex ? "bg-primary/20" : (motionIdx % 2 == 0 ? "bg-surface-container-lowest" : "bg-surface-container-low");
@@ -334,7 +330,7 @@
                                             int currentMotionIdx = motionIdx;
                                             <tr class="@rowBg @borderClass h-8 hover:bg-surface-container-high transition-colors cursor-pointer" @onclick="() => SelectMotion(currentMotionIdx)">
                                                 <td class="p-2 text-outline text-center">@motionIdx</td>
-                                                <td class="p-2 text-on-surface font-bold">H@(cmd.ToString("X4"))</td>
+                                                <td class="p-2 text-on-surface font-bold">@cmdHex</td>
                                                 <td class="p-2">
                                                     <div class="flex items-center gap-2">
                                                         <div class="w-2 h-2 rounded-full @(glue ? "bg-secondary shadow-[0_0_8px_var(--c-secondary)]" : "bg-outline/20")"></div>
@@ -369,7 +365,7 @@
                                             {
                                                 renderedPoints++;
                                                 bool isLast = renderedPoints == totalMotionPts;
-                                                ushort cmd = isLast ? (ushort)0x100A : (ushort)0xD00A;
+                                                string cmdHex = isLast ? ViewModel.GetEncodedCommandHex(0, 0x0A, 1) : ViewModel.GetEncodedCommandHex(2, 0x0A, 1);
                                                 bool glue = motionIdx >= ViewModel.DxfGlueStartIndex && motionIdx <= ViewModel.DxfGlueEndIndex;
                                                 var pt = contour.Points[i];
                                                 string rowBg = motionIdx == SelectedMotionIndex ? "bg-primary/20" : (motionIdx % 2 == 0 ? "bg-surface-container-lowest" : "bg-surface-container-low");
@@ -377,7 +373,7 @@
                                                 int currentMotionIdx = motionIdx;
                                                 <tr class="@rowBg @borderClass h-8 hover:bg-surface-container-high transition-colors cursor-pointer" @onclick="() => SelectMotion(currentMotionIdx)">
                                                     <td class="p-2 text-outline text-center">@motionIdx</td>
-                                                    <td class="p-2 text-on-surface font-bold">H@(cmd.ToString("X4"))</td>
+                                                    <td class="p-2 text-on-surface font-bold">@cmdHex</td>
                                                     <td class="p-2">
                                                         <div class="flex items-center gap-2">
                                                             <div class="w-2 h-2 rounded-full @(glue ? "bg-secondary shadow-[0_0_8px_var(--c-secondary)]" : "bg-outline/20")"></div>

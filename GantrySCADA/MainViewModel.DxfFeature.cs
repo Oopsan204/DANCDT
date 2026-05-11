@@ -186,20 +186,29 @@ namespace WPF_Test_PLC20260124
             }
         }
 
-        // === Helper: Mã hóa Command Code đúng cấu trúc QD75 ===
-    
-        private ushort EncodeCommandCode(int pattern, int motionType, int partnerAxis)
+        public string GetEncodedCommandHex(int pattern, int motionType, int partnerAxis, int accel = 1, int decel = 1)
         {
-            // === CẤU TRÚC 1 WORD (16-bit) CỦA LỆNH QD75 ===
-            // Bit 0-7: Mã lệnh điều khiển - motionType (Da.2)
-            // Bit 8-9: Kiểu vận hành - pattern (Da.1)
-            // Bit 10-11: Trục đối tác nội suy - partnerAxis (Da.5)
+            return "H" + EncodeCommandCode(pattern, motionType, partnerAxis, accel, decel).ToString("X4");
+        }
+
+        // === Helper: Mã hóa Command Code đúng cấu trúc QD75 / Simple Motion ===
+    
+        private ushort EncodeCommandCode(int pattern, int motionType, int partnerAxis, int accelTime = 1, int decelTime = 1)
+        {
+            // === CẤU TRÚC 1 WORD (16-bit) CỦA LỆNH QD75 / Simple Motion ===
+            // Bit 0-7:   Mã lệnh điều khiển - Control System (Da.2)
+            // Bit 8-9:   Kiểu vận hành - Operation Pattern (Da.1) -> 0:END, 1:Cont.Pos, 2:Cont.Path
+            // Bit 10-11: Trục đối tác nội suy - Axis to be Interpolated (Da.5) -> 1:Trục 2
+            // Bit 12-13: Số hiệu thời gian tăng tốc - Accel Time (Da.3) -> 0-3
+            // Bit 14-15: Số hiệu thời gian giảm tốc - Decel Time (Da.4) -> 0-3
             
             ushort motionBits = (ushort)(motionType & 0x00FF);
             ushort patternBits = (ushort)((pattern & 0x03) << 8);
             ushort partnerBits = (ushort)((partnerAxis & 0x03) << 10);
+            ushort accelBits = (ushort)((accelTime & 0x03) << 12);
+            ushort decelBits = (ushort)((decelTime & 0x03) << 14);
             
-            return (ushort)(motionBits | patternBits | partnerBits);
+            return (ushort)(motionBits | patternBits | partnerBits | accelBits | decelBits);
         }
 
         private (int[] a1Arr, int[] a2Arr, int pointCount) CompileDxfTrajectory(CancellationToken ct)
@@ -209,17 +218,20 @@ namespace WPF_Test_PLC20260124
             int pointCount = 0;
             int absolutePointIndex = 1;
 
+            // Mặc định: Accel 1 (12-13), Decel 1 (14-15), Partner 1 (10-11)
+            // Pattern: 2 (Continuous Path) cho các điểm giữa, 0 (END) cho điểm cuối.
+
             foreach (var contour in DxfContours)
             {
                 ct.ThrowIfCancellationRequested();
                 if (contour.Points == null || contour.Points.Count == 0) continue;
 
-                // Travel move (G0) - Pattern 3 (Continuous Path) + Linear (0x0A)
+                // Travel move (G0) - Pattern 2 (Continuous Path) + Linear (0x0A)
                 ushort travelMCode = 0;
                 if (absolutePointIndex >= DxfStartPointIndex)
                 {
-                    AddTrajectoryPoint(axis1Data, axis2Data, 3, 0x0A, travelMCode, GetDwellForPoint(absolutePointIndex), GetSpeedForPoint(absolutePointIndex),
-                        contour.Points[0].X, contour.Points[0].Y, 0, 0);
+                    AddTrajectoryPoint(axis1Data, axis2Data, 2, 0x0A, travelMCode, GetDwellForPoint(absolutePointIndex), GetSpeedForPoint(absolutePointIndex),
+                        contour.Points[0].X, contour.Points[0].Y, 0, 0, 1, 1);
                     pointCount++;
                 }
                 absolutePointIndex++;
@@ -227,25 +239,25 @@ namespace WPF_Test_PLC20260124
                 // Actual contour
                 if (contour.IsCircle)
                 {
-                    // Pattern 3 (Continuous Path) + Arc CW (0x0F)
+                    // Pattern 2 (Continuous Path) + Arc CW (0x0F)
                     ushort mcode = (ushort)(absolutePointIndex >= DxfGlueStartIndex && absolutePointIndex <= DxfGlueEndIndex ? 1 : 0);
                     if (absolutePointIndex >= DxfStartPointIndex)
                     {
-                        AddTrajectoryPoint(axis1Data, axis2Data, 3, 0x0F, mcode, GetDwellForPoint(absolutePointIndex), GetSpeedForPoint(absolutePointIndex),
-                            contour.Points.Last().X, contour.Points.Last().Y, contour.CenterX, contour.CenterY);
+                        AddTrajectoryPoint(axis1Data, axis2Data, 2, 0x0F, mcode, GetDwellForPoint(absolutePointIndex), GetSpeedForPoint(absolutePointIndex),
+                            contour.Points.Last().X, contour.Points.Last().Y, contour.CenterX, contour.CenterY, 1, 1);
                         pointCount++;
                     }
                     absolutePointIndex++;
                 }
                 else if (contour.IsArc)
                 {
-                    // Pattern 3 (Continuous Path) + Arc (CW/CCW)
+                    // Pattern 2 (Continuous Path) + Arc (CW/CCW)
                     int motionType = contour.ArcClockwise ? 0x0F : 0x10;
                     ushort mcode = (ushort)(absolutePointIndex >= DxfGlueStartIndex && absolutePointIndex <= DxfGlueEndIndex ? 1 : 0);
                     if (absolutePointIndex >= DxfStartPointIndex)
                     {
-                        AddTrajectoryPoint(axis1Data, axis2Data, 3, motionType, mcode, GetDwellForPoint(absolutePointIndex), GetSpeedForPoint(absolutePointIndex),
-                            contour.Points.Last().X, contour.Points.Last().Y, contour.CenterX, contour.CenterY);
+                        AddTrajectoryPoint(axis1Data, axis2Data, 2, motionType, mcode, GetDwellForPoint(absolutePointIndex), GetSpeedForPoint(absolutePointIndex),
+                            contour.Points.Last().X, contour.Points.Last().Y, contour.CenterX, contour.CenterY, 1, 1);
                         pointCount++;
                     }
                     absolutePointIndex++;
@@ -254,12 +266,12 @@ namespace WPF_Test_PLC20260124
                 {
                     for (int i = 1; i < contour.Points.Count; i++)
                     {
-                        // Pattern 3 (Continuous Path) + Linear (0x0A)
+                        // Pattern 2 (Continuous Path) + Linear (0x0A)
                         ushort mcode = (ushort)(absolutePointIndex >= DxfGlueStartIndex && absolutePointIndex <= DxfGlueEndIndex ? 1 : 0);
                         if (absolutePointIndex >= DxfStartPointIndex)
                         {
-                            AddTrajectoryPoint(axis1Data, axis2Data, 3, 0x0A, mcode, GetDwellForPoint(absolutePointIndex), GetSpeedForPoint(absolutePointIndex),
-                                contour.Points[i].X, contour.Points[i].Y, 0, 0);
+                            AddTrajectoryPoint(axis1Data, axis2Data, 2, 0x0A, mcode, GetDwellForPoint(absolutePointIndex), GetSpeedForPoint(absolutePointIndex),
+                                contour.Points[i].X, contour.Points[i].Y, 0, 0, 1, 1);
                             pointCount++;
                         }
                         absolutePointIndex++;
@@ -269,28 +281,25 @@ namespace WPF_Test_PLC20260124
 
             if (pointCount > 0)
             {
-                // Set FIRST point to Pattern 0 (END) -> "Chạy dừng"
-                int firstCmd1 = (int)(ushort)axis1Data[0];
-                int firstMotionType1 = firstCmd1 & 0x00FF;
-                axis1Data[0] = EncodeCommandCode(0, firstMotionType1, 1);
+                // FORCE FIRST point to Pattern 2 (Cont Path) if not already, 
+                // but usually the first point should start the path. 
+                // Let's keep it Pattern 2 unless it's the ONLY point.
                 
-                int firstCmd2 = (int)(ushort)axis2Data[0];
-                int firstMotionType2 = firstCmd2 & 0x00FF;
-                axis2Data[0] = EncodeCommandCode(0, firstMotionType2, 0);
-
                 // Set LAST point to Pattern 0 (END)
                 int lastIdx = (pointCount - 1) * 10;
                 int lastCmd1 = (int)(ushort)axis1Data[lastIdx];
                 int lastMotionType1 = lastCmd1 & 0x00FF;
-                axis1Data[lastIdx] = EncodeCommandCode(0, lastMotionType1, 1);
+                // Keep same accel/decel/partner, just change pattern to 0 (END)
+                axis1Data[lastIdx] = EncodeCommandCode(0, lastMotionType1, 1, 1, 1);
                 
                 int lastCmd2 = (int)(ushort)axis2Data[lastIdx];
                 int lastMotionType2 = lastCmd2 & 0x00FF;
-                axis2Data[lastIdx] = EncodeCommandCode(0, lastMotionType2, 0);
+                axis2Data[lastIdx] = EncodeCommandCode(0, lastMotionType2, 0, 0, 0); // Trục đối tác không quan trọng
             }
 
             return (axis1Data.ToArray(), axis2Data.ToArray(), pointCount);
         }
+
 
         private void SendTrajectoryToPLC(int[] a1Arr, int[] a2Arr, int pointCount)
         {
@@ -440,10 +449,10 @@ namespace WPF_Test_PLC20260124
             }
         }
 
-        private void AddTrajectoryPoint(List<int> ax1, List<int> ax2, int pattern, int motionType, ushort mcode, uint dwell, uint speed, double posX, double posY, double cx, double cy)
+        private void AddTrajectoryPoint(List<int> ax1, List<int> ax2, int pattern, int motionType, ushort mcode, uint dwell, uint speed, double posX, double posY, double cx, double cy, int accelTime = 1, int decelTime = 1)
         {
             // Trục 1 (X) lấy Trục 2 (Y) làm đối tác -> partnerAxis = 1
-            ushort cmdAx1 = EncodeCommandCode(pattern, motionType, 1);
+            ushort cmdAx1 = EncodeCommandCode(pattern, motionType, 1, accelTime, decelTime);
             
             // Trục 2 (Y) là trục nội suy, không cần thiết lập mã lệnh (Da.2) và trục đối tác (Da.5)
             ushort cmdAx2 = 0;
