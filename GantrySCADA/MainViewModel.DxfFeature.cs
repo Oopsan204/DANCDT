@@ -187,29 +187,22 @@ namespace WPF_Test_PLC20260124
         }
 
         // === Helper: Mã hóa Command Code đúng cấu trúc QD75 ===
-        // Bit 0-3: Pattern (0=END, 1=Cont Pos, 3=Cont Path)
-        // Bit 4-7: Motion Type (0x0A=Linear, 0x0F=Arc CW, 0x10=Arc CCW)
+    
         private ushort EncodeCommandCode(int pattern, int motionType, int partnerAxis)
         {
             // === CẤU TRÚC 1 WORD (16-bit) CỦA LỆNH QD75 ===
-            // Byte thấp (Bit 0-7): Control System (motionType: 0x0A, 0x0F, 0x10)
-            // Byte cao (Bit 8-15): Positioning Identifier
-            //    - Bit 8-9  : Partner Axis (00=Axis1, 01=Axis2, 10=Axis3, 11=Axis4)
-            //    - Bit 10-11: Positioning Pattern (00=END, 01=CONT POS, 11=CONT PATH)
-            
-            // 1. Tính Pattern ở Bit 10-11 (Dịch trái 10 bit)
             ushort patternBits = pattern switch
             {
-                0 => 0x0000, // END (00 << 10)
-                1 => 0x0400, // CONT POS (01 << 10)
-                3 => 0x0C00, // CONT PATH (11 << 10 = 3 << 10)
+                0 => 0x0000, // END
+                1 => 0x0400, // CONT POS
+                3 => 0x0C00, // CONT PATH
                 _ => 0x0000
             };
             
-            // 2. Tính Partner Axis ở Bit 8-9 (Dịch trái 8 bit)
+            // Tính Partner Axis ở Bit 8-9
             ushort partnerBits = (ushort)((partnerAxis & 0x03) << 8);
             
-            // 3. Ghép toàn bộ lại với Motion Type
+            // Thêm motionType vào byte thấp (Bit 0-7) cho lệnh nội suy (0x0A, 0x0F, v.v.)
             return (ushort)(patternBits | partnerBits | (motionType & 0x00FF));
         }
 
@@ -456,8 +449,8 @@ namespace WPF_Test_PLC20260124
             // Trục 1 (X) lấy Trục 2 (Y) làm đối tác -> partnerAxis = 1
             ushort cmdAx1 = EncodeCommandCode(pattern, motionType, 1);
             
-            // Trục 2 (Y) lấy Trục 1 (X) làm đối tác -> partnerAxis = 0
-            ushort cmdAx2 = EncodeCommandCode(pattern, motionType, 0);
+            // Trục 2 (Y) là trục nội suy, không cần thiết lập mã lệnh (Da.2) và trục đối tác (Da.5)
+            ushort cmdAx2 = 0;
 
             // Scale mm sang um (x1000)
             int scaledX = (int)Math.Round(posX * 1000.0);
