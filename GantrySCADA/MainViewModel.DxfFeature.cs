@@ -191,20 +191,26 @@ namespace WPF_Test_PLC20260124
         // Bit 4-7: Motion Type (0x0A=Linear, 0x0F=Arc CW, 0x10=Arc CCW)
         private ushort EncodeCommandCode(int pattern, int motionType, int partnerAxis)
         {
-            // PartnerAxis: 0=Axis 1, 1=Axis 2, 2=Axis 3, 3=Axis 4
-            // Pattern 0=END (0x1000), 1=Cont Pos (0x5000), 3=Cont Path (0xD000)   
-            ushort baseCmd = pattern switch
+            // === CẤU TRÚC 1 WORD (16-bit) CỦA LỆNH QD75 ===
+            // Byte thấp (Bit 0-7): Control System (motionType: 0x0A, 0x0F, 0x10)
+            // Byte cao (Bit 8-15): Positioning Identifier
+            //    - Bit 8-9  : Partner Axis (00=Axis1, 01=Axis2, 10=Axis3, 11=Axis4)
+            //    - Bit 10-11: Positioning Pattern (00=END, 01=CONT POS, 11=CONT PATH)
+            
+            // 1. Tính Pattern ở Bit 10-11 (Dịch trái 10 bit)
+            ushort patternBits = pattern switch
             {
-                0 => 0x1000,
-                1 => 0x5000,
-                3 => 0xD000,
-                _ => 0x1000
+                0 => 0x0000, // END
+                1 => 0x0400, // CONT POS (1 << 10)
+                3 => 0x0C00, // CONT PATH (3 << 10)
+                _ => 0x0000
             };
             
-            // Partner Axis nằm ở Bit 8-9 (0x0100 cho Axis 2)
+            // 2. Tính Partner Axis ở Bit 8-9 (Dịch trái 8 bit)
             ushort partnerBits = (ushort)((partnerAxis & 0x03) << 8);
-
-            return (ushort)(baseCmd | partnerBits | (motionType & 0x00FF));
+            
+            // 3. Ghép toàn bộ lại với Motion Type
+            return (ushort)(patternBits | partnerBits | (motionType & 0x00FF));
         }
 
         private (int[] a1Arr, int[] a2Arr, int pointCount) CompileDxfTrajectory(CancellationToken ct)
