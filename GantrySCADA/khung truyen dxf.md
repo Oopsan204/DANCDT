@@ -33,8 +33,8 @@ Thanh ghi này quyết định cách thức robot di chuyển qua điểm đó.
 
 | Lệnh                              | END (Điểm cuối) | Cont. Pos (Nối điểm) | Cont. Path (Nội suy) |
 | :--------------------------------- | :----------------- | :---------------------- | :-------------------- |
-| **Đường thẳng (Linear)** | `0x100A`         | `0x500A`              | `0xD00A`            |
-| **Cung tròn CW**            | `0x100F`         | `0x500F`              | `0xD00F`            |
+| **Đường thẳng (Linear)** | `0x100`          | `0x500`               | `0xD00`             |
+| **Cung tròn CW**            | `0x100`          | `0x500`               | `0xD00`             |
 | **Cung tròn CCW**           | `0x1010`         | `0x5010`              | `0xD010`            |
 
 - **Operation Pattern:**

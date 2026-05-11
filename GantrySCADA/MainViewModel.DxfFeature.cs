@@ -200,9 +200,9 @@ namespace WPF_Test_PLC20260124
             // 1. Tính Pattern ở Bit 10-11 (Dịch trái 10 bit)
             ushort patternBits = pattern switch
             {
-                0 => 0x0000, // END
-                1 => 0x0400, // CONT POS (1 << 10)
-                3 => 0x0C00, // CONT PATH (3 << 10)
+                0 => 0x0000, // END (00 << 10)
+                1 => 0x0400, // CONT POS (01 << 10)
+                3 => 0x0C00, // CONT PATH (11 << 10 = 3 << 10)
                 _ => 0x0000
             };
             
