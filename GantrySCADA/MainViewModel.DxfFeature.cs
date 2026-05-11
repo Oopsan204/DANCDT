@@ -290,15 +290,33 @@ namespace WPF_Test_PLC20260124
                 var plc = ePLC;
                 if (plc != null && plc.IsConnected)
                 {
-                    // Ghi trực tiếp vào Buffer memory của module (Simple Motion)
-                    // Axis 1: U0\G2000, Axis 2: U0\G3000
-                    plc.WriteDeviceBlock(ePLCControl.SubCommand.Word,
-                                          ePLCControl.DeviceName.Buffer,
-                                          "U0\\G2000", a1Arr);
+                    // Debug/log snapshot before write
+                    AddLog("PLC", "info", $"Preparing to write trajectory: pointCount={pointCount}, a1Len={a1Arr?.Length ?? 0}, a2Len={a2Arr?.Length ?? 0}");
+                    try
+                    {
+                        int preview = Math.Min(10, a1Arr?.Length ?? 0);
+                        string previewVals = preview > 0 ? string.Join(",", a1Arr.Take(preview)) : "(empty)";
+                        AddLog("PLC", "info", $"Axis1 preview: {previewVals}");
+                    }
+                    catch { }
 
-                    plc.WriteDeviceBlock(ePLCControl.SubCommand.Word,
-                                          ePLCControl.DeviceName.Buffer,
-                                          "U0\\G3000", a2Arr);
+                    try
+                    {
+                        // Ghi trực tiếp vào Buffer memory của module (Simple Motion)
+                        // Axis 1: U0\G2000, Axis 2: U0\G3000
+                        plc.WriteDeviceBlock(ePLCControl.SubCommand.Word,
+                                              ePLCControl.DeviceName.Buffer,
+                                              "U0\\G2000", a1Arr);
+
+                        plc.WriteDeviceBlock(ePLCControl.SubCommand.Word,
+                                              ePLCControl.DeviceName.Buffer,
+                                              "U0\\G3000", a2Arr);
+                    }
+                    catch (Exception ex)
+                    {
+                        AddLog("PLC", "error", $"WriteBuffer exception: {ex.Message}");
+                        throw;
+                    }
 
                     // Update SentBufferRecords for visualization (up to first 30 words)
                     _sentBufferRecords.Clear();
