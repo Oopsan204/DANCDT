@@ -189,9 +189,10 @@ namespace WPF_Test_PLC20260124
         // === Helper: Mã hóa Command Code đúng cấu trúc QD75 ===
         // Bit 0-3: Pattern (0=END, 1=Cont Pos, 3=Cont Path)
         // Bit 4-7: Motion Type (0x0A=Linear, 0x0F=Arc CW, 0x10=Arc CCW)
-        private ushort EncodeCommandCode(int pattern, int motionType)
+        private ushort EncodeCommandCode(int pattern, int motionType, int partnerAxis)
         {
-            // Pattern 0=END (0x1000), 1=Cont Pos (0x5000), 3=Cont Path (0xD000)
+            // PartnerAxis: 0=Axis 1, 1=Axis 2, 2=Axis 3, 3=Axis 4
+            // Pattern 0=END (0x1000), 1=Cont Pos (0x5000), 3=Cont Path (0xD000)   
             ushort baseCmd = pattern switch
             {
                 0 => 0x1000,
@@ -199,7 +200,11 @@ namespace WPF_Test_PLC20260124
                 3 => 0xD000,
                 _ => 0x1000
             };
-            return (ushort)(baseCmd | (motionType & 0x00FF));
+            
+            // Partner Axis nằm ở Bit 8-9 (0x0100 cho Axis 2)
+            ushort partnerBits = (ushort)((partnerAxis & 0x03) << 8);
+
+            return (ushort)(baseCmd | partnerBits | (motionType & 0x00FF));
         }
 
         private (int[] a1Arr, int[] a2Arr, int pointCount) CompileDxfTrajectory(CancellationToken ct)
@@ -215,11 +220,10 @@ namespace WPF_Test_PLC20260124
                 if (contour.Points == null || contour.Points.Count == 0) continue;
 
                 // Travel move (G0) - Pattern 3 (Continuous Path) + Linear (0x0A)
-                ushort travelCmd = EncodeCommandCode(3, 0x0A);
                 ushort travelMCode = 0;
                 if (absolutePointIndex >= DxfStartPointIndex)
                 {
-                    AddTrajectoryPoint(axis1Data, axis2Data, travelCmd, travelMCode, GetDwellForPoint(absolutePointIndex), GetSpeedForPoint(absolutePointIndex),
+                    AddTrajectoryPoint(axis1Data, axis2Data, 3, 0x0A, travelMCode, GetDwellForPoint(absolutePointIndex), GetSpeedForPoint(absolutePointIndex),
                         contour.Points[0].X, contour.Points[0].Y, 0, 0);
                     pointCount++;
                 }
@@ -229,11 +233,10 @@ namespace WPF_Test_PLC20260124
                 if (contour.IsCircle)
                 {
                     // Pattern 3 (Continuous Path) + Arc CW (0x0F)
-                    ushort cmd = EncodeCommandCode(3, 0x0F);
                     ushort mcode = (ushort)(absolutePointIndex >= DxfGlueStartIndex && absolutePointIndex <= DxfGlueEndIndex ? 1 : 0);
                     if (absolutePointIndex >= DxfStartPointIndex)
                     {
-                        AddTrajectoryPoint(axis1Data, axis2Data, cmd, mcode, GetDwellForPoint(absolutePointIndex), GetSpeedForPoint(absolutePointIndex),
+                        AddTrajectoryPoint(axis1Data, axis2Data, 3, 0x0F, mcode, GetDwellForPoint(absolutePointIndex), GetSpeedForPoint(absolutePointIndex),
                             contour.Points.Last().X, contour.Points.Last().Y, contour.CenterX, contour.CenterY);
                         pointCount++;
                     }
@@ -243,11 +246,10 @@ namespace WPF_Test_PLC20260124
                 {
                     // Pattern 3 (Continuous Path) + Arc (CW/CCW)
                     int motionType = contour.ArcClockwise ? 0x0F : 0x10;
-                    ushort cmd = EncodeCommandCode(3, motionType);
                     ushort mcode = (ushort)(absolutePointIndex >= DxfGlueStartIndex && absolutePointIndex <= DxfGlueEndIndex ? 1 : 0);
                     if (absolutePointIndex >= DxfStartPointIndex)
                     {
-                        AddTrajectoryPoint(axis1Data, axis2Data, cmd, mcode, GetDwellForPoint(absolutePointIndex), GetSpeedForPoint(absolutePointIndex),
+                        AddTrajectoryPoint(axis1Data, axis2Data, 3, motionType, mcode, GetDwellForPoint(absolutePointIndex), GetSpeedForPoint(absolutePointIndex),
                             contour.Points.Last().X, contour.Points.Last().Y, contour.CenterX, contour.CenterY);
                         pointCount++;
                     }
@@ -258,11 +260,10 @@ namespace WPF_Test_PLC20260124
                     for (int i = 1; i < contour.Points.Count; i++)
                     {
                         // Pattern 3 (Continuous Path) + Linear (0x0A)
-                        ushort cmd = EncodeCommandCode(3, 0x0A);
                         ushort mcode = (ushort)(absolutePointIndex >= DxfGlueStartIndex && absolutePointIndex <= DxfGlueEndIndex ? 1 : 0);
                         if (absolutePointIndex >= DxfStartPointIndex)
                         {
-                            AddTrajectoryPoint(axis1Data, axis2Data, cmd, mcode, GetDwellForPoint(absolutePointIndex), GetSpeedForPoint(absolutePointIndex),
+                            AddTrajectoryPoint(axis1Data, axis2Data, 3, 0x0A, mcode, GetDwellForPoint(absolutePointIndex), GetSpeedForPoint(absolutePointIndex),
                                 contour.Points[i].X, contour.Points[i].Y, 0, 0);
                             pointCount++;
                         }
@@ -274,18 +275,23 @@ namespace WPF_Test_PLC20260124
             if (pointCount > 0)
             {
                 // Set FIRST point to Pattern 0 (END) -> "Chạy dừng"
-                // Extract motion type from first point, set pattern to 0
-                int firstCmd = (int)(ushort)axis1Data[0];
-                int firstMotionType = firstCmd & 0xF0;
-                axis1Data[0] = EncodeCommandCode(0, firstMotionType);
-                axis2Data[0] = EncodeCommandCode(0, firstMotionType);
+                int firstCmd1 = (int)(ushort)axis1Data[0];
+                int firstMotionType1 = firstCmd1 & 0x00FF;
+                axis1Data[0] = EncodeCommandCode(0, firstMotionType1, 1);
+                
+                int firstCmd2 = (int)(ushort)axis2Data[0];
+                int firstMotionType2 = firstCmd2 & 0x00FF;
+                axis2Data[0] = EncodeCommandCode(0, firstMotionType2, 0);
 
                 // Set LAST point to Pattern 0 (END)
                 int lastIdx = (pointCount - 1) * 10;
-                int lastCmd = (int)(ushort)axis1Data[lastIdx];
-                int lastMotionType = lastCmd & 0xF0;
-                axis1Data[lastIdx] = EncodeCommandCode(0, lastMotionType);
-                axis2Data[lastIdx] = EncodeCommandCode(0, lastMotionType);
+                int lastCmd1 = (int)(ushort)axis1Data[lastIdx];
+                int lastMotionType1 = lastCmd1 & 0x00FF;
+                axis1Data[lastIdx] = EncodeCommandCode(0, lastMotionType1, 1);
+                
+                int lastCmd2 = (int)(ushort)axis2Data[lastIdx];
+                int lastMotionType2 = lastCmd2 & 0x00FF;
+                axis2Data[lastIdx] = EncodeCommandCode(0, lastMotionType2, 0);
             }
 
             return (axis1Data.ToArray(), axis2Data.ToArray(), pointCount);
@@ -439,8 +445,14 @@ namespace WPF_Test_PLC20260124
             }
         }
 
-        private void AddTrajectoryPoint(List<int> ax1, List<int> ax2, ushort cmd, ushort mcode, uint dwell, uint speed, double posX, double posY, double cx, double cy)
+        private void AddTrajectoryPoint(List<int> ax1, List<int> ax2, int pattern, int motionType, ushort mcode, uint dwell, uint speed, double posX, double posY, double cx, double cy)
         {
+            // Trục 1 (X) lấy Trục 2 (Y) làm đối tác -> partnerAxis = 1
+            ushort cmdAx1 = EncodeCommandCode(pattern, motionType, 1);
+            
+            // Trục 2 (Y) lấy Trục 1 (X) làm đối tác -> partnerAxis = 0
+            ushort cmdAx2 = EncodeCommandCode(pattern, motionType, 0);
+
             // Scale mm sang um (x1000)
             int scaledX = (int)Math.Round(posX * 1000.0);
             int scaledY = (int)Math.Round(posY * 1000.0);
@@ -448,7 +460,7 @@ namespace WPF_Test_PLC20260124
             int scaledCy = (int)Math.Round(cy * 1000.0);
             
             // --- AXIS 1 (X & Center X) ---
-            ax1.Add((int)(ushort)cmd);                       // +0: Positioning Identifier (16-bit)
+            ax1.Add((int)(ushort)cmdAx1);                    // +0: Positioning Identifier (16-bit)
             ax1.Add((int)(ushort)mcode);                     // +1: M Code (16-bit)
             ax1.Add((int)(dwell & 0xFFFF));                  // +2: Dwell Time (Low 16-bit)
             ax1.Add(0);                                      // +3: Reserved / Empty (New Structure)
@@ -460,7 +472,7 @@ namespace WPF_Test_PLC20260124
             ax1.Add((int)((scaledCx >> 16) & 0xFFFF));       // +9: Arc Address (High 16-bit)
 
             // --- AXIS 2 (Y & Center Y) ---
-            ax2.Add((int)(ushort)cmd);                       // +0
+            ax2.Add((int)(ushort)cmdAx2);                    // +0
             ax2.Add((int)(ushort)mcode);                     // +1
             ax2.Add((int)(dwell & 0xFFFF));                  // +2
             ax2.Add(0);                                      // +3: Reserved / Empty
