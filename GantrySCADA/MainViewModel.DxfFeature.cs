@@ -191,25 +191,15 @@ namespace WPF_Test_PLC20260124
         private ushort EncodeCommandCode(int pattern, int motionType, int partnerAxis)
         {
             // === CẤU TRÚC 1 WORD (16-bit) CỦA LỆNH QD75 ===
-            ushort patternBits = pattern switch
-            {
-                0 => 0x0000, // END
-                1 => 0x0400, // CONT POS
-                3 => 0x0C00, // CONT PATH
-                _ => 0x0000
-            };
+            // Bit 0-7: Mã lệnh điều khiển - motionType (Da.2)
+            // Bit 8-9: Kiểu vận hành - pattern (Da.1)
+            // Bit 10-11: Trục đối tác nội suy - partnerAxis (Da.5)
             
-            // Tính Partner Axis ở Bit 8-9
-            ushort partnerBits = (ushort)((partnerAxis & 0x03) << 8);
+            ushort motionBits = (ushort)(motionType & 0x00FF);
+            ushort patternBits = (ushort)((pattern & 0x03) << 8);
+            ushort partnerBits = (ushort)((partnerAxis & 0x03) << 10);
             
-            // Theo yêu cầu: mẫu END (0) sẽ không cộng thêm motionType để đảm bảo giá trị chính xác là 256
-            if (pattern == 0)
-            {
-                return (ushort)(patternBits | partnerBits);
-            }
-            
-            // Thêm motionType vào byte thấp (Bit 0-7) cho lệnh nội suy (0x0A, 0x0F, v.v.)
-            return (ushort)(patternBits | partnerBits | (motionType & 0x00FF));
+            return (ushort)(motionBits | patternBits | partnerBits);
         }
 
         private (int[] a1Arr, int[] a2Arr, int pointCount) CompileDxfTrajectory(CancellationToken ct)
@@ -310,14 +300,14 @@ namespace WPF_Test_PLC20260124
                 if (plc != null && plc.IsConnected)
                 {
                     // Ghi trực tiếp vào Buffer memory của module (Simple Motion)
-                    // Axis 1: U0\G2000, Axis 2: U0\G3000
+                    // Axis 1: U0\G2000, Axis 2: U0\G8000
                     plc.WriteDeviceBlock(ePLCControl.SubCommand.Word,
                                           ePLCControl.DeviceName.Buffer,
                                           "U0\\G2000", a1Arr);
 
                     plc.WriteDeviceBlock(ePLCControl.SubCommand.Word,
                                           ePLCControl.DeviceName.Buffer,
-                                          "U0\\G3000", a2Arr);
+                                          "U0\\G8000", a2Arr);
 
                     // Update SentBufferRecords for visualization (up to first 30 words)
                     _sentBufferRecords.Clear();
@@ -332,14 +322,14 @@ namespace WPF_Test_PLC20260124
                         });
                         _sentBufferRecordsAxis2.Add(new BufferRegisterRecord
                         {
-                            Address = $"U0\\G{3000 + i}",
+                            Address = $"U0\\G{8000 + i}",
                             Value = a2Arr[i]
                         });
                     }
                     OnPropertyChanged(nameof(SentBufferRecords));
                     OnPropertyChanged(nameof(SentBufferRecordsAxis2));
 
-                    AddLog("PLC", "success", $"Đã truyền {pointCount} điểm quỹ đạo xuống Buffer PLC (U0\\G2000 & U0\\G3000)");
+                    AddLog("PLC", "success", $"Đã truyền {pointCount} điểm quỹ đạo xuống Buffer PLC (U0\\G2000 & U0\\G8000)");
                 }
                 else
                 {
