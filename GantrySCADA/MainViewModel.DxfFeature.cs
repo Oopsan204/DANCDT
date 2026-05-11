@@ -476,7 +476,7 @@ namespace WPF_Test_PLC20260124
             ax1.Add((int)((scaledCx >> 16) & 0xFFFF));       // +9: Arc Address (High 16-bit)
 
             // --- AXIS 2 (Y & Center Y) ---
-            ax2.Add(0);                    // +0
+            ax2.Add((int)(ushort)cmdAx2);                    // +0
             ax2.Add(0);                     // +1
             ax2.Add(0);                  // +2
             ax2.Add(0);                                      // +3: Reserved / Empty

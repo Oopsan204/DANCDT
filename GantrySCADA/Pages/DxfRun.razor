@@ -320,6 +320,9 @@
                                     }
                                     else if (contour.IsArc)
                                     {
+                                        if (motionIdx >= ViewModel.DxfStartPointIndex)
+                                        {
+                                            renderedPoints++;
                                             bool isLast = renderedPoints == totalMotionPts;
                                             int motionType = contour.ArcClockwise ? 0x0F : 0x10;
                                             string cmdHex = isLast ? ViewModel.GetEncodedCommandHex(0, motionType, 1) : ViewModel.GetEncodedCommandHex(2, motionType, 1);

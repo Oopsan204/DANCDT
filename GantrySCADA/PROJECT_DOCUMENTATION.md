@@ -2509,3 +2509,30 @@ Mục này tổng hợp các cải tiến cuối cùng và trạng thái vận h
 - **Buffer Monitor Visualizer**: Hỗ trợ xem trực tiếp 30 Word dữ liệu thô từ vùng nhớ `U0\G` giúp kỹ sư dễ dàng đối chiếu dữ liệu truyền tải với bảng mã lệnh thực tế.
 
 ---
+
+### 7. Bảng Mã Lệnh Điều Khiển Chuyển Động (Mitsubishi QD75/RD77)
+
+Dưới đây là bảng tra cứu mã lệnh cho tham số **Da.2 (Control System)** được sử dụng trong dự án:
+
+| Loại chuyển động | Mã lệnh (Hex) | Tên kỹ thuật | Mô tả |
+| :--- | :--- | :--- | :--- |
+| **Đường thẳng 2 trục** | `0AH` | ABS Linear 2 | Nội suy thẳng tuyệt đối |
+| | `0BH` | INC Linear 2 | Nội suy thẳng tương đối |
+| | `0CH` | Fixed-feed 2 | Điều khiển cấp phôi cố định |
+| **Cung tròn (Tâm)** | `0FH` | ABS Circular right | Cung tròn tuyệt đối CW (Thuận) |
+| | `10H` | ABS Circular left | Cung tròn tuyệt đối CCW (Ngược) |
+| | `11H` | INC Circular right | Cung tròn tương đối CW |
+| | `12H` | INC Circular left | Cung tròn tương đối CCW |
+| **Cung tròn (Điểm)** | `0DH` | ABS Circular sub | Cung tròn tuyệt đối qua điểm trung gian |
+| | `0EH` | INC Circular sub | Cung tròn tương đối qua điểm trung gian |
+| **Tốc độ 2 trục** | `13H` | VF2 | Điều khiển tốc độ 2 trục (Thuận) |
+| | `14H` | VR2 | Điều khiển tốc độ 2 trục (Nghịch) |
+
+#### Thiết lập Trục đối tác (Da.5) - Cực kỳ quan trọng
+Để thực hiện nội suy, word đầu tiên (G2000) tại Trục tham chiếu phải chỉ định trục đối tác tại **Bit 10-11**:
+*   `0`: Trục 1 nội suy với chính nó (Dễ gây lỗi 521)
+*   `1`: Chọn Trục 2 làm đối tác (Cấu hình chuẩn của GantrySCADA cho Trục X-Y)
+*   `2`: Chọn Trục 3 làm đối tác
+*   `3`: Chọn Trục 4 làm đối tác
+
+---
