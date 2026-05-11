@@ -202,6 +202,12 @@ namespace WPF_Test_PLC20260124
             // Tính Partner Axis ở Bit 8-9
             ushort partnerBits = (ushort)((partnerAxis & 0x03) << 8);
             
+            // Theo yêu cầu: mẫu END (0) sẽ không cộng thêm motionType để đảm bảo giá trị chính xác là 256
+            if (pattern == 0)
+            {
+                return (ushort)(patternBits | partnerBits);
+            }
+            
             // Thêm motionType vào byte thấp (Bit 0-7) cho lệnh nội suy (0x0A, 0x0F, v.v.)
             return (ushort)(patternBits | partnerBits | (motionType & 0x00FF));
         }
