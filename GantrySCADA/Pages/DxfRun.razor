@@ -242,7 +242,7 @@
                                     {
                                         renderedPoints++;
                                         bool isLast = renderedPoints == totalMotionPts;
-                                        string cmdHex = isLast ? ViewModel.GetEncodedCommandHex(0, 0x0A, 1) : ViewModel.GetEncodedCommandHex(2, 0x0A, 1);
+                                        string cmdHex = isLast ? ViewModel.GetEncodedCommandHex(0, 0x0A, 1) : ViewModel.GetEncodedCommandHex(3, 0x0A, 1);
                                         var pt = contour.Points[0];
                                         string rowBg = motionIdx == SelectedMotionIndex ? "bg-primary/20" : (motionIdx % 2 == 0 ? "bg-surface-container-lowest" : "bg-surface-container-low");
                                         string borderClass = motionIdx == SelectedMotionIndex ? "border-l-4 border-primary" : "";
@@ -368,7 +368,7 @@
                                             {
                                                 renderedPoints++;
                                                 bool isLast = renderedPoints == totalMotionPts;
-                                                string cmdHex = isLast ? ViewModel.GetEncodedCommandHex(0, 0x0A, 1) : ViewModel.GetEncodedCommandHex(2, 0x0A, 1);
+                                                string cmdHex = isLast ? ViewModel.GetEncodedCommandHex(0, 0x0A, 1) : ViewModel.GetEncodedCommandHex(3, 0x0A, 1);
                                                 bool glue = motionIdx >= ViewModel.DxfGlueStartIndex && motionIdx <= ViewModel.DxfGlueEndIndex;
                                                 var pt = contour.Points[i];
                                                 string rowBg = motionIdx == SelectedMotionIndex ? "bg-primary/20" : (motionIdx % 2 == 0 ? "bg-surface-container-lowest" : "bg-surface-container-low");

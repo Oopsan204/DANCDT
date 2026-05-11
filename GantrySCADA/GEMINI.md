@@ -41,10 +41,11 @@ This project is a **WPF/Blazor Hybrid** application designed for controlling and
     - **Entity Support:** Enhanced support for Polylines (auto-close), Lines, Circles, Arcs, and Points.
   - **Command Codes:**
 - Command Codes (Standard mapping with Partner Axis 2, Accel/Decel 1):
-  - Linear: `H540A` (END), `H550A` (Cont. Pos), `H560A` (Cont. Path).
-  - Circular CW: `H540F` (END), `H550F` (Cont. Pos), `H560F` (Cont. Path).
-  - Circular CCW: `H5410` (END), `H5510` (Cont. Pos), `H5610` (Cont. Path).
-  - *Note: Hex digits represent: [Decel:2bits|Accel:2bits][Partner:2bits|Pattern:2bits][Control:8bits].*
+  - Linear: `H540A` (END), `H550A` (Cont. Pos), `H570A` (Cont. Path - PATH).
+  - Circular CW: `H540F` (END), `H550F` (Cont. Pos), `H570F` (Cont. Path - PATH).
+  - Circular CCW: `H5410` (END), `H5510` (Cont. Pos), `H5710` (Cont. Path - PATH).
+  - *Note: Hex digits represent: [Decel:2bits|Accel:2bits][Partner:2bits|Pattern:2bits][Control:8bits]. Pattern for PATH is 3.*
+
   - **Data Scaling:** Coordinates and center points are scaled by 1000 (mm to µm).
   - Centralized logging and telemetry.
 

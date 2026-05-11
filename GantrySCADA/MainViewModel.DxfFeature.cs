@@ -219,18 +219,18 @@ namespace WPF_Test_PLC20260124
             int absolutePointIndex = 1;
 
             // Mặc định: Accel 1 (12-13), Decel 1 (14-15), Partner 1 (10-11)
-            // Pattern: 2 (Continuous Path) cho các điểm giữa, 0 (END) cho điểm cuối.
+            // Pattern: 3 (Continuous Path - PATH) cho các điểm giữa, 0 (END) cho điểm cuối.
 
             foreach (var contour in DxfContours)
             {
                 ct.ThrowIfCancellationRequested();
                 if (contour.Points == null || contour.Points.Count == 0) continue;
 
-                // Travel move (G0) - Pattern 2 (Continuous Path) + Linear (0x0A)
+                // Travel move (G0) - Pattern 3 (Continuous Path) + Linear (0x0A)
                 ushort travelMCode = 0;
                 if (absolutePointIndex >= DxfStartPointIndex)
                 {
-                    AddTrajectoryPoint(axis1Data, axis2Data, 2, 0x0A, travelMCode, GetDwellForPoint(absolutePointIndex), GetSpeedForPoint(absolutePointIndex),
+                    AddTrajectoryPoint(axis1Data, axis2Data, 3, 0x0A, travelMCode, GetDwellForPoint(absolutePointIndex), GetSpeedForPoint(absolutePointIndex),
                         contour.Points[0].X, contour.Points[0].Y, 0, 0, 1, 1);
                     pointCount++;
                 }
@@ -239,11 +239,11 @@ namespace WPF_Test_PLC20260124
                 // Actual contour
                 if (contour.IsCircle)
                 {
-                    // Pattern 2 (Continuous Path) + Arc CW (0x0F)
+                    // Pattern 3 (Continuous Path) + Arc CW (0x0F)
                     ushort mcode = (ushort)(absolutePointIndex >= DxfGlueStartIndex && absolutePointIndex <= DxfGlueEndIndex ? 1 : 0);
                     if (absolutePointIndex >= DxfStartPointIndex)
                     {
-                        AddTrajectoryPoint(axis1Data, axis2Data, 2, 0x0F, mcode, GetDwellForPoint(absolutePointIndex), GetSpeedForPoint(absolutePointIndex),
+                        AddTrajectoryPoint(axis1Data, axis2Data, 3, 0x0F, mcode, GetDwellForPoint(absolutePointIndex), GetSpeedForPoint(absolutePointIndex),
                             contour.Points.Last().X, contour.Points.Last().Y, contour.CenterX, contour.CenterY, 1, 1);
                         pointCount++;
                     }
@@ -251,12 +251,12 @@ namespace WPF_Test_PLC20260124
                 }
                 else if (contour.IsArc)
                 {
-                    // Pattern 2 (Continuous Path) + Arc (CW/CCW)
+                    // Pattern 3 (Continuous Path) + Arc (CW/CCW)
                     int motionType = contour.ArcClockwise ? 0x0F : 0x10;
                     ushort mcode = (ushort)(absolutePointIndex >= DxfGlueStartIndex && absolutePointIndex <= DxfGlueEndIndex ? 1 : 0);
                     if (absolutePointIndex >= DxfStartPointIndex)
                     {
-                        AddTrajectoryPoint(axis1Data, axis2Data, 2, motionType, mcode, GetDwellForPoint(absolutePointIndex), GetSpeedForPoint(absolutePointIndex),
+                        AddTrajectoryPoint(axis1Data, axis2Data, 3, motionType, mcode, GetDwellForPoint(absolutePointIndex), GetSpeedForPoint(absolutePointIndex),
                             contour.Points.Last().X, contour.Points.Last().Y, contour.CenterX, contour.CenterY, 1, 1);
                         pointCount++;
                     }
@@ -266,11 +266,11 @@ namespace WPF_Test_PLC20260124
                 {
                     for (int i = 1; i < contour.Points.Count; i++)
                     {
-                        // Pattern 2 (Continuous Path) + Linear (0x0A)
+                        // Pattern 3 (Continuous Path) + Linear (0x0A)
                         ushort mcode = (ushort)(absolutePointIndex >= DxfGlueStartIndex && absolutePointIndex <= DxfGlueEndIndex ? 1 : 0);
                         if (absolutePointIndex >= DxfStartPointIndex)
                         {
-                            AddTrajectoryPoint(axis1Data, axis2Data, 2, 0x0A, mcode, GetDwellForPoint(absolutePointIndex), GetSpeedForPoint(absolutePointIndex),
+                            AddTrajectoryPoint(axis1Data, axis2Data, 3, 0x0A, mcode, GetDwellForPoint(absolutePointIndex), GetSpeedForPoint(absolutePointIndex),
                                 contour.Points[i].X, contour.Points[i].Y, 0, 0, 1, 1);
                             pointCount++;
                         }
@@ -281,9 +281,9 @@ namespace WPF_Test_PLC20260124
 
             if (pointCount > 0)
             {
-                // FORCE FIRST point to Pattern 2 (Cont Path) if not already, 
+                // FORCE FIRST point to Pattern 3 (Cont Path) if not already, 
                 // but usually the first point should start the path. 
-                // Let's keep it Pattern 2 unless it's the ONLY point.
+                // Let's keep it Pattern 3 unless it's the ONLY point.
                 
                 // Set LAST point to Pattern 0 (END)
                 int lastIdx = (pointCount - 1) * 10;
@@ -458,10 +458,10 @@ namespace WPF_Test_PLC20260124
             ushort cmdAx2 = 0;
 
             // Scale mm sang um (x1000)
-            int scaledX = (int)Math.Round(posX * 1000.0);
-            int scaledY = (int)Math.Round(posY * 1000.0);
-            int scaledCx = (int)Math.Round(cx * 1000.0);
-            int scaledCy = (int)Math.Round(cy * 1000.0);
+            int scaledX = (int)Math.Round(posX * 10000.0);
+            int scaledY = (int)Math.Round(posY * 10000.0);
+            int scaledCx = (int)Math.Round(cx * 10000.0);
+            int scaledCy = (int)Math.Round(cy * 10000.0);
             
             // --- AXIS 1 (X & Center X) ---
             ax1.Add((int)(ushort)cmdAx1);                    // +0: Positioning Identifier (16-bit)
