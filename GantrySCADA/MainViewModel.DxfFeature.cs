@@ -188,7 +188,7 @@ namespace WPF_Test_PLC20260124
 
         // === Helper: Mã hóa Command Code đúng cấu trúc QD75 ===
         // Bit 0-3: Pattern (0=END, 1=Cont Pos, 3=Cont Path)
-        // Bit 4-7: Motion Type (0x0A=Linear, 0x0F=Arc CW, 0x10=Arc CCW)
+        // Bit 4-7: Motion Type (0xA0=Linear, 0xF0=Arc CW, 0x10=Arc CCW)
         private ushort EncodeCommandCode(int pattern, int motionType)
         {
             return (ushort)((pattern & 0x0F) | (motionType & 0xF0));
@@ -206,8 +206,8 @@ namespace WPF_Test_PLC20260124
                 ct.ThrowIfCancellationRequested();
                 if (contour.Points == null || contour.Points.Count == 0) continue;
 
-                // Travel move (G0) - Pattern 3 (Continuous Path) + Linear (0x0A)
-                ushort travelCmd = EncodeCommandCode(3, 0x0A);
+                // Travel move (G0) - Pattern 3 (Continuous Path) + Linear (0xA0)
+                ushort travelCmd = EncodeCommandCode(3, 0xA0);
                 ushort travelMCode = 0;
                 if (absolutePointIndex >= DxfStartPointIndex)
                 {
@@ -220,8 +220,8 @@ namespace WPF_Test_PLC20260124
                 // Actual contour
                 if (contour.IsCircle)
                 {
-                    // Pattern 3 (Continuous Path) + Arc CW (0x0F)
-                    ushort cmd = EncodeCommandCode(3, 0x0F);
+                    // Pattern 3 (Continuous Path) + Arc CW (0xF0)
+                    ushort cmd = EncodeCommandCode(3, 0xF0);
                     ushort mcode = (ushort)(absolutePointIndex >= DxfGlueStartIndex && absolutePointIndex <= DxfGlueEndIndex ? 1 : 0);
                     if (absolutePointIndex >= DxfStartPointIndex)
                     {
@@ -234,7 +234,7 @@ namespace WPF_Test_PLC20260124
                 else if (contour.IsArc)
                 {
                     // Pattern 3 (Continuous Path) + Arc (CW/CCW)
-                    int motionType = contour.ArcClockwise ? 0x0F : 0x10;
+                    int motionType = contour.ArcClockwise ? 0xF0 : 0x10;
                     ushort cmd = EncodeCommandCode(3, motionType);
                     ushort mcode = (ushort)(absolutePointIndex >= DxfGlueStartIndex && absolutePointIndex <= DxfGlueEndIndex ? 1 : 0);
                     if (absolutePointIndex >= DxfStartPointIndex)
@@ -249,8 +249,8 @@ namespace WPF_Test_PLC20260124
                 {
                     for (int i = 1; i < contour.Points.Count; i++)
                     {
-                        // Pattern 3 (Continuous Path) + Linear (0x0A)
-                        ushort cmd = EncodeCommandCode(3, 0x0A);
+                        // Pattern 3 (Continuous Path) + Linear (0xA0)
+                        ushort cmd = EncodeCommandCode(3, 0xA0);
                         ushort mcode = (ushort)(absolutePointIndex >= DxfGlueStartIndex && absolutePointIndex <= DxfGlueEndIndex ? 1 : 0);
                         if (absolutePointIndex >= DxfStartPointIndex)
                         {
