@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en" class="theme-dark">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gantry SCADA Robot Control</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand-block">
+        <div class="brand-title">PRECISION SCADA</div>
+        <nav class="top-nav">
+          <button class="nav-link is-active" data-view="control">DASHBOARD</button>
+          <button class="nav-link" data-view="logs">LOGS</button>
+          <button class="nav-link" data-view="telemetry">TELEMETRY</button>
+          <button class="nav-link" data-placeholder="SYSTEM SETTINGS">SYSTEM SETTINGS</button>
+          <button class="nav-link" data-view="dxf">DXF RUN</button>
+        </nav>
+      </div>
+      <div class="top-actions">
+        <button id="theme-toggle" class="icon-button" title="Toggle theme">◐</button>
+        <button class="icon-button" data-placeholder="NOTIFICATIONS" title="Notifications">!</button>
+        <button class="icon-button" data-placeholder="PROFILE" title="Profile">◎</button>
+      </div>
+    </header>
+
+    <aside class="sidebar">
+      <div class="unit-card">
+        <div class="unit-badge">01</div>
+        <div>
+          <div class="unit-title">Unit 01</div>
+          <div class="unit-subtitle" id="sidebar-status">Mitsu: DC</div>
+        </div>
+      </div>
+
+      <nav class="side-nav">
+        <button class="side-link is-active" data-view="control">CONTROL</button>
+        <button class="side-link" data-view="telemetry">TELEMETRY</button>
+        <button class="side-link" data-view="logs">LOGS</button>
+        <button class="side-link" data-placeholder="SETTINGS">SETTINGS</button>
+        <button class="side-link" data-view="dxf">DXF RUN</button>
+      </nav>
+
+      <!-- Manual Jog in sidebar -->
+      <div class="sidebar-jog">
+        <div class="sidebar-jog-title">Manual Jog</div>
+        <div class="sidebar-jog-subtitle">M-register pulse control</div>
+        <div class="jog-layout-sidebar">
+          <div class="jog-pad-sm">
+            <button class="jog-btn-sm up" data-jog-offset="2">↑</button>
+            <button class="jog-btn-sm left" data-jog-offset="1">←</button>
+            <button class="jog-btn-sm right" data-jog-offset="0">→</button>
+            <button class="jog-btn-sm down" data-jog-offset="3">↓</button>
+            <div class="jog-center-sm">XY</div>
+          </div>
+          <div class="jog-z-stack-sm">
+            <button class="jog-btn-sm z" data-jog-offset="4">Z+</button>
+            <button class="jog-btn-sm z" data-jog-offset="5">Z-</button>
+          </div>
+        </div>
+        <div class="jog-addr-info">Manual Override Status: M3000-M3005</div>
+        <div class="jog-speed-card" style="margin: 12px; padding: 12px; background: rgba(255,255,255,0.03); border-radius: 8px; border: 1px solid var(--border);">
+          <div class="axis-field-label" style="font-size: 10px; color: var(--muted); margin-bottom: 4px;">JOG SPEED (D406 - cm/min)</div>
+          <div style="display: flex; gap: 4px;">
+            <input id="jog-speed-input" class="text-input compact" type="number" value="1000" step="0.001" style="flex: 1;">
+            <button id="set-jog-speed-btn" class="primary-button compact" style="min-width: 50px;">SET</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="sidebar-footer">
+        <button id="emergency-stop" class="danger-button full-width">EMERGENCY STOP</button>
+        <button class="side-footer-link" data-placeholder="SUPPORT">SUPPORT</button>
+        <button class="side-footer-link" data-placeholder="LOGOUT">LOGOUT</button>
+      </div>
+    </aside>
+
+    <main class="content">
+      <!-- ========== DASHBOARD ========== -->
+      <section id="view-control" class="view is-active">
+        <div class="dashboard-grid">
+          <!-- System Connectivity -->
+          <div class="panel panel-connection">
+            <div class="panel-header">
+              <div>
+                <div class="panel-title">System Connectivity</div>
+                <div class="panel-subtitle">Mitsubishi PLC Network Interface</div>
+              </div>
+            </div>
+
+            <div class="conn-section">
+              <div class="conn-label-row">
+                <span class="conn-brand">MITSUBISHI</span>
+                <span id="plc-status-dot" class="status-dot disconnected"></span>
+                <span id="plc-status-text" class="status-dot-text">DC</span>
+              </div>
+              <label class="field-label" for="plc-station">LOGICAL STATION NO.</label>
+              <input id="plc-station" class="text-input" type="number" value="0">
+              <button id="connect-button" class="primary-button full-width connect-btn-q">CONNECT PLC Q</button>
+              
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px;">
+                <button id="go-home-btn" class="primary-button compact" style="background: var(--warning-color, #eab308); color: black;">HOME <span style="font-size:9px;opacity:0.7">(M502)</span></button>
+                <button id="reset-error-btn" class="primary-button compact" style="background: #ef4444; color: white;">RESET <span style="font-size:9px;opacity:0.7">(M300)</span></button>
+              </div>
+              <button id="start-btn" class="primary-button full-width" style="margin-top: 8px; background: #22c55e; color: white;">START ACTION <span style="font-size:9px;opacity:0.7">(M2000)</span></button>
+            </div>
+
+            <div id="connection-meta" class="muted-text" style="margin-top:12px;">MX Component logical station: 0</div>
+          </div>
+
+          <!-- Axis Monitor -->
+          <div class="panel panel-axis-monitor">
+            <div class="panel-header">
+              <div>
+                <div class="panel-title">Axis Monitor</div>
+                <div class="panel-subtitle">Real-time coordinate and axis status monitoring</div>
+              </div>
+            </div>
+            <div class="axis-grid" id="axis-grid">
+              <!-- Generated dynamically by app.js -->
+            </div>
+          </div>
+
+          <!-- System Events -->
+          <div class="panel panel-events">
+            <div class="panel-header">
+              <div>
+                <div class="panel-title">System Events</div>
+                <div class="panel-subtitle">DXF run progress · Errors · Connection events</div>
+              </div>
+              <button id="clear-events-button" class="text-button">Clear</button>
+            </div>
+            <div id="events-list" class="events-list">
+              <div id="events-empty" class="events-empty">No events yet.</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========== LOGS ========== -->
+      <section id="view-logs" class="view">
+        <div class="panel">
+          <div class="panel-header">
+            <div>
+              <div class="panel-title">Logs</div>
+              <div class="panel-subtitle">PLC read/write transactions</div>
+            </div>
+            <div>
+              <button id="clear-logs-button" class="text-button">Clear</button>
+            </div>
+          </div>
+
+          <div class="table-frame">
+            <table class="data-table compact">
+              <thead>
+                <tr>
+                  <th>Time</th>
+                  <th>Dir</th>
+                  <th>Address</th>
+                  <th>Value</th>
+                  <th>Status</th>
+                  <th>Message</th>
+                </tr>
+              </thead>
+              <tbody id="logs-table-body"></tbody>
+            </table>
+            <div id="logs-empty" class="empty-state">No logs yet.</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========== TELEMETRY ========== -->
+      <section id="view-telemetry" class="view">
+        <div class="panel">
+          <div class="panel-header">
+            <div>
+              <div class="panel-title">Telemetry</div>
+              <div class="panel-subtitle">Live D registers and Un\\Gx buffers</div>
+            </div>
+          </div>
+
+          <div class="telemetry-actions" style="margin-bottom: 12px; display:flex; gap:8px; align-items:center;">
+            <input id="telemetry-add-path" class="text-input compact" type="text"
+              placeholder="Add address: D100, M10, U0\G800..." style="flex: 1;" />
+            <input id="telemetry-add-len" class="text-input compact" type="number" placeholder="Length (if U\G)"
+              value="1" style="width: 130px;" />
+            <button id="telemetry-add-btn" class="primary-button compact">Add to List</button>
+          </div>
+
+          <div id="telemetry-content" class="telemetry-content">
+            <div class="telemetry-empty">No telemetry data. Connect PLC to activate.</div>
+          </div>
+          <div class="telemetry-actions" style="margin-top:12px; display:flex; gap:8px; align-items:center;">
+            <input id="write-buffer-path" class="text-input compact" type="text" placeholder="D100, M10, U0\G2006..." value="D100" style="width:240px;" />
+            <input id="write-buffer-value" class="text-input compact" type="number" placeholder="Value" value="12345" style="width:140px;" />
+            <button id="write-buffer-button" class="primary-button compact">Write Data</button>
+          </div>
+      </section>
+
+      <!-- ========== DXF RUN ========== -->
+      <section id="view-dxf" class="view">
+        <div class="panel dxf-toolbar">
+          <div class="toolbar-field toolbar-path">
+            <input id="cad-path" class="text-input compact" type="text" placeholder="CAD path" readonly>
+          </div>
+          <div class="toolbar-field toolbar-file">
+            <input id="cad-file" class="text-input compact" type="text" placeholder="File name" readonly>
+          </div>
+          <button id="open-dxf" class="primary-button toolbar-open compact">Open</button>
+        </div>
+
+        <div class="dxf-grid">
+          <div class="panel panel-preview">
+            <div class="preview-frame">
+              <svg id="cad-preview" viewBox="0 0 1000 560" preserveAspectRatio="xMidYMid meet"></svg>
+              <div id="cad-placeholder" class="preview-placeholder">View CAD</div>
+            </div>
+
+            <div class="dxf-actions">
+              <div class="action-row">
+                <button class="primary-button" data-assign-slot="start">Start point</button>
+                <button class="primary-button" data-assign-slot="glueStart">Start gluing</button>
+                <button class="primary-button" data-assign-slot="glueEnd">End gluing</button>
+                <button class="primary-button" data-process-key="zDown">Z down</button>
+                <button class="primary-button" data-process-key="zSafe">Z safe</button>
+                <button class="primary-button" data-process-key="speed">Speed</button>
+              </div>
+              <div class="action-row">
+                <button id="import-cad-to-process-button" class="primary-button">Import CAD → Process</button>
+                <button id="send-cad-x-button" class="primary-button">Send CAD X</button>
+                <button class="primary-button secondary-tone" data-run-action="resume">Resume</button>
+                <button class="primary-button secondary-tone" data-run-action="pause">Pause</button>
+                <button class="primary-button" data-run-action="start">Start</button>
+              </div>
+            </div>
+
+          </div>
+          <div class="panel panel-points">
+            <div class="table-frame tall">
+              <table class="data-table compact points-table">
+                <thead>
+                  <tr>
+                    <th>No.</th>
+                    <th>Line type</th>
+                    <th>Start X</th>
+                    <th>Start Y</th>
+                    <th>End X</th>
+                    <th>End Y</th>
+                    <th>Center X</th>
+                    <th>Center Y</th>
+                  </tr>
+                </thead>
+                <tbody id="points-table-body"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="panel panel-process">
+            <div class="table-frame short">
+              <table class="data-table compact">
+                <thead>
+                  <tr>
+                    <th>Motion type</th>
+                    <th>M code value</th>
+                    <th>Dwell</th>
+                    <th>Speed</th>
+                    <th>End coord (X;Y)</th>
+                    <th>Center coord (X;Y)</th>
+                  </tr>
+                </thead>
+                <tbody id="process-table-body"></tbody>
+              </table>
+            </div>
+
+            <!-- Instruction / Notes area added -->
+            <div class="dxf-notes"
+              style="margin-top: 12px; font-size: 12px; color: var(--muted); display: flex; gap: 20px;">
+              <strong>M code value:</strong>
+              <span>M code = 1 (Dispense ON)</span>
+              <span>M code = 2 (Dispense OFF)</span>
+            </div>
+
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div id="toast-container" class="toast-container"></div>
+
+  <div id="prompt-modal" class="modal-backdrop hidden">
+    <div class="modal-card">
+      <div id="modal-title" class="modal-title">Input</div>
+      <div id="modal-label" class="modal-label"></div>
+      <input id="modal-input" class="text-input" type="text">
+      <div class="modal-actions">
+        <button id="modal-cancel" class="secondary-button">Cancel</button>
+        <button id="modal-confirm" class="primary-button">OK</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+
+</html>
