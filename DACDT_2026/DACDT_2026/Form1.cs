@@ -283,7 +283,56 @@ namespace DACDT_2026
                     // Enable WebGL and hardware acceleration for Three.js 3D view
                     AdditionalBrowserArguments = "--enable-webgl --enable-gpu --ignore-gpu-blocklist --enable-unsafe-webgpu"
                 };
-                var environment = await Microsoft.Web.WebView2.Core.CoreWebView2Environment.CreateAsync(null, userDataFolder, options);
+
+                // Try embedded WebView2 Runtime first, fallback to system Runtime
+                Microsoft.Web.WebView2.Core.CoreWebView2Environment environment = null;
+                
+                // 1. Try embedded Runtime (WebView2Runtime folder in app directory)
+                string embeddedRuntimePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "WebView2Runtime");
+                if (Directory.Exists(embeddedRuntimePath))
+                {
+                    try
+                    {
+                        environment = await Microsoft.Web.WebView2.Core.CoreWebView2Environment.CreateAsync(
+                            embeddedRuntimePath, userDataFolder, options);
+                    }
+                    catch
+                    {
+                        // Embedded Runtime failed, will try system Runtime
+                        environment = null;
+                    }
+                }
+
+                // 2. Fallback to system Runtime
+                if (environment == null)
+                {
+                    try
+                    {
+                        environment = await Microsoft.Web.WebView2.Core.CoreWebView2Environment.CreateAsync(
+                            null, userDataFolder, options);
+                    }
+                    catch (Exception webViewEx)
+                    {
+                        // WebView2 Runtime not found
+                        if (webViewEx.HResult == -2147024888) // 0x80070008
+                        {
+                            MessageBox.Show(
+                                this,
+                                "WebView2 Runtime is not installed and embedded Runtime is not available.\n\n" +
+                                "Please either:\n" +
+                                "1. Download and install WebView2 Runtime from:\n" +
+                                "   https://developer.microsoft.com/en-us/microsoft-edge/webview2/\n\n" +
+                                "2. Or run setup_webview2_runtime.ps1 to download embedded Runtime\n\n" +
+                                "After installation, please restart this application.",
+                                "WebView2 Runtime Required",
+                                MessageBoxButtons.OK,
+                                MessageBoxIcon.Warning);
+                            return;
+                        }
+                        throw;
+                    }
+                }
+
                 await webView.EnsureCoreWebView2Async(environment);
 
                 webView.CoreWebView2.Settings.AreDefaultContextMenusEnabled  = false;
@@ -299,9 +348,8 @@ namespace DACDT_2026
             {
                 MessageBox.Show(
                     this,
-                    "Failed to initialize HTML dashboard. Please check Microsoft Edge WebView2 Runtime."
-                        + Environment.NewLine + Environment.NewLine + ex.Message,
-                    "WebView2",
+                    "Failed to initialize HTML dashboard.\n\n" + ex.Message,
+                    "Error",
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Error);
             }
