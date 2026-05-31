@@ -475,8 +475,22 @@ namespace DACDT_2026
                 usedMethod = "WriteBuffer (32-bit)";
                 short lowWord = (short)(value & 0xFFFF);
                 short highWord = (short)((value >> 16) & 0xFFFF);
-                // WriteBuffer đã được sửa để ném lỗi chi tiết, không cần try-catch ở đây nữa
-                return WriteBuffer(u, g, new short[] { lowWord, highWord });
+                try
+                {
+                    // WriteBuffer ném exception nếu lỗi, bắt và trả về mã lỗi
+                    return WriteBuffer(u, g, new short[] { lowWord, highWord });
+                }
+                catch (Exception ex)
+                {
+                    // Trích xuất mã lỗi từ exception message nếu có
+                    var match = System.Text.RegularExpressions.Regex.Match(ex.Message, @"0x([0-9A-F]+)");
+                    if (match.Success && int.TryParse(match.Groups[1].Value, System.Globalization.NumberStyles.HexNumber, System.Globalization.CultureInfo.InvariantCulture, out int errorCode))
+                    {
+                        return errorCode;
+                    }
+                    // Nếu không tìm được mã lỗi, trả về -1
+                    return -1;
+                }
             }
 
             // Đối với các thanh ghi khác (D, W, R), ghi 2 word riêng lẻ

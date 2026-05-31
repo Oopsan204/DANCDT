@@ -612,13 +612,28 @@ namespace DACDT_2026
             {
                 string used;
                 int result = plcComm.WriteInt32ToDevicePath(path, value, out used);
-                return new WriteResult
+                if (result == 0)
                 {
-                    Address = path,
-                    Value = value.ToString(CultureInfo.InvariantCulture),
-                    Status = result == 0 ? "OK" : $"Error({result})",
-                    Message = used
-                };
+                    return new WriteResult
+                    {
+                        Address = path,
+                        Value = value.ToString(CultureInfo.InvariantCulture),
+                        Status = "OK",
+                        Message = used
+                    };
+                }
+                else
+                {
+                    // Chuyển đổi mã lỗi thành hex để dễ debug
+                    string hexError = result > 0 ? $"0x{result:X8}" : result.ToString();
+                    return new WriteResult
+                    {
+                        Address = path,
+                        Value = value.ToString(CultureInfo.InvariantCulture),
+                        Status = $"Error({hexError})",
+                        Message = $"WriteInt32ToDevicePath returned error code {hexError}. Method used: {used}"
+                    };
+                }
             }
             catch (Exception ex)
             {
@@ -627,7 +642,7 @@ namespace DACDT_2026
                     Address = path,
                     Value = value.ToString(CultureInfo.InvariantCulture),
                     Status = "Error",
-                    Message = ex.Message
+                    Message = $"Exception: {ex.Message}"
                 };
             }
         }
