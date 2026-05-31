@@ -301,44 +301,30 @@ namespace DACDT_2026
         public int WriteBuffer(int startIO, int address, short[] data)
         {
             if (!isConnected) throw new InvalidOperationException("Chưa kết nối PLC");
-            if (data == null || data.Length == 0) throw new ArgumentException("Khong co du lieu de ghi.", nameof(data));
+            if (data == null || data.Length == 0) throw new ArgumentException("Không có dữ liệu để ghi.", nameof(data));
 
-            string startDevice = $"U{startIO:X}\\G{address}";
+            // Chuẩn hóa địa chỉ: Uxx\Gxxxx (ví dụ U00\G1504)
+            string startDevice = $"U{startIO:X2}\\G{address}";
 
-            // ── Thử WriteDeviceBlock2: 1 COM call cho toàn bộ mảng ──────────────
             try
             {
                 int res = Dev.WriteDeviceBlock2(startDevice, data.Length, ref data[0]);
-                if (res == 0) return 0;
-                // Nếu trả về lỗi (không phải exception) thì fallback
-            }
-            catch
-            {
-                // WriteDeviceBlock2 không hỗ trợ U\G trên một số driver → fallback
-            }
-
-            // ── Fallback: SetDevice2 từng word ───────────────────────────────────
-            try
-            {
-                int res = 0;
-                for (int i = 0; i < data.Length; i++)
+                // Nếu WriteDeviceBlock2 trả về lỗi, ném ra exception để bắt ở lớp cao hơn
+                if (res != 0)
                 {
-                    string devName = $"U{startIO:X}\\G{address + i}";
-                    try
-                    {
-                        res = Dev.SetDevice2(devName, data[i]);
-                    }
-                    catch (Microsoft.CSharp.RuntimeBinder.RuntimeBinderException)
-                    {
-                        res = Dev.SetDevice(devName, (int)data[i]);
-                    }
-                    if (res != 0) return res;
+                    throw new Exception($"WriteDeviceBlock2 tới '{startDevice}' thất bại với mã lỗi: {res:X8}");
                 }
-                return res;
+                return 0; // Thành công
+            }
+            catch (COMException comEx)
+            {
+                // Bắt lỗi COM để có thông tin chi tiết hơn
+                throw new Exception($"Lỗi COM khi ghi vào Buffer '{startDevice}': {comEx.Message} (ErrorCode: {comEx.ErrorCode:X8})", comEx);
             }
             catch (Exception ex)
             {
-                throw new Exception($"Lỗi WriteBuffer: {GetInnermostMessage(ex)}");
+                // Bắt các lỗi khác và gói lại
+                throw new Exception($"Lỗi không xác định khi ghi vào Buffer '{startDevice}': {GetInnermostMessage(ex)}", ex);
             }
         }
 
@@ -483,34 +469,29 @@ namespace DACDT_2026
             if (string.IsNullOrWhiteSpace(devicePath))
                 return -1;
 
+            // Nếu là địa chỉ U\G, chỉ sử dụng WriteBuffer
             if (TryParseUDevicePath(devicePath, out int u, out int g))
             {
-                usedMethod = "WriteBuffer x2 (32-bit)";
+                usedMethod = "WriteBuffer (32-bit)";
                 short lowWord = (short)(value & 0xFFFF);
                 short highWord = (short)((value >> 16) & 0xFFFF);
-                try
-                {
-                    return WriteBuffer(u, g, new short[] { lowWord, highWord });
-                }
-                catch
-                {
-                    // Fallback below
-                }
+                // WriteBuffer đã được sửa để ném lỗi chi tiết, không cần try-catch ở đây nữa
+                return WriteBuffer(u, g, new short[] { lowWord, highWord });
             }
 
-            // Chỉ ghi 32-bit cho thanh ghi D, W, R hoặc buffer U\G để tránh lỗi với Bit Device (M, X, Y)
-            bool is32BitTarget = devicePath.StartsWith("D", StringComparison.OrdinalIgnoreCase) || 
-                                 devicePath.StartsWith("W", StringComparison.OrdinalIgnoreCase) ||
-                                 devicePath.StartsWith("R", StringComparison.OrdinalIgnoreCase) ||
-                                 devicePath.StartsWith("U", StringComparison.OrdinalIgnoreCase);
+            // Đối với các thanh ghi khác (D, W, R), ghi 2 word riêng lẻ
+            bool is32BitRegister = devicePath.StartsWith("D", StringComparison.OrdinalIgnoreCase) ||
+                                   devicePath.StartsWith("W", StringComparison.OrdinalIgnoreCase) ||
+                                   devicePath.StartsWith("R", StringComparison.OrdinalIgnoreCase);
 
-            if (is32BitTarget && TryGetNextWordDevice(devicePath, out string nextWordDevice))
+            if (is32BitRegister && TryGetNextWordDevice(devicePath, out string nextWordDevice))
             {
                 usedMethod = "SetDevice2 x2 (Low word -> High word)";
                 return WriteInt32ByWords(devicePath, nextWordDevice, value);
             }
 
-            usedMethod = "SetDevice";
+            // Fallback cho các trường hợp khác (ghi 16-bit, hoặc thanh ghi không phải 32-bit)
+            usedMethod = "SetDevice (16-bit write)";
             return Dev.SetDevice(devicePath, value);
         }
 
