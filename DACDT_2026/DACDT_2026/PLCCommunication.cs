@@ -513,7 +513,8 @@ namespace DACDT_2026
         {
             uNumber = 0; gAddress = 0;
             string s = devicePath.Replace("\\\\", "\\").Trim();
-            var m = Regex.Match(s, @"^U([0-9A-F]+)\\G(\d+)$", RegexOptions.IgnoreCase);
+            // Cho phép có hoặc không có dấu backslash
+            var m = Regex.Match(s, @"^U([0-9A-F]+)\\?G(\d+)$", RegexOptions.IgnoreCase);
             if (!m.Success) return false;
             return int.TryParse(m.Groups[1].Value, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out uNumber)
                 && int.TryParse(m.Groups[2].Value, out gAddress);
