@@ -148,6 +148,44 @@ namespace DACDT_2026
             return s.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\n", "\\n").Replace("\r", "\\r");
         }
 
+        /// <summary>
+        /// Publish the current camera frame to MQTT as a Base64-encoded JPEG.
+        /// Topic: DACDT/monitor/camera/frame
+        /// Quality is kept at 60 to limit message size (~10-30 KB per frame).
+        /// </summary>
+        private async Task PublishCameraFrameToMqttAsync()
+        {
+            if (!mqttService.IsConnected) return;
+
+            try
+            {
+                var frame = ui.CameraFrame as System.Windows.Media.Imaging.BitmapSource;
+                if (frame == null) return;
+
+                byte[] jpegBytes = null;
+                await RunOnUiAsync(() =>
+                {
+                    var encoder = new System.Windows.Media.Imaging.JpegBitmapEncoder();
+                    encoder.QualityLevel = 60;
+                    encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(frame));
+                    using (var ms = new System.IO.MemoryStream())
+                    {
+                        encoder.Save(ms);
+                        jpegBytes = ms.ToArray();
+                    }
+                });
+
+                if (jpegBytes == null || jpegBytes.Length == 0) return;
+
+                string base64 = Convert.ToBase64String(jpegBytes);
+                await mqttService.PublishAsync("DACDT/monitor/camera/frame", base64);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[MQTT Camera] Publish error: {ex.Message}");
+            }
+        }
+
         private async Task PushDxfStateAsync()
         {
             var snapDocSource = activeCadDocument;
