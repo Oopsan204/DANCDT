@@ -311,25 +311,33 @@
       }
     }
 
-    // ── Auto-fit camera on first load ──
-    fitCameraToBounds(dxf.bounds);
-  }
+   // ── Auto-fit camera on first load ──
+     fitCameraToBounds(dxf.bounds);
+   }
 
-  function fitCameraToBounds(bounds) {
-    if (!bounds || !camera || !controls) return;
-    const cx = (bounds.left || 0) + (bounds.width || 100) / 2;
-    const cy = (bounds.top || 0) + (bounds.height || 100) / 2;
-    const zMid = ((bounds.minZ || 0) + (bounds.maxZ || 0)) / 2;
-    const maxDim = Math.max(bounds.width || 100, bounds.height || 100, Math.abs((bounds.maxZ || 0) - (bounds.minZ || 0)) || 10);
-    const dist = maxDim * 1.8;
+   function fitCameraToBounds(bounds) {
+     if (!bounds || !camera || !controls) return;
+     
+     // Reset fitted flag if bounds have changed (new DXF file or significant change)
+     const boundsKey = `${bounds.left}_${bounds.top}_${bounds.width}_${bounds.height}_${bounds.minZ}_${bounds.maxZ}`;
+     if (cadGroup._lastBoundsKey !== boundsKey) {
+       cadGroup._fitted = false;
+       cadGroup._lastBoundsKey = boundsKey;
+     }
+     
+     const cx = (bounds.left || 0) + (bounds.width || 100) / 2;
+     const cy = (bounds.top || 0) + (bounds.height || 100) / 2;
+     const zMid = ((bounds.minZ || 0) + (bounds.maxZ || 0)) / 2;
+     const maxDim = Math.max(bounds.width || 100, bounds.height || 100, Math.abs((bounds.maxZ || 0) - (bounds.minZ || 0)) || 10);
+     const dist = maxDim * 1.8;
 
-    if (!cadGroup._fitted) {
-      controls.target.set(cx, cy, zMid);
-      camera.position.set(cx + dist * 0.5, cy - dist * 0.4, zMid + dist * 0.7);
-      controls.update();
-      cadGroup._fitted = true;
-    }
-  }
+     if (!cadGroup._fitted) {
+       controls.target.set(cx, cy, zMid);
+       camera.position.set(cx + dist * 0.5, cy - dist * 0.4, zMid + dist * 0.7);
+       controls.update();
+       cadGroup._fitted = true;
+     }
+   }
 
   // ─── Reset camera view ─────────────────────────────────────────────────────
   function resetCamera() {
