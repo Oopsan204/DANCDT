@@ -64,8 +64,8 @@ namespace DACDT_2026
 
         private async Task PushDxfStateAsync()
         {
-            var snapDoc = CloneCadDocumentForUi(activeCadDocument);
-            var snapRows = processRows.Select(CloneProcessRowForUi).ToList();
+            var snapDocSource = activeCadDocument;
+            var snapRowsSource = processRows.ToArray();
             var snapKind = activeDocumentKind;
             var snapRawText = snapKind == "GCODE" ? rawGcodeText : string.Empty;
             var snapProfiles = GetProfilesList();
@@ -74,9 +74,22 @@ namespace DACDT_2026
             var snapOy = offsetY;
             var snapWorkspaceWidth = workspaceWidth;
             var snapWorkspaceHeight = workspaceHeight;
+            var snapWcsOffsetX = wcsOffsetX.ToArray();
+            var snapWcsOffsetY = wcsOffsetY.ToArray();
+            var snapCurrentView = currentView;
+            var snapCurrentTheme = currentTheme;
+            var snapGlobalSpeed = globalSpeed;
+            var snapGlobalSpeedM3 = globalSpeedM3;
+            var snapRapidSpeed = rapidSpeed;
+            var snapGlobalDwellM3 = globalDwellM3;
+            var snapGlobalDwellM4 = globalDwellM4;
+            var snapActiveWcs = activeWcs;
 
             var model = await Task.Run(() =>
             {
+                var snapDoc = CloneCadDocumentForUi(snapDocSource);
+                var snapRows = snapRowsSource.Select(CloneProcessRowForUi).Where(row => row != null).ToList();
+
                 var points = snapDoc == null
                     ? new List<CadPointViewModel>()
                     : snapDoc.Points.Select(pt => new CadPointViewModel
@@ -92,15 +105,15 @@ namespace DACDT_2026
                 var geometryRows = BuildGeometryRows(snapDoc);
 
                 bool isGcodeKind = string.Equals(snapKind, "GCODE", StringComparison.OrdinalIgnoreCase);
-                var rows = snapRows.Select(row =>
+                var rows = snapRows.Select((row, rowIndex) =>
                 {
                     double rowOx;
                     double rowOy;
                     if (isGcodeKind)
                     {
                         int wIdx = Math.Max(0, Math.Min(5, row.WcsIndex));
-                        rowOx = wcsOffsetX[wIdx];
-                        rowOy = wcsOffsetY[wIdx];
+                        rowOx = snapWcsOffsetX[wIdx];
+                        rowOy = snapWcsOffsetY[wIdx];
                     }
                     else
                     {
@@ -110,6 +123,7 @@ namespace DACDT_2026
 
                     return new ProcessRowViewModel
                     {
+                        Index = rowIndex + 1,
                         Key = row.Key,
                         MotionType = row.MotionType,
                         MCodeValue = row.MCodeValue ?? string.Empty,
@@ -126,32 +140,32 @@ namespace DACDT_2026
                 var limitAreas = BuildCadLimitAreas(snapWorkspaceWidth, snapWorkspaceHeight, projection);
                 var axisLines = BuildCadAxisLines(snapDoc, projection);
                 var axisLabels = BuildCadAxisLabels(snapDoc, projection);
-                return new { points, geometryRows, rows, primitiveLines, limitAreas, axisLines, axisLabels };
+                return new { doc = snapDoc, points, geometryRows, rows, primitiveLines, limitAreas, axisLines, axisLabels };
             });
 
             await RunOnUiAsync(() =>
             {
-                ui.CurrentView = currentView;
-                ui.CurrentTheme = currentTheme;
+                ui.CurrentView = snapCurrentView;
+                ui.CurrentTheme = snapCurrentTheme;
                 ui.FileKind = snapKind ?? string.Empty;
-                ui.FilePath = snapDoc?.FilePath ?? string.Empty;
-                ui.FileName = snapDoc?.FileName ?? string.Empty;
+                ui.FilePath = model.doc?.FilePath ?? string.Empty;
+                ui.FileName = model.doc?.FileName ?? string.Empty;
                 ui.RawGcodeText = snapRawText != null && snapRawText.Length > 200000
                     ? snapRawText.Substring(0, 200000) + "\n... [TRUNCATED FOR UI]"
                     : snapRawText ?? string.Empty;
-                ui.GlobalSpeedInput = globalSpeed;
-                ui.GlobalSpeedM3Input = globalSpeedM3;
-                ui.RapidSpeedInput = rapidSpeed;
-                ui.GlobalDwellM3Input = globalDwellM3;
-                ui.GlobalDwellM4Input = globalDwellM4;
-                ui.OffsetXInput = offsetX;
-                ui.OffsetYInput = offsetY;
-                ui.WorkspaceWidthInput = workspaceWidth;
-                ui.WorkspaceHeightInput = workspaceHeight;
-                ui.ActiveWcs = activeWcs;
-                int wIdx = GetWcsIndex(activeWcs);
-                ui.WcsOffsetXInput = wcsOffsetX[wIdx];
-                ui.WcsOffsetYInput = wcsOffsetY[wIdx];
+                ui.GlobalSpeedInput = snapGlobalSpeed;
+                ui.GlobalSpeedM3Input = snapGlobalSpeedM3;
+                ui.RapidSpeedInput = snapRapidSpeed;
+                ui.GlobalDwellM3Input = snapGlobalDwellM3;
+                ui.GlobalDwellM4Input = snapGlobalDwellM4;
+                ui.OffsetXInput = snapOx;
+                ui.OffsetYInput = snapOy;
+                ui.WorkspaceWidthInput = snapWorkspaceWidth;
+                ui.WorkspaceHeightInput = snapWorkspaceHeight;
+                ui.ActiveWcs = snapActiveWcs;
+                int wIdx = GetWcsIndex(snapActiveWcs);
+                ui.WcsOffsetXInput = snapWcsOffsetX[wIdx];
+                ui.WcsOffsetYInput = snapWcsOffsetY[wIdx];
                 ui.SelectedPointKey = snapPointKey;
 
                 ReplaceCollection(ui.CadPoints, model.points);
@@ -814,6 +828,12 @@ namespace DACDT_2026
 
         private static void ReplaceCollection<T>(System.Collections.ObjectModel.ObservableCollection<T> target, IEnumerable<T> source)
         {
+            if (target is BulkObservableCollection<T> bulkTarget)
+            {
+                bulkTarget.ReplaceWith(source);
+                return;
+            }
+
             target.Clear();
             foreach (T item in source)
                 target.Add(item);

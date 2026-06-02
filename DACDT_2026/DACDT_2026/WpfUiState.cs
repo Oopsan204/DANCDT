@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Collections.Specialized;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
@@ -7,6 +9,42 @@ using System.Windows.Media;
 
 namespace DACDT_2026
 {
+    public sealed class BulkObservableCollection<T> : ObservableCollection<T>
+    {
+        private bool suppressNotifications;
+
+        public void ReplaceWith(IEnumerable<T> items)
+        {
+            suppressNotifications = true;
+            try
+            {
+                ClearItems();
+                foreach (T item in items)
+                    Items.Add(item);
+            }
+            finally
+            {
+                suppressNotifications = false;
+            }
+
+            OnPropertyChanged(new PropertyChangedEventArgs(nameof(Count)));
+            OnPropertyChanged(new PropertyChangedEventArgs("Item[]"));
+            OnCollectionChanged(new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Reset));
+        }
+
+        protected override void OnCollectionChanged(NotifyCollectionChangedEventArgs e)
+        {
+            if (!suppressNotifications)
+                base.OnCollectionChanged(e);
+        }
+
+        protected override void OnPropertyChanged(PropertyChangedEventArgs e)
+        {
+            if (!suppressNotifications)
+                base.OnPropertyChanged(e);
+        }
+    }
+
     public sealed class WpfUiState : ObservableState
     {
         private string currentView = "control";
@@ -54,20 +92,20 @@ namespace DACDT_2026
                 Axes.Add(new AxisStatusViewModel { Index = i });
         }
 
-        public ObservableCollection<AxisStatusViewModel> Axes { get; } = new ObservableCollection<AxisStatusViewModel>();
-        public ObservableCollection<LogRowViewModel> Logs { get; } = new ObservableCollection<LogRowViewModel>();
-        public ObservableCollection<UiEventViewModel> Events { get; } = new ObservableCollection<UiEventViewModel>();
-        public ObservableCollection<TelemetryRegisterViewModel> TelemetryRegisters { get; } = new ObservableCollection<TelemetryRegisterViewModel>();
-        public ObservableCollection<TelemetryBufferViewModel> TelemetryBuffers { get; } = new ObservableCollection<TelemetryBufferViewModel>();
-        public ObservableCollection<CadPointViewModel> CadPoints { get; } = new ObservableCollection<CadPointViewModel>();
-        public ObservableCollection<GeometryRowViewModel> GeometryRows { get; } = new ObservableCollection<GeometryRowViewModel>();
-        public ObservableCollection<ProcessRowViewModel> ProcessRows { get; } = new ObservableCollection<ProcessRowViewModel>();
-        public ObservableCollection<CadPrimitiveViewModel> CadPrimitives { get; } = new ObservableCollection<CadPrimitiveViewModel>();
-        public ObservableCollection<CadLimitAreaViewModel> CadLimitAreas { get; } = new ObservableCollection<CadLimitAreaViewModel>();
-        public ObservableCollection<CadAxisLineViewModel> CadAxisLines { get; } = new ObservableCollection<CadAxisLineViewModel>();
-        public ObservableCollection<CadAxisLabelViewModel> CadAxisLabels { get; } = new ObservableCollection<CadAxisLabelViewModel>();
-        public ObservableCollection<WcsOffsetViewModel> WcsOffsets { get; } = new ObservableCollection<WcsOffsetViewModel>();
-        public ObservableCollection<string> Profiles { get; } = new ObservableCollection<string>();
+        public BulkObservableCollection<AxisStatusViewModel> Axes { get; } = new BulkObservableCollection<AxisStatusViewModel>();
+        public BulkObservableCollection<LogRowViewModel> Logs { get; } = new BulkObservableCollection<LogRowViewModel>();
+        public BulkObservableCollection<UiEventViewModel> Events { get; } = new BulkObservableCollection<UiEventViewModel>();
+        public BulkObservableCollection<TelemetryRegisterViewModel> TelemetryRegisters { get; } = new BulkObservableCollection<TelemetryRegisterViewModel>();
+        public BulkObservableCollection<TelemetryBufferViewModel> TelemetryBuffers { get; } = new BulkObservableCollection<TelemetryBufferViewModel>();
+        public BulkObservableCollection<CadPointViewModel> CadPoints { get; } = new BulkObservableCollection<CadPointViewModel>();
+        public BulkObservableCollection<GeometryRowViewModel> GeometryRows { get; } = new BulkObservableCollection<GeometryRowViewModel>();
+        public BulkObservableCollection<ProcessRowViewModel> ProcessRows { get; } = new BulkObservableCollection<ProcessRowViewModel>();
+        public BulkObservableCollection<CadPrimitiveViewModel> CadPrimitives { get; } = new BulkObservableCollection<CadPrimitiveViewModel>();
+        public BulkObservableCollection<CadLimitAreaViewModel> CadLimitAreas { get; } = new BulkObservableCollection<CadLimitAreaViewModel>();
+        public BulkObservableCollection<CadAxisLineViewModel> CadAxisLines { get; } = new BulkObservableCollection<CadAxisLineViewModel>();
+        public BulkObservableCollection<CadAxisLabelViewModel> CadAxisLabels { get; } = new BulkObservableCollection<CadAxisLabelViewModel>();
+        public BulkObservableCollection<WcsOffsetViewModel> WcsOffsets { get; } = new BulkObservableCollection<WcsOffsetViewModel>();
+        public BulkObservableCollection<string> Profiles { get; } = new BulkObservableCollection<string>();
 
         public ICommand SwitchViewCommand { get; set; }
         public ICommand ToggleThemeCommand { get; set; }
@@ -487,6 +525,7 @@ namespace DACDT_2026
 
     public sealed class ProcessRowViewModel
     {
+        public int Index { get; set; }
         public string Key { get; set; }
         public string MotionType { get; set; }
         public string MCodeValue { get; set; }

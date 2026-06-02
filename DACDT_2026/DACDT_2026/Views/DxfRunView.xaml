@@ -231,7 +231,7 @@
                               AutoGenerateColumns="False"
                               Margin="0,10,0,0">
                         <DataGrid.Columns>
-                            <DataGridTextColumn Header="#" Binding="{Binding Key}" Width="70"/>
+                            <DataGridTextColumn Header="No." Binding="{Binding Index}" Width="60"/>
                             <DataGridTextColumn Header="Motion type" Binding="{Binding MotionType}" Width="*"/>
                             <DataGridTextColumn Header="M" Binding="{Binding MCodeValue}" Width="55"/>
                             <DataGridTextColumn Header="Dwell" Binding="{Binding Dwell}" Width="75"/>

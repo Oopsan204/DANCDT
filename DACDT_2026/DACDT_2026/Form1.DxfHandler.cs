@@ -100,6 +100,8 @@ namespace DACDT_2026
                 AddLogEntry(sourceName, selectedPath, "Read", "Selected", "OpenFileDialog");
 
                 ClearLoadedFileState();
+                await SendProgressAsync(true, 5);
+                await Task.Yield();
 
                 // ── Parse file trên background thread để không block UI ──────────
                 CadDocumentService.CadLoadResult loadedDoc = null;
@@ -127,6 +129,7 @@ namespace DACDT_2026
                 });
 
                 await loadTask;
+                await SendProgressAsync(true, 35);
 
                 // ── Cập nhật state trên UI thread ────────────────────────────────
                 activeCadDocument    = loadedDoc;
@@ -143,7 +146,6 @@ namespace DACDT_2026
                 }
 
                 currentView = "dxf";
-                await PushDxfStateAsync();
 
                 AddLogEntry(sourceName, activeCadDocument?.FilePath ?? selectedPath, "Read", "OK",
                     $"Loaded file: {activeCadDocument?.FileName ?? Path.GetFileName(selectedPath)}");
@@ -152,7 +154,9 @@ namespace DACDT_2026
 
                 // Tự động Import và quét giới hạn
                 await HandleImportCadToProcessAsync();
+                await SendProgressAsync(true, 65);
                 await HandleScanLimitsAsync();
+                await SendProgressAsync(true, 85);
                 await PushDxfStateAsync();
             }
             catch (Exception ex)
@@ -161,6 +165,7 @@ namespace DACDT_2026
             }
             finally
             {
+                _ = SendProgressAsync(false, 0);
                 cadLoadGate.Release();
             }
         }
@@ -186,6 +191,8 @@ namespace DACDT_2026
                 return;
             }
             isPreviewingGcode = true;
+            await SendProgressAsync(true, 5);
+            await Task.Yield();
 
             try
             {
@@ -207,6 +214,7 @@ namespace DACDT_2026
                 });
 
                 await previewTask;
+                await SendProgressAsync(true, 35);
 
                 activeCadDocument = previewDoc;
 
@@ -214,9 +222,10 @@ namespace DACDT_2026
                 if (!string.IsNullOrEmpty(firstSpeed))
                     globalSpeed = firstSpeed;
 
-                await PushDxfStateAsync();
                 await HandleImportCadToProcessAsync();
+                await SendProgressAsync(true, 65);
                 await HandleScanLimitsAsync();
+                await SendProgressAsync(true, 85);
                 await PushDxfStateAsync();
             }
             catch
@@ -225,6 +234,7 @@ namespace DACDT_2026
             }
             finally
             {
+                _ = SendProgressAsync(false, 0);
                 isPreviewingGcode = false;
                 cadLoadGate.Release();
             }
@@ -546,37 +556,43 @@ namespace DACDT_2026
             string snapSpeed = globalSpeed;
             string snapSpeedM3 = globalSpeedM3;
 
-            // Build rows trên background thread
-            List<ProcessRow> rows = null;
-            await Task.Run(() => { rows = BuildConnectedPathsFromCad(); });
+            // Build and post-process rows on a background thread.
+            List<ProcessRow> rows = await Task.Run(() =>
+            {
+                var builtRows = BuildConnectedPathsFromCad();
+                if (builtRows == null || builtRows.Count == 0)
+                    return builtRows;
+
+                foreach (var row in builtRows)
+                {
+                    if (glueStartCoord != null && string.Equals(row.EndCoordinate, glueStartCoord))
+                        row.MCodeValue = "1";
+                    if (glueEndCoord != null && string.Equals(row.EndCoordinate, glueEndCoord))
+                        row.MCodeValue = "2";
+
+                    if (string.IsNullOrEmpty(row.Speed))
+                    {
+                        // DXF: dùng globalSpeed/globalSpeedM3 làm fallback
+                        // GCODE Rapid3: đã được gán rapidSpeed trong BuildConnectedPathsFromCad
+                        // GCODE G1/G2/G3 không có F: không gán fallback — speed = 0 là hợp lệ
+                        //   (PLC sẽ dùng speed từ lệnh trước theo modal của module)
+                        if (!isGcodeDoc)
+                        {
+                            if (row.MCodeValue == "3")
+                                row.Speed = snapSpeedM3;
+                            else
+                                row.Speed = snapSpeed;
+                        }
+                    }
+                }
+
+                return builtRows;
+            });
 
             if (rows == null || rows.Count == 0)
             {
                 await NotifyAsync("info", "DXF", "No valid paths found.");
                 return;
-            }
-
-            foreach (var row in rows)
-            {
-                if (glueStartCoord != null && string.Equals(row.EndCoordinate, glueStartCoord))
-                    row.MCodeValue = "1";
-                if (glueEndCoord != null && string.Equals(row.EndCoordinate, glueEndCoord))
-                    row.MCodeValue = "2";
-
-                if (string.IsNullOrEmpty(row.Speed))
-                {
-                    // DXF: dùng globalSpeed/globalSpeedM3 làm fallback
-                    // GCODE Rapid3: đã được gán rapidSpeed trong BuildConnectedPathsFromCad
-                    // GCODE G1/G2/G3 không có F: không gán fallback — speed = 0 là hợp lệ
-                    //   (PLC sẽ dùng speed từ lệnh trước theo modal của module)
-                    if (!isGcodeDoc)
-                    {
-                        if (row.MCodeValue == "3")
-                            row.Speed = snapSpeedM3;
-                        else
-                            row.Speed = snapSpeed;
-                    }
-                }
             }
 
             processRows.Clear();
@@ -1537,77 +1553,76 @@ namespace DACDT_2026
             const double LimitY = 170.0;   // Trục 2 – Y
             // LimitZ = 50.0 mm — chưa dùng trong scan hiện tại
 
-            if (activeCadDocument == null)
+            var snapDoc = activeCadDocument;
+            double snapOffsetX = offsetX;
+            double snapOffsetY = offsetY;
+
+            if (snapDoc == null)
             {
                 await NotifyAsync("info", "Scan Limits", "Chưa load file DXF / G-code.");
                 return;
             }
 
-            // ── Thu thập tất cả điểm từ primitives ──────────────────────────────
-            var allX = new List<double>();
-            var allY = new List<double>();
-
-            if (activeCadDocument.Primitives != null)
+            var scan = await Task.Run(() =>
             {
-                foreach (var prim in activeCadDocument.Primitives)
+                // ── Thu thập tất cả điểm từ primitives ──────────────────────────────
+                var allX = new List<double>();
+                var allY = new List<double>();
+
+                if (snapDoc.Primitives != null)
                 {
-                    if (prim.Points == null) continue;
-                    foreach (var pt in prim.Points)
+                    foreach (var prim in snapDoc.Primitives)
+                    {
+                        if (prim.Points == null) continue;
+                        foreach (var pt in prim.Points)
+                        {
+                            allX.Add(pt.X);
+                            allY.Add(pt.Y);
+                        }
+                    }
+                }
+
+                // Nếu primitives không có điểm thì lấy từ danh sách Points
+                if (allX.Count == 0 && snapDoc.Points != null)
+                {
+                    foreach (var pt in snapDoc.Points)
                     {
                         allX.Add(pt.X);
                         allY.Add(pt.Y);
                     }
                 }
-            }
 
-            // Nếu primitives không có điểm thì lấy từ danh sách Points
-            if (allX.Count == 0 && activeCadDocument.Points != null)
-            {
-                foreach (var pt in activeCadDocument.Points)
-                {
-                    allX.Add(pt.X);
-                    allY.Add(pt.Y);
-                }
-            }
+                if (allX.Count == 0)
+                    return Tuple.Create(false, false, "Không tìm thấy toạ độ trong file.");
 
-            if (allX.Count == 0)
-            {
-                await NotifyAsync("info", "Scan Limits", "Không tìm thấy toạ độ trong file.");
-                return;
-            }
+                // ── Tính min / max thô (từ file) ────────────────────────────────────
+                double rawMinX = allX.Min(), rawMaxX = allX.Max();
+                double rawMinY = allY.Min(), rawMaxY = allY.Max();
 
-            // ── Tính min / max thô (từ file) ────────────────────────────────────
-            double rawMinX = allX.Min(),   rawMaxX = allX.Max();
-            double rawMinY = allY.Min(),   rawMaxY = allY.Max();
-            double rawRangeX = rawMaxX - rawMinX;
-            double rawRangeY = rawMaxY - rawMinY;
+                // ── Áp dụng offset → toạ độ máy ─────────────────────────────────────
+                double adjMinX = rawMinX + snapOffsetX, adjMaxX = rawMaxX + snapOffsetX;
+                double adjMinY = rawMinY + snapOffsetY, adjMaxY = rawMaxY + snapOffsetY;
 
-            // ── Áp dụng offset → toạ độ máy ─────────────────────────────────────
-            double adjMinX = rawMinX + offsetX,  adjMaxX = rawMaxX + offsetX;
-            double adjMinY = rawMinY + offsetY,  adjMaxY = rawMaxY + offsetY;
-            double adjRangeX = adjMaxX - adjMinX;
-            double adjRangeY = adjMaxY - adjMinY;
+                // ── Kiểm tra giới hạn ────────────────────────────────────────────────
+                bool xUnder = adjMinX < 0.0;
+                bool xOver = adjMaxX > LimitX;
+                bool yUnder = adjMinY < 0.0;
+                bool yOver = adjMaxY > LimitY;
+                bool anyExceed = xUnder || xOver || yUnder || yOver;
 
-            // ── Kiểm tra giới hạn ────────────────────────────────────────────────
-            bool xUnder  = adjMinX < 0.0;
-            bool xOver   = adjMaxX > LimitX;
-            bool yUnder  = adjMinY < 0.0;
-            bool yOver   = adjMaxY > LimitY;
-            bool xExceed = xUnder || xOver;
-            bool yExceed = yUnder || yOver;
-            bool anyExceed = xExceed || yExceed;
+                string summary = anyExceed
+                    ? $"VƯỢT GIỚI HẠN! X:[{adjMinX:0.###}→{adjMaxX:0.###}/{LimitX}mm]  Y:[{adjMinY:0.###}→{adjMaxY:0.###}/{LimitY}mm]"
+                    : $"TRONG GIỚI HẠN – X:[{adjMinX:0.###}→{adjMaxX:0.###}/{LimitX}mm]  Y:[{adjMinY:0.###}→{adjMaxY:0.###}/{LimitY}mm]";
 
-            // Phần trăm dùng so với giới hạn (dựa trên range + vị trí)
-            double xPct = Math.Min(100.0, adjRangeX / LimitX * 100.0);
-            double yPct = Math.Min(100.0, adjRangeY / LimitY * 100.0);
+                return Tuple.Create(true, anyExceed, summary);
+            });
 
-            string summary = anyExceed
-                ? $"VƯỢT GIỚI HẠN! X:[{adjMinX:0.###}→{adjMaxX:0.###}/{LimitX}mm]  Y:[{adjMinY:0.###}→{adjMaxY:0.###}/{LimitY}mm]"
-                : $"TRONG GIỚI HẠN – X:[{adjMinX:0.###}→{adjMaxX:0.###}/{LimitX}mm]  Y:[{adjMinY:0.###}→{adjMaxY:0.###}/{LimitY}mm]";
-            if (anyExceed)
-                await NotifyAsync("error", "Scan Limits", summary);
+            if (!scan.Item1)
+                await NotifyAsync("info", "Scan Limits", scan.Item3);
+            else if (scan.Item2)
+                await NotifyAsync("error", "Scan Limits", scan.Item3);
             else
-                await LogUIAsync("Scan Limits", summary);
+                await LogUIAsync("Scan Limits", scan.Item3);
         }
 
         /// <summary>
