@@ -59,6 +59,14 @@ namespace DACDT_2026
                     axis.HomeDog = connected && (axSignals[i] & 0x40) != 0;
                     axis.IsComplete = connected && rawStatus == 0;
                 }
+
+                ReplaceCollection(ui.CadTrackingPoints, BuildRobotTrackingPoints(
+                    activeCadDocument,
+                    workspaceWidth,
+                    workspaceHeight,
+                    connected,
+                    axCurrentPos[0],
+                    axCurrentPos[1]));
             });
         }
 
@@ -76,6 +84,9 @@ namespace DACDT_2026
             var snapWorkspaceHeight = workspaceHeight;
             var snapWcsOffsetX = wcsOffsetX.ToArray();
             var snapWcsOffsetY = wcsOffsetY.ToArray();
+            var snapConnected = plcComm != null && plcComm.IsConnected;
+            var snapRobotRawX = axCurrentPos[0];
+            var snapRobotRawY = axCurrentPos[1];
             var snapCurrentView = currentView;
             var snapCurrentTheme = currentTheme;
             var snapGlobalSpeed = globalSpeed;
@@ -140,7 +151,14 @@ namespace DACDT_2026
                 var limitAreas = BuildCadLimitAreas(snapWorkspaceWidth, snapWorkspaceHeight, projection);
                 var axisLines = BuildCadAxisLines(snapDoc, projection);
                 var axisLabels = BuildCadAxisLabels(snapDoc, projection);
-                return new { doc = snapDoc, points, geometryRows, rows, primitiveLines, limitAreas, axisLines, axisLabels };
+                var trackingPoints = BuildRobotTrackingPoints(
+                    snapDoc,
+                    snapWorkspaceWidth,
+                    snapWorkspaceHeight,
+                    snapConnected,
+                    snapRobotRawX,
+                    snapRobotRawY);
+                return new { doc = snapDoc, points, geometryRows, rows, primitiveLines, limitAreas, axisLines, axisLabels, trackingPoints };
             });
 
             await RunOnUiAsync(() =>
@@ -175,6 +193,7 @@ namespace DACDT_2026
                 ReplaceCollection(ui.CadLimitAreas, model.limitAreas);
                 ReplaceCollection(ui.CadAxisLines, model.axisLines);
                 ReplaceCollection(ui.CadAxisLabels, model.axisLabels);
+                ReplaceCollection(ui.CadTrackingPoints, model.trackingPoints);
                 ReplaceCollection(ui.Profiles, snapProfiles);
             });
         }
@@ -559,6 +578,42 @@ namespace DACDT_2026
             });
 
             return labels;
+        }
+
+        private static List<CadTrackingPointViewModel> BuildRobotTrackingPoints(
+            CadDocumentService.CadLoadResult doc,
+            double workspaceWidthValue,
+            double workspaceHeightValue,
+            bool connected,
+            int rawX,
+            int rawY)
+        {
+            var points = new List<CadTrackingPointViewModel>();
+            if (!connected)
+                return points;
+
+            var projection = doc == null
+                ? new CadProjection(0.0, 0.0, Math.Max(workspaceWidthValue, 1.0), Math.Max(workspaceHeightValue, 1.0))
+                : CreateCadProjection(doc, workspaceWidthValue, workspaceHeightValue);
+            if (projection == null)
+                return points;
+
+            double robotX = rawX / QD75BufferWriter.CoordinateMultiplier;
+            double robotY = rawY / QD75BufferWriter.CoordinateMultiplier;
+            var projected = projection.Project(robotX, robotY);
+
+            points.Add(new CadTrackingPointViewModel
+            {
+                X = projected.X,
+                Y = projected.Y,
+                Size = 14.0,
+                Fill = Brushes.Lime,
+                Stroke = Brushes.White,
+                Label = "Robot",
+                ToolTip = string.Format(CultureInfo.InvariantCulture, "Robot actual position: X={0:0.0000} mm, Y={1:0.0000} mm", robotX, robotY)
+            });
+
+            return points;
         }
 
         private static CadProjection CreateCadProjection(

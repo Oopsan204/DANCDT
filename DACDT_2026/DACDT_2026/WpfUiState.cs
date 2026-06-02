@@ -104,6 +104,7 @@ namespace DACDT_2026
         public BulkObservableCollection<CadLimitAreaViewModel> CadLimitAreas { get; } = new BulkObservableCollection<CadLimitAreaViewModel>();
         public BulkObservableCollection<CadAxisLineViewModel> CadAxisLines { get; } = new BulkObservableCollection<CadAxisLineViewModel>();
         public BulkObservableCollection<CadAxisLabelViewModel> CadAxisLabels { get; } = new BulkObservableCollection<CadAxisLabelViewModel>();
+        public BulkObservableCollection<CadTrackingPointViewModel> CadTrackingPoints { get; } = new BulkObservableCollection<CadTrackingPointViewModel>();
         public BulkObservableCollection<WcsOffsetViewModel> WcsOffsets { get; } = new BulkObservableCollection<WcsOffsetViewModel>();
         public BulkObservableCollection<string> Profiles { get; } = new BulkObservableCollection<string>();
 
@@ -585,6 +586,17 @@ namespace DACDT_2026
         public double Y { get; set; }
         public string Text { get; set; }
         public Brush Foreground { get; set; }
+    }
+
+    public sealed class CadTrackingPointViewModel
+    {
+        public double X { get; set; }
+        public double Y { get; set; }
+        public double Size { get; set; }
+        public Brush Fill { get; set; }
+        public Brush Stroke { get; set; }
+        public string Label { get; set; }
+        public string ToolTip { get; set; }
     }
 
     public sealed class CadLimitAreaViewModel

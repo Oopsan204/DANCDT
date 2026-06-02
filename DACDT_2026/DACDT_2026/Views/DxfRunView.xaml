@@ -4,6 +4,7 @@
              xmlns:local="clr-namespace:DACDT_2026">
     <UserControl.Resources>
         <local:InverseZoomStrokeThicknessConverter x:Key="InverseZoomStrokeThicknessConverter"/>
+        <local:NegativeHalfConverter x:Key="NegativeHalfConverter"/>
     </UserControl.Resources>
 
     <Grid>
@@ -172,6 +173,50 @@
                                                            Foreground="{Binding Foreground}"
                                                            FontSize="14"
                                                            FontWeight="Bold"/>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+
+                                    <ItemsControl ItemsSource="{Binding CadTrackingPoints}" IsHitTestVisible="False">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <Canvas/>
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemContainerStyle>
+                                            <Style TargetType="ContentPresenter">
+                                                <Setter Property="Canvas.Left" Value="{Binding X}"/>
+                                                <Setter Property="Canvas.Top" Value="{Binding Y}"/>
+                                            </Style>
+                                        </ItemsControl.ItemContainerStyle>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Grid x:Name="TrackingMarker" ToolTip="{Binding ToolTip}">
+                                                    <Grid.Width>
+                                                        <MultiBinding Converter="{StaticResource InverseZoomStrokeThicknessConverter}">
+                                                            <Binding Path="Size"/>
+                                                            <Binding RelativeSource="{RelativeSource AncestorType={x:Type UserControl}}" Path="CadDisplayZoom"/>
+                                                        </MultiBinding>
+                                                    </Grid.Width>
+                                                    <Grid.Height>
+                                                        <MultiBinding Converter="{StaticResource InverseZoomStrokeThicknessConverter}">
+                                                            <Binding Path="Size"/>
+                                                            <Binding RelativeSource="{RelativeSource AncestorType={x:Type UserControl}}" Path="CadDisplayZoom"/>
+                                                        </MultiBinding>
+                                                    </Grid.Height>
+                                                    <Grid.RenderTransform>
+                                                        <TranslateTransform X="{Binding ActualWidth, ElementName=TrackingMarker, Converter={StaticResource NegativeHalfConverter}}"
+                                                                            Y="{Binding ActualHeight, ElementName=TrackingMarker, Converter={StaticResource NegativeHalfConverter}}"/>
+                                                    </Grid.RenderTransform>
+                                                    <Ellipse Fill="{Binding Fill}"
+                                                             Stroke="{Binding Stroke}"
+                                                             StrokeThickness="2"/>
+                                                    <TextBlock Text="{Binding Label}"
+                                                               Foreground="{Binding Stroke}"
+                                                               FontSize="12"
+                                                               FontWeight="Bold"
+                                                               Margin="14,-16,0,0"/>
+                                                </Grid>
                                             </DataTemplate>
                                         </ItemsControl.ItemTemplate>
                                     </ItemsControl>

@@ -64,4 +64,22 @@ namespace DACDT_2026
             }
         }
     }
+
+    public sealed class NegativeHalfConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            try
+            {
+                return -System.Convert.ToDouble(value, CultureInfo.InvariantCulture) / 2.0;
+            }
+            catch
+            {
+                return 0.0;
+            }
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+            => Binding.DoNothing;
+    }
 }
