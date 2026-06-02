@@ -7,20 +7,20 @@
                 <TextBlock Text="User Guide" Style="{StaticResource PanelTitleStyle}" FontSize="22"/>
                 <TextBlock Text="DACDT 2026 - Gantry Robot Control System" Style="{StaticResource PanelSubtitleStyle}"/>
 
-                <TextBlock Text="1. Program Overview" FontSize="16" FontWeight="Bold" Margin="0,22,0,6"/>
+                <TextBlock Text="1. Program Overview" FontSize="16" FontWeight="Bold" Margin="0,16,0,5"/>
                 <TextBlock TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}">
                     This program is used to connect to a Mitsubishi PLC, jog machine axes, load DXF/G-code files,
                     inspect geometry data, generate process data and send motion data to the QD75/LD75 buffer.
                 </TextBlock>
 
-                <TextBlock Text="2. Dashboard" FontSize="16" FontWeight="Bold" Margin="0,18,0,6"/>
+                <TextBlock Text="2. Dashboard" FontSize="16" FontWeight="Bold" Margin="0,14,0,5"/>
                 <TextBlock TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}">
                     The Dashboard shows the main machine status. Axis Monitor displays position, speed, M code,
                     error code, warning code, axis status and current/last data number for Axis 1 to Axis 3.
                     System Events shows file loading, PLC writing, connection events, progress messages and errors.
                 </TextBlock>
 
-                <TextBlock Text="3. PLC Connection And Control Buttons" FontSize="16" FontWeight="Bold" Margin="0,18,0,6"/>
+                <TextBlock Text="3. PLC Connection And Control Buttons" FontSize="16" FontWeight="Bold" Margin="0,14,0,5"/>
                 <TextBlock TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}">
                     Enter the Logical station no. and press CONNECT PLC Q to connect to the PLC. HOME, RESET,
                     START ACTION, CONTINUE and PAUSE are hold buttons: pressing writes 1, releasing writes 0.
@@ -30,14 +30,14 @@
                     CONTINUE = M401, PAUSE = M402, EMERGENCY STOP = M3100.
                 </TextBlock>
 
-                <TextBlock Text="4. Manual Jog" FontSize="16" FontWeight="Bold" Margin="0,18,0,6"/>
+                <TextBlock Text="4. Manual Jog" FontSize="16" FontWeight="Bold" Margin="0,14,0,5"/>
                 <TextBlock TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}">
                     Manual Jog is located on the left sidebar. Hold Up, Down, Left, Right, Z+ or Z- to move an axis;
                     release the button to stop. Jog speed is written to D406 in mm/min.
                     Jog buttons use M3000 to M3005.
                 </TextBlock>
 
-                <TextBlock Text="5. DXF / G-code Run" FontSize="16" FontWeight="Bold" Margin="0,18,0,6"/>
+                <TextBlock Text="5. DXF / G-code Run" FontSize="16" FontWeight="Bold" Margin="0,14,0,5"/>
                 <TextBlock TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}">
                     This view is used to open DXF, NC or G-code files, view the CAD preview, edit G-code,
                     inspect the Process Table and inspect Geometry Data. In CAD Preview, use the mouse wheel to zoom,
@@ -48,14 +48,14 @@
                     then press Send CAD to PLC to write the generated data to the PLC.
                 </TextBlock>
 
-                <TextBlock Text="6. Supported G-code" FontSize="16" FontWeight="Bold" Margin="0,18,0,6"/>
+                <TextBlock Text="6. Supported G-code" FontSize="16" FontWeight="Bold" Margin="0,14,0,5"/>
                 <TextBlock TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}">
                     The current parser handles common commands including G00, G01, G02, G03, G54-G59, G90,
                     M03, M04 and modal coordinate lines. G-code coordinates are offset by the selected G54-G59 WCS
                     before they are used in the process table.
                 </TextBlock>
 
-                <TextBlock Text="7. System Settings" FontSize="16" FontWeight="Bold" Margin="0,18,0,6"/>
+                <TextBlock Text="7. System Settings" FontSize="16" FontWeight="Bold" Margin="0,14,0,5"/>
                 <TextBlock TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}">
                     DXF Offset &amp; Speed sets DXF X/Y offsets, M03/M04 speed and M03/M04 dwell time.
                     Machine Config &amp; Workspace sets G00 rapid speed and the working area limits.
@@ -66,13 +66,13 @@
                     Configuration Profiles can save, load or delete working parameter sets.
                 </TextBlock>
 
-                <TextBlock Text="8. Telemetry And Logs" FontSize="16" FontWeight="Bold" Margin="0,18,0,6"/>
+                <TextBlock Text="8. Telemetry And Logs" FontSize="16" FontWeight="Bold" Margin="0,14,0,5"/>
                 <TextBlock TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}">
                     Telemetry is used to read PLC registers or buffer ranges for troubleshooting.
                     Logs record read/write commands, addresses, values and errors to help diagnose operation issues.
                 </TextBlock>
 
-                <TextBlock Text="9. Safety Notes" FontSize="16" FontWeight="Bold" Margin="0,18,0,6"/>
+                <TextBlock Text="9. Safety Notes" FontSize="16" FontWeight="Bold" Margin="0,14,0,5"/>
                 <TextBlock TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}">
                     Before pressing START ACTION or Send CAD to PLC, verify the input file, coordinates,
                     workspace limits, WCS offsets and speeds. If the machine moves incorrectly, press EMERGENCY STOP

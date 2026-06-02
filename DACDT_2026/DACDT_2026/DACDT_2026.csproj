@@ -113,6 +113,7 @@
     <Compile Include="Form1.Models.cs">
       <SubType>Code</SubType>
     </Compile>
+    <Compile Include="HoldCommandRouter.cs" />
     <Compile Include="PLCCommunication.cs" />
     <Compile Include="QD75BufferWriter.cs" />
     <Compile Include="QD75RingBufferRunner.cs" />

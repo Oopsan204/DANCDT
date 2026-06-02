@@ -55,18 +55,7 @@ namespace DACDT_2026.Views
 
         private void ExecuteHoldCommand(bool start)
         {
-            var state = DataContext as WpfUiState;
-            if (state == null || string.IsNullOrEmpty(activeHold)) return;
-
-            ICommand command = null;
-            if (activeHold == "home") command = start ? state.GoHomeStartCommand : state.GoHomeStopCommand;
-            else if (activeHold == "reset") command = start ? state.ResetErrorStartCommand : state.ResetErrorStopCommand;
-            else if (activeHold == "start") command = start ? state.StartActionStartCommand : state.StartActionStopCommand;
-            else if (activeHold == "continue") command = start ? state.ContinueStartCommand : state.ContinueStopCommand;
-            else if (activeHold == "pause") command = start ? state.PauseStartCommand : state.PauseStopCommand;
-
-            if (command != null && command.CanExecute(null))
-                command.Execute(null);
+            HoldCommandRouter.Execute(DataContext as WpfUiState, activeHold, start);
 
             if (!start)
                 activeHold = null;

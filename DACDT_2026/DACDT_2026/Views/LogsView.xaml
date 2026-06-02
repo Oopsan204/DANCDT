@@ -19,7 +19,7 @@
                 <Button Grid.Column="1" Content="Clear" Command="{Binding ClearLogsCommand}" Style="{StaticResource SecondaryButtonStyle}"/>
             </Grid>
 
-            <DataGrid Grid.Row="1" ItemsSource="{Binding Logs}" Margin="0,12,0,0">
+            <DataGrid Grid.Row="1" ItemsSource="{Binding Logs}" Margin="0,8,0,0">
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="Time" Binding="{Binding Timestamp}" Width="120"/>
                     <DataGridTextColumn Header="Dir" Binding="{Binding Direction}" Width="80"/>

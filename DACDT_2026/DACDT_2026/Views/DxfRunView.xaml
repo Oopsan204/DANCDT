@@ -13,37 +13,37 @@
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <Border Style="{StaticResource PanelBorderStyle}" Padding="10">
+        <Border Style="{StaticResource PanelBorderStyle}" Padding="8">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="150"/>
+                    <ColumnDefinition Width="126"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-                <TextBox Text="{Binding FilePath}" IsReadOnly="True" Margin="0,0,8,0"/>
-                <TextBox Grid.Column="1" Text="{Binding FileName}" IsReadOnly="True" Margin="0,0,8,0"/>
+                <TextBox Text="{Binding FilePath}" IsReadOnly="True" Margin="0,0,6,0"/>
+                <TextBox Grid.Column="1" Text="{Binding FileName}" IsReadOnly="True" Margin="0,0,6,0"/>
                 <WrapPanel Grid.Column="2" Orientation="Horizontal">
-                    <Button Content="New" Command="{Binding NewGcodeCommand}" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,6,0"/>
-                    <Button Content="Open" Command="{Binding OpenDxfCommand}" Style="{StaticResource PrimaryButtonStyle}" Margin="0,0,6,0"/>
-                    <Button Content="HOME" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,6,0" Tag="home" PreviewMouseDown="HoldButton_PreviewMouseDown" PreviewMouseUp="HoldButton_PreviewMouseUp" MouseLeave="HoldButton_MouseLeave"/>
-                    <Button Content="RESET" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,6,0" Tag="reset" PreviewMouseDown="HoldButton_PreviewMouseDown" PreviewMouseUp="HoldButton_PreviewMouseUp" MouseLeave="HoldButton_MouseLeave"/>
-                    <Button Content="RUN" Style="{StaticResource PrimaryButtonStyle}" Margin="0,0,6,0" Tag="start" PreviewMouseDown="HoldButton_PreviewMouseDown" PreviewMouseUp="HoldButton_PreviewMouseUp" MouseLeave="HoldButton_MouseLeave"/>
-                    <Button Content="CONTINUE" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,6,0" Tag="continue" PreviewMouseDown="HoldButton_PreviewMouseDown" PreviewMouseUp="HoldButton_PreviewMouseUp" MouseLeave="HoldButton_MouseLeave"/>
-                    <Button Content="PAUSE" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,6,0" Tag="pause" PreviewMouseDown="HoldButton_PreviewMouseDown" PreviewMouseUp="HoldButton_PreviewMouseUp" MouseLeave="HoldButton_MouseLeave"/>
-                    <Button Content="Clear Buffer" Command="{Binding ClearBufferCommand}" Style="{StaticResource DangerButtonStyle}" Margin="0,0,6,0"/>
-                    <Button Content="Send CAD to PLC" Command="{Binding SendCadXCommand}" Style="{StaticResource PrimaryButtonStyle}"/>
+                    <Button Content="New" Command="{Binding NewGcodeCommand}" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,4,0"/>
+                    <Button Content="Open" Command="{Binding OpenDxfCommand}" Style="{StaticResource PrimaryButtonStyle}" Margin="0,0,4,0"/>
+                    <Button Content="HOME" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,4,0" Tag="home" PreviewMouseDown="HoldButton_PreviewMouseDown" PreviewMouseUp="HoldButton_PreviewMouseUp" MouseLeave="HoldButton_MouseLeave"/>
+                    <Button Content="RESET" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,4,0" Tag="reset" PreviewMouseDown="HoldButton_PreviewMouseDown" PreviewMouseUp="HoldButton_PreviewMouseUp" MouseLeave="HoldButton_MouseLeave"/>
+                    <Button Content="RUN" Style="{StaticResource PrimaryButtonStyle}" Margin="0,0,4,0" Tag="start" PreviewMouseDown="HoldButton_PreviewMouseDown" PreviewMouseUp="HoldButton_PreviewMouseUp" MouseLeave="HoldButton_MouseLeave"/>
+                    <Button Content="CONTINUE" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,4,0" Tag="continue" PreviewMouseDown="HoldButton_PreviewMouseDown" PreviewMouseUp="HoldButton_PreviewMouseUp" MouseLeave="HoldButton_MouseLeave"/>
+                    <Button Content="PAUSE" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,4,0" Tag="pause" PreviewMouseDown="HoldButton_PreviewMouseDown" PreviewMouseUp="HoldButton_PreviewMouseUp" MouseLeave="HoldButton_MouseLeave"/>
+                    <Button Content="Clear Buffer" Command="{Binding ClearBufferCommand}" Style="{StaticResource DangerButtonStyle}" Margin="0,0,4,0"/>
+                    <Button Content="Send to PLC" Command="{Binding SendCadXCommand}" Style="{StaticResource PrimaryButtonStyle}"/>
                 </WrapPanel>
             </Grid>
         </Border>
 
         <Grid Grid.Row="1">
             <Grid.RowDefinitions>
-                <RowDefinition Height="2*"/>
-                <RowDefinition Height="1.05*"/>
+                <RowDefinition Height="3*"/>
+                <RowDefinition Height="1.12*"/>
             </Grid.RowDefinitions>
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="1.15*"/>
-                <ColumnDefinition Width="1*"/>
+                <ColumnDefinition Width="1.35*"/>
+                <ColumnDefinition Width="0.9*"/>
             </Grid.ColumnDefinitions>
 
             <Border Grid.Row="0" Grid.Column="0" Style="{StaticResource PanelBorderStyle}">
@@ -62,7 +62,7 @@
                             BorderBrush="{StaticResource BorderBrush}"
                             BorderThickness="1"
                             CornerRadius="6"
-                            Margin="0,10,0,0"
+                            Margin="0,8,0,0"
                             ClipToBounds="True"
                             Cursor="Hand"
                             PreviewMouseWheel="CadViewport_PreviewMouseWheel"
@@ -71,8 +71,8 @@
                             MouseMove="CadViewport_MouseMove"
                             MouseLeave="CadViewport_MouseLeave">
                         <Viewbox Stretch="Uniform">
-                            <Canvas x:Name="CadSurface" Width="1000" Height="560" ClipToBounds="True">
-                                <Rectangle Width="1000" Height="560" Fill="#050A14"/>
+                            <Canvas x:Name="CadSurface" Width="1000" Height="620" ClipToBounds="True">
+                                <Rectangle Width="1000" Height="620" Fill="#050A14"/>
                                 <Canvas x:Name="CadContent">
                                     <Canvas.RenderTransform>
                                         <TransformGroup>
@@ -244,7 +244,7 @@
                              VerticalScrollBarVisibility="Auto"
                              HorizontalScrollBarVisibility="Auto"
                              TextWrapping="NoWrap"
-                             Margin="0,10,0,8"
+                             Margin="0,8,0,6"
                              VerticalContentAlignment="Top"/>
                     <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right">
                         <Button Content="Preview" Command="{Binding PreviewGcodeCommand}" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,6,0"/>
@@ -274,7 +274,7 @@
                     <DataGrid Grid.Row="1"
                               ItemsSource="{Binding ProcessRows}"
                               AutoGenerateColumns="False"
-                              Margin="0,10,0,0">
+                              Margin="0,8,0,0">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="No." Binding="{Binding Index}" Width="60"/>
                             <DataGridTextColumn Header="Motion type" Binding="{Binding MotionType}" Width="*"/>
@@ -303,7 +303,7 @@
                               EnableColumnVirtualization="True"
                               ScrollViewer.CanContentScroll="True"
                               HorizontalScrollBarVisibility="Auto"
-                              Margin="0,10,0,0">
+                              Margin="0,8,0,0">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="No." Binding="{Binding Index}" Width="60"/>
                             <DataGridTextColumn Header="Line type" Binding="{Binding LineType}" Width="105"/>

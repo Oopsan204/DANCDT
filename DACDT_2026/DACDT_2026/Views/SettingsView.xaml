@@ -13,28 +13,28 @@
                     <StackPanel>
                         <TextBlock Text="DXF Offset &amp; Speed" Style="{StaticResource PanelTitleStyle}"/>
                         <TextBlock Text="Parameters applied to DXF paths" Style="{StaticResource PanelSubtitleStyle}"/>
-                        <UniformGrid Columns="2" Margin="0,14,0,0">
-                            <StackPanel Margin="0,0,6,8">
+                        <UniformGrid Columns="2" Margin="0,10,0,0">
+                            <StackPanel Margin="0,0,6,6">
                                 <TextBlock Text="Offset X (mm)" Foreground="{StaticResource MutedBrush}"/>
                                 <TextBox Text="{Binding OffsetXInput, UpdateSourceTrigger=PropertyChanged}"/>
                             </StackPanel>
-                            <StackPanel Margin="6,0,0,8">
+                            <StackPanel Margin="6,0,0,6">
                                 <TextBlock Text="Offset Y (mm)" Foreground="{StaticResource MutedBrush}"/>
                                 <TextBox Text="{Binding OffsetYInput, UpdateSourceTrigger=PropertyChanged}"/>
                             </StackPanel>
-                            <StackPanel Margin="0,0,6,8">
+                            <StackPanel Margin="0,0,6,6">
                                 <TextBlock Text="Speed M03" Foreground="{StaticResource MutedBrush}"/>
                                 <TextBox Text="{Binding GlobalSpeedM3Input, UpdateSourceTrigger=PropertyChanged}"/>
                             </StackPanel>
-                            <StackPanel Margin="6,0,0,8">
+                            <StackPanel Margin="6,0,0,6">
                                 <TextBlock Text="Speed M04" Foreground="{StaticResource MutedBrush}"/>
                                 <TextBox Text="{Binding GlobalSpeedInput, UpdateSourceTrigger=PropertyChanged}"/>
                             </StackPanel>
-                            <StackPanel Margin="0,0,6,8">
+                            <StackPanel Margin="0,0,6,6">
                                 <TextBlock Text="Dwell M03 (ms)" Foreground="{StaticResource MutedBrush}"/>
                                 <TextBox Text="{Binding GlobalDwellM3Input, UpdateSourceTrigger=PropertyChanged}"/>
                             </StackPanel>
-                            <StackPanel Margin="6,0,0,8">
+                            <StackPanel Margin="6,0,0,6">
                                 <TextBlock Text="Dwell M04 (ms)" Foreground="{StaticResource MutedBrush}"/>
                                 <TextBox Text="{Binding GlobalDwellM4Input, UpdateSourceTrigger=PropertyChanged}"/>
                             </StackPanel>
@@ -47,7 +47,7 @@
                     <StackPanel>
                         <TextBlock Text="Machine Config &amp; Workspace" Style="{StaticResource PanelTitleStyle}"/>
                         <TextBlock Text="Rapid speed and drawing boundary" Style="{StaticResource PanelSubtitleStyle}"/>
-                        <TextBlock Text="G00 rapid speed (mm/min)" Foreground="{StaticResource MutedBrush}" Margin="0,14,0,4"/>
+                        <TextBlock Text="G00 rapid speed (mm/min)" Foreground="{StaticResource MutedBrush}" Margin="0,10,0,3"/>
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
@@ -56,7 +56,7 @@
                             <TextBox Text="{Binding RapidSpeedInput, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,8,0"/>
                             <Button Grid.Column="1" Content="Apply Speed" Command="{Binding SetG0SpeedCommand}" Style="{StaticResource PrimaryButtonStyle}"/>
                         </Grid>
-                        <UniformGrid Columns="2" Margin="0,14,0,0">
+                        <UniformGrid Columns="2" Margin="0,10,0,0">
                             <StackPanel Margin="0,0,6,0">
                                 <TextBlock Text="Workspace X (mm)" Foreground="{StaticResource MutedBrush}"/>
                                 <TextBox Text="{Binding WorkspaceWidthInput, UpdateSourceTrigger=PropertyChanged}"/>
@@ -66,7 +66,7 @@
                                 <TextBox Text="{Binding WorkspaceHeightInput, UpdateSourceTrigger=PropertyChanged}"/>
                             </StackPanel>
                         </UniformGrid>
-                        <Button Content="Apply Workspace" Command="{Binding SetWorkspaceCommand}" Style="{StaticResource PrimaryButtonStyle}" Margin="0,12,0,0"/>
+                        <Button Content="Apply Workspace" Command="{Binding SetWorkspaceCommand}" Style="{StaticResource PrimaryButtonStyle}" Margin="0,8,0,0"/>
                     </StackPanel>
                 </Border>
             </StackPanel>
@@ -76,7 +76,7 @@
                     <StackPanel>
                         <TextBlock Text="G54-G59 WCS Offsets" Style="{StaticResource PanelTitleStyle}"/>
                         <TextBlock Text="Offsets added to G-code coordinates" Style="{StaticResource PanelSubtitleStyle}"/>
-                        <Grid Margin="0,14,0,0">
+                        <Grid Margin="0,10,0,0">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="180"/>
@@ -93,8 +93,8 @@
                                       CanUserDeleteRows="False"
                                       SelectionMode="Single"
                                       SelectionUnit="FullRow"
-                                      Height="220"
-                                      Margin="0,0,12,0">
+                                      Height="240"
+                                      Margin="0,0,10,0">
                                 <DataGrid.Columns>
                                     <DataGridTextColumn Header="WCS" Binding="{Binding Name}" IsReadOnly="True" Width="80"/>
                                     <DataGridTextColumn Header="Offset X (mm)" Binding="{Binding OffsetX, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="*"/>
@@ -109,7 +109,7 @@
                                         BorderThickness="1"
                                         CornerRadius="8"
                                         Padding="12,9"
-                                        Margin="0,4,0,12">
+                                        Margin="0,4,0,8">
                                     <TextBlock Text="{Binding ActiveWcs}" FontSize="18" FontWeight="SemiBold"/>
                                 </Border>
                                 <Button Content="Apply WCS Table"
@@ -124,7 +124,7 @@
                     <StackPanel>
                         <TextBlock Text="Configuration Profiles" Style="{StaticResource PanelTitleStyle}"/>
                         <TextBlock Text="Save, load or delete settings profiles" Style="{StaticResource PanelSubtitleStyle}"/>
-                        <Grid Margin="0,14,0,0">
+                        <Grid Margin="0,10,0,0">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="1.1*"/>
                                 <ColumnDefinition Width="1*"/>

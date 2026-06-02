@@ -37,7 +37,7 @@
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
                     <TextBlock Text="Live Registers" Style="{StaticResource PanelTitleStyle}"/>
-                    <DataGrid Grid.Row="1" ItemsSource="{Binding TelemetryRegisters}" Margin="0,10,0,0">
+                    <DataGrid Grid.Row="1" ItemsSource="{Binding TelemetryRegisters}" Margin="0,8,0,0">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="Register" Binding="{Binding Register}" Width="*"/>
                             <DataGridTextColumn Header="Value" Binding="{Binding Value}" Width="120"/>
@@ -54,7 +54,7 @@
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
                     <TextBlock Text="Buffer Blocks" Style="{StaticResource PanelTitleStyle}"/>
-                    <DataGrid Grid.Row="1" ItemsSource="{Binding TelemetryBuffers}" Margin="0,10,0,0">
+                    <DataGrid Grid.Row="1" ItemsSource="{Binding TelemetryBuffers}" Margin="0,8,0,0">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="Path" Binding="{Binding Path}" Width="150"/>
                             <DataGridTextColumn Header="Values" Binding="{Binding Values}" Width="*"/>

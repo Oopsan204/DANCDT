@@ -85,6 +85,7 @@ namespace DACDT_2026
         private int writeValueInput = 12345;
         private string selectedPointKey = "";
         private string activeNotice = "";
+        private int activeProgramIndex;
 
         public WpfUiState()
         {
@@ -260,7 +261,14 @@ namespace DACDT_2026
         public string FileKind
         {
             get => fileKind;
-            set => SetProperty(ref fileKind, value);
+            set
+            {
+                if (SetProperty(ref fileKind, value))
+                {
+                    OnPropertyChanged(nameof(ProgramMonitorTitle));
+                    OnPropertyChanged(nameof(ProgramMonitorSubtitle));
+                }
+            }
         }
 
         public string FilePath
@@ -272,7 +280,11 @@ namespace DACDT_2026
         public string FileName
         {
             get => fileName;
-            set => SetProperty(ref fileName, value);
+            set
+            {
+                if (SetProperty(ref fileName, value))
+                    OnPropertyChanged(nameof(ProgramMonitorSubtitle));
+            }
         }
 
         public string RawGcodeText
@@ -400,6 +412,37 @@ namespace DACDT_2026
             get => activeNotice;
             set => SetProperty(ref activeNotice, value);
         }
+
+        public int ActiveProgramIndex
+        {
+            get => activeProgramIndex;
+            set
+            {
+                if (SetProperty(ref activeProgramIndex, value))
+                    OnPropertyChanged(nameof(ActiveProgramText));
+            }
+        }
+
+        public string ActiveProgramText => ActiveProgramIndex > 0
+            ? "Active data no: " + ActiveProgramIndex
+            : "Waiting for PLC data no.";
+
+        public string ProgramMonitorTitle
+        {
+            get
+            {
+                if (string.IsNullOrWhiteSpace(FileKind))
+                    return "Program Monitor";
+
+                return string.Equals(FileKind, "GCODE", StringComparison.OrdinalIgnoreCase)
+                    ? "G-code Monitor"
+                    : "DXF Point Monitor";
+            }
+        }
+
+        public string ProgramMonitorSubtitle => string.IsNullOrWhiteSpace(FileName)
+            ? "Open a G-code or DXF file to populate this list"
+            : FileName + " - highlight follows Axis 1 current data no.";
     }
 
     public class ObservableState : INotifyPropertyChanged
@@ -498,14 +541,26 @@ namespace DACDT_2026
         public string Status { get; set; }
     }
 
-    public sealed class CadPointViewModel
+    public sealed class CadPointViewModel : ObservableState
     {
+        private bool isActive;
+
         public int Index { get; set; }
         public string LineType { get; set; }
         public string X { get; set; }
         public string Y { get; set; }
         public string Z { get; set; }
         public string Key { get; set; }
+        public bool IsActive
+        {
+            get => isActive;
+            set
+            {
+                if (SetProperty(ref isActive, value))
+                    OnPropertyChanged(nameof(ActiveMarker));
+            }
+        }
+        public string ActiveMarker => IsActive ? "RUN" : string.Empty;
     }
 
     public sealed class GeometryRowViewModel
@@ -524,8 +579,10 @@ namespace DACDT_2026
         public string Key { get; set; }
     }
 
-    public sealed class ProcessRowViewModel
+    public sealed class ProcessRowViewModel : ObservableState
     {
+        private bool isActive;
+
         public int Index { get; set; }
         public string Key { get; set; }
         public string MotionType { get; set; }
@@ -535,6 +592,16 @@ namespace DACDT_2026
         public string EndCoordinate { get; set; }
         public string CenterCoordinate { get; set; }
         public string EndZ { get; set; }
+        public bool IsActive
+        {
+            get => isActive;
+            set
+            {
+                if (SetProperty(ref isActive, value))
+                    OnPropertyChanged(nameof(ActiveMarker));
+            }
+        }
+        public string ActiveMarker => IsActive ? "RUN" : string.Empty;
     }
 
     public sealed class WcsOffsetViewModel : ObservableState

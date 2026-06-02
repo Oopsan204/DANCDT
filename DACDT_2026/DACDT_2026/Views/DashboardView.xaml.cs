@@ -1,3 +1,7 @@
+using System;
+using System.Collections.Specialized;
+using System.ComponentModel;
+using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 
@@ -6,10 +10,12 @@ namespace DACDT_2026.Views
     public partial class DashboardView : UserControl
     {
         private string activeHold;
+        private WpfUiState observedState;
 
         public DashboardView()
         {
             InitializeComponent();
+            DataContextChanged += DashboardView_DataContextChanged;
         }
 
         private void HoldButton_PreviewMouseDown(object sender, MouseButtonEventArgs e)
@@ -31,21 +37,60 @@ namespace DACDT_2026.Views
 
         private void ExecuteHoldCommand(bool start)
         {
-            var state = DataContext as WpfUiState;
-            if (state == null || string.IsNullOrEmpty(activeHold)) return;
-
-            ICommand command = null;
-            if (activeHold == "home") command = start ? state.GoHomeStartCommand : state.GoHomeStopCommand;
-            else if (activeHold == "reset") command = start ? state.ResetErrorStartCommand : state.ResetErrorStopCommand;
-            else if (activeHold == "start") command = start ? state.StartActionStartCommand : state.StartActionStopCommand;
-            else if (activeHold == "continue") command = start ? state.ContinueStartCommand : state.ContinueStopCommand;
-            else if (activeHold == "pause") command = start ? state.PauseStartCommand : state.PauseStopCommand;
-
-            if (command != null && command.CanExecute(null))
-                command.Execute(null);
+            HoldCommandRouter.Execute(DataContext as WpfUiState, activeHold, start);
 
             if (!start)
                 activeHold = null;
+        }
+
+        private void DashboardView_DataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
+        {
+            if (observedState != null)
+            {
+                observedState.PropertyChanged -= ObservedState_PropertyChanged;
+                observedState.ProcessRows.CollectionChanged -= ProcessRows_CollectionChanged;
+            }
+
+            observedState = e.NewValue as WpfUiState;
+            if (observedState != null)
+            {
+                observedState.PropertyChanged += ObservedState_PropertyChanged;
+                observedState.ProcessRows.CollectionChanged += ProcessRows_CollectionChanged;
+            }
+
+            ScrollActiveProgramRow();
+        }
+
+        private void ObservedState_PropertyChanged(object sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == nameof(WpfUiState.ActiveProgramIndex))
+                ScrollActiveProgramRow();
+        }
+
+        private void ProcessRows_CollectionChanged(object sender, NotifyCollectionChangedEventArgs e)
+        {
+            ScrollActiveProgramRow();
+        }
+
+        private void ScrollActiveProgramRow()
+        {
+            if (observedState == null || ProgramGrid == null || observedState.ActiveProgramIndex <= 0)
+                return;
+
+            ProcessRowViewModel activeRow = null;
+            foreach (var row in observedState.ProcessRows)
+            {
+                if (row.Index == observedState.ActiveProgramIndex)
+                {
+                    activeRow = row;
+                    break;
+                }
+            }
+
+            if (activeRow == null)
+                return;
+
+            Dispatcher.BeginInvoke(new Action(() => ProgramGrid.ScrollIntoView(activeRow)));
         }
     }
 }

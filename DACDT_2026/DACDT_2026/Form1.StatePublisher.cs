@@ -60,6 +60,8 @@ namespace DACDT_2026
                     axis.IsComplete = connected && rawStatus == 0;
                 }
 
+                UpdateActiveProgramHighlight(ui, connected ? Math.Max(0, axCurrentDataNo[0]) : 0);
+
                 ReplaceCollection(ui.CadTrackingPoints, BuildRobotTrackingPoints(
                     activeCadDocument,
                     workspaceWidth,
@@ -87,6 +89,7 @@ namespace DACDT_2026
             var snapConnected = plcComm != null && plcComm.IsConnected;
             var snapRobotRawX = axCurrentPos[0];
             var snapRobotRawY = axCurrentPos[1];
+            var snapActiveProgramIndex = snapConnected ? Math.Max(0, axCurrentDataNo[0]) : 0;
             var snapCurrentView = currentView;
             var snapCurrentTheme = currentTheme;
             var snapGlobalSpeed = globalSpeed;
@@ -118,7 +121,8 @@ namespace DACDT_2026
                         X = Math.Round(pt.X, 3).ToString("0.###", CultureInfo.InvariantCulture),
                         Y = Math.Round(pt.Y, 3).ToString("0.###", CultureInfo.InvariantCulture),
                         Z = Math.Round(pt.Z, 3).ToString("0.###", CultureInfo.InvariantCulture),
-                        Key = pt.Key
+                        Key = pt.Key,
+                        IsActive = snapActiveProgramIndex > 0 && pt.Index == snapActiveProgramIndex
                     }).ToList();
 
                 var geometryRows = BuildGeometryRows(snapDoc);
@@ -149,7 +153,8 @@ namespace DACDT_2026
                         Speed = row.Speed ?? string.Empty,
                         EndCoordinate = ApplyOffsetToCoord(row.EndCoordinate, rowOx, rowOy),
                         CenterCoordinate = ApplyOffsetToCoord(row.CenterCoordinate, rowOx, rowOy),
-                        EndZ = row.EndZ.ToString("0.###", CultureInfo.InvariantCulture)
+                        EndZ = row.EndZ.ToString("0.###", CultureInfo.InvariantCulture),
+                        IsActive = snapActiveProgramIndex > 0 && rowIndex + 1 == snapActiveProgramIndex
                     };
                 }).ToList();
 
@@ -188,6 +193,7 @@ namespace DACDT_2026
                 ui.WorkspaceWidthInput = snapWorkspaceWidth;
                 ui.WorkspaceHeightInput = snapWorkspaceHeight;
                 ui.ActiveWcs = snapActiveWcs;
+                ui.ActiveProgramIndex = snapActiveProgramIndex;
                 int wIdx = GetWcsIndex(snapActiveWcs);
                 ui.WcsOffsetXInput = snapWcsOffsetX[wIdx];
                 ui.WcsOffsetYInput = snapWcsOffsetY[wIdx];
@@ -203,6 +209,21 @@ namespace DACDT_2026
                 ReplaceCollection(ui.CadTrackingPoints, model.trackingPoints);
                 ReplaceCollection(ui.Profiles, snapProfiles);
             });
+        }
+
+        private static void UpdateActiveProgramHighlight(WpfUiState state, int activeIndex)
+        {
+            if (state == null)
+                return;
+
+            state.ActiveProgramIndex = activeIndex;
+            bool hasActiveIndex = activeIndex > 0;
+
+            foreach (var row in state.ProcessRows)
+                row.IsActive = hasActiveIndex && row.Index == activeIndex;
+
+            foreach (var point in state.CadPoints)
+                point.IsActive = hasActiveIndex && point.Index == activeIndex;
         }
 
         private static CadDocumentService.CadLoadResult CloneCadDocumentForUi(CadDocumentService.CadLoadResult doc)
@@ -872,7 +893,7 @@ namespace DACDT_2026
         private sealed class CadProjection
         {
             public const double CanvasWidth = 1000.0;
-            public const double CanvasHeight = 560.0;
+            public const double CanvasHeight = 620.0;
             private const double Padding = 24.0;
 
             public CadProjection(double left, double top, double right, double bottom)

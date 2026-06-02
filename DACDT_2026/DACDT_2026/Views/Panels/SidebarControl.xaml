@@ -15,12 +15,12 @@
                 <TextBlock Text="Operational views" Style="{StaticResource PanelSubtitleStyle}"/>
             </StackPanel>
 
-            <StackPanel Grid.Row="1" Margin="0,14,0,0">
-                <Button Content="Dashboard" Command="{Binding SwitchViewCommand}" CommandParameter="control" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,0,7"/>
-                <Button Content="DXF / GCODE Run" Command="{Binding SwitchViewCommand}" CommandParameter="dxf" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,0,7"/>
-                <Button Content="Telemetry" Command="{Binding SwitchViewCommand}" CommandParameter="telemetry" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,0,7"/>
-                <Button Content="Logs" Command="{Binding SwitchViewCommand}" CommandParameter="logs" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,0,7"/>
-                <Button Content="System Settings" Command="{Binding SwitchViewCommand}" CommandParameter="settings" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,0,7"/>
+            <StackPanel Grid.Row="1" Margin="0,10,0,0">
+                <Button Content="Dashboard" Command="{Binding SwitchViewCommand}" CommandParameter="control" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,0,5"/>
+                <Button Content="DXF / GCODE Run" Command="{Binding SwitchViewCommand}" CommandParameter="dxf" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,0,5"/>
+                <Button Content="Telemetry" Command="{Binding SwitchViewCommand}" CommandParameter="telemetry" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,0,5"/>
+                <Button Content="Logs" Command="{Binding SwitchViewCommand}" CommandParameter="logs" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,0,5"/>
+                <Button Content="System Settings" Command="{Binding SwitchViewCommand}" CommandParameter="settings" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,0,5"/>
                 <Button Content="Help" Command="{Binding SwitchViewCommand}" CommandParameter="help" Style="{StaticResource SecondaryButtonStyle}"/>
             </StackPanel>
 
@@ -29,14 +29,14 @@
                     BorderBrush="{StaticResource BorderBrush}"
                     BorderThickness="1"
                     CornerRadius="8"
-                    Padding="10"
-                    Margin="0,18,0,12"
+                    Padding="8"
+                    Margin="0,10,0,8"
                     VerticalAlignment="Top">
                 <StackPanel>
                     <TextBlock Text="Manual Jog" Style="{StaticResource PanelTitleStyle}"/>
                     <TextBlock Text="M3000 - M3005 hold control" Style="{StaticResource PanelSubtitleStyle}"/>
 
-                    <Grid Width="164" Height="128" Margin="0,14,0,0" HorizontalAlignment="Center">
+                    <Grid Width="158" Height="118" Margin="0,10,0,0" HorizontalAlignment="Center">
                         <Grid.RowDefinitions>
                             <RowDefinition/>
                             <RowDefinition/>
@@ -56,7 +56,7 @@
                         <Button Grid.Row="2" Grid.Column="1" Content="Down" Tag="3" Style="{StaticResource PrimaryButtonStyle}" PreviewMouseDown="JogButton_PreviewMouseDown" PreviewMouseUp="JogButton_PreviewMouseUp" MouseLeave="JogButton_MouseLeave"/>
                     </Grid>
 
-                    <Grid Margin="0,12,0,0">
+                    <Grid Margin="0,8,0,0">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition/>
                             <ColumnDefinition/>
@@ -65,7 +65,7 @@
                         <Button Grid.Column="1" Content="Z-" Tag="5" Style="{StaticResource PrimaryButtonStyle}" Margin="4,0,0,0" PreviewMouseDown="JogButton_PreviewMouseDown" PreviewMouseUp="JogButton_PreviewMouseUp" MouseLeave="JogButton_MouseLeave"/>
                     </Grid>
 
-                    <TextBlock Text="Jog speed D406 (mm/min)" Foreground="{StaticResource MutedBrush}" Margin="0,12,0,4" FontSize="11"/>
+                    <TextBlock Text="Jog speed D406 (mm/min)" Foreground="{StaticResource MutedBrush}" Margin="0,8,0,3" FontSize="11"/>
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
