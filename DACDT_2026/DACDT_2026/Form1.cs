@@ -39,6 +39,7 @@ namespace DACDT_2026
 
         private readonly CadDocumentService cadService = new CadDocumentService();
         private readonly GcodeCoordinateService gcodeCoordinateService = new GcodeCoordinateService();
+        private readonly MqttPublishService mqttService = new MqttPublishService();
 
         private readonly List<MonitorRow> monitorRows = new List<MonitorRow>();
         private readonly List<ProcessRow> processRows = new List<ProcessRow>();
@@ -119,7 +120,13 @@ namespace DACDT_2026
             Loaded += async (sender, e) =>
             {
                 webReady = true;
+                await InitMqttAsync();
+                // Wait a bit for MQTT to connect
+                await Task.Delay(500);
                 await PushAllStateAsync();
+                // Start PLC polling if not already started
+                if (!isPolling)
+                    StartPlcPolling();
             };
         }
 
@@ -514,6 +521,24 @@ namespace DACDT_2026
                     cleanName += c;
             }
             return cleanName;
+        }
+
+        private async Task InitMqttAsync()
+        {
+            try
+            {
+                string broker = "beb7179d08fa43f79d440a9be9b95f24.s1.eu.hivemq.cloud";
+                string username = "DACDT2026";
+                string password = "trungaN123@";
+                Console.WriteLine($"[DEBUG] Starting MQTT connection to {broker}:8883...");
+                await mqttService.ConnectAsync(broker, username, password);
+                Console.WriteLine($"[DEBUG] MQTT connection completed. IsConnected={mqttService.IsConnected}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"MQTT init failed: {ex.Message}");
+                Console.WriteLine($"[DEBUG] MQTT IsConnected after error: {mqttService.IsConnected}");
+            }
         }
 
         protected override void OnClosing(CancelEventArgs e)

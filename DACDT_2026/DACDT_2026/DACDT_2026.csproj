@@ -54,28 +54,31 @@
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="EPPlus, Version=4.5.3.1, Culture=neutral, PublicKeyToken=ea159fdaa78159a1, processorArchitecture=MSIL">
-      <HintPath>..\packages\EPPlus.4.5.3.1\lib\net40\EPPlus.dll</HintPath>
+      <HintPath>packages\EPPlus.4.5.3.1\lib\net40\EPPlus.dll</HintPath>
     </Reference>
     <Reference Include="Gcode.Common.Utils, Version=1.0.0.1, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\Gcode.Common.Utils.0.1.65\lib\netstandard2.0\Gcode.Common.Utils.dll</HintPath>
+      <HintPath>packages\Gcode.Common.Utils.0.1.65\lib\netstandard2.0\Gcode.Common.Utils.dll</HintPath>
     </Reference>
     <Reference Include="Gcode.Entity, Version=1.0.0.1, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\Gcode.Entity.0.1.65\lib\netstandard2.0\Gcode.Entity.dll</HintPath>
+      <HintPath>packages\Gcode.Entity.0.1.65\lib\netstandard2.0\Gcode.Entity.dll</HintPath>
     </Reference>
     <Reference Include="Gcode.Utils, Version=0.2.0.9, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\Gcode.Utils.0.2.9\lib\netstandard2.0\Gcode.Utils.dll</HintPath>
+      <HintPath>packages\Gcode.Utils.0.2.9\lib\netstandard2.0\Gcode.Utils.dll</HintPath>
     </Reference>
     <Reference Include="LibBase, Version=1.0.4.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\LibBase.1.0.4\lib\netstandard2.0\LibBase.dll</HintPath>
+      <HintPath>packages\LibBase.1.0.4\lib\netstandard2.0\LibBase.dll</HintPath>
     </Reference>
     <Reference Include="netDxf, Version=2023.11.10.0, Culture=neutral, PublicKeyToken=618c63290969e781, processorArchitecture=MSIL">
-      <HintPath>..\packages\netDxf.2023.11.10\lib\net48\netDxf.dll</HintPath>
+      <HintPath>packages\netDxf.2023.11.10\lib\net48\netDxf.dll</HintPath>
+    </Reference>
+    <Reference Include="MQTTnet, Version=4.3.3.952, Culture=neutral, PublicKeyToken=fdb7629f2e364a63, processorArchitecture=MSIL">
+      <HintPath>packages\MQTTnet.4.3.3.952\lib\net48\MQTTnet.dll</HintPath>
     </Reference>
     <Reference Include="PresentationCore" />
     <Reference Include="PresentationFramework" />
     <Reference Include="System" />
     <Reference Include="System.ComponentModel.Annotations, Version=4.2.1.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
-      <HintPath>..\packages\System.ComponentModel.Annotations.4.5.0\lib\net461\System.ComponentModel.Annotations.dll</HintPath>
+      <HintPath>packages\System.ComponentModel.Annotations.4.5.0\lib\net461\System.ComponentModel.Annotations.dll</HintPath>
     </Reference>
     <Reference Include="System.ComponentModel.DataAnnotations" />
     <Reference Include="System.configuration" />
@@ -94,10 +97,17 @@
     <Reference Include="WindowsBase" />
   </ItemGroup>
   <ItemGroup>
+    <Reference Include="ActUtlTypeLib">
+      <HintPath>Interop.ActUtlTypeLib.dll</HintPath>
+      <EmbedInteropTypes>True</EmbedInteropTypes>
+    </Reference>
+  </ItemGroup>
+  <ItemGroup>
     <Compile Include="CadDocumentService.cs" />
     <Compile Include="Converters.cs" />
     <Compile Include="GcodeCoordinateService.cs" />
     <Compile Include="GcodeDocumentService.cs" />
+    <Compile Include="MqttPublishService.cs" />
     <Compile Include="Form1.cs">
       <SubType>Code</SubType>
     </Compile>
@@ -155,15 +165,6 @@
     <None Include="App.config" />
   </ItemGroup>
   <ItemGroup>
-    <COMReference Include="ActUtlTypeLib">
-      <Guid>{D217E54E-4A26-4A76-B0AB-57166B90F9AF}</Guid>
-      <VersionMajor>1</VersionMajor>
-      <VersionMinor>0</VersionMinor>
-      <Lcid>0</Lcid>
-      <WrapperTool>tlbimp</WrapperTool>
-      <Isolated>False</Isolated>
-      <EmbedInteropTypes>True</EmbedInteropTypes>
-    </COMReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

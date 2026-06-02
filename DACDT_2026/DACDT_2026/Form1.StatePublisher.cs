@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Media;
 
@@ -28,12 +29,12 @@ namespace DACDT_2026
         private static string FormatSpeedMm(int rawValue) => QD75BufferWriter.FormatSpeedMm(rawValue);
         private static string FormatAxisStatus(int status) => QD75BufferWriter.FormatAxisStatus(status);
 
-        private Task PushControlStateAsync()
+        private async Task PushControlStateAsync()
         {
             bool connected = plcComm != null && plcComm.IsConnected;
             string dash = "--";
 
-            return RunOnUiAsync(() =>
+            await RunOnUiAsync(() =>
             {
                 ui.CurrentView = currentView;
                 ui.CurrentTheme = currentTheme;
@@ -82,6 +83,69 @@ namespace DACDT_2026
                     axCurrentPos[0],
                     axCurrentPos[1]));
             });
+
+            // --- Publish machine state to MQTT for remote web UI ---
+            await PublishMachineStateToMqttAsync(connected);
+        }
+
+        private async Task PublishMachineStateToMqttAsync(bool connected)
+        {
+            if (!mqttService.IsConnected)
+            {
+                Console.WriteLine($"[DEBUG] MQTT not connected, skipping publish. IsConnected={mqttService.IsConnected}");
+                return;
+            }
+
+            try
+            {
+                string dash = "--";
+                var sb = new StringBuilder(512);
+                sb.Append("{");
+                sb.AppendFormat("\"connected\":{0}", connected ? "true" : "false");
+                sb.AppendFormat(",\"connectionBanner\":\"{0}\"", EscapeJson(connectionBanner));
+                sb.AppendFormat(",\"integrityState\":\"{0}\"", EscapeJson(integrityState));
+                sb.AppendFormat(",\"integrityDetail\":\"{0}\"", EscapeJson(integrityDetail));
+                sb.AppendFormat(",\"integrityTone\":\"{0}\"", EscapeJson(integrityTone));
+                sb.AppendFormat(",\"jogSpeed\":{0}", currentJogSpeedD406.ToString(CultureInfo.InvariantCulture));
+                sb.Append(",\"axes\":[");
+                for (int i = 0; i < 4; i++)
+                {
+                    if (i > 0) sb.Append(",");
+                    int rawStatus = axAxisStatus[i];
+                    if (rawStatus > 32767) rawStatus -= 65536;
+                    sb.Append("{");
+                    sb.AppendFormat("\"idx\":{0}", i);
+                    sb.AppendFormat(",\"pos\":\"{0}\"", connected ? FormatPositionMm(axCurrentPos[i]) : dash);
+                    sb.AppendFormat(",\"speed\":\"{0}\"", connected ? FormatSpeedMm(axCurrentSpeed[i]) : dash);
+                    sb.AppendFormat(",\"mCode\":{0}", connected ? axMCode[i] : 0);
+                    sb.AppendFormat(",\"error\":{0}", connected ? axErrorCode[i] : 0);
+                    sb.AppendFormat(",\"warning\":{0}", connected ? axWarningCode[i] : 0);
+                    sb.AppendFormat(",\"status\":\"{0}\"", connected ? FormatAxisStatus(rawStatus) : dash);
+                    sb.AppendFormat(",\"dataNo\":{0}", connected ? axCurrentDataNo[i] : 0);
+                    sb.AppendFormat(",\"limitMinus\":{0}", (connected && (axSignals[i] & 0x01) != 0) ? "true" : "false");
+                    sb.AppendFormat(",\"limitPlus\":{0}", (connected && (axSignals[i] & 0x02) != 0) ? "true" : "false");
+                    sb.AppendFormat(",\"homeDog\":{0}", (connected && (axSignals[i] & 0x40) != 0) ? "true" : "false");
+                    sb.AppendFormat(",\"isComplete\":{0}", (connected && rawStatus == 0) ? "true" : "false");
+                    sb.Append("}");
+                }
+                sb.Append("]");
+                sb.AppendFormat(",\"timestamp\":\"{0}\"", DateTime.UtcNow.ToString("o"));
+                sb.Append("}");
+
+                Console.WriteLine($"[DEBUG] Publishing to DACDT/machine/state: {sb.ToString().Substring(0, Math.Min(100, sb.Length))}...");
+                await mqttService.PublishAsync("DACDT/machine/state", sb.ToString());
+                Console.WriteLine($"[DEBUG] Successfully published to DACDT/machine/state");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"MQTT publish error: {ex.Message}");
+            }
+        }
+
+        private static string EscapeJson(string s)
+        {
+            if (string.IsNullOrEmpty(s)) return "";
+            return s.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\n", "\\n").Replace("\r", "\\r");
         }
 
         private async Task PushDxfStateAsync()
