@@ -1,521 +1,594 @@
 <!DOCTYPE html>
-<html lang="en" class="theme-dark">
-
+<html lang="vi">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>DACDT 2026 - Robot Control Dashboard</title>
-  <link rel="stylesheet" href="styles.css">
-  <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MQTT Dashboard - Standalone</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.2/mqttws31.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
 
-    :root {
-      --bg-main: #0d1117;
-      --bg-panel: #161b22;
-      --panel-2: #0d1117;
-      --panel-3: #21262d;
-      --border: #30363d;
-      --border-strong: #444c56;
-      --text: #c9d1d9;
-      --text-main: #e6edf3;
-      --muted: #8b949e;
-      --cyan: #1f6feb;
-      --green: #28a745;
-      --red: #f85149;
-      --orange: #fb8500;
-      --radius-sm: 4px;
-      --radius-md: 8px;
-    }
+        :root {
+            --bg-main: #0d1117;
+            --bg-panel: #161b22;
+            --panel-3: #21262d;
+            --border: #30363d;
+            --text: #c9d1d9;
+            --text-main: #e6edf3;
+            --muted: #8b949e;
+            --cyan: #1f6feb;
+            --green: #3fb950;
+            --red: #f85149;
+            --orange: #fb8500;
+            --yellow: #d29922;
+        }
 
-    html.theme-light {
-      --bg-main: #ffffff;
-      --bg-panel: #f6f8fa;
-      --panel-2: #ffffff;
-      --panel-3: #f0f2f5;
-      --border: #d0d7de;
-      --border-strong: #b1bac4;
-      --text: #424a4e;
-      --text-main: #24292f;
-      --muted: #656d76;
-    }
+        body {
+            background: var(--bg-main);
+            color: var(--text);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+            font-size: 14px;
+            overflow: hidden;
+        }
 
-    body {
-      background: var(--bg-main);
-      color: var(--text);
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
-      font-size: 14px;
-      line-height: 1.5;
-    }
+        .container {
+            display: grid;
+            grid-template-columns: 300px 1fr;
+            height: 100vh;
+            overflow: hidden;
+        }
 
-    .dashboard-container {
-      display: grid;
-      grid-template-columns: 250px 1fr;
-      height: 100vh;
-      overflow: hidden;
-    }
+        .sidebar {
+            background: var(--bg-panel);
+            border-right: 1px solid var(--border);
+            padding: 20px;
+            overflow-y: auto;
+        }
 
-    .sidebar {
-      background: var(--bg-panel);
-      border-right: 1px solid var(--border);
-      padding: 16px;
-      overflow-y: auto;
-    }
+        .main-content {
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
 
-    .main-content {
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-    }
+        .header {
+            background: var(--bg-panel);
+            border-bottom: 1px solid var(--border);
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
 
-    .header {
-      background: var(--bg-panel);
-      border-bottom: 1px solid var(--border);
-      padding: 12px 20px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
+        .header-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--text-main);
+        }
 
-    .header-title {
-      font-size: 18px;
-      font-weight: 600;
-      color: var(--text-main);
-    }
+        .status-badge {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 12px;
+            background: var(--panel-3);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            font-size: 12px;
+        }
 
-    .theme-toggle {
-      background: none;
-      border: 1px solid var(--border);
-      color: var(--text);
-      padding: 6px 12px;
-      border-radius: var(--radius-sm);
-      cursor: pointer;
-      font-size: 12px;
-    }
+        .status-dot {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--red);
+        }
 
-    .content {
-      flex: 1;
-      overflow-y: auto;
-      padding: 16px;
-    }
+        .status-dot.connected {
+            background: var(--green);
+        }
 
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-      gap: 16px;
-    }
+        .content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+        }
 
-    .card {
-      background: var(--bg-panel);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-md);
-      padding: 16px;
-    }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 20px;
+            height: fit-content;
+        }
 
-    .card-title {
-      font-size: 14px;
-      font-weight: 600;
-      color: var(--text-main);
-      margin-bottom: 12px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
+        .card {
+            background: var(--bg-panel);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 16px;
+        }
 
-    .status-indicator {
-      display: inline-block;
-      width: 12px;
-      height: 12px;
-      border-radius: 50%;
-      background: #f85149;
-      margin-right: 8px;
-    }
+        .card-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-main);
+            margin-bottom: 16px;
+        }
 
-    .status-indicator.connected {
-      background: #3fb950;
-    }
+        .metric {
+            margin-bottom: 16px;
+        }
 
-    .metric {
-      margin-bottom: 12px;
-    }
+        .metric-label {
+            font-size: 12px;
+            color: var(--muted);
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
 
-    .metric-label {
-      font-size: 12px;
-      color: var(--muted);
-      margin-bottom: 4px;
-    }
+        .metric-value {
+            font-size: 20px;
+            font-weight: 600;
+            color: var(--text-main);
+            font-family: 'Courier New', monospace;
+        }
 
-    .metric-value {
-      font-size: 18px;
-      font-weight: 600;
-      color: var(--text-main);
-      font-family: 'Courier New', monospace;
-    }
+        .axis-display {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 12px;
+        }
 
-    .progress-bar {
-      width: 100%;
-      height: 8px;
-      background: rgba(255, 255, 255, 0.1);
-      border-radius: 4px;
-      overflow: hidden;
-      margin-top: 4px;
-    }
+        .axis-box {
+            background: var(--panel-3);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 12px;
+            text-align: center;
+        }
 
-    .progress-fill {
-      height: 100%;
-      background: var(--cyan);
-      width: 0%;
-      transition: width 0.3s ease;
-    }
+        .axis-label {
+            font-size: 11px;
+            color: var(--muted);
+            margin-bottom: 6px;
+            text-transform: uppercase;
+        }
 
-    .button-group {
-      display: flex;
-      gap: 8px;
-      margin-top: 12px;
-    }
+        .axis-value {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--cyan);
+            font-family: 'Courier New', monospace;
+        }
 
-    button {
-      flex: 1;
-      padding: 8px 12px;
-      border: 1px solid var(--border);
-      background: var(--panel-3);
-      color: var(--text);
-      border-radius: var(--radius-sm);
-      cursor: pointer;
-      font-size: 12px;
-      font-weight: 500;
-      transition: all 0.2s ease;
-    }
+        .sidebar-section {
+            margin-bottom: 24px;
+        }
 
-    button:hover {
-      background: var(--border);
-      border-color: var(--border-strong);
-    }
+        .sidebar-title {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--muted);
+            text-transform: uppercase;
+            margin-bottom: 10px;
+            letter-spacing: 0.5px;
+        }
 
-    button.primary {
-      background: var(--cyan);
-      color: white;
-      border-color: var(--cyan);
-    }
+        .info-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px;
+            background: var(--panel-3);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            margin-bottom: 8px;
+            font-size: 12px;
+        }
 
-    button.primary:hover {
-      background: #1f5fd1;
-      border-color: #1f5fd1;
-    }
+        .info-label {
+            color: var(--muted);
+        }
 
-    button.danger {
-      background: var(--red);
-      color: white;
-      border-color: var(--red);
-    }
+        .info-value {
+            color: var(--text-main);
+            font-weight: 500;
+            font-family: 'Courier New', monospace;
+        }
 
-    button.danger:hover {
-      background: #d1242f;
-      border-color: #d1242f;
-    }
+        .status-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px;
+            background: var(--panel-3);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            font-size: 13px;
+        }
 
-    .log-container {
-      background: rgba(0, 0, 0, 0.2);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-sm);
-      padding: 12px;
-      height: 300px;
-      overflow-y: auto;
-      font-family: 'Courier New', monospace;
-      font-size: 12px;
-    }
+        .status-info.connected {
+            background: rgba(63, 185, 80, 0.1);
+            border-color: var(--green);
+        }
 
-    .log-entry {
-      margin-bottom: 4px;
-      padding: 4px 0;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-    }
+        .status-info.disconnected {
+            background: rgba(248, 81, 73, 0.1);
+            border-color: var(--red);
+        }
 
-    .log-time {
-      color: var(--muted);
-      margin-right: 8px;
-    }
+        .stat-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
 
-    .log-message {
-      color: var(--text);
-    }
+        .stat-box {
+            background: var(--panel-3);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 12px;
+            text-align: center;
+        }
 
-    .log-entry.info .log-message {
-      color: #79c0ff;
-    }
+        .stat-label {
+            font-size: 11px;
+            color: var(--muted);
+            margin-bottom: 6px;
+            text-transform: uppercase;
+        }
 
-    .log-entry.warning .log-message {
-      color: #d29922;
-    }
+        .stat-value {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--text-main);
+        }
 
-    .log-entry.error .log-message {
-      color: #f85149;
-    }
+        .log-container {
+            background: rgba(0, 0, 0, 0.2);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 12px;
+            height: 200px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+        }
 
-    .sidebar-section {
-      margin-bottom: 20px;
-    }
+        .log-entry {
+            margin-bottom: 6px;
+            padding: 4px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            display: flex;
+            gap: 8px;
+        }
 
-    .sidebar-title {
-      font-size: 12px;
-      font-weight: 600;
-      color: var(--muted);
-      text-transform: uppercase;
-      margin-bottom: 8px;
-      padding: 0 4px;
-    }
+        .log-time {
+            color: var(--muted);
+            min-width: 70px;
+        }
 
-    .sidebar-button {
-      width: 100%;
-      padding: 8px 12px;
-      margin-bottom: 4px;
-      text-align: left;
-      font-size: 12px;
-      background: rgba(255, 255, 255, 0.05);
-      border: 1px solid var(--border);
-      color: var(--text);
-      border-radius: var(--radius-sm);
-      cursor: pointer;
-      transition: all 0.2s ease;
-    }
+        .log-message {
+            color: var(--text);
+            flex: 1;
+        }
 
-    .sidebar-button:hover {
-      background: rgba(255, 255, 255, 0.1);
-      border-color: var(--border-strong);
-    }
+        .log-entry.info .log-message {
+            color: #79c0ff;
+        }
 
-    .stat-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8px;
-      margin-top: 12px;
-    }
+        .log-entry.warning .log-message {
+            color: var(--yellow);
+        }
 
-    .stat-box {
-      background: rgba(255, 255, 255, 0.05);
-      padding: 8px;
-      border-radius: var(--radius-sm);
-      border: 1px solid var(--border);
-      text-align: center;
-    }
+        .log-entry.error .log-message {
+            color: var(--red);
+        }
 
-    .stat-label {
-      font-size: 10px;
-      color: var(--muted);
-      margin-bottom: 4px;
-    }
-
-    .stat-value {
-      font-size: 16px;
-      font-weight: 600;
-      color: var(--text-main);
-    }
-
-    @media (max-width: 768px) {
-      .dashboard-container {
-        grid-template-columns: 1fr;
-      }
-
-      .sidebar {
-        display: none;
-      }
-
-      .grid {
-        grid-template-columns: 1fr;
-      }
-    }
-  </style>
+        @media (max-width: 768px) {
+            .container {
+                grid-template-columns: 1fr;
+            }
+            .sidebar {
+                display: none;
+            }
+            .grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
 </head>
-
 <body>
-  <div class="dashboard-container">
-    <!-- SIDEBAR -->
-    <aside class="sidebar">
-      <div class="sidebar-section">
-        <div class="card-title">
-          <span>DACDT 2026</span>
-          <button class="theme-toggle" id="theme-toggle">◐</button>
+    <div class="container">
+        <aside class="sidebar">
+            <div class="sidebar-section">
+                <h2 style="font-size: 16px; margin-bottom: 16px;">📊 MQTT Dashboard</h2>
+                <p style="font-size: 11px; color: var(--muted);">Standalone Version</p>
+            </div>
+
+            <div class="sidebar-section">
+                <div class="sidebar-title">Trạng thái MQTT</div>
+                <div id="mqtt-status" class="status-info disconnected">
+                    <span class="status-dot"></span>
+                    <span>Ngắt kết nối</span>
+                </div>
+            </div>
+
+            <div class="sidebar-section">
+                <div class="sidebar-title">Kết nối</div>
+                <div class="info-item">
+                    <span class="info-label">Broker:</span>
+                    <span class="info-value" id="broker-value" style="font-size: 10px;">-</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Topic:</span>
+                    <span class="info-value" id="topic-value" style="font-size: 10px;">-</span>
+                </div>
+            </div>
+
+            <div class="sidebar-section">
+                <div class="sidebar-title">Thông tin dữ liệu</div>
+                <div id="sidebar-logs" class="log-container">
+                    <div class="log-entry info">
+                        <span class="log-time">[00:00]</span>
+                        <span class="log-message">Chờ dữ liệu...</span>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <div class="main-content">
+            <header class="header">
+                <div class="header-title">MQTT Real-time Parameter Dashboard (Standalone)</div>
+                <div class="status-badge">
+                    <span class="status-dot" id="header-status-dot"></span>
+                    <span id="header-status-text">Đang kết nối...</span>
+                </div>
+            </header>
+
+            <main class="content">
+                <div class="grid">
+                    <div class="card">
+                        <div class="card-title">Kết nối thiết bị</div>
+                        <div class="metric">
+                            <div class="metric-label">Trạng thái PLC</div>
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <span class="status-dot" id="plc-dot"></span>
+                                <span class="metric-value" id="plc-status">Disconnected</span>
+                            </div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-label">Thông báo</div>
+                            <div class="metric-value" style="font-size: 14px;" id="plc-banner">-</div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-title">Vị trí các trục</div>
+                        <div class="axis-display">
+                            <div class="axis-box">
+                                <div class="axis-label">Axis 0</div>
+                                <div class="axis-value" id="axis-0-pos">0.0000 mm</div>
+                            </div>
+                            <div class="axis-box">
+                                <div class="axis-label">Axis 1</div>
+                                <div class="axis-value" id="axis-1-pos">0.0000 mm</div>
+                            </div>
+                            <div class="axis-box">
+                                <div class="axis-label">Axis 2</div>
+                                <div class="axis-value" id="axis-2-pos">0.0000 mm</div>
+                            </div>
+                            <div class="axis-box" style="grid-column: 1 / -1;">
+                                <div class="axis-label">Axis 3</div>
+                                <div class="axis-value" id="axis-3-pos">0.0000 mm</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-title">Tốc độ các trục</div>
+                        <div class="stat-grid">
+                            <div class="stat-box">
+                                <div class="stat-label">Speed 0</div>
+                                <div class="stat-value" id="axis-0-speed">0.0 mm/s</div>
+                            </div>
+                            <div class="stat-box">
+                                <div class="stat-label">Speed 1</div>
+                                <div class="stat-value" id="axis-1-speed">0.0 mm/s</div>
+                            </div>
+                            <div class="stat-box">
+                                <div class="stat-label">Speed 2</div>
+                                <div class="stat-value" id="axis-2-speed">0.0 mm/s</div>
+                            </div>
+                            <div class="stat-box">
+                                <div class="stat-label">Speed 3</div>
+                                <div class="stat-value" id="axis-3-speed">0.0 mm/s</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card" style="grid-column: 1 / -1;">
+                        <div class="card-title">Real-time Logs</div>
+                        <div id="logs-container" class="log-container">
+                            <div class="log-entry info">
+                                <span class="log-time">[00:00:00]</span>
+                                <span class="log-message">Khởi động ứng dụng...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
         </div>
-      </div>
-
-      <div class="sidebar-section">
-        <div class="sidebar-title">Controls</div>
-        <button id="btn-start" class="sidebar-button primary">▶ Start</button>
-        <button id="btn-pause" class="sidebar-button">⏸ Pause</button>
-        <button id="btn-stop" class="sidebar-button">⏹ Stop</button>
-        <button id="btn-reset" class="sidebar-button">🔄 Reset</button>
-      </div>
-
-      <div class="sidebar-section">
-        <div class="sidebar-title">System Status</div>
-        <div class="metric">
-          <div class="metric-label">PLC Connection</div>
-          <div style="display: flex; align-items: center; gap: 8px;">
-            <span class="status-indicator" id="plc-status-dot"></span>
-            <span id="plc-status-text">Disconnected</span>
-          </div>
-        </div>
-      </div>
-
-      <div class="sidebar-section">
-        <button id="emergency-stop" class="sidebar-button danger" style="width: 100%;">⚠ EMERGENCY STOP</button>
-      </div>
-    </aside>
-
-    <!-- MAIN CONTENT -->
-    <div class="main-content">
-      <!-- HEADER -->
-      <header class="header">
-        <div class="header-title">DACDT 2026 Robot Control Dashboard</div>
-        <div style="display: flex; gap: 8px; align-items: center;">
-          <span id="status-text">Initializing...</span>
-          <span id="plc-state" style="font-size: 12px; color: var(--muted);">-</span>
-        </div>
-      </header>
-
-      <!-- CONTENT -->
-      <main class="content">
-        <div class="grid">
-          <!-- PLC Connection Card -->
-          <div class="card">
-            <div class="card-title">
-              <span>PLC Connection</span>
-              <span id="connection-status" style="font-size: 12px; color: var(--muted);">DC</span>
-            </div>
-            <div class="metric">
-              <div class="metric-label">Status</div>
-              <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
-                <span class="status-indicator" id="plc-status"></span>
-                <span id="plc-connection-text">Disconnected</span>
-              </div>
-              <button id="connect-button" class="primary" style="width: 100%;">CONNECT PLC</button>
-            </div>
-          </div>
-
-          <!-- Coordinates Card -->
-          <div class="card">
-            <div class="card-title">Axis Position</div>
-            <div class="metric">
-              <div class="metric-label">X Axis</div>
-              <div class="metric-value" id="coord-x">0.00 mm</div>
-              <div class="progress-bar">
-                <div class="progress-fill" id="progress-x"></div>
-              </div>
-            </div>
-            <div class="metric">
-              <div class="metric-label">Y Axis</div>
-              <div class="metric-value" id="coord-y">0.00 mm</div>
-              <div class="progress-bar">
-                <div class="progress-fill" id="progress-y"></div>
-              </div>
-            </div>
-            <div class="metric">
-              <div class="metric-label">Z Axis</div>
-              <div class="metric-value" id="coord-z">0.00 mm</div>
-              <div class="progress-bar">
-                <div class="progress-fill" id="progress-z"></div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Job Info Card -->
-          <div class="card">
-            <div class="card-title">Current Job</div>
-            <div class="metric">
-              <div class="metric-label">File Name</div>
-              <div class="metric-value" id="file-name" style="font-size: 14px;">No file</div>
-            </div>
-            <div class="metric">
-              <div class="metric-label">File Type</div>
-              <div class="metric-value" id="file-type" style="font-size: 14px;">-</div>
-            </div>
-            <div class="metric">
-              <div class="metric-label">Progress</div>
-              <div class="progress-bar">
-                <div class="progress-fill" id="job-progress" style="width: 0%;">0%</div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Machine Metrics Card -->
-          <div class="card">
-            <div class="card-title">Machine Metrics</div>
-            <div class="stat-grid">
-              <div class="stat-box">
-                <div class="stat-label">Speed</div>
-                <div class="stat-value" id="speed-value">0 mm/min</div>
-              </div>
-              <div class="stat-box">
-                <div class="stat-label">Temperature</div>
-                <div class="stat-value" id="temperature">0°C</div>
-              </div>
-              <div class="stat-box">
-                <div class="stat-label">Elapsed Time</div>
-                <div class="stat-value" id="elapsed-time" style="font-size: 12px;">00:00:00</div>
-              </div>
-            </div>
-          </div>
-
-          <!-- System Stats Card -->
-          <div class="card">
-            <div class="card-title">System Statistics</div>
-            <div class="stat-grid">
-              <div class="stat-box">
-                <div class="stat-label">Errors</div>
-                <div class="stat-value" id="error-count">0</div>
-              </div>
-              <div class="stat-box">
-                <div class="stat-label">Warnings</div>
-                <div class="stat-value" id="warning-count">0</div>
-              </div>
-              <div class="stat-box">
-                <div class="stat-label">Successful</div>
-                <div class="stat-value" id="success-count">0</div>
-              </div>
-              <div class="stat-box">
-                <div class="stat-label">Failed</div>
-                <div class="stat-value" id="failed-count">0</div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Logs Card (Full Width) -->
-          <div class="card" style="grid-column: 1 / -1;">
-            <div class="card-title">
-              <span>System Logs</span>
-              <button id="clear-events-button" style="flex: 0 0 auto; width: auto;">Clear</button>
-            </div>
-            <div id="log-container" class="log-container">
-              <div class="log-entry info">
-                <span class="log-time">[00:00:00]</span>
-                <span class="log-message">Ready to start...</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </main>
     </div>
-  </div>
 
-  <!-- Scripts -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqtt.min.js"></script>
-  <script src="app.js"></script>
+    <script>
+        class StandaloneMQTTDashboard {
+            constructor() {
+                this.client = null;
+                this.isConnected = false;
+                this.logs = [];
+                
+                // ⚠️ Cấu hình MQTT - CẬP NHẬT THEO NHU CẦU
+                this.MQTT_BROKER = 'beb7179d08fa43f79d440a9be9b95f24.s1.eu.hivemq.cloud';
+                this.MQTT_PORT = 8884; // WebSocket Secure
+                this.MQTT_USERNAME = 'DACDT2026';
+                this.MQTT_PASSWORD = 'trungaN123@';
+                this.MQTT_TOPIC = 'DACDT/machine/state';
+                
+                this.init();
+            }
 
-  <script>
-    // Theme toggle
-    document.getElementById('theme-toggle').addEventListener('click', function() {
-      document.documentElement.classList.toggle('theme-light');
-      document.documentElement.classList.toggle('theme-dark');
-      localStorage.setItem('theme', document.documentElement.className);
-    });
+            init() {
+                this.addLog('Dashboard khởi động', 'info');
+                this.connectMQTT();
+            }
 
-    // Load saved theme
-    const savedTheme = localStorage.getItem('theme') || 'theme-dark';
-    document.documentElement.className = savedTheme;
-  </script>
+            connectMQTT() {
+                try {
+                    const clientId = 'MQTT_Dashboard_' + Math.random().toString(36).substr(2, 9);
+                    
+                    this.client = new Paho.MQTT.Client(
+                        this.MQTT_BROKER,
+                        this.MQTT_PORT,
+                        clientId
+                    );
+
+                    this.client.onConnectionLost = (error) => {
+                        this.isConnected = false;
+                        this.updateStatus(false);
+                        this.addLog('✗ Mất kết nối MQTT: ' + error.errorMessage, 'error');
+                    };
+
+                    this.client.onMessageArrived = (message) => {
+                        this.handleMessage(message);
+                    };
+
+                    const options = {
+                        userName: this.MQTT_USERNAME,
+                        password: this.MQTT_PASSWORD,
+                        useSSL: true,
+                        onSuccess: () => {
+                            this.isConnected = true;
+                            this.updateStatus(true);
+                            this.addLog('✓ Kết nối MQTT thành công', 'info');
+                            this.client.subscribe(this.MQTT_TOPIC, {
+                                onSuccess: () => {
+                                    this.addLog('✓ Subscribe: ' + this.MQTT_TOPIC, 'info');
+                                },
+                                onFailure: () => {
+                                    this.addLog('✗ Subscribe thất bại', 'warning');
+                                }
+                            });
+                        },
+                        onFailure: (error) => {
+                            this.addLog('✗ Kết nối thất bại: ' + error.errorMessage, 'error');
+                        }
+                    };
+
+                    this.client.connect(options);
+                    
+                    document.getElementById('broker-value').textContent = this.MQTT_BROKER;
+                    document.getElementById('topic-value').textContent = this.MQTT_TOPIC;
+                    
+                } catch (error) {
+                    this.addLog('✗ Lỗi: ' + error.message, 'error');
+                }
+            }
+
+            handleMessage(message) {
+                try {
+                    const data = JSON.parse(message.payloadString);
+                    this.updateDashboard(data);
+                    this.addLog('Nhận dữ liệu từ: ' + message.destinationName, 'info');
+                } catch (error) {
+                    this.addLog('✗ Lỗi parse: ' + error.message, 'error');
+                }
+            }
+
+            updateDashboard(data) {
+                const connected = data.connected;
+                document.getElementById('plc-dot').classList.toggle('connected', connected);
+                document.getElementById('plc-status').textContent = connected ? 'Connected' : 'Disconnected';
+                document.getElementById('plc-banner').textContent = data.connectionBanner || '-';
+
+                if (data.axes && Array.isArray(data.axes)) {
+                    data.axes.forEach((axis, idx) => {
+                        if (idx < 4) {
+                            const posEl = document.getElementById(`axis-${idx}-pos`);
+                            const speedEl = document.getElementById(`axis-${idx}-speed`);
+                            if (posEl) posEl.textContent = parseFloat(axis.pos).toFixed(4) + ' mm';
+                            if (speedEl) speedEl.textContent = parseFloat(axis.speed).toFixed(3) + ' mm/s';
+                        }
+                    });
+                }
+            }
+
+            updateStatus(connected) {
+                const dot = document.getElementById('header-status-dot');
+                const text = document.getElementById('header-status-text');
+                const mqttStatus = document.getElementById('mqtt-status');
+                
+                if (connected) {
+                    dot.classList.add('connected');
+                    text.textContent = 'Connected';
+                    mqttStatus.classList.remove('disconnected');
+                    mqttStatus.classList.add('connected');
+                    mqttStatus.innerHTML = '<span class="status-dot connected"></span><span>Đã kết nối</span>';
+                } else {
+                    dot.classList.remove('connected');
+                    text.textContent = 'Disconnected';
+                    mqttStatus.classList.add('disconnected');
+                    mqttStatus.classList.remove('connected');
+                    mqttStatus.innerHTML = '<span class="status-dot"></span><span>Ngắt kết nối</span>';
+                }
+            }
+
+            addLog(message, type = 'info') {
+                const now = new Date();
+                const timeStr = now.toLocaleTimeString('vi-VN');
+                
+                this.logs.push({ message, type, time: timeStr });
+                if (this.logs.length > 50) this.logs.shift();
+                
+                this.renderLogs();
+            }
+
+            renderLogs() {
+                const mainContainer = document.getElementById('logs-container');
+                const sidebarContainer = document.getElementById('sidebar-logs');
+
+                const logsHTML = this.logs.slice(-20).map(log => `
+                    <div class="log-entry ${log.type}">
+                        <span class="log-time">[${log.time}]</span>
+                        <span class="log-message">${log.message}</span>
+                    </div>
+                `).join('');
+
+                if (mainContainer) {
+                    mainContainer.innerHTML = logsHTML;
+                    mainContainer.scrollTop = mainContainer.scrollHeight;
+                }
+
+                if (sidebarContainer) {
+                    sidebarContainer.innerHTML = this.logs.slice(-10).map(log => `
+                        <div class="log-entry ${log.type}">
+                            <span class="log-time">[${log.time.slice(0, 5)}]</span>
+                            <span class="log-message" style="font-size: 10px;">${log.message}</span>
+                        </div>
+                    `).join('');
+                    sidebarContainer.scrollTop = sidebarContainer.scrollHeight;
+                }
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            window.dashboard = new StandaloneMQTTDashboard();
+        });
+    </script>
 </body>
-
 </html>
