@@ -129,17 +129,106 @@ namespace DACDT_2026
                     sb.Append("}");
                 }
                 sb.Append("]");
+                sb.Append(",\"monitor\":");
+                AppendMonitorStateJson(sb, connected);
                 sb.AppendFormat(",\"timestamp\":\"{0}\"", DateTime.UtcNow.ToString("o"));
                 sb.Append("}");
 
                 Console.WriteLine($"[DEBUG] Publishing to DACDT/machine/state: {sb.ToString().Substring(0, Math.Min(100, sb.Length))}...");
                 await mqttService.PublishAsync("DACDT/machine/state", sb.ToString());
+                await PublishMonitorStateToMqttAsync(connected);
                 Console.WriteLine($"[DEBUG] Successfully published to DACDT/machine/state");
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"MQTT publish error: {ex.Message}");
             }
+        }
+
+        private async Task PublishMonitorStateToMqttAsync(bool connected)
+        {
+            if (!mqttService.IsConnected)
+                return;
+
+            try
+            {
+                var sb = new StringBuilder(512);
+                AppendMonitorStateJson(sb, connected);
+                await mqttService.PublishAsync("DACDT/monitor/state", sb.ToString());
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"MQTT monitor publish error: {ex.Message}");
+            }
+        }
+
+        private void AppendMonitorStateJson(StringBuilder sb, bool connected)
+        {
+            int activeDataNo = connected
+                ? Math.Max(0, axCurrentDataNo[0])
+                : Math.Max(0, ui.ActiveProgramIndex);
+            ProcessRow[] rowsSnapshot = processRows.ToArray();
+            int totalPoints = rowsSnapshot.Length;
+            int cadPointCount = activeCadDocument?.Points?.Count ?? 0;
+            ProcessRow activeRow = activeDataNo > 0 && activeDataNo <= totalPoints
+                ? rowsSnapshot[activeDataNo - 1]
+                : null;
+
+            sb.Append("{");
+            sb.AppendFormat("\"fileKind\":\"{0}\"", EscapeJson(activeDocumentKind ?? string.Empty));
+            sb.AppendFormat(",\"fileName\":\"{0}\"", EscapeJson(activeCadDocument?.FileName ?? string.Empty));
+            sb.AppendFormat(",\"filePath\":\"{0}\"", EscapeJson(activeCadDocument?.FilePath ?? string.Empty));
+            sb.AppendFormat(",\"currentView\":\"{0}\"", EscapeJson(currentView ?? string.Empty));
+            sb.Append(",\"dxfCompletion\":{");
+            sb.AppendFormat("\"visible\":{0}", ui.ProgressVisible ? "true" : "false");
+            sb.AppendFormat(",\"percent\":{0}", ui.ProgressPercent);
+            sb.AppendFormat(",\"text\":\"{0}\"", EscapeJson(ui.ProgressText ?? string.Empty));
+            sb.Append("}");
+            sb.Append(",\"dxfPoint\":{");
+            sb.AppendFormat("\"activeDataNo\":{0}", activeDataNo);
+            sb.AppendFormat(",\"activeText\":\"{0}\"", EscapeJson(ui.ActiveProgramText ?? string.Empty));
+            sb.AppendFormat(",\"totalPoints\":{0}", totalPoints);
+            sb.AppendFormat(",\"cadPointCount\":{0}", cadPointCount);
+            sb.Append(",\"activeRow\":");
+            AppendProcessRowJson(sb, activeRow, activeDataNo);
+            sb.Append("}");
+            sb.AppendFormat(",\"timestamp\":\"{0}\"", DateTime.UtcNow.ToString("o"));
+            sb.Append("}");
+        }
+
+        private void AppendProcessRowJson(StringBuilder sb, ProcessRow row, int index)
+        {
+            if (row == null)
+            {
+                sb.Append("null");
+                return;
+            }
+
+            double rowOx;
+            double rowOy;
+            if (string.Equals(activeDocumentKind, "GCODE", StringComparison.OrdinalIgnoreCase))
+            {
+                int wIdx = Math.Max(0, Math.Min(5, row.WcsIndex));
+                rowOx = wcsOffsetX[wIdx];
+                rowOy = wcsOffsetY[wIdx];
+            }
+            else
+            {
+                rowOx = offsetX;
+                rowOy = offsetY;
+            }
+
+            sb.Append("{");
+            sb.AppendFormat("\"index\":{0}", index);
+            sb.AppendFormat(",\"key\":\"{0}\"", EscapeJson(row.Key ?? string.Empty));
+            sb.AppendFormat(",\"motionType\":\"{0}\"", EscapeJson(row.MotionType ?? string.Empty));
+            sb.AppendFormat(",\"mCode\":\"{0}\"", EscapeJson(row.MCodeValue ?? string.Empty));
+            sb.AppendFormat(",\"dwell\":\"{0}\"", EscapeJson(row.Dwell ?? string.Empty));
+            sb.AppendFormat(",\"speed\":\"{0}\"", EscapeJson(row.Speed ?? string.Empty));
+            sb.AppendFormat(",\"endCoordinate\":\"{0}\"", EscapeJson(ApplyOffsetToCoord(row.EndCoordinate, rowOx, rowOy)));
+            sb.AppendFormat(",\"centerCoordinate\":\"{0}\"", EscapeJson(ApplyOffsetToCoord(row.CenterCoordinate, rowOx, rowOy)));
+            sb.AppendFormat(",\"endZ\":{0}", row.EndZ.ToString("0.###", CultureInfo.InvariantCulture));
+            sb.Append("}");
         }
 
         private static string EscapeJson(string s)
@@ -324,6 +413,8 @@ namespace DACDT_2026
                 ReplaceCollection(ui.CadTrackingPoints, model.trackingPoints);
                 ReplaceCollection(ui.Profiles, snapProfiles);
             });
+
+            await PublishMonitorStateToMqttAsync(snapConnected);
         }
 
         private static void UpdateActiveProgramHighlight(WpfUiState state, int activeIndex)
@@ -1227,6 +1318,7 @@ namespace DACDT_2026
                 {
                     ui.ProgressVisible = GetPayloadBool(payload, "visible");
                     ui.ProgressPercent = GetPayloadInt(payload, "percent", 0);
+                    _ = PublishMonitorStateToMqttAsync(plcComm != null && plcComm.IsConnected);
                     return;
                 }
 

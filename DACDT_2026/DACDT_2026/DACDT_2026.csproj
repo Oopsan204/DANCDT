@@ -108,6 +108,7 @@
   <ItemGroup>
     <Compile Include="CadDocumentService.cs" />
     <Compile Include="Converters.cs" />
+    <Compile Include="Form1.Camera.cs" />
     <Compile Include="GcodeCoordinateService.cs" />
     <Compile Include="GcodeDocumentService.cs" />
     <Compile Include="MqttPublishService.cs" />
@@ -121,9 +122,6 @@
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="Form1.StatePublisher.cs">
-      <SubType>Code</SubType>
-    </Compile>
-    <Compile Include="Form1.Camera.cs">
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="Form1.Models.cs">
