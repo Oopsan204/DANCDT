@@ -116,6 +116,13 @@ namespace DACDT_2026
         private int activeProgramIndex;
         private int lastHighlightedProgramIndex;
         private ImageSource cadPreviewImage;
+        private ImageSource cameraFrame;
+        private string selectedCameraMoniker = "";
+        private string cameraStatus = "Camera idle.";
+        private string cameraRecordingPath = "";
+        private bool isCameraRunning;
+        private bool isCameraRecording;
+        private int cameraRecordedFrames;
         private readonly List<CadPointViewModel> allCadPoints = new List<CadPointViewModel>();
         private readonly List<GeometryRowViewModel> allGeometryRows = new List<GeometryRowViewModel>();
         private readonly List<ProcessRowViewModel> allProcessRows = new List<ProcessRowViewModel>();
@@ -131,6 +138,7 @@ namespace DACDT_2026
         public BulkObservableCollection<UiEventViewModel> Events { get; } = new BulkObservableCollection<UiEventViewModel>();
         public BulkObservableCollection<TelemetryRegisterViewModel> TelemetryRegisters { get; } = new BulkObservableCollection<TelemetryRegisterViewModel>();
         public BulkObservableCollection<TelemetryBufferViewModel> TelemetryBuffers { get; } = new BulkObservableCollection<TelemetryBufferViewModel>();
+        public BulkObservableCollection<CameraDeviceViewModel> Cameras { get; } = new BulkObservableCollection<CameraDeviceViewModel>();
         public BulkObservableCollection<CadPointViewModel> CadPoints { get; } = new BulkObservableCollection<CadPointViewModel>();
         public BulkObservableCollection<GeometryRowViewModel> GeometryRows { get; } = new BulkObservableCollection<GeometryRowViewModel>();
         public BulkObservableCollection<ProcessRowViewModel> ProcessRows { get; } = new BulkObservableCollection<ProcessRowViewModel>();
@@ -180,6 +188,11 @@ namespace DACDT_2026
         public ICommand SaveProfileCommand { get; set; }
         public ICommand LoadProfileCommand { get; set; }
         public ICommand DeleteProfileCommand { get; set; }
+        public ICommand RefreshCamerasCommand { get; set; }
+        public ICommand StartCameraCommand { get; set; }
+        public ICommand StopCameraCommand { get; set; }
+        public ICommand StartCameraRecordingCommand { get; set; }
+        public ICommand StopCameraRecordingCommand { get; set; }
 
         public string CurrentView
         {
@@ -190,6 +203,7 @@ namespace DACDT_2026
                 {
                     OnPropertyChanged(nameof(IsControlView));
                     OnPropertyChanged(nameof(IsDxfView));
+                    OnPropertyChanged(nameof(IsMonitorView));
                     OnPropertyChanged(nameof(IsTelemetryView));
                     OnPropertyChanged(nameof(IsLogsView));
                     OnPropertyChanged(nameof(IsSettingsView));
@@ -210,6 +224,7 @@ namespace DACDT_2026
 
         public bool IsControlView => CurrentView == "control";
         public bool IsDxfView => CurrentView == "dxf";
+        public bool IsMonitorView => CurrentView == "monitor";
         public bool IsTelemetryView => CurrentView == "telemetry";
         public bool IsLogsView => CurrentView == "logs";
         public bool IsSettingsView => CurrentView == "settings";
@@ -452,6 +467,60 @@ namespace DACDT_2026
             get => cadPreviewImage;
             set => SetProperty(ref cadPreviewImage, value);
         }
+
+        public ImageSource CameraFrame
+        {
+            get => cameraFrame;
+            set => SetProperty(ref cameraFrame, value);
+        }
+
+        public string SelectedCameraMoniker
+        {
+            get => selectedCameraMoniker;
+            set => SetProperty(ref selectedCameraMoniker, value);
+        }
+
+        public string CameraStatus
+        {
+            get => cameraStatus;
+            set => SetProperty(ref cameraStatus, value);
+        }
+
+        public string CameraRecordingPath
+        {
+            get => cameraRecordingPath;
+            set => SetProperty(ref cameraRecordingPath, value);
+        }
+
+        public bool IsCameraRunning
+        {
+            get => isCameraRunning;
+            set => SetProperty(ref isCameraRunning, value);
+        }
+
+        public bool IsCameraRecording
+        {
+            get => isCameraRecording;
+            set
+            {
+                if (SetProperty(ref isCameraRecording, value))
+                    OnPropertyChanged(nameof(CameraRecordingText));
+            }
+        }
+
+        public int CameraRecordedFrames
+        {
+            get => cameraRecordedFrames;
+            set
+            {
+                if (SetProperty(ref cameraRecordedFrames, value))
+                    OnPropertyChanged(nameof(CameraRecordingText));
+            }
+        }
+
+        public string CameraRecordingText => IsCameraRecording
+            ? "Recording frames: " + CameraRecordedFrames
+            : "Recording stopped";
 
         public int ActiveProgramIndex
         {
@@ -798,6 +867,12 @@ namespace DACDT_2026
         public string Path { get; set; }
         public string Values { get; set; }
         public string Status { get; set; }
+    }
+
+    public sealed class CameraDeviceViewModel
+    {
+        public string Name { get; set; }
+        public string MonikerString { get; set; }
     }
 
     public sealed class CadPointViewModel : ObservableState

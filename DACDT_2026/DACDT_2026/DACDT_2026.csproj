@@ -56,23 +56,26 @@
     <Reference Include="EPPlus, Version=4.5.3.1, Culture=neutral, PublicKeyToken=ea159fdaa78159a1, processorArchitecture=MSIL">
       <HintPath>packages\EPPlus.4.5.3.1\lib\net40\EPPlus.dll</HintPath>
     </Reference>
-    <Reference Include="Gcode.Common.Utils, Version=1.0.0.1, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>packages\Gcode.Common.Utils.0.1.65\lib\netstandard2.0\Gcode.Common.Utils.dll</HintPath>
+    <Reference Include="AForge">
+      <HintPath>..\packages\AForge.2.2.5\lib\AForge.dll</HintPath>
     </Reference>
-    <Reference Include="Gcode.Entity, Version=1.0.0.1, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>packages\Gcode.Entity.0.1.65\lib\netstandard2.0\Gcode.Entity.dll</HintPath>
+    <Reference Include="AForge.Video">
+      <HintPath>..\packages\AForge.Video.2.2.5\lib\AForge.Video.dll</HintPath>
+    </Reference>
+    <Reference Include="AForge.Video.DirectShow">
+      <HintPath>..\packages\AForge.Video.DirectShow.2.2.5\lib\AForge.Video.DirectShow.dll</HintPath>
     </Reference>
     <Reference Include="Gcode.Utils, Version=0.2.0.9, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>packages\Gcode.Utils.0.2.9\lib\netstandard2.0\Gcode.Utils.dll</HintPath>
+      <HintPath>..\packages\Gcode.Utils.0.2.9\lib\netstandard2.0\Gcode.Utils.dll</HintPath>
     </Reference>
     <Reference Include="LibBase, Version=1.0.4.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>packages\LibBase.1.0.4\lib\netstandard2.0\LibBase.dll</HintPath>
+      <HintPath>..\packages\LibBase.1.0.4\lib\netstandard2.0\LibBase.dll</HintPath>
     </Reference>
     <Reference Include="netDxf, Version=2023.11.10.0, Culture=neutral, PublicKeyToken=618c63290969e781, processorArchitecture=MSIL">
-      <HintPath>packages\netDxf.2023.11.10\lib\net48\netDxf.dll</HintPath>
+      <HintPath>..\packages\netDxf.2023.11.10\lib\net48\netDxf.dll</HintPath>
     </Reference>
     <Reference Include="MQTTnet, Version=4.3.3.952, Culture=neutral, PublicKeyToken=fdb7629f2e364a63, processorArchitecture=MSIL">
-      <HintPath>packages\MQTTnet.4.3.3.952\lib\net48\MQTTnet.dll</HintPath>
+      <HintPath>..\packages\MQTTnet.4.3.3.952\lib\net48\MQTTnet.dll</HintPath>
     </Reference>
     <Reference Include="PresentationCore" />
     <Reference Include="PresentationFramework" />
@@ -118,6 +121,9 @@
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="Form1.StatePublisher.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Form1.Camera.cs">
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="Form1.Models.cs">

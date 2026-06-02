@@ -45,6 +45,7 @@
         <Grid Grid.Row="1" Grid.Column="1">
             <views:DashboardView Visibility="{Binding IsControlView, Converter={StaticResource BoolToVisibilityConverter}}"/>
             <views:DxfRunView Visibility="{Binding IsDxfView, Converter={StaticResource BoolToVisibilityConverter}}"/>
+            <views:MonitorView Visibility="{Binding IsMonitorView, Converter={StaticResource BoolToVisibilityConverter}}"/>
             <views:TelemetryView Visibility="{Binding IsTelemetryView, Converter={StaticResource BoolToVisibilityConverter}}"/>
             <views:LogsView Visibility="{Binding IsLogsView, Converter={StaticResource BoolToVisibilityConverter}}"/>
             <views:SettingsView Visibility="{Binding IsSettingsView, Converter={StaticResource BoolToVisibilityConverter}}"/>

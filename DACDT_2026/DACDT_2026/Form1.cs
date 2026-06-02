@@ -124,6 +124,7 @@ namespace DACDT_2026
                 // Wait a bit for MQTT to connect
                 await Task.Delay(500);
                 await PushAllStateAsync();
+                _ = RefreshCamerasAsync();
                 // Start PLC polling if not already started
                 if (!isPolling)
                     StartPlcPolling();
@@ -223,6 +224,11 @@ namespace DACDT_2026
             ui.SaveProfileCommand = new RelayCommand(SaveProfileAsync);
             ui.LoadProfileCommand = new RelayCommand(LoadProfileAsync);
             ui.DeleteProfileCommand = new RelayCommand(DeleteProfileAsync);
+            ui.RefreshCamerasCommand = new RelayCommand(RefreshCamerasAsync);
+            ui.StartCameraCommand = new RelayCommand(StartCameraAsync);
+            ui.StopCameraCommand = new RelayCommand(StopCameraAsync);
+            ui.StartCameraRecordingCommand = new RelayCommand(StartCameraRecordingAsync);
+            ui.StopCameraRecordingCommand = new RelayCommand(StopCameraRecordingAsync);
         }
 
         private async Task HandleSwitchViewAsync(object viewPayload)
@@ -247,6 +253,12 @@ namespace DACDT_2026
                 else if (string.Equals(viewName, "control", StringComparison.OrdinalIgnoreCase))
                 {
                     await PushControlStateAsync();
+                }
+                else if (string.Equals(viewName, "monitor", StringComparison.OrdinalIgnoreCase))
+                {
+                    await PushControlStateAsync();
+                    if (ui.Cameras.Count == 0)
+                        await RefreshCamerasAsync();
                 }
             }
             catch
@@ -551,6 +563,7 @@ namespace DACDT_2026
 
             isClosing = true;
             webReady = false;
+            StopCameraCore();
             StopPlcPolling();
 
             if (plcComm != null)
