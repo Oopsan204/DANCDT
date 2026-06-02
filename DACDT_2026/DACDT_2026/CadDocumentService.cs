@@ -19,8 +19,40 @@ namespace DACDT_2026
                 throw new ArgumentException("DXF path is empty.", nameof(filePath));
             }
 
-            // Dùng SimpleDxfParser — không đệ quy, không StackOverflow
-            return SimpleDxfParser.Parse(filePath);
+            // Prefer netDxf for accurate geometry; keep the simple parser as a fallback.
+            try
+            {
+                return LoadWithNetDxf(filePath);
+            }
+            catch
+            {
+                return SimpleDxfParser.Parse(filePath);
+            }
+        }
+
+        private CadLoadResult LoadWithNetDxf(string filePath)
+        {
+            DxfDocument document = DxfDocument.Load(filePath);
+            if (document == null)
+            {
+                throw new InvalidDataException("Unable to read DXF document.");
+            }
+
+            var context = new CadExtractionContext();
+            foreach (EntityObject entity in document.Entities.All)
+            {
+                ExtractEntity(entity, CadTransform.Identity, context, 0);
+            }
+
+            return new CadLoadResult
+            {
+                FilePath = Path.GetFullPath(filePath),
+                DirectoryPath = Path.GetDirectoryName(filePath) ?? string.Empty,
+                FileName = Path.GetFileName(filePath),
+                Bounds = CadBounds.FromRectangle(context.GetBounds()),
+                Primitives = context.Primitives,
+                Points = context.BuildPointRows()
+            };
         }
 
         private void ExtractEntity(EntityObject entity, CadTransform transform, CadExtractionContext context, int depth)
@@ -51,7 +83,10 @@ namespace DACDT_2026
             Polyline2D polyline2D = entity as Polyline2D;
             if (polyline2D != null)
             {
-                List<PointF> points = polyline2D.Vertexes.Select(v => transform.Apply(v.Position.X, v.Position.Y)).ToList();
+                List<PointF> points = polyline2D
+                    .PolygonalVertexes(24)
+                    .Select(v => transform.Apply(v.X, v.Y))
+                    .ToList();
                 AddPolylineGeometry(context, points, polyline2D.IsClosed, "Polyline2D");
                 return;
             }
@@ -90,13 +125,41 @@ namespace DACDT_2026
                 return;
             }
 
-            Insert insert = entity as Insert;
-            if (insert != null && insert.Block != null)
+            Ellipse ellipse = entity as Ellipse;
+            if (ellipse != null)
             {
-                CadTransform child = transform.Append(CadTransform.FromInsert(insert));
-                foreach (EntityObject childEntity in insert.Block.Entities)
+                List<PointF> points = ellipse
+                    .PolygonalVertexes(48)
+                    .Select(v => transform.Apply(v.X, v.Y))
+                    .ToList();
+                CadCoordinate center = new CadCoordinate(transform.Apply(ellipse.Center).X, transform.Apply(ellipse.Center).Y);
+                context.AddPrimitive("Ellipse", points, false, center, false, false);
+                if (points.Count > 0)
                 {
-                    ExtractEntity(childEntity, child, context, depth + 1);
+                    context.AddCandidatePoint(points[0], "Dau ellipse", "Ellipse", 2);
+                    context.AddCandidatePoint(points[points.Count - 1], "Cuoi ellipse", "Ellipse", 2);
+                }
+                context.AddCandidatePoint(transform.Apply(ellipse.Center), "Tam ellipse", "Ellipse", 3);
+                return;
+            }
+
+            Spline spline = entity as Spline;
+            if (spline != null)
+            {
+                List<PointF> points = spline
+                    .PolygonalVertexes(24)
+                    .Select(transform.Apply)
+                    .ToList();
+                AddPolylineGeometry(context, points, spline.IsClosed, "Spline");
+                return;
+            }
+
+            Insert insert = entity as Insert;
+            if (insert != null)
+            {
+                foreach (EntityObject childEntity in insert.Explode())
+                {
+                    ExtractEntity(childEntity, transform, context, depth + 1);
                 }
             }
         }

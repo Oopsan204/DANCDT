@@ -636,7 +636,7 @@ namespace DACDT_2026
             if (doc?.Primitives == null || doc.Primitives.Count == 0 || projection == null)
                 return lines;
 
-            foreach (var primitive in doc.Primitives.Take(5000))
+            foreach (var primitive in doc.Primitives.Take(50000))
             {
                 if (primitive.Points == null || primitive.Points.Count < 2)
                     continue;

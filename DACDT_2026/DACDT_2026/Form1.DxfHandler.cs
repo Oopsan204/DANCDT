@@ -716,7 +716,7 @@ namespace DACDT_2026
                 // ── Kiểm tra: nếu >600 điểm → dùng Ring Buffer ──────────────────
                 if (dataRows.Count > 600)
                 {
-                    await LogUIAsync("PLC", $"Ring Buffer mode: {dataRows.Count} points (>600). Loading first batch + JUMP...");
+                    await LogUIAsync("PLC", $"Ring Buffer mode: {dataRows.Count} points (>600). Loading point 1-599 + fixed JUMP at point 600...");
                     _ = SendProgressAsync(true, 10);
 
                     // Tạo ring buffer runner
@@ -730,7 +730,7 @@ namespace DACDT_2026
                     };
                     ringRunner.OnComplete += async () =>
                     {
-                        await NotifyAsync("success", "PLC", $"Ring buffer complete — all {dataRows.Count} points executed.");
+                        await NotifyAsync("success", "PLC", $"Ring buffer loaded — all {dataRows.Count} points have been streamed.");
                         _ = SendProgressAsync(false, 0);
                     };
                     ringRunner.OnError += async (err) =>
@@ -739,11 +739,11 @@ namespace DACDT_2026
                         _ = SendProgressAsync(false, 0);
                     };
 
-                    // Start ring buffer (nạp 600 điểm đầu + JUMP, sau đó monitor Md.44)
-                    _ = ringRunner.StartAsync(); // Fire-and-forget — chạy nền
+                    // Start ring buffer (load points 1-599 + JUMP at 600, then cross-write by Md.44)
+                    _ = ringRunner.StartAsync(); // Fire-and-forget — runs while QD75 executes
 
                     await NotifyAsync("success", "PLC",
-                        $"Ring Buffer started: {dataRows.Count} points. First 600 loaded. Monitoring Md.44 for refill. Press START/RUN.");
+                        $"Ring Buffer started: {dataRows.Count} points. Point 600 is fixed JUMP. Monitoring Md.44 for refill. Press START/RUN.");
                 }
                 else
                 {
