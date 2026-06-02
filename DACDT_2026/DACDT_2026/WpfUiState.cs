@@ -32,6 +32,32 @@ namespace DACDT_2026
             OnCollectionChanged(new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Reset));
         }
 
+        public void AddRange(IEnumerable<T> items)
+        {
+            bool anyAdded = false;
+
+            suppressNotifications = true;
+            try
+            {
+                foreach (T item in items)
+                {
+                    Items.Add(item);
+                    anyAdded = true;
+                }
+            }
+            finally
+            {
+                suppressNotifications = false;
+            }
+
+            if (!anyAdded)
+                return;
+
+            OnPropertyChanged(new PropertyChangedEventArgs(nameof(Count)));
+            OnPropertyChanged(new PropertyChangedEventArgs("Item[]"));
+            OnCollectionChanged(new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Reset));
+        }
+
         protected override void OnCollectionChanged(NotifyCollectionChangedEventArgs e)
         {
             if (!suppressNotifications)
@@ -47,6 +73,8 @@ namespace DACDT_2026
 
     public sealed class WpfUiState : ObservableState
     {
+        private const int LazyTableBatchSize = 100;
+
         private string currentView = "control";
         private string currentTheme = "dark";
         private bool isConnected;
@@ -86,6 +114,11 @@ namespace DACDT_2026
         private string selectedPointKey = "";
         private string activeNotice = "";
         private int activeProgramIndex;
+        private int lastHighlightedProgramIndex;
+        private ImageSource cadPreviewImage;
+        private readonly List<CadPointViewModel> allCadPoints = new List<CadPointViewModel>();
+        private readonly List<GeometryRowViewModel> allGeometryRows = new List<GeometryRowViewModel>();
+        private readonly List<ProcessRowViewModel> allProcessRows = new List<ProcessRowViewModel>();
 
         public WpfUiState()
         {
@@ -101,6 +134,7 @@ namespace DACDT_2026
         public BulkObservableCollection<CadPointViewModel> CadPoints { get; } = new BulkObservableCollection<CadPointViewModel>();
         public BulkObservableCollection<GeometryRowViewModel> GeometryRows { get; } = new BulkObservableCollection<GeometryRowViewModel>();
         public BulkObservableCollection<ProcessRowViewModel> ProcessRows { get; } = new BulkObservableCollection<ProcessRowViewModel>();
+        public BulkObservableCollection<ProcessRowViewModel> ProgramRows { get; } = new BulkObservableCollection<ProcessRowViewModel>();
         public BulkObservableCollection<CadPrimitiveViewModel> CadPrimitives { get; } = new BulkObservableCollection<CadPrimitiveViewModel>();
         public BulkObservableCollection<CadLimitAreaViewModel> CadLimitAreas { get; } = new BulkObservableCollection<CadLimitAreaViewModel>();
         public BulkObservableCollection<CadAxisLineViewModel> CadAxisLines { get; } = new BulkObservableCollection<CadAxisLineViewModel>();
@@ -413,6 +447,12 @@ namespace DACDT_2026
             set => SetProperty(ref activeNotice, value);
         }
 
+        public ImageSource CadPreviewImage
+        {
+            get => cadPreviewImage;
+            set => SetProperty(ref cadPreviewImage, value);
+        }
+
         public int ActiveProgramIndex
         {
             get => activeProgramIndex;
@@ -443,6 +483,225 @@ namespace DACDT_2026
         public string ProgramMonitorSubtitle => string.IsNullOrWhiteSpace(FileName)
             ? "Open a G-code or DXF file to populate this list"
             : FileName + " - highlight follows Axis 1 current data no.";
+
+        public void SetCadPointRows(IEnumerable<CadPointViewModel> rows, int activeIndex)
+        {
+            ReplaceList(allCadPoints, rows);
+            foreach (var row in allCadPoints)
+                row.IsActive = activeIndex > 0 && row.Index == activeIndex;
+
+            ReplaceVisibleRows(CadPoints, allCadPoints, GetInitialVisibleCount(allCadPoints.Count, 0));
+        }
+
+        public void SetGeometryRows(IEnumerable<GeometryRowViewModel> rows)
+        {
+            ReplaceList(allGeometryRows, rows);
+            ReplaceVisibleRows(GeometryRows, allGeometryRows, GetInitialVisibleCount(allGeometryRows.Count, 0));
+        }
+
+        public void SetProcessRows(IEnumerable<ProcessRowViewModel> rows, int activeIndex)
+        {
+            ReplaceList(allProcessRows, rows);
+            lastHighlightedProgramIndex = 0;
+            foreach (var row in allProcessRows)
+                row.IsActive = activeIndex > 0 && row.Index == activeIndex;
+
+            ReplaceVisibleRows(ProcessRows, allProcessRows, GetInitialVisibleCount(allProcessRows.Count, 0));
+            ReplaceProgramRowsWindow(activeIndex);
+            lastHighlightedProgramIndex = activeIndex;
+        }
+
+        public bool LoadMoreCadPoints()
+            => AppendNextRows(CadPoints, allCadPoints);
+
+        public bool LoadMoreGeometryRows()
+            => AppendNextRows(GeometryRows, allGeometryRows);
+
+        public bool LoadMoreProcessRows()
+            => AppendNextRows(ProcessRows, allProcessRows);
+
+        public bool LoadMoreProgramRows()
+        {
+            int start = 0;
+            if (ProgramRows.Count > 0)
+            {
+                int lastIndex = ProgramRows[ProgramRows.Count - 1].Index;
+                start = Math.Max(0, lastIndex);
+            }
+
+            int limit = Math.Min(start + LazyTableBatchSize, allProcessRows.Count);
+            if (start >= limit)
+                return false;
+
+            var rows = new List<ProcessRowViewModel>();
+            for (int i = start; i < limit; i++)
+                rows.Add(allProcessRows[i]);
+
+            ProgramRows.AddRange(rows);
+            return true;
+        }
+
+        public void ApplyActiveProgramIndex(int activeIndex, bool ensureProcessVisible)
+        {
+            ActiveProgramIndex = activeIndex;
+
+            if (lastHighlightedProgramIndex != activeIndex)
+            {
+                SetProcessRowActive(lastHighlightedProgramIndex, false);
+                SetCadPointActive(lastHighlightedProgramIndex, false);
+                SetProcessRowActive(activeIndex, true);
+                SetCadPointActive(activeIndex, true);
+                lastHighlightedProgramIndex = activeIndex;
+            }
+
+            if (ensureProcessVisible)
+                EnsureProcessRowVisible(activeIndex);
+        }
+
+        public bool EnsureProcessRowVisible(int rowIndex)
+        {
+            if (rowIndex <= 0)
+                return false;
+
+            return EnsureProgramRowVisible(rowIndex);
+        }
+
+        private bool EnsureProgramRowVisible(int rowIndex)
+        {
+            if (rowIndex <= 0 || allProcessRows.Count == 0)
+                return false;
+
+            foreach (var row in ProgramRows)
+            {
+                if (row.Index == rowIndex)
+                    return false;
+            }
+
+            ReplaceProgramRowsWindow(rowIndex);
+            return true;
+        }
+
+        private void ReplaceProgramRowsWindow(int focusIndex)
+        {
+            int start = 0;
+            if (focusIndex > 0)
+                start = ((focusIndex - 1) / LazyTableBatchSize) * LazyTableBatchSize;
+
+            if (start >= allProcessRows.Count)
+                start = Math.Max(0, allProcessRows.Count - LazyTableBatchSize);
+
+            var visible = new List<ProcessRowViewModel>();
+            int limit = Math.Min(start + LazyTableBatchSize, allProcessRows.Count);
+            for (int i = start; i < limit; i++)
+                visible.Add(allProcessRows[i]);
+
+            ProgramRows.ReplaceWith(visible);
+        }
+
+        private static void ReplaceList<T>(List<T> target, IEnumerable<T> source)
+        {
+            target.Clear();
+            if (source == null)
+                return;
+
+            foreach (T item in source)
+            {
+                if (item != null)
+                    target.Add(item);
+            }
+        }
+
+        private static void ReplaceVisibleRows<T>(BulkObservableCollection<T> target, List<T> source, int count)
+        {
+            var visible = new List<T>();
+            int limit = Math.Min(count, source.Count);
+            for (int i = 0; i < limit; i++)
+                visible.Add(source[i]);
+
+            target.ReplaceWith(visible);
+        }
+
+        private static bool AppendNextRows<T>(BulkObservableCollection<T> target, List<T> source)
+        {
+            return AppendRowsToCount(target, source, target.Count + LazyTableBatchSize);
+        }
+
+        private static bool AppendRowsToCount<T>(BulkObservableCollection<T> target, List<T> source, int targetCount)
+        {
+            int start = target.Count;
+            int limit = Math.Min(targetCount, source.Count);
+            if (start >= limit)
+                return false;
+
+            var rows = new List<T>();
+            for (int i = start; i < limit; i++)
+                rows.Add(source[i]);
+
+            target.AddRange(rows);
+            return true;
+        }
+
+        private static int GetInitialVisibleCount(int totalCount, int focusIndex)
+        {
+            int count = Math.Min(totalCount, LazyTableBatchSize);
+            if (focusIndex > count)
+            {
+                int focusedBatch = ((focusIndex + LazyTableBatchSize - 1) / LazyTableBatchSize) * LazyTableBatchSize;
+                count = Math.Min(totalCount, focusedBatch);
+            }
+
+            return count;
+        }
+
+        private void SetProcessRowActive(int index, bool isActive)
+        {
+            if (index <= 0)
+                return;
+
+            ProcessRowViewModel row = GetIndexedRow(allProcessRows, index);
+            if (row != null)
+                row.IsActive = isActive;
+        }
+
+        private void SetCadPointActive(int index, bool isActive)
+        {
+            if (index <= 0)
+                return;
+
+            CadPointViewModel point = GetIndexedRow(allCadPoints, index);
+            if (point != null)
+                point.IsActive = isActive;
+        }
+
+        private static ProcessRowViewModel GetIndexedRow(List<ProcessRowViewModel> rows, int index)
+        {
+            int offset = index - 1;
+            if (offset >= 0 && offset < rows.Count && rows[offset].Index == index)
+                return rows[offset];
+
+            foreach (var row in rows)
+            {
+                if (row.Index == index)
+                    return row;
+            }
+
+            return null;
+        }
+
+        private static CadPointViewModel GetIndexedRow(List<CadPointViewModel> rows, int index)
+        {
+            int offset = index - 1;
+            if (offset >= 0 && offset < rows.Count && rows[offset].Index == index)
+                return rows[offset];
+
+            foreach (var row in rows)
+            {
+                if (row.Index == index)
+                    return row;
+            }
+
+            return null;
+        }
     }
 
     public class ObservableState : INotifyPropertyChanged

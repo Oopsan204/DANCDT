@@ -1,5 +1,7 @@
 using System;
+using System.Diagnostics;
 using System.Globalization;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace DACDT_2026
@@ -17,7 +19,7 @@ namespace DACDT_2026
 
             if (plcComm != null && plcComm.IsConnected)
             {
-                DisconnectPlc();
+                await DisconnectPlcAsync();
                 await NotifyAsync("info", "PLC", "Đã ngắt kết nối PLC.");
                 await PushControlStateAsync();
                 return;
@@ -25,10 +27,18 @@ namespace DACDT_2026
 
             try
             {
-                DisconnectPlc(false);
-                plcComm = new PLCCommunication(plcIpAddress, plcPort, logicalStation);
+                await DisconnectPlcAsync(false);
+                var connectedComm = await Task.Run(() =>
+                {
+                    var comm = new PLCCommunication(plcIpAddress, plcPort, logicalStation);
+                    if (comm.Connect())
+                        return comm;
 
-                if (!plcComm.Connect())
+                    comm.Dispose();
+                    return null;
+                });
+
+                if (connectedComm == null)
                 {
                     UpdateConnectionState(false, "PLC disconnected");
                     UpdateIntegrityFault("PLC connection returned an error.");
@@ -37,9 +47,10 @@ namespace DACDT_2026
                     return;
                 }
 
+                plcComm = connectedComm;
                 UpdateConnectionState(true, "PLC connected");
                 UpdateIntegrityState(true);
-                plcPollTimer.Start();
+                StartPlcPolling();
                 await PushControlStateAsync();
                 await NotifyAsync("success", "PLC", "PLC connected successfully.");
             }
@@ -54,12 +65,33 @@ namespace DACDT_2026
 
         private void DisconnectPlc(bool updateUi = true)
         {
-            plcPollTimer.Stop();
+            StopPlcPolling();
 
             if (plcComm != null)
             {
                 try { plcComm.Dispose(); } catch { }
                 plcComm = null;
+            }
+
+            foreach (var row in monitorRows)
+                row.Status = "Disconnected";
+
+            if (updateUi)
+            {
+                UpdateConnectionState(false, "PLC disconnected");
+                UpdateIntegrityState(false);
+            }
+        }
+
+        private async Task DisconnectPlcAsync(bool updateUi = true)
+        {
+            await StopPlcPollingAsync();
+
+            var comm = plcComm;
+            plcComm = null;
+            if (comm != null)
+            {
+                try { await Task.Run(() => comm.Dispose()); } catch { }
             }
 
             foreach (var row in monitorRows)
@@ -86,10 +118,9 @@ namespace DACDT_2026
 
             try
             {
-                EnsureConnected();
                 string register = GetSequentialDevice(JogBaseRegister, offset);
                 int v = active ? 1 : 0;
-                plcComm.WriteDeviceValue(register, v);
+                await WriteDeviceValueAsync(register, v);
                 UpdateIntegrityState(true);
                 AddLogEntry(register, v.ToString(CultureInfo.InvariantCulture), "Write", "OK", "Jog");
 
@@ -125,9 +156,8 @@ namespace DACDT_2026
         {
             try
             {
-                EnsureConnected();
                 int v = active ? 1 : 0;
-                plcComm.WriteDeviceValue("M502", v);
+                await WriteDeviceValueAsync("M502", v);
                 UpdateIntegrityState(true);
                 AddLogEntry("M502", v.ToString(CultureInfo.InvariantCulture), "Write", "OK", "GoHome");
             }
@@ -148,9 +178,8 @@ namespace DACDT_2026
         {
             try
             {
-                EnsureConnected();
                 int v = active ? 1 : 0;
-                plcComm.WriteDeviceValue("M400", v);
+                await WriteDeviceValueAsync("M400", v);
                 UpdateIntegrityState(true);
                 AddLogEntry("M400", v.ToString(CultureInfo.InvariantCulture), "Write", "OK", "ResetError");
             }
@@ -171,9 +200,8 @@ namespace DACDT_2026
         {
             try
             {
-                EnsureConnected();
                 int v = active ? 1 : 0;
-                plcComm.WriteDeviceValue("M2000", v);
+                await WriteDeviceValueAsync("M2000", v);
                 UpdateIntegrityState(true);
                 AddLogEntry("M2000", v.ToString(CultureInfo.InvariantCulture), "Write", "OK", "Start");
             }
@@ -194,9 +222,8 @@ namespace DACDT_2026
         {
             try
             {
-                EnsureConnected();
                 int v = active ? 1 : 0;
-                plcComm.WriteDeviceValue("M401", v);
+                await WriteDeviceValueAsync("M401", v);
                 UpdateIntegrityState(true);
                 AddLogEntry("M401", v.ToString(CultureInfo.InvariantCulture), "Write", "OK", "Continue");
             }
@@ -216,9 +243,8 @@ namespace DACDT_2026
         {
             try
             {
-                EnsureConnected();
                 int v = active ? 1 : 0;
-                plcComm.WriteDeviceValue("M402", v);
+                await WriteDeviceValueAsync("M402", v);
                 UpdateIntegrityState(true);
                 AddLogEntry("M402", v.ToString(CultureInfo.InvariantCulture), "Write", "OK", "Pause");
             }
@@ -238,11 +264,10 @@ namespace DACDT_2026
         {
             try
             {
-                EnsureConnected();
                 float fVal = (float)value;
                 byte[] bytes = BitConverter.GetBytes(fVal);
                 int intVal = BitConverter.ToInt32(bytes, 0);
-                plcComm.WriteDeviceValue("D406", intVal);
+                await WriteDeviceValueAsync("D406", intVal);
                 AddLogEntry("D406", value.ToString("F3", CultureInfo.InvariantCulture), "Write", "OK", "SetJogSpeed(mm/min)");
                 await NotifyAsync("success", "Settings", $"Updated Jog speed: {value:F3} mm/min (D406)");
             }
@@ -257,8 +282,7 @@ namespace DACDT_2026
         {
             try
             {
-                EnsureConnected();
-                plcComm.WriteDeviceValue(EmergencyStopRegister, 1);
+                await WriteDeviceValueAsync(EmergencyStopRegister, 1);
                 AddLogEntry(EmergencyStopRegister, "1", "Write", "OK", "EmergencyStop");
                 UpdateIntegrityFault("Emergency stop triggered");
                 await PushControlStateAsync();
@@ -274,101 +298,195 @@ namespace DACDT_2026
         }
 
         // ── Poll Timer ───────────────────────────────────────────────────────────
-        private async void PlcPollTimer_Tick(object sender, EventArgs e)
+        private void StartPlcPolling()
         {
-            if (isClosing || isPolling || plcComm == null || !plcComm.IsConnected) return;
+            if (isClosing)
+                return;
+
+            lock (plcPollSync)
+            {
+                if (plcPollCts != null && !plcPollCts.IsCancellationRequested)
+                    return;
+
+                plcPollCts = new CancellationTokenSource();
+                plcPollTask = Task.Run(() => PlcPollLoopAsync(plcPollCts.Token));
+            }
+        }
+
+        private void StopPlcPolling()
+        {
+            lock (plcPollSync)
+            {
+                if (plcPollCts == null)
+                    return;
+
+                plcPollCts.Cancel();
+                plcPollCts = null;
+                plcPollTask = null;
+            }
+        }
+
+        private async Task StopPlcPollingAsync()
+        {
+            CancellationTokenSource cts;
+            Task task;
+
+            lock (plcPollSync)
+            {
+                cts = plcPollCts;
+                task = plcPollTask;
+                if (cts == null)
+                    return;
+
+                cts.Cancel();
+                plcPollCts = null;
+                plcPollTask = null;
+            }
+
+            try
+            {
+                if (task != null)
+                    await task;
+            }
+            catch (OperationCanceledException)
+            {
+            }
+            catch
+            {
+            }
+            finally
+            {
+                cts.Dispose();
+            }
+        }
+
+        private async Task PlcPollLoopAsync(CancellationToken token)
+        {
+            while (!token.IsCancellationRequested && !isClosing)
+            {
+                var elapsed = Stopwatch.StartNew();
+                try
+                {
+                    await PollPlcOnceAsync(token);
+                }
+                catch (OperationCanceledException) when (token.IsCancellationRequested)
+                {
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    if (!isClosing)
+                        UpdateIntegrityFault(ex.Message);
+                }
+
+                int delayMs = Math.Max(10, PlcPollIntervalMs - (int)elapsed.ElapsedMilliseconds);
+                await Task.Delay(delayMs, token);
+            }
+        }
+
+        private async Task PollPlcOnceAsync(CancellationToken token)
+        {
+            if (isClosing || isPolling)
+                return;
+
+            var comm = plcComm;
+            if (comm == null || !comm.IsConnected)
+                return;
 
             isPolling = true;
             try
             {
-                var comm = plcComm;
-                if (comm == null || !comm.IsConnected) { isPolling = false; return; }
+                token.ThrowIfCancellationRequested();
 
-                await System.Threading.Tasks.Task.Run(() =>
+                for (int i = 0; i < 4; i++)
                 {
-                    if (isClosing) return;
+                    token.ThrowIfCancellationRequested();
 
-                    // Read 4 axes
-                    for (int i = 0; i < 4; i++)
-                    {
-                        try
-                        {
-                            if (isClosing) return;
-
-                            // Position & speed from D registers
-                            int dBase = i * 10;
-                            int[] posData = comm.ReadDeviceRange($"D{dBase}", 2);
-                            axCurrentPos[i] = (posData[1] << 16) | (posData[0] & 0xFFFF);
-
-                            int[] speedData = comm.ReadDeviceRange($"D{dBase + 4}", 2);
-                            axCurrentSpeed[i] = (speedData[1] << 16) | (speedData[0] & 0xFFFF);
-
-                            // M code hiện tại do PLC ladder ghi vào D104, D114, D124, D134
-                            // (axis 1 = D104, axis 2 = D114, ... — pattern +10 per axis giống position/speed)
-                            try
-                            {
-                                int[] mcodeData = comm.ReadDeviceRange($"D{dBase + 104}", 1);
-                                axMCode[i] = mcodeData[0];
-                            }
-                            catch { axMCode[i] = 0; }
-
-                            // Error, warning, axis status from buffer memory
-                            int[] mon = comm.ReadBuffer(0, MonitorBaseG[i], 38);
-                            axErrorCode[i]     = mon[OffErrorCode];
-                            axWarningCode[i]   = mon[OffWarningCode];
-                            axAxisStatus[i]    = mon[OffAxisStatus];
-                            axSignals[i]       = mon[16]; // Md.30: External signals (b0=RLS, b1=FLS, b6=DOG)
-                            axCurrentDataNo[i] = mon[35]; // Md.44
-                            axLastDataNo[i]    = mon[37]; // Md.46
-
-                            int[] ctl = comm.ReadBuffer(0, ControlBaseG[i], 20);
-                            axErrorReset[i] = ctl[OffErrorReset];
-                            axNewSpeed[i]   = (ctl[OffNewSpeed + 1] << 16) | (ctl[OffNewSpeed] & 0xFFFF);
-                        }
-                        catch { /* silently skip */ }
-                    }
-
-                    // Jog speed D406 (float)
                     try
                     {
-                        if (!isClosing)
-                        {
-                            int[] d406Raw = comm.ReadDeviceRange("D406", 2);
-                            byte[] bytes = BitConverter.GetBytes((d406Raw[1] << 16) | (d406Raw[0] & 0xFFFF));
-                            currentJogSpeedD406 = BitConverter.ToSingle(bytes, 0);
-                        }
-                    }
-                    catch { }
+                        int dBase = i * 10;
+                        int[] posData = comm.ReadDeviceRange($"D{dBase}", 2);
+                        axCurrentPos[i] = (posData[1] << 16) | (posData[0] & 0xFFFF);
 
-                    // Monitor rows
-                    foreach (var row in monitorRows)
-                    {
+                        int[] speedData = comm.ReadDeviceRange($"D{dBase + 4}", 2);
+                        axCurrentSpeed[i] = (speedData[1] << 16) | (speedData[0] & 0xFFFF);
+
                         try
                         {
-                            if (isClosing) return;
-                            row.Value  = comm.ReadDeviceValue(row.Register).ToString(CultureInfo.InvariantCulture);
-                            row.Status = "OK";
+                            int[] mcodeData = comm.ReadDeviceRange($"D{dBase + 104}", 1);
+                            axMCode[i] = mcodeData[0];
                         }
-                        catch (Exception ex) { row.Status = ex.Message; }
-                    }
-                });
+                        catch
+                        {
+                            axMCode[i] = 0;
+                        }
 
-                if (isClosing) return;
+                        int[] mon = comm.ReadBuffer(0, MonitorBaseG[i], 38);
+                        axErrorCode[i] = mon[OffErrorCode];
+                        axWarningCode[i] = mon[OffWarningCode];
+                        axAxisStatus[i] = mon[OffAxisStatus];
+                        axSignals[i] = mon[16];
+                        axCurrentDataNo[i] = mon[35];
+                        axLastDataNo[i] = mon[37];
+
+                        int[] ctl = comm.ReadBuffer(0, ControlBaseG[i], 20);
+                        axErrorReset[i] = ctl[OffErrorReset];
+                        axNewSpeed[i] = (ctl[OffNewSpeed + 1] << 16) | (ctl[OffNewSpeed] & 0xFFFF);
+                    }
+                    catch
+                    {
+                    }
+                }
+
+                try
+                {
+                    int[] d406Raw = comm.ReadDeviceRange("D406", 2);
+                    byte[] bytes = BitConverter.GetBytes((d406Raw[1] << 16) | (d406Raw[0] & 0xFFFF));
+                    currentJogSpeedD406 = BitConverter.ToSingle(bytes, 0);
+                }
+                catch
+                {
+                }
+
+                foreach (var row in monitorRows)
+                {
+                    token.ThrowIfCancellationRequested();
+
+                    try
+                    {
+                        row.Value = comm.ReadDeviceValue(row.Register).ToString(CultureInfo.InvariantCulture);
+                        row.Status = "OK";
+                    }
+                    catch (Exception ex)
+                    {
+                        row.Status = ex.Message;
+                    }
+                }
+
+                token.ThrowIfCancellationRequested();
                 UpdateIntegrityState(true);
                 await PushControlStateAsync();
-                if (currentView == "telemetry") await PushTelemetryStateAsync();
-            }
-            catch (Exception ex)
-            {
-                if (!isClosing) UpdateIntegrityFault(ex.Message);
+                if (currentView == "telemetry")
+                    await PushTelemetryStateAsync();
             }
             finally
             {
                 isPolling = false;
             }
         }
-
         // ── Shared helpers ───────────────────────────────────────────────────────
+        private Task WriteDeviceValueAsync(string deviceName, int value)
+        {
+            return Task.Run(() =>
+            {
+                var comm = plcComm;
+                if (comm == null || !comm.IsConnected)
+                    throw new InvalidOperationException("PLC is not connected.");
+
+                comm.WriteDeviceValue(deviceName, value);
+            });
+        }
+
         private void EnsureConnected()
         {
             if (plcComm == null || !plcComm.IsConnected)

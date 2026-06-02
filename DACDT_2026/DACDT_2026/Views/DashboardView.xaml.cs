@@ -48,14 +48,14 @@ namespace DACDT_2026.Views
             if (observedState != null)
             {
                 observedState.PropertyChanged -= ObservedState_PropertyChanged;
-                observedState.ProcessRows.CollectionChanged -= ProcessRows_CollectionChanged;
+                observedState.ProgramRows.CollectionChanged -= ProgramRows_CollectionChanged;
             }
 
             observedState = e.NewValue as WpfUiState;
             if (observedState != null)
             {
                 observedState.PropertyChanged += ObservedState_PropertyChanged;
-                observedState.ProcessRows.CollectionChanged += ProcessRows_CollectionChanged;
+                observedState.ProgramRows.CollectionChanged += ProgramRows_CollectionChanged;
             }
 
             ScrollActiveProgramRow();
@@ -67,7 +67,7 @@ namespace DACDT_2026.Views
                 ScrollActiveProgramRow();
         }
 
-        private void ProcessRows_CollectionChanged(object sender, NotifyCollectionChangedEventArgs e)
+        private void ProgramRows_CollectionChanged(object sender, NotifyCollectionChangedEventArgs e)
         {
             ScrollActiveProgramRow();
         }
@@ -77,8 +77,10 @@ namespace DACDT_2026.Views
             if (observedState == null || ProgramGrid == null || observedState.ActiveProgramIndex <= 0)
                 return;
 
+            observedState.EnsureProcessRowVisible(observedState.ActiveProgramIndex);
+
             ProcessRowViewModel activeRow = null;
-            foreach (var row in observedState.ProcessRows)
+            foreach (var row in observedState.ProgramRows)
             {
                 if (row.Index == observedState.ActiveProgramIndex)
                 {
@@ -91,6 +93,22 @@ namespace DACDT_2026.Views
                 return;
 
             Dispatcher.BeginInvoke(new Action(() => ProgramGrid.ScrollIntoView(activeRow)));
+        }
+
+        private void ProgramGrid_ScrollChanged(object sender, ScrollChangedEventArgs e)
+        {
+            if (observedState == null || !IsNearScrollEnd(e))
+                return;
+
+            observedState.LoadMoreProgramRows();
+        }
+
+        private static bool IsNearScrollEnd(ScrollChangedEventArgs e)
+        {
+            if (e.ExtentHeight <= 0.0 || e.ViewportHeight <= 0.0)
+                return false;
+
+            return e.VerticalOffset + e.ViewportHeight >= e.ExtentHeight - 8.0;
         }
     }
 }

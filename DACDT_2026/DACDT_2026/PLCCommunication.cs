@@ -2,6 +2,7 @@ using System;
 using System.Globalization;
 using System.Text.RegularExpressions;
 using System.Runtime.InteropServices;
+using System.Runtime.CompilerServices;
 
 namespace DACDT_2026
 {
@@ -42,6 +43,7 @@ namespace DACDT_2026
             }
         }
 
+        [MethodImpl(MethodImplOptions.Synchronized)]
         public bool Connect()
         {
             try
@@ -62,6 +64,7 @@ namespace DACDT_2026
             }
         }
 
+        [MethodImpl(MethodImplOptions.Synchronized)]
         public bool Disconnect()
         {
             try
@@ -81,6 +84,7 @@ namespace DACDT_2026
             }
         }
 
+        [MethodImpl(MethodImplOptions.Synchronized)]
         public object ReadDevice(string deviceName, int count = 1)
         {
             if (!isConnected) throw new InvalidOperationException("Chưa kết nối PLC");
@@ -94,6 +98,7 @@ namespace DACDT_2026
         /// Read buffer memory (Un\Gx) using MX Component ReadDeviceBlock2 if available.
         /// Returns an int[] of length 'count' with values read from the buffer.
         /// </summary>
+        [MethodImpl(MethodImplOptions.Synchronized)]
         public int[] ReadBuffer(int startIO, int address, int count)
         {
             if (!isConnected) throw new InvalidOperationException("Chưa kết nối PLC");
@@ -153,6 +158,7 @@ namespace DACDT_2026
         /// 2) Try Dev.ReadDeviceBlock2 (multi-word read) if available.
         /// 3) Fallback to Dev.GetDevice per sequential address.
         /// </summary>
+        [MethodImpl(MethodImplOptions.Synchronized)]
         public int[] ReadDeviceRange(string deviceName, int count)
         {
             if (!isConnected) throw new InvalidOperationException("Chưa kết nối PLC");
@@ -245,6 +251,7 @@ namespace DACDT_2026
             }
         }
 
+        [MethodImpl(MethodImplOptions.Synchronized)]
         public int ReadDeviceValue(string deviceName)
         {
             if (!isConnected) throw new InvalidOperationException("Chưa kết nối PLC");
@@ -282,6 +289,7 @@ namespace DACDT_2026
             throw new Exception($"Lỗi GetDevice {deviceName}: {GetErrorMessage(result)}");
         }
 
+        [MethodImpl(MethodImplOptions.Synchronized)]
         public void WriteDeviceValue(string deviceName, int value)
         {
             if (!isConnected) throw new InvalidOperationException("Chưa kết nối PLC");
@@ -298,6 +306,7 @@ namespace DACDT_2026
         /// Dùng WriteDeviceBlock2 để ghi toàn bộ mảng trong 1 COM call duy nhất.
         /// Fallback về SetDevice2 từng word nếu WriteDeviceBlock2 không hỗ trợ.
         /// </summary>
+        [MethodImpl(MethodImplOptions.Synchronized)]
         public int WriteBuffer(int startIO, int address, short[] data)
         {
             if (!isConnected) throw new InvalidOperationException("Chưa kết nối PLC");
@@ -332,6 +341,7 @@ namespace DACDT_2026
         /// Sửa đổi 2 bit thấp nhất (Da.1) trong thanh ghi Positioning Identifier (16-bit)
         /// mà không làm hỏng Da.2 đến Da.5. (Ví dụ: U0\G2000)
         /// </summary>
+        [MethodImpl(MethodImplOptions.Synchronized)]
         public int WriteOperationPatternToDevicePath(string devicePath, short da1Value, out string usedMethod)
         {
             usedMethod = "";
@@ -377,6 +387,7 @@ namespace DACDT_2026
         /// Update Positioning Identifier (lower 5 bits) without touching other bits in the same word.
         /// This is used for values like 0x000A, 0x000B, 0x000C, 0x000F...
         /// </summary>
+        [MethodImpl(MethodImplOptions.Synchronized)]
         public int WritePositioningIdentifierToDevicePath(string devicePath, short identifierValue, out string usedMethod)
         {
             usedMethod = "";
@@ -419,6 +430,7 @@ namespace DACDT_2026
         /// Ví dụ: G2006 (L) và G2007 (H).
         /// </summary>
         /// 
+        [MethodImpl(MethodImplOptions.Synchronized)]
         public int WriteInt32ToBuffer(int startIO, int address, int value)
         {
             short[] sData = new short[2];
@@ -432,6 +444,7 @@ namespace DACDT_2026
         /// <summary>
         /// Write a single 16-bit word to device path (especially U\G buffer address).
         /// </summary>
+        [MethodImpl(MethodImplOptions.Synchronized)]
         public int WriteInt16ToDevicePath(string devicePath, short value, out string usedMethod)
         {
             usedMethod = "";
@@ -463,6 +476,7 @@ namespace DACDT_2026
             }
         }
 
+        [MethodImpl(MethodImplOptions.Synchronized)]
         public int WriteInt32ToDevicePath(string devicePath, int value, out string usedMethod)
         {
             usedMethod = "";
@@ -571,6 +585,7 @@ namespace DACDT_2026
             return $"Mã lỗi: {errorCode}";
         }
 
+        [MethodImpl(MethodImplOptions.Synchronized)]
         public void Dispose()
         {
             try { if (isConnected) Disconnect(); } catch { }

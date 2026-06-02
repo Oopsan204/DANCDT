@@ -131,29 +131,11 @@
                                         </ItemsControl.ItemTemplate>
                                     </ItemsControl>
 
-                                    <ItemsControl ItemsSource="{Binding CadPrimitives}" IsHitTestVisible="False">
-                                        <ItemsControl.ItemsPanel>
-                                            <ItemsPanelTemplate>
-                                                <Canvas/>
-                                            </ItemsPanelTemplate>
-                                        </ItemsControl.ItemsPanel>
-                                        <ItemsControl.ItemTemplate>
-                                            <DataTemplate>
-                                                <Polyline Points="{Binding Points}"
-                                                          Stroke="{Binding Stroke}"
-                                                          StrokeLineJoin="Round"
-                                                          StrokeStartLineCap="Round"
-                                                          StrokeEndLineCap="Round">
-                                                    <Polyline.StrokeThickness>
-                                                        <MultiBinding Converter="{StaticResource InverseZoomStrokeThicknessConverter}">
-                                                            <Binding Path="StrokeThickness"/>
-                                                            <Binding RelativeSource="{RelativeSource AncestorType={x:Type UserControl}}" Path="CadDisplayZoom"/>
-                                                        </MultiBinding>
-                                                    </Polyline.StrokeThickness>
-                                                </Polyline>
-                                            </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
-                                    </ItemsControl>
+                                    <Image Source="{Binding CadPreviewImage}"
+                                           Width="1000"
+                                           Height="620"
+                                           Stretch="Fill"
+                                           IsHitTestVisible="False"/>
 
                                     <ItemsControl ItemsSource="{Binding CadAxisLabels}" IsHitTestVisible="False">
                                         <ItemsControl.ItemsPanel>
@@ -271,9 +253,16 @@
                         </StackPanel>
                     </Grid>
 
-                    <DataGrid Grid.Row="1"
+                    <DataGrid x:Name="ProcessTableGrid"
+                              Grid.Row="1"
                               ItemsSource="{Binding ProcessRows}"
                               AutoGenerateColumns="False"
+                              IsReadOnly="True"
+                              EnableRowVirtualization="True"
+                              EnableColumnVirtualization="True"
+                              ScrollViewer.CanContentScroll="True"
+                              ScrollViewer.ScrollChanged="LazyTable_ScrollChanged"
+                              HorizontalScrollBarVisibility="Auto"
                               Margin="0,8,0,0">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="No." Binding="{Binding Index}" Width="60"/>
@@ -295,13 +284,15 @@
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
                     <TextBlock Text="Geometry Data" Style="{StaticResource PanelTitleStyle}"/>
-                    <DataGrid Grid.Row="1"
+                    <DataGrid x:Name="GeometryDataGrid"
+                              Grid.Row="1"
                               ItemsSource="{Binding GeometryRows}"
                               AutoGenerateColumns="False"
                               IsReadOnly="True"
                               EnableRowVirtualization="True"
                               EnableColumnVirtualization="True"
                               ScrollViewer.CanContentScroll="True"
+                              ScrollViewer.ScrollChanged="LazyTable_ScrollChanged"
                               HorizontalScrollBarVisibility="Auto"
                               Margin="0,8,0,0">
                         <DataGrid.Columns>

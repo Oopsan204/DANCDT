@@ -7,7 +7,6 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
-using System.Windows.Threading;
 
 namespace DACDT_2026
 {
@@ -32,10 +31,11 @@ namespace DACDT_2026
 
         private const string JogBaseRegister = "M3000";
         private const string EmergencyStopRegister = "M3100";
+        private const int PlcPollIntervalMs = 100;
 
         private readonly WpfUiState ui = new WpfUiState();
-        private readonly DispatcherTimer plcPollTimer = new DispatcherTimer();
         private readonly SemaphoreSlim cadLoadGate = new SemaphoreSlim(1, 1);
+        private readonly object plcPollSync = new object();
 
         private readonly CadDocumentService cadService = new CadDocumentService();
         private readonly GcodeCoordinateService gcodeCoordinateService = new GcodeCoordinateService();
@@ -90,6 +90,8 @@ namespace DACDT_2026
         private volatile bool webReady;
         private volatile bool isClosing;
         private volatile bool isPolling;
+        private CancellationTokenSource plcPollCts;
+        private Task plcPollTask;
         private string currentView = "control";
         private string currentTheme = "dark";
         private string plcIpAddress = "192.168.3.39";
@@ -109,9 +111,6 @@ namespace DACDT_2026
             InitializeProcessRows();
             UpdateConnectionState(false, "PLC disconnected");
             UpdateIntegrityState(false);
-
-            plcPollTimer.Interval = TimeSpan.FromMilliseconds(50);
-            plcPollTimer.Tick += PlcPollTimer_Tick;
 
             LoadSettingsFromFile();
             ConfigureCommands();
@@ -134,15 +133,12 @@ namespace DACDT_2026
         {
             ui.SwitchViewCommand = new RelayCommand(async p =>
             {
-                currentView = Convert.ToString(p, CultureInfo.InvariantCulture) ?? "control";
-                ui.CurrentView = currentView;
-                await PushAllStateAsync();
+                await HandleSwitchViewAsync(p);
             });
             ui.ToggleThemeCommand = new RelayCommand(async () =>
             {
                 currentTheme = currentTheme == "dark" ? "light" : "dark";
-                ui.CurrentTheme = currentTheme;
-                await PushAllStateAsync();
+                await PushNavigationStateAsync();
             });
             ui.ConnectToggleCommand = new RelayCommand(() => HandleConnectToggleAsync(Payload("station", ui.LogicalStationInput)));
             ui.EmergencyStopCommand = new RelayCommand(HandleEmergencyStopAsync);
@@ -220,6 +216,35 @@ namespace DACDT_2026
             ui.SaveProfileCommand = new RelayCommand(SaveProfileAsync);
             ui.LoadProfileCommand = new RelayCommand(LoadProfileAsync);
             ui.DeleteProfileCommand = new RelayCommand(DeleteProfileAsync);
+        }
+
+        private async Task HandleSwitchViewAsync(object viewPayload)
+        {
+            currentView = Convert.ToString(viewPayload, CultureInfo.InvariantCulture) ?? "control";
+            await PushNavigationStateAsync();
+            _ = RefreshViewDataAfterNavigationAsync(currentView);
+        }
+
+        private async Task RefreshViewDataAfterNavigationAsync(string viewName)
+        {
+            try
+            {
+                if (string.Equals(viewName, "telemetry", StringComparison.OrdinalIgnoreCase))
+                {
+                    await PushTelemetryStateAsync();
+                }
+                else if (string.Equals(viewName, "logs", StringComparison.OrdinalIgnoreCase))
+                {
+                    await PushLogsStateAsync();
+                }
+                else if (string.Equals(viewName, "control", StringComparison.OrdinalIgnoreCase))
+                {
+                    await PushControlStateAsync();
+                }
+            }
+            catch
+            {
+            }
         }
 
         private async Task ApplyDxfSettingsAsync()
@@ -501,8 +526,7 @@ namespace DACDT_2026
 
             isClosing = true;
             webReady = false;
-            plcPollTimer.Stop();
-            plcPollTimer.Tick -= PlcPollTimer_Tick;
+            StopPlcPolling();
 
             if (plcComm != null)
             {

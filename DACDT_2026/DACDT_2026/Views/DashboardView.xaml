@@ -178,12 +178,13 @@
 
                 <DataGrid x:Name="ProgramGrid"
                           Grid.Row="2"
-                          ItemsSource="{Binding ProcessRows}"
+                          ItemsSource="{Binding ProgramRows}"
                           AutoGenerateColumns="False"
                           IsReadOnly="True"
                           EnableRowVirtualization="True"
                           EnableColumnVirtualization="True"
                           ScrollViewer.CanContentScroll="True"
+                          ScrollViewer.ScrollChanged="ProgramGrid_ScrollChanged"
                           HorizontalScrollBarVisibility="Auto"
                           Margin="0,8,0,0"
                           Background="{StaticResource PanelAltBrush}">

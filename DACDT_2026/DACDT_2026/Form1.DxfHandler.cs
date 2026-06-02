@@ -23,7 +23,7 @@ namespace DACDT_2026
 
         private string ShowOpenFileDialog()
         {
-            plcPollTimer.Stop();
+            StopPlcPolling();
             isPreviewingGcode = true;
 
             string result = null;
@@ -49,7 +49,7 @@ namespace DACDT_2026
             {
                 isPreviewingGcode = false;
                 if (plcComm != null && plcComm.IsConnected && !isClosing)
-                    plcPollTimer.Start();
+                    StartPlcPolling();
             }
             return result;
         }
@@ -311,7 +311,7 @@ namespace DACDT_2026
 
         private string ShowSaveGcodeDialog()
         {
-            plcPollTimer.Stop();
+            StopPlcPolling();
             isPreviewingGcode = true;
 
             string result = null;
@@ -331,7 +331,7 @@ namespace DACDT_2026
             {
                 isPreviewingGcode = false;
                 if (plcComm != null && plcComm.IsConnected && !isClosing)
-                    plcPollTimer.Start();
+                    StartPlcPolling();
             }
             return result;
         }
@@ -685,7 +685,7 @@ namespace DACDT_2026
             }
 
             // ── Tạm dừng poll timer để tránh ContextSwitchDeadlock ──────────────────
-            plcPollTimer.Stop();
+            await StopPlcPollingAsync();
 
             try
             {
@@ -798,7 +798,7 @@ namespace DACDT_2026
             {
                 _ = SendProgressAsync(false, 0);
                 if (plcComm != null && plcComm.IsConnected && !isClosing)
-                    plcPollTimer.Start();
+                    StartPlcPolling();
             }
         }
 
@@ -812,7 +812,7 @@ namespace DACDT_2026
             }
 
             // Tạm dừng poll timer
-            plcPollTimer.Stop();
+            await StopPlcPollingAsync();
 
             try
             {
@@ -847,7 +847,7 @@ namespace DACDT_2026
             {
                 _ = SendProgressAsync(false, 0);
                 if (plcComm != null && plcComm.IsConnected && !isClosing)
-                    plcPollTimer.Start();
+                    StartPlcPolling();
             }
         }
 
@@ -1526,7 +1526,8 @@ namespace DACDT_2026
 
         private async Task HandleWriteBufferRequestAsync(string path, int value)
         {
-            var wr = QD75BufferWriter.WriteBufferValue(plcComm, path, value);
+            var comm = plcComm;
+            var wr = await Task.Run(() => QD75BufferWriter.WriteBufferValue(comm, path, value));
             AddLogEntry(wr.Address, wr.Value, "Write", wr.Status, wr.Message);
             if (wr.Status.StartsWith("OK"))
                 await NotifyAsync("success", "Telemetry", $"Successfully wrote to {path} using {wr.Message}.");

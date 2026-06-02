@@ -12,6 +12,18 @@ namespace DACDT_2026
         private Task PushAllStateAsync()
             => Task.WhenAll(PushControlStateAsync(), PushDxfStateAsync(), PushTelemetryStateAsync(), PushLogsStateAsync());
 
+        private Task PushNavigationStateAsync()
+        {
+            var snapCurrentView = currentView;
+            var snapCurrentTheme = currentTheme;
+
+            return RunOnUiAsync(() =>
+            {
+                ui.CurrentView = snapCurrentView;
+                ui.CurrentTheme = snapCurrentTheme;
+            });
+        }
+
         private static string FormatPositionMm(int rawValue) => QD75BufferWriter.FormatPositionMm(rawValue);
         private static string FormatSpeedMm(int rawValue) => QD75BufferWriter.FormatSpeedMm(rawValue);
         private static string FormatAxisStatus(int status) => QD75BufferWriter.FormatAxisStatus(status);
@@ -159,7 +171,7 @@ namespace DACDT_2026
                 }).ToList();
 
                 var projection = CreateCadProjection(snapDoc, snapWorkspaceWidth, snapWorkspaceHeight);
-                var primitiveLines = BuildCadPrimitiveLines(snapDoc, projection);
+                var cadPreviewImage = BuildCadPreviewImage(snapDoc, projection);
                 var limitAreas = BuildCadLimitAreas(snapWorkspaceWidth, snapWorkspaceHeight, projection);
                 var axisLines = BuildCadAxisLines(snapDoc, projection);
                 var axisLabels = BuildCadAxisLabels(snapDoc, projection);
@@ -170,7 +182,7 @@ namespace DACDT_2026
                     snapConnected,
                     snapRobotRawX,
                     snapRobotRawY);
-                return new { doc = snapDoc, points, geometryRows, rows, primitiveLines, limitAreas, axisLines, axisLabels, trackingPoints };
+                return new { doc = snapDoc, points, geometryRows, rows, cadPreviewImage, limitAreas, axisLines, axisLabels, trackingPoints };
             });
 
             await RunOnUiAsync(() =>
@@ -199,10 +211,11 @@ namespace DACDT_2026
                 ui.WcsOffsetYInput = snapWcsOffsetY[wIdx];
                 ui.SelectedPointKey = snapPointKey;
 
-                ReplaceCollection(ui.CadPoints, model.points);
-                ReplaceCollection(ui.GeometryRows, model.geometryRows);
-                ReplaceCollection(ui.ProcessRows, model.rows);
-                ReplaceCollection(ui.CadPrimitives, model.primitiveLines);
+                ui.SetCadPointRows(model.points, snapActiveProgramIndex);
+                ui.SetGeometryRows(model.geometryRows);
+                ui.SetProcessRows(model.rows, snapActiveProgramIndex);
+                ui.CadPreviewImage = model.cadPreviewImage;
+                ReplaceCollection(ui.CadPrimitives, Enumerable.Empty<CadPrimitiveViewModel>());
                 ReplaceCollection(ui.CadLimitAreas, model.limitAreas);
                 ReplaceCollection(ui.CadAxisLines, model.axisLines);
                 ReplaceCollection(ui.CadAxisLabels, model.axisLabels);
@@ -216,14 +229,7 @@ namespace DACDT_2026
             if (state == null)
                 return;
 
-            state.ActiveProgramIndex = activeIndex;
-            bool hasActiveIndex = activeIndex > 0;
-
-            foreach (var row in state.ProcessRows)
-                row.IsActive = hasActiveIndex && row.Index == activeIndex;
-
-            foreach (var point in state.CadPoints)
-                point.IsActive = hasActiveIndex && point.Index == activeIndex;
+            state.ApplyActiveProgramIndex(activeIndex, ensureProcessVisible: true);
         }
 
         private static CadDocumentService.CadLoadResult CloneCadDocumentForUi(CadDocumentService.CadLoadResult doc)
@@ -630,6 +636,52 @@ namespace DACDT_2026
         private static string FormatGeometryNumber(double value)
             => value.ToString("0.000", CultureInfo.InvariantCulture);
 
+        private static ImageSource BuildCadPreviewImage(CadDocumentService.CadLoadResult doc, CadProjection projection)
+        {
+            if (doc?.Primitives == null || doc.Primitives.Count == 0 || projection == null)
+                return null;
+
+            var geometry = new StreamGeometry { FillRule = FillRule.EvenOdd };
+            using (var context = geometry.Open())
+            {
+                foreach (var primitive in doc.Primitives)
+                {
+                    if (primitive?.Points == null || primitive.Points.Count < 2)
+                        continue;
+
+                    var start = projection.Project(primitive.Points[0].X, primitive.Points[0].Y);
+                    var points = new List<System.Windows.Point>(primitive.Points.Count - 1);
+                    for (int i = 1; i < primitive.Points.Count; i++)
+                    {
+                        var pt = primitive.Points[i];
+                        points.Add(projection.Project(pt.X, pt.Y));
+                    }
+
+                    context.BeginFigure(start, isFilled: false, isClosed: false);
+                    context.PolyLineTo(points, isStroked: true, isSmoothJoin: true);
+                }
+            }
+            geometry.Freeze();
+
+            var group = new DrawingGroup();
+            using (var context = group.Open())
+            {
+                context.DrawRectangle(
+                    Brushes.Transparent,
+                    null,
+                    new System.Windows.Rect(0.0, 0.0, CadProjection.CanvasWidth, CadProjection.CanvasHeight));
+
+                var pen = new Pen(Brushes.DeepSkyBlue, 0.65);
+                pen.Freeze();
+                context.DrawGeometry(null, pen, geometry);
+            }
+            group.Freeze();
+
+            var image = new DrawingImage(group);
+            image.Freeze();
+            return image;
+        }
+
         private static List<CadPrimitiveViewModel> BuildCadPrimitiveLines(CadDocumentService.CadLoadResult doc, CadProjection projection)
         {
             var lines = new List<CadPrimitiveViewModel>();
@@ -950,56 +1002,65 @@ namespace DACDT_2026
             return string.Format(CultureInfo.InvariantCulture, "{0:0.###};{1:0.###}", x + ox, y + oy);
         }
 
-        private Task PushTelemetryStateAsync()
+        private async Task PushTelemetryStateAsync()
         {
-            bool connected = plcComm != null && plcComm.IsConnected;
-            var dValues = new List<TelemetryRegisterViewModel>();
-            var buffers = new List<TelemetryBufferViewModel>();
+            var comm = plcComm;
+            bool connected = comm != null && comm.IsConnected;
+            var regs = telemetryRegisters.ToArray();
+            var bufs = telemetryBuffers.Select(buf => new TelemetryBuffer { Path = buf.Path, Length = buf.Length }).ToArray();
 
-            foreach (var reg in telemetryRegisters)
+            var model = await Task.Run(() =>
             {
-                if (connected)
-                {
-                    try
-                    {
-                        int v = plcComm.ReadDeviceValue(reg);
-                        dValues.Add(new TelemetryRegisterViewModel { Register = reg, Value = v.ToString(CultureInfo.InvariantCulture), Status = "OK" });
-                    }
-                    catch (Exception ex)
-                    {
-                        dValues.Add(new TelemetryRegisterViewModel { Register = reg, Value = "--", Status = ex.Message });
-                    }
-                }
-                else
-                {
-                    dValues.Add(new TelemetryRegisterViewModel { Register = reg, Value = "--", Status = "Disconnected" });
-                }
-            }
+                var dValues = new List<TelemetryRegisterViewModel>();
+                var buffers = new List<TelemetryBufferViewModel>();
 
-            foreach (var buf in telemetryBuffers)
-            {
-                if (connected)
+                foreach (var reg in regs)
                 {
-                    try
+                    if (connected)
                     {
-                        int[] arr = plcComm.ReadDeviceRange(buf.Path, buf.Length);
-                        buffers.Add(new TelemetryBufferViewModel { Path = buf.Path, Values = string.Join(", ", arr), Status = "OK" });
+                        try
+                        {
+                            int v = comm.ReadDeviceValue(reg);
+                            dValues.Add(new TelemetryRegisterViewModel { Register = reg, Value = v.ToString(CultureInfo.InvariantCulture), Status = "OK" });
+                        }
+                        catch (Exception ex)
+                        {
+                            dValues.Add(new TelemetryRegisterViewModel { Register = reg, Value = "--", Status = ex.Message });
+                        }
                     }
-                    catch (Exception ex)
+                    else
                     {
-                        buffers.Add(new TelemetryBufferViewModel { Path = buf.Path, Values = "", Status = ex.Message });
+                        dValues.Add(new TelemetryRegisterViewModel { Register = reg, Value = "--", Status = "Disconnected" });
                     }
                 }
-                else
-                {
-                    buffers.Add(new TelemetryBufferViewModel { Path = buf.Path, Values = "", Status = "Disconnected" });
-                }
-            }
 
-            return RunOnUiAsync(() =>
+                foreach (var buf in bufs)
+                {
+                    if (connected)
+                    {
+                        try
+                        {
+                            int[] arr = comm.ReadDeviceRange(buf.Path, buf.Length);
+                            buffers.Add(new TelemetryBufferViewModel { Path = buf.Path, Values = string.Join(", ", arr), Status = "OK" });
+                        }
+                        catch (Exception ex)
+                        {
+                            buffers.Add(new TelemetryBufferViewModel { Path = buf.Path, Values = "", Status = ex.Message });
+                        }
+                    }
+                    else
+                    {
+                        buffers.Add(new TelemetryBufferViewModel { Path = buf.Path, Values = "", Status = "Disconnected" });
+                    }
+                }
+
+                return new { dValues, buffers };
+            });
+
+            await RunOnUiAsync(() =>
             {
-                ReplaceCollection(ui.TelemetryRegisters, dValues);
-                ReplaceCollection(ui.TelemetryBuffers, buffers);
+                ReplaceCollection(ui.TelemetryRegisters, model.dValues);
+                ReplaceCollection(ui.TelemetryBuffers, model.buffers);
             });
         }
 
