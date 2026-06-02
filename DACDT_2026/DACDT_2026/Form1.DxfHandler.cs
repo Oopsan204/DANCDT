@@ -183,7 +183,10 @@ namespace DACDT_2026
         private bool isPreviewingGcode = false;
         private async Task HandlePreviewGcodeAsync(string text)
         {
-            if (activeDocumentKind != "GCODE") return;
+            bool wasGcodeDocument = string.Equals(activeDocumentKind, "GCODE", StringComparison.OrdinalIgnoreCase);
+            if (!wasGcodeDocument)
+                activeDocumentKind = "GCODE";
+
             if (isPreviewingGcode) return; // Tránh concurrent preview gây crash
             if (!await cadLoadGate.WaitAsync(0))
             {
@@ -197,7 +200,7 @@ namespace DACDT_2026
             try
             {
                 rawGcodeText = text;
-                string path = activeCadDocument?.FilePath;
+                string path = wasGcodeDocument ? activeCadDocument?.FilePath : null;
                 if (string.IsNullOrEmpty(path)) path = null;
 
                 CadDocumentService.CadLoadResult previewDoc = null;
@@ -228,9 +231,9 @@ namespace DACDT_2026
                 await SendProgressAsync(true, 85);
                 await PushDxfStateAsync();
             }
-            catch
+            catch (Exception ex)
             {
-                // Ignore preview errors if typing incomplete
+                await NotifyAsync("error", "G-code Preview", ex.Message);
             }
             finally
             {

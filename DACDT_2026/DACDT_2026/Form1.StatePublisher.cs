@@ -98,7 +98,15 @@ namespace DACDT_2026
 
             var model = await Task.Run(() =>
             {
-                var snapDoc = CloneCadDocumentForUi(snapDocSource);
+                bool isGcodeKind = string.Equals(snapKind, "GCODE", StringComparison.OrdinalIgnoreCase);
+                var rawDoc = CloneCadDocumentForUi(snapDocSource);
+                var snapDoc = CreateDisplayCadDocument(
+                    rawDoc,
+                    isGcodeKind,
+                    snapOx,
+                    snapOy,
+                    snapWcsOffsetX,
+                    snapWcsOffsetY);
                 var snapRows = snapRowsSource.Select(CloneProcessRowForUi).Where(row => row != null).ToList();
 
                 var points = snapDoc == null
@@ -115,7 +123,6 @@ namespace DACDT_2026
 
                 var geometryRows = BuildGeometryRows(snapDoc);
 
-                bool isGcodeKind = string.Equals(snapKind, "GCODE", StringComparison.OrdinalIgnoreCase);
                 var rows = snapRows.Select((row, rowIndex) =>
                 {
                     double rowOx;
@@ -224,6 +231,207 @@ namespace DACDT_2026
                 Points = doc.Points == null
                     ? new List<CadDocumentService.CadPointData>()
                     : doc.Points.Select(CloneCadPointForUi).ToList()
+            };
+        }
+
+        private static CadDocumentService.CadLoadResult CreateDisplayCadDocument(
+            CadDocumentService.CadLoadResult rawDoc,
+            bool isGcodeKind,
+            double dxfOffsetX,
+            double dxfOffsetY,
+            double[] displayWcsOffsetX,
+            double[] displayWcsOffsetY)
+        {
+            if (rawDoc == null) return null;
+
+            var displayDoc = CloneCadDocumentForUi(rawDoc);
+            if (displayDoc == null) return null;
+
+            bool anyOffset = isGcodeKind
+                ? HasAnyOffset(displayWcsOffsetX) || HasAnyOffset(displayWcsOffsetY)
+                : Math.Abs(dxfOffsetX) > 1e-9 || Math.Abs(dxfOffsetY) > 1e-9;
+
+            if (!anyOffset)
+                return displayDoc;
+
+            if (displayDoc.Primitives != null)
+            {
+                foreach (var primitive in displayDoc.Primitives)
+                {
+                    GetDisplayOffsetForPrimitive(
+                        primitive,
+                        isGcodeKind,
+                        dxfOffsetX,
+                        dxfOffsetY,
+                        displayWcsOffsetX,
+                        displayWcsOffsetY,
+                        out double ox,
+                        out double oy);
+
+                    OffsetCoordinateList(primitive.Points, ox, oy);
+                    OffsetCoordinate(primitive.Center, ox, oy);
+                }
+            }
+
+            displayDoc.Points = RebuildPointRowsForDisplay(displayDoc.Primitives);
+            displayDoc.Bounds = BuildDisplayBounds(displayDoc.Primitives, displayDoc.Points);
+            return displayDoc;
+        }
+
+        private static bool HasAnyOffset(double[] values)
+            => values != null && values.Any(value => Math.Abs(value) > 1e-9);
+
+        private static void GetDisplayOffsetForPrimitive(
+            CadDocumentService.CadPrimitiveData primitive,
+            bool isGcodeKind,
+            double dxfOffsetX,
+            double dxfOffsetY,
+            double[] displayWcsOffsetX,
+            double[] displayWcsOffsetY,
+            out double ox,
+            out double oy)
+        {
+            if (isGcodeKind)
+            {
+                int wIdx = Math.Max(0, Math.Min(5, primitive?.WcsIndex ?? 0));
+                ox = displayWcsOffsetX != null && displayWcsOffsetX.Length > wIdx ? displayWcsOffsetX[wIdx] : 0.0;
+                oy = displayWcsOffsetY != null && displayWcsOffsetY.Length > wIdx ? displayWcsOffsetY[wIdx] : 0.0;
+            }
+            else
+            {
+                ox = dxfOffsetX;
+                oy = dxfOffsetY;
+            }
+        }
+
+        private static void OffsetCoordinateList(List<CadDocumentService.CadCoordinate> points, double ox, double oy)
+        {
+            if (points == null || (Math.Abs(ox) < 1e-9 && Math.Abs(oy) < 1e-9))
+                return;
+
+            foreach (var point in points)
+                OffsetCoordinate(point, ox, oy);
+        }
+
+        private static void OffsetCoordinate(CadDocumentService.CadCoordinate point, double ox, double oy)
+        {
+            if (point == null) return;
+            point.X += ox;
+            point.Y += oy;
+        }
+
+        private static List<CadDocumentService.CadPointData> RebuildPointRowsForDisplay(
+            List<CadDocumentService.CadPrimitiveData> primitives)
+        {
+            var rows = new List<CadDocumentService.CadPointData>();
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            if (primitives == null)
+                return rows;
+
+            foreach (var primitive in primitives)
+            {
+                if (primitive?.Points == null || primitive.Points.Count == 0)
+                    continue;
+
+                string sourceType = primitive.SourceType ?? "Point";
+                string lower = sourceType.ToLowerInvariant();
+                bool sampledCurve = lower.Contains("arc") || lower.Contains("circle");
+
+                if (sampledCurve)
+                {
+                    AddDisplayPointRow(rows, seen, primitive.Points[0], sourceType);
+                    AddDisplayPointRow(rows, seen, primitive.Points[primitive.Points.Count - 1], sourceType);
+                    AddDisplayPointRow(rows, seen, primitive.Center, sourceType + " center");
+                    continue;
+                }
+
+                foreach (var point in primitive.Points)
+                    AddDisplayPointRow(rows, seen, point, sourceType);
+            }
+
+            return rows;
+        }
+
+        private static void AddDisplayPointRow(
+            List<CadDocumentService.CadPointData> rows,
+            HashSet<string> seen,
+            CadDocumentService.CadCoordinate point,
+            string lineType)
+        {
+            if (point == null)
+                return;
+
+            string key = MakeGeometryPointKey(point.X, point.Y, point.Z);
+            if (!seen.Add(key))
+                return;
+
+            rows.Add(new CadDocumentService.CadPointData
+            {
+                Index = rows.Count + 1,
+                LineType = lineType,
+                X = point.X,
+                Y = point.Y,
+                Z = point.Z,
+                XDisplay = FormatGeometryNumber(point.X),
+                YDisplay = FormatGeometryNumber(point.Y),
+                ZDisplay = FormatGeometryNumber(point.Z),
+                Key = key
+            });
+        }
+
+        private static CadDocumentService.CadBounds BuildDisplayBounds(
+            List<CadDocumentService.CadPrimitiveData> primitives,
+            List<CadDocumentService.CadPointData> points)
+        {
+            double minX = double.MaxValue;
+            double minY = double.MaxValue;
+            double maxX = double.MinValue;
+            double maxY = double.MinValue;
+            double minZ = double.MaxValue;
+            double maxZ = double.MinValue;
+
+            void IncludePoint(double x, double y, double z)
+            {
+                minX = Math.Min(minX, x);
+                minY = Math.Min(minY, y);
+                maxX = Math.Max(maxX, x);
+                maxY = Math.Max(maxY, y);
+                minZ = Math.Min(minZ, z);
+                maxZ = Math.Max(maxZ, z);
+            }
+
+            if (primitives != null)
+            {
+                foreach (var primitive in primitives)
+                {
+                    if (primitive?.Points == null) continue;
+                    foreach (var point in primitive.Points)
+                        IncludePoint(point.X, point.Y, point.Z);
+                    if (primitive.Center != null)
+                        IncludePoint(primitive.Center.X, primitive.Center.Y, primitive.Center.Z);
+                }
+            }
+
+            if (minX == double.MaxValue && points != null)
+            {
+                foreach (var point in points)
+                    IncludePoint(point.X, point.Y, point.Z);
+            }
+
+            if (minX == double.MaxValue)
+                return new CadDocumentService.CadBounds { Left = 0, Top = 0, Right = 100, Bottom = 100, Width = 100, Height = 100, MinZ = 0, MaxZ = 0 };
+
+            return new CadDocumentService.CadBounds
+            {
+                Left = minX,
+                Top = minY,
+                Right = maxX,
+                Bottom = maxY,
+                Width = Math.Max(maxX - minX, 1.0),
+                Height = Math.Max(maxY - minY, 1.0),
+                MinZ = minZ == double.MaxValue ? 0.0 : minZ,
+                MaxZ = maxZ == double.MinValue ? 0.0 : maxZ
             };
         }
 
