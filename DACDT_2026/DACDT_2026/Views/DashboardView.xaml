@@ -1,0 +1,242 @@
+<UserControl x:Class="DACDT_2026.Views.DashboardView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:DACDT_2026">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="292"/>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="620"/>
+        </Grid.ColumnDefinitions>
+
+        <Border Grid.Row="1" Grid.Column="0" Style="{StaticResource PanelBorderStyle}" Padding="10">
+            <StackPanel>
+                <TextBlock Text="System Connectivity" Style="{StaticResource PanelTitleStyle}"/>
+                <TextBlock Text="Mitsubishi PLC Network Interface" Style="{StaticResource PanelSubtitleStyle}"/>
+                <TextBlock Text="Logical station no." Foreground="{StaticResource MutedBrush}" Margin="0,10,0,4"/>
+                <TextBox Text="{Binding LogicalStationInput, UpdateSourceTrigger=PropertyChanged}" MinHeight="31"/>
+                <Button Content="{Binding ConnectionButtonText}" Command="{Binding ConnectToggleCommand}" Style="{StaticResource PrimaryButtonStyle}" Margin="0,8,0,0" MinHeight="32"/>
+
+                <Grid Margin="0,8,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition/>
+                        <ColumnDefinition/>
+                    </Grid.ColumnDefinitions>
+                    <Button Grid.Column="0" Content="HOME" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,4,0" MinHeight="32" Tag="home" PreviewMouseDown="HoldButton_PreviewMouseDown" PreviewMouseUp="HoldButton_PreviewMouseUp" MouseLeave="HoldButton_MouseLeave"/>
+                    <Button Grid.Column="1" Content="RESET" Style="{StaticResource SecondaryButtonStyle}" Margin="4,0,0,0" MinHeight="32" Tag="reset" PreviewMouseDown="HoldButton_PreviewMouseDown" PreviewMouseUp="HoldButton_PreviewMouseUp" MouseLeave="HoldButton_MouseLeave"/>
+                </Grid>
+                <Button Content="START ACTION" Style="{StaticResource PrimaryButtonStyle}" Margin="0,6,0,0" MinHeight="32" Tag="start" PreviewMouseDown="HoldButton_PreviewMouseDown" PreviewMouseUp="HoldButton_PreviewMouseUp" MouseLeave="HoldButton_MouseLeave"/>
+                <Grid Margin="0,6,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition/>
+                        <ColumnDefinition/>
+                    </Grid.ColumnDefinitions>
+                    <Button Grid.Column="0" Content="CONTINUE" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,4,0" MinHeight="32" Tag="continue" PreviewMouseDown="HoldButton_PreviewMouseDown" PreviewMouseUp="HoldButton_PreviewMouseUp" MouseLeave="HoldButton_MouseLeave"/>
+                    <Button Grid.Column="1" Content="PAUSE" Style="{StaticResource SecondaryButtonStyle}" Margin="4,0,0,0" MinHeight="32" Tag="pause" PreviewMouseDown="HoldButton_PreviewMouseDown" PreviewMouseUp="HoldButton_PreviewMouseUp" MouseLeave="HoldButton_MouseLeave"/>
+                </Grid>
+                <TextBlock Text="{Binding ConnectionMeta}" Foreground="{StaticResource MutedBrush}" Margin="0,8,0,0" TextWrapping="Wrap"/>
+            </StackPanel>
+        </Border>
+
+        <Border Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Style="{StaticResource PanelBorderStyle}" Padding="10">
+            <Grid>
+                <StackPanel>
+                    <TextBlock Text="System Events" Style="{StaticResource PanelTitleStyle}"/>
+                    <TextBlock Text="DXF run progress, errors and connection events" Style="{StaticResource PanelSubtitleStyle}"/>
+                    <ListBox ItemsSource="{Binding Events}" Height="220" Margin="0,10,0,0" Background="{StaticResource PanelAltBrush}" BorderBrush="{StaticResource BorderBrush}">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Margin="3">
+                                    <TextBlock>
+                                        <Run Text="{Binding Time}"/>
+                                        <Run Text="  "/>
+                                        <Run Text="{Binding Title}" FontWeight="Bold"/>
+                                    </TextBlock>
+                                    <TextBlock Text="{Binding Message}" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap"/>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <Border Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2" Style="{StaticResource PanelBorderStyle}" Padding="10">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                <StackPanel>
+                    <TextBlock Text="Axis Monitor" Style="{StaticResource PanelTitleStyle}"/>
+                    <TextBlock Text="Real-time coordinate and axis status monitoring" Style="{StaticResource PanelSubtitleStyle}"/>
+                </StackPanel>
+
+                <ScrollViewer Grid.Row="1"
+                              Margin="0,10,0,0"
+                              HorizontalScrollBarVisibility="Auto"
+                              VerticalScrollBarVisibility="Disabled">
+                    <ItemsControl ItemsSource="{Binding Axes}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel Orientation="Horizontal"/>
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Width="314"
+                                        MinHeight="455"
+                                        Background="{StaticResource PanelAltBrush}"
+                                        BorderBrush="{StaticResource BorderBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="8"
+                                        Padding="10"
+                                        Margin="0,0,10,0">
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="*"/>
+                                            <RowDefinition Height="Auto"/>
+                                        </Grid.RowDefinitions>
+
+                                        <Border Background="#18233A"
+                                                CornerRadius="6,6,0,0"
+                                                Padding="0,0,0,8"
+                                                Margin="-10,-10,-10,10">
+                                            <TextBlock Text="{Binding Name}"
+                                                       FontSize="15"
+                                                       FontWeight="Bold"
+                                                       Margin="10,8,10,0"/>
+                                        </Border>
+
+                                        <StackPanel Grid.Row="1">
+                                            <StackPanel Margin="0,0,0,9">
+                                                <TextBlock Foreground="{StaticResource MutedBrush}" FontSize="10" FontWeight="SemiBold">
+                                                    <Run Text="CURRENT POSITION (MM) "/>
+                                                    <Run Text="{Binding CurrentPosAddr}"/>
+                                                </TextBlock>
+                                                <TextBlock Text="{Binding CurrentPos}" FontSize="18" FontWeight="SemiBold" Margin="0,3,0,0"/>
+                                            </StackPanel>
+
+                                            <StackPanel Margin="0,0,0,9">
+                                                <TextBlock Foreground="{StaticResource MutedBrush}" FontSize="10" FontWeight="SemiBold">
+                                                    <Run Text="CURRENT SPEED (MM/MIN) "/>
+                                                    <Run Text="{Binding CurrentSpeedAddr}"/>
+                                                </TextBlock>
+                                                <TextBlock Text="{Binding CurrentSpeed}" FontSize="18" FontWeight="SemiBold" Margin="0,3,0,0"/>
+                                            </StackPanel>
+
+                                            <StackPanel Margin="0,0,0,9">
+                                                <TextBlock Foreground="{StaticResource MutedBrush}" FontSize="10" FontWeight="SemiBold">
+                                                    <Run Text="CURRENT M CODE "/>
+                                                    <Run Text="{Binding MCodeAddr}"/>
+                                                </TextBlock>
+                                                <TextBlock Text="{Binding MCode}" FontSize="16" FontWeight="SemiBold" Margin="0,3,0,0"/>
+                                            </StackPanel>
+
+                                            <StackPanel Margin="0,0,0,9">
+                                                <TextBlock Foreground="{StaticResource MutedBrush}" FontSize="10" FontWeight="SemiBold">
+                                                    <Run Text="ERROR CODE "/>
+                                                    <Run Text="{Binding ErrorCodeAddr}"/>
+                                                </TextBlock>
+                                                <TextBlock Text="{Binding ErrorCode}" FontSize="16" FontWeight="SemiBold" Margin="0,3,0,0"/>
+                                            </StackPanel>
+
+                                            <StackPanel Margin="0,0,0,9">
+                                                <TextBlock Foreground="{StaticResource MutedBrush}" FontSize="10" FontWeight="SemiBold">
+                                                    <Run Text="WARNING CODE "/>
+                                                    <Run Text="{Binding WarningCodeAddr}"/>
+                                                </TextBlock>
+                                                <TextBlock Text="{Binding WarningCode}" FontSize="16" FontWeight="SemiBold" Margin="0,3,0,0"/>
+                                            </StackPanel>
+
+                                            <StackPanel Margin="0,0,0,9">
+                                                <TextBlock Foreground="{StaticResource MutedBrush}" FontSize="10" FontWeight="SemiBold">
+                                                    <Run Text="AXIS STATUS "/>
+                                                    <Run Text="{Binding AxisStatusAddr}"/>
+                                                </TextBlock>
+                                                <TextBlock Text="{Binding AxisStatus}" FontSize="16" FontWeight="SemiBold" Margin="0,3,0,0" TextTrimming="CharacterEllipsis"/>
+                                            </StackPanel>
+
+                                            <StackPanel Margin="0,0,0,9">
+                                                <TextBlock Foreground="{StaticResource MutedBrush}" FontSize="10" FontWeight="SemiBold">
+                                                    <Run Text="MD.44 CURR DATA NO. "/>
+                                                    <Run Text="{Binding CurrentDataNoAddr}"/>
+                                                </TextBlock>
+                                                <TextBlock Text="{Binding CurrentDataNo}" FontSize="16" FontWeight="SemiBold" Margin="0,3,0,0"/>
+                                            </StackPanel>
+
+                                            <StackPanel>
+                                                <TextBlock Foreground="{StaticResource MutedBrush}" FontSize="10" FontWeight="SemiBold">
+                                                    <Run Text="MD.46 LAST DATA NO. "/>
+                                                    <Run Text="{Binding LastDataNoAddr}"/>
+                                                </TextBlock>
+                                                <TextBlock Text="{Binding LastDataNo}" FontSize="16" FontWeight="SemiBold" Margin="0,3,0,0"/>
+                                            </StackPanel>
+                                        </StackPanel>
+
+                                        <Border Grid.Row="2"
+                                                BorderBrush="{StaticResource BorderBrush}"
+                                                BorderThickness="0,1,0,0"
+                                                Padding="0,8,0,0"
+                                                Margin="0,8,0,0">
+                                            <StackPanel Orientation="Horizontal">
+                                                <Ellipse Width="7" Height="7" Fill="{Binding LimitMinus, Converter={StaticResource BoolToStatusBrushConverter}}" Margin="0,0,4,0"/>
+                                                <TextBlock Text="LIM-" Foreground="{StaticResource MutedBrush}" FontSize="10" Margin="0,0,8,0"/>
+                                                <Ellipse Width="7" Height="7" Fill="{Binding LimitPlus, Converter={StaticResource BoolToStatusBrushConverter}}" Margin="0,0,4,0"/>
+                                                <TextBlock Text="LIM+" Foreground="{StaticResource MutedBrush}" FontSize="10" Margin="0,0,8,0"/>
+                                                <Ellipse Width="7" Height="7" Fill="{Binding HomeDog, Converter={StaticResource BoolToStatusBrushConverter}}" Margin="0,0,4,0"/>
+                                                <TextBlock Text="HOME" Foreground="{StaticResource MutedBrush}" FontSize="10" Margin="0,0,8,0"/>
+                                                <Ellipse Width="7" Height="7" Fill="{Binding IsComplete, Converter={StaticResource BoolToStatusBrushConverter}}" Margin="0,0,4,0"/>
+                                                <TextBlock Text="DONE" Foreground="{StaticResource MutedBrush}" FontSize="10"/>
+                                            </StackPanel>
+                                        </Border>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+            </Grid>
+        </Border>
+
+        <Border Grid.Row="0" Grid.Column="2" Style="{StaticResource PanelBorderStyle}" Padding="10">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel>
+                        <TextBlock Text="Machine Status" Style="{StaticResource PanelTitleStyle}"/>
+                        <TextBlock Text="{Binding ActiveNotice}" Style="{StaticResource PanelSubtitleStyle}" TextTrimming="CharacterEllipsis"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="PLC" Foreground="{StaticResource MutedBrush}" Margin="0,0,8,0"/>
+                        <Ellipse Width="12" Height="12" Fill="{Binding IsConnected, Converter={StaticResource BoolToStatusBrushConverter}}"/>
+                    </StackPanel>
+                </Grid>
+                <Border Grid.Row="1"
+                        Background="{StaticResource PanelAltBrush}"
+                        BorderBrush="{StaticResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Padding="12"
+                        Margin="0,10,0,0">
+                    <StackPanel>
+                        <TextBlock Text="{Binding ConnectionMeta}" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap"/>
+                        <TextBlock Text="{Binding ConnectionBanner}" FontSize="18" FontWeight="SemiBold" Margin="0,12,0,0"/>
+                    </StackPanel>
+                </Border>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

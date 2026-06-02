@@ -150,16 +150,16 @@ namespace DACDT_2026
             {
                 EnsureConnected();
                 int v = active ? 1 : 0;
-                plcComm.WriteDeviceValue("M300", v);
+                plcComm.WriteDeviceValue("M400", v);
                 UpdateIntegrityState(true);
-                AddLogEntry("M300", v.ToString(CultureInfo.InvariantCulture), "Write", "OK", "ResetError");
+                AddLogEntry("M400", v.ToString(CultureInfo.InvariantCulture), "Write", "OK", "ResetError");
             }
             catch (Exception ex)
             {
                 if (active)
                 {
                     UpdateIntegrityFault(ex.Message);
-                    AddLogEntry("M300", (active ? 1 : 0).ToString(CultureInfo.InvariantCulture), "Write", "Error", ex.Message);
+                    AddLogEntry("M400", (active ? 1 : 0).ToString(CultureInfo.InvariantCulture), "Write", "Error", ex.Message);
                     await NotifyAsync("error", "Reset Error", ex.Message);
                     await PushControlStateAsync();
                 }
@@ -190,6 +190,50 @@ namespace DACDT_2026
         }
 
         // ── Jog Speed ────────────────────────────────────────────────────────────
+        private async Task HandleContinueWriteAsync(bool active)
+        {
+            try
+            {
+                EnsureConnected();
+                int v = active ? 1 : 0;
+                plcComm.WriteDeviceValue("M401", v);
+                UpdateIntegrityState(true);
+                AddLogEntry("M401", v.ToString(CultureInfo.InvariantCulture), "Write", "OK", "Continue");
+            }
+            catch (Exception ex)
+            {
+                if (active)
+                {
+                    UpdateIntegrityFault(ex.Message);
+                    AddLogEntry("M401", (active ? 1 : 0).ToString(CultureInfo.InvariantCulture), "Write", "Error", ex.Message);
+                    await NotifyAsync("error", "Continue", ex.Message);
+                    await PushControlStateAsync();
+                }
+            }
+        }
+
+        private async Task HandlePauseWriteAsync(bool active)
+        {
+            try
+            {
+                EnsureConnected();
+                int v = active ? 1 : 0;
+                plcComm.WriteDeviceValue("M402", v);
+                UpdateIntegrityState(true);
+                AddLogEntry("M402", v.ToString(CultureInfo.InvariantCulture), "Write", "OK", "Pause");
+            }
+            catch (Exception ex)
+            {
+                if (active)
+                {
+                    UpdateIntegrityFault(ex.Message);
+                    AddLogEntry("M402", (active ? 1 : 0).ToString(CultureInfo.InvariantCulture), "Write", "Error", ex.Message);
+                    await NotifyAsync("error", "Pause", ex.Message);
+                    await PushControlStateAsync();
+                }
+            }
+        }
+
         private async Task HandleSetJogSpeedAsync(double value)
         {
             try
@@ -199,8 +243,8 @@ namespace DACDT_2026
                 byte[] bytes = BitConverter.GetBytes(fVal);
                 int intVal = BitConverter.ToInt32(bytes, 0);
                 plcComm.WriteDeviceValue("D406", intVal);
-                AddLogEntry("D406", value.ToString("F3", CultureInfo.InvariantCulture), "Write", "OK", "SetJogSpeed(Float)");
-                await NotifyAsync("success", "Settings", $"Updated Jog speed (Real): {value:F3} (D406)");
+                AddLogEntry("D406", value.ToString("F3", CultureInfo.InvariantCulture), "Write", "OK", "SetJogSpeed(mm/min)");
+                await NotifyAsync("success", "Settings", $"Updated Jog speed: {value:F3} mm/min (D406)");
             }
             catch (Exception ex)
             {

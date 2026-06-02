@@ -774,13 +774,17 @@ namespace DACDT_2026
 
                 // 5. Position X (32-bit -> 2 words)
                 // ← OPTIMIZED: Use pre-parsed EndXMm instead of parsing string
-                int endX = (int)Math.Round(row.EndXMm * CoordinateMultiplier);
+                int endX;
+                if (!TryParseCoordinateX(row.EndCoordinate, out endX))
+                    endX = (int)Math.Round(row.EndXMm * CoordinateMultiplier);
                 bulkData[blockOffset + OffsetPosX]     = (short)(endX & 0xFFFF);
                 bulkData[blockOffset + OffsetPosX + 1] = (short)((endX >> 16) & 0xFFFF);
 
                 // 6. Center X (32-bit -> 2 words)
                 // ← OPTIMIZED: Use pre-parsed CenterXMm instead of parsing string
-                int centerX = (int)Math.Round(row.CenterXMm * CoordinateMultiplier);
+                int centerX;
+                if (!TryParseCoordinateX(row.CenterCoordinate, out centerX))
+                    centerX = (int)Math.Round(row.CenterXMm * CoordinateMultiplier);
                 bulkData[blockOffset + OffsetCenterX]     = (short)(centerX & 0xFFFF);
                 bulkData[blockOffset + OffsetCenterX + 1] = (short)((centerX >> 16) & 0xFFFF);
             }
@@ -887,13 +891,17 @@ namespace DACDT_2026
 
                 // Da.6 Positioning address Y (32-bit) — offset 6 & 7
                 // ← OPTIMIZED: Use pre-parsed EndYMm instead of parsing string
-                int endY = (int)Math.Round(row.EndYMm * CoordinateMultiplier);
+                int endY;
+                if (!TryParseCoordinateY(row.EndCoordinate, out endY))
+                    endY = (int)Math.Round(row.EndYMm * CoordinateMultiplier);
                 bulkData[blockOffset + OffsetPosX]     = (short)(endY & 0xFFFF);
                 bulkData[blockOffset + OffsetPosX + 1] = (short)((endY >> 16) & 0xFFFF);
 
                 // Da.7 Arc address Y (32-bit) — offset 8 & 9
                 // ← OPTIMIZED: Use pre-parsed CenterYMm instead of parsing string
-                int centerY = (int)Math.Round(row.CenterYMm * CoordinateMultiplier);
+                int centerY;
+                if (!TryParseCoordinateY(row.CenterCoordinate, out centerY))
+                    centerY = (int)Math.Round(row.CenterYMm * CoordinateMultiplier);
                 bulkData[blockOffset + OffsetCenterX]     = (short)(centerY & 0xFFFF);
                 bulkData[blockOffset + OffsetCenterX + 1] = (short)((centerY >> 16) & 0xFFFF);
             }

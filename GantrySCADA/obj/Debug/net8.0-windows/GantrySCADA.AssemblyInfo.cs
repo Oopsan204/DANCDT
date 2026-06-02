@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("DACDT")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+60276dbd29d830adb62453722166022ade0fc0c4")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+b4a0d7a7e75fb4d7ad9bb13589fd4e8d6e717634")]
 [assembly: System.Reflection.AssemblyProductAttribute("DACDT")]
 [assembly: System.Reflection.AssemblyTitleAttribute("DACDT")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

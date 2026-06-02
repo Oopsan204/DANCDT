@@ -1,11 +1,10 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using System.Windows.Forms;
 
 namespace DACDT_2026
 {
@@ -22,9 +21,6 @@ namespace DACDT_2026
     {
         // ── Open DXF ────────────────────────────────────────────────────────────
 
-        /// <summary>
-        /// Mở file bằng cách dùng OpenFileDialog trên thread riêng (tránh crash WebView2).
-        /// </summary>
         private string ShowOpenFileDialog()
         {
             plcPollTimer.Stop();
@@ -33,28 +29,21 @@ namespace DACDT_2026
             string result = null;
             try
             {
-                // Chạy dialog trên STA thread riêng — hoàn toàn tách biệt khỏi WebView2
-                var dialogThread = new System.Threading.Thread(() =>
+                var dialog = new Microsoft.Win32.OpenFileDialog
                 {
-                    using (var dialog = new OpenFileDialog())
-                    {
-                        dialog.Filter = "CAD / G-code files (*.dxf;*.gcode;*.g;*.gc;*.nc;*.ngc;*.cnc;*.tap)|*.dxf;*.gcode;*.g;*.gc;*.nc;*.ngc;*.cnc;*.tap|All files (*.*)|*.*";
-                        dialog.Title = "Open DXF or G-code file";
-                        dialog.CheckFileExists = true;
-                        dialog.Multiselect = false;
-                        dialog.RestoreDirectory = true;
+                    Filter = "CAD / G-code files (*.dxf;*.gcode;*.g;*.gc;*.nc;*.ngc;*.cnc;*.tap)|*.dxf;*.gcode;*.g;*.gc;*.nc;*.ngc;*.cnc;*.tap|All files (*.*)|*.*",
+                    Title = "Open DXF or G-code file",
+                    CheckFileExists = true,
+                    Multiselect = false,
+                    RestoreDirectory = true
+                };
 
-                        string initialDir = activeCadDocument?.DirectoryPath;
-                        if (!string.IsNullOrWhiteSpace(initialDir) && Directory.Exists(initialDir))
-                            dialog.InitialDirectory = initialDir;
+                string initialDir = activeCadDocument?.DirectoryPath;
+                if (!string.IsNullOrWhiteSpace(initialDir) && Directory.Exists(initialDir))
+                    dialog.InitialDirectory = initialDir;
 
-                        if (dialog.ShowDialog() == DialogResult.OK)
-                            result = Path.GetFullPath(dialog.FileName);
-                    }
-                });
-                dialogThread.SetApartmentState(System.Threading.ApartmentState.STA);
-                dialogThread.Start();
-                dialogThread.Join(); // Chờ user chọn file
+                if (dialog.ShowDialog(this) == true)
+                    result = Path.GetFullPath(dialog.FileName);
             }
             finally
             {
@@ -67,17 +56,19 @@ namespace DACDT_2026
 
         private async Task HandleOpenDxfAsync()
         {
-            // Dialog phải chạy trên UI thread — gọi ShowOpenFileDialog() trực tiếp
-            // vì CoreWebView2_WebMessageReceived đã chạy trên UI thread.
-            // Nếu vì lý do nào đó không ở UI thread, marshal về UI thread trước.
+            if (!await cadLoadGate.WaitAsync(0))
+            {
+                await NotifyAsync("info", "DXF/G-code", "A file is still loading. Please wait before opening another file.");
+                return;
+            }
+
             string selectedPath = null;
             try
             {
-                if (this.InvokeRequired)
+                if (!Dispatcher.CheckAccess())
                 {
-                    // Marshal về UI thread và chờ kết quả
                     var tcs = new System.Threading.Tasks.TaskCompletionSource<string>();
-                    this.BeginInvoke(new Action(() =>
+                    _ = Dispatcher.BeginInvoke(new Action(() =>
                     {
                         try { tcs.SetResult(ShowOpenFileDialog()); }
                         catch (Exception ex) { tcs.SetException(ex); }
@@ -92,10 +83,15 @@ namespace DACDT_2026
             catch (Exception ex)
             {
                 await NotifyAsync("error", "DXF/G-code", "Lỗi mở dialog: " + ex.Message);
+                cadLoadGate.Release();
                 return;
             }
 
-            if (string.IsNullOrEmpty(selectedPath)) return;
+            if (string.IsNullOrEmpty(selectedPath))
+            {
+                cadLoadGate.Release();
+                return;
+            }
 
             try
             {
@@ -109,52 +105,28 @@ namespace DACDT_2026
                 CadDocumentService.CadLoadResult loadedDoc = null;
                 string loadedGcodeText = string.Empty;
 
-                // Parse file trên thread với stack size lớn hơn (tránh StackOverflow với DXF phức tạp)
-                var loadTask = new System.Threading.Tasks.TaskCompletionSource<bool>();
-                var loadThread = new System.Threading.Thread(() =>
+                var loadTask = Task.Run(() =>
                 {
-                    try
+                    if (isGcode)
                     {
-                        if (isGcode)
-                        {
-                            loadedGcodeText = File.ReadAllText(selectedPath);
-                            loadedDoc = gcodeCoordinateService.LoadAsCad(selectedPath);
-                        }
-                        else
-                        {
-                            loadedDoc = cadService.Load(selectedPath);
-                        }
+                        loadedGcodeText = File.ReadAllText(selectedPath);
+                        loadedDoc = gcodeCoordinateService.LoadAsCad(selectedPath);
+                    }
+                    else
+                    {
+                        loadedDoc = cadService.Load(selectedPath);
+                    }
 
-                        // Kết nối các đoạn thành path liên tục — chạy nền
-                        if (loadedDoc?.Primitives != null && loadedDoc.Primitives.Count > 0)
-                        {
-                            var paths = GetConnectedPathsFromCad(loadedDoc.Primitives, isGcode);
-                            loadedDoc.Primitives.Clear();
-                            foreach (var path in paths)
-                                loadedDoc.Primitives.AddRange(path);
-                        }
-                        loadTask.TrySetResult(true);
-                    }
-                    catch (StackOverflowException)
+                    if (loadedDoc?.Primitives != null && loadedDoc.Primitives.Count > 0)
                     {
-                        // Không thể catch StackOverflow trong .NET — thread sẽ bị kill
-                        // Nhưng với 64MB stack, hầu hết file sẽ OK
-                        loadTask.TrySetException(new Exception("File DXF quá phức tạp — vượt giới hạn bộ nhớ stack."));
+                        var paths = GetConnectedPathsFromCad(loadedDoc.Primitives, isGcode);
+                        loadedDoc.Primitives.Clear();
+                        foreach (var path in paths)
+                            loadedDoc.Primitives.AddRange(path);
                     }
-                    catch (Exception ex)
-                    {
-                        loadTask.TrySetException(ex);
-                    }
-                }, 2 * 1024 * 1024); // 2MB stack — SimpleDxfParser không đệ quy
-                loadThread.IsBackground = true;
-                loadThread.Start();
-                bool completed = loadThread.Join(30000);
-                if (!completed)
-                {
-                    try { loadThread.Abort(); } catch { }
-                    throw new Exception("File loading timed out after 30 seconds.");
-                }
-                await loadTask.Task;
+                });
+
+                await loadTask;
 
                 // ── Cập nhật state trên UI thread ────────────────────────────────
                 activeCadDocument    = loadedDoc;
@@ -187,6 +159,10 @@ namespace DACDT_2026
             {
                 await NotifyAsync("error", "DXF/G-code", ex.Message);
             }
+            finally
+            {
+                cadLoadGate.Release();
+            }
         }
 
         private void ClearLoadedFileState()
@@ -197,9 +173,6 @@ namespace DACDT_2026
             assignedPointKeys.Clear();
             rawGcodeText = string.Empty;
             processRows.Clear();
-            // Giải phóng bộ nhớ từ file trước
-            GC.Collect();
-            GC.WaitForPendingFinalizers();
         }
 
         private bool isPreviewingGcode = false;
@@ -207,6 +180,11 @@ namespace DACDT_2026
         {
             if (activeDocumentKind != "GCODE") return;
             if (isPreviewingGcode) return; // Tránh concurrent preview gây crash
+            if (!await cadLoadGate.WaitAsync(0))
+            {
+                await NotifyAsync("info", "G-code", "A file operation is still running. Please wait before previewing.");
+                return;
+            }
             isPreviewingGcode = true;
 
             try
@@ -215,37 +193,20 @@ namespace DACDT_2026
                 string path = activeCadDocument?.FilePath;
                 if (string.IsNullOrEmpty(path)) path = null;
 
-                // Parse trên thread với stack lớn (tránh StackOverflow với file lớn)
                 CadDocumentService.CadLoadResult previewDoc = null;
-                var previewTask = new System.Threading.Tasks.TaskCompletionSource<bool>();
-                var previewThread = new System.Threading.Thread(() =>
+                var previewTask = Task.Run(() =>
                 {
-                    try
+                    previewDoc = gcodeCoordinateService.LoadAsCadFromText(text, path);
+                    if (previewDoc?.Primitives != null && previewDoc.Primitives.Count > 0)
                     {
-                        previewDoc = gcodeCoordinateService.LoadAsCadFromText(text, path);
-                        if (previewDoc?.Primitives != null && previewDoc.Primitives.Count > 0)
-                        {
-                            var paths = GetConnectedPathsFromCad(previewDoc.Primitives, isGcode: true);
-                            previewDoc.Primitives.Clear();
-                            foreach (var pathList in paths)
-                                previewDoc.Primitives.AddRange(pathList);
-                        }
-                        previewTask.TrySetResult(true);
+                        var paths = GetConnectedPathsFromCad(previewDoc.Primitives, isGcode: true);
+                        previewDoc.Primitives.Clear();
+                        foreach (var pathList in paths)
+                            previewDoc.Primitives.AddRange(pathList);
                     }
-                    catch (Exception ex)
-                    {
-                        previewTask.TrySetException(ex);
-                    }
-                }, 4 * 1024 * 1024); // 4MB stack
-                previewThread.IsBackground = true;
-                previewThread.Start();
-                bool previewDone = previewThread.Join(10000); // 10s timeout for preview
-                if (!previewDone)
-                {
-                    previewThread.Abort();
-                    throw new Exception("G-code preview timed out.");
-                }
-                await previewTask.Task;
+                });
+
+                await previewTask;
 
                 activeCadDocument = previewDoc;
 
@@ -265,6 +226,7 @@ namespace DACDT_2026
             finally
             {
                 isPreviewingGcode = false;
+                cadLoadGate.Release();
             }
         }
 
@@ -294,11 +256,10 @@ namespace DACDT_2026
                 string path = activeCadDocument?.FilePath;
                 if (string.IsNullOrEmpty(path) || path == "Untitled" || path == "")
                 {
-                    // Tạm đổi FormBorderStyle để SaveFileDialog không crash
                     string selectedPath = null;
-                    if (this.InvokeRequired)
+                    if (!Dispatcher.CheckAccess())
                     {
-                        this.Invoke(new System.Action(() => { selectedPath = ShowSaveGcodeDialog(); }));
+                        Dispatcher.Invoke(new System.Action(() => { selectedPath = ShowSaveGcodeDialog(); }));
                     }
                     else
                     {
@@ -343,20 +304,15 @@ namespace DACDT_2026
             string result = null;
             try
             {
-                var dialogThread = new System.Threading.Thread(() =>
+                var sfd = new Microsoft.Win32.SaveFileDialog
                 {
-                    using (var sfd = new SaveFileDialog())
-                    {
-                        sfd.Filter = "G-code files (*.nc;*.gcode;*.txt)|*.nc;*.gcode;*.txt|All files (*.*)|*.*";
-                        sfd.Title = "Save G-code";
-                        sfd.FileName = "GCode_" + DateTime.Now.ToString("yyyyMMdd_HHmmss") + ".nc";
-                        if (sfd.ShowDialog() == DialogResult.OK)
-                            result = sfd.FileName;
-                    }
-                });
-                dialogThread.SetApartmentState(System.Threading.ApartmentState.STA);
-                dialogThread.Start();
-                dialogThread.Join();
+                    Filter = "G-code files (*.nc;*.gcode;*.txt)|*.nc;*.gcode;*.txt|All files (*.*)|*.*",
+                    Title = "Save G-code",
+                    FileName = "GCode_" + DateTime.Now.ToString("yyyyMMdd_HHmmss") + ".nc"
+                };
+
+                if (sfd.ShowDialog(this) == true)
+                    result = sfd.FileName;
             }
             finally
             {
@@ -690,14 +646,21 @@ namespace DACDT_2026
                     sendSpeed = lastSpeed;
                 }
 
+                string sendEndCoordinate = ApplyOffsetToCoordSend(row.EndCoordinate, sendOffsetX, sendOffsetY);
+                string sendCenterCoordinate = ApplyOffsetToCoordSend(row.CenterCoordinate, sendOffsetX, sendOffsetY);
+
                 dataRows.Add(new QD75BufferWriter.PositioningDataRow
                 {
                     MotionType       = row.MotionType,
                     MCodeValue       = row.MCodeValue,
                     Dwell            = row.Dwell,
                     Speed            = sendSpeed,
-                    EndCoordinate    = ApplyOffsetToCoordSend(row.EndCoordinate,    sendOffsetX, sendOffsetY),
-                    CenterCoordinate = ApplyOffsetToCoordSend(row.CenterCoordinate, sendOffsetX, sendOffsetY),
+                    EndCoordinate    = sendEndCoordinate,
+                    CenterCoordinate = sendCenterCoordinate,
+                    EndXMm           = GetCoordinateComponent(row.EndCoordinate, 0, row.EndXMm) + sendOffsetX,
+                    EndYMm           = GetCoordinateComponent(row.EndCoordinate, 1, row.EndYMm) + sendOffsetY,
+                    CenterXMm        = GetCoordinateComponent(row.CenterCoordinate, 0, row.CenterXMm) + sendOffsetX,
+                    CenterYMm        = GetCoordinateComponent(row.CenterCoordinate, 1, row.CenterYMm) + sendOffsetY,
                     EndZ             = row.EndZ
                 });
             }
@@ -984,7 +947,11 @@ namespace DACDT_2026
                             MotionType       = motionType,
                             EndCoordinate    = string.Format(CultureInfo.InvariantCulture,
                                 "{0:0.###};{1:0.###}", startPt.X, startPt.Y),
+                            EndXMm           = startPt.X,
+                            EndYMm           = startPt.Y,
                             CenterCoordinate = string.Empty,
+                            CenterXMm        = 0,
+                            CenterYMm        = 0,
                             MCodeValue       = "3", // M3 = bắt đầu quỹ đạo (dispensing ON)
                             EndZ             = startZ
                         };
@@ -1240,7 +1207,11 @@ namespace DACDT_2026
                                 MotionType       = motionPrefix + currentSuffix,
                                 EndCoordinate    = string.Format(CultureInfo.InvariantCulture,
                                     "{0:0.###};{1:0.###}", pt.X, pt.Y),
+                                EndXMm           = pt.X,
+                                EndYMm           = pt.Y,
                                 CenterCoordinate = string.Empty,
+                                CenterXMm        = 0,
+                                CenterYMm        = 0,
                                 EndZ             = 0
                             };
                             ApplyPrimitiveExtraData(row, prim, isGcode: true);
@@ -1262,6 +1233,10 @@ namespace DACDT_2026
                             MotionType    = arcType + suffix,
                             EndCoordinate = string.Format(CultureInfo.InvariantCulture,
                                 "{0:0.###};{1:0.###}", endPt.X, endPt.Y),
+                            EndXMm        = endPt.X,
+                            EndYMm        = endPt.Y,
+                            CenterXMm     = prim.Center?.X ?? 0,
+                            CenterYMm     = prim.Center?.Y ?? 0,
                             EndZ          = endPt.Z
                         };
                         if (prim.Center != null)
@@ -1659,6 +1634,21 @@ namespace DACDT_2026
 
             return string.Format(System.Globalization.CultureInfo.InvariantCulture,
                 "{0:0.###};{1:0.###}", x + ox, y + oy);
+        }
+
+        private static double GetCoordinateComponent(string coord, int componentIndex, double fallback)
+        {
+            if (string.IsNullOrWhiteSpace(coord)) return fallback;
+            string[] parts = coord.Split(';');
+            if (componentIndex < 0 || componentIndex >= parts.Length) return fallback;
+
+            double value;
+            return double.TryParse(parts[componentIndex].Trim(),
+                NumberStyles.Float,
+                CultureInfo.InvariantCulture,
+                out value)
+                ? value
+                : fallback;
         }
     }
 }

@@ -73,6 +73,8 @@ namespace DACDT_2026
                 }
             }
 
+            points = BuildPointRowsFromPrimitives(primitives);
+
             // Build bounds
             if (minX == float.MaxValue) { minX = 0; minY = 0; maxX = 100; maxY = 100; }
             var bounds = new CadDocumentService.CadBounds
@@ -124,6 +126,68 @@ namespace DACDT_2026
             UpdateBounds(x2, y2, ref minX, ref minY, ref maxX, ref maxY);
             return idx;
         }
+
+        private static List<CadDocumentService.CadPointData> BuildPointRowsFromPrimitives(List<CadDocumentService.CadPrimitiveData> primitives)
+        {
+            var rows = new List<CadDocumentService.CadPointData>();
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var primitive in primitives)
+            {
+                if (primitive == null || primitive.Points == null || primitive.Points.Count == 0)
+                    continue;
+
+                string sourceType = primitive.SourceType ?? "Point";
+                string lower = sourceType.ToLowerInvariant();
+                bool sampledCurve = lower.Contains("arc") || lower.Contains("circle");
+
+                if (sampledCurve)
+                {
+                    AddPointRow(rows, seen, primitive.Points[0], sourceType);
+                    AddPointRow(rows, seen, primitive.Points[primitive.Points.Count - 1], sourceType);
+                    AddPointRow(rows, seen, primitive.Center, sourceType + " center");
+                    continue;
+                }
+
+                foreach (var point in primitive.Points)
+                    AddPointRow(rows, seen, point, sourceType);
+            }
+
+            return rows;
+        }
+
+        private static void AddPointRow(
+            List<CadDocumentService.CadPointData> rows,
+            HashSet<string> seen,
+            CadDocumentService.CadCoordinate point,
+            string lineType)
+        {
+            if (point == null)
+                return;
+
+            string key = MakePointKey(point);
+            if (!seen.Add(key))
+                return;
+
+            rows.Add(new CadDocumentService.CadPointData
+            {
+                Index = rows.Count + 1,
+                LineType = lineType,
+                X = point.X,
+                Y = point.Y,
+                Z = point.Z,
+                XDisplay = FormatNumber(point.X),
+                YDisplay = FormatNumber(point.Y),
+                ZDisplay = FormatNumber(point.Z),
+                Key = key
+            });
+        }
+
+        private static string MakePointKey(CadDocumentService.CadCoordinate point)
+            => string.Format(CultureInfo.InvariantCulture, "{0:0.###}|{1:0.###}|{2:0.###}", point.X, point.Y, point.Z);
+
+        private static string FormatNumber(double value)
+            => value.ToString("0.###", CultureInfo.InvariantCulture);
 
         private static int ParseArc(string[] lines, int idx, List<CadDocumentService.CadPrimitiveData> prims,
             ref float minX, ref float minY, ref float maxX, ref float maxY)

@@ -1,27 +1,22 @@
 using System;
 using System.Collections.Generic;
-using System.Drawing;
+using System.ComponentModel;
 using System.Globalization;
 using System.IO;
+using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
-using System.Web.Script.Serialization;
-using System.Windows.Forms;
-using Microsoft.Web.WebView2.WinForms;
+using System.Windows;
+using System.Windows.Threading;
 
 namespace DACDT_2026
 {
     /// <summary>
-    /// Form1 — fields, constructor, WebView2 initialization, and lifecycle.
-    /// Chức năng chi tiết được tách sang các file partial riêng biệt:
-    ///   Form1.MessageHandler.cs  — xử lý tin nhắn từ UI
-    ///   Form1.PlcControl.cs     — điều khiển PLC (Jog, GoHome, Poll, ...)
-    ///   Form1.DxfHandler.cs     — mở DXF, tính đường đi, import
-    ///   Form1.StatePublisher.cs — đẩy trạng thái lên UI
-    ///   Form1.Models.cs         — các model nội bộ
+    /// Main WPF window. The existing PLC, DXF/G-code, logging and state logic remains
+    /// split across the Form1 partial files; the UI host is WPF/XAML.
     /// </summary>
-    public partial class Form1 : Form
+    public partial class Form1 : Window
     {
-        // QD75 constants — xem định nghĩa tại QD75BufferWriter.cs
         private static int[] MonitorBaseG => QD75BufferWriter.MonitorBaseG;
         private static int[] ControlBaseG => QD75BufferWriter.ControlBaseG;
         private static int[] ProgramBaseG => QD75BufferWriter.ProgramBaseG;
@@ -35,132 +30,321 @@ namespace DACDT_2026
         private const int OffJogSpeed     = QD75BufferWriter.OffJogSpeed;
         private const int OffNewSpeed     = QD75BufferWriter.OffNewSpeed;
 
-        private const string JogBaseRegister      = "M3000";
+        private const string JogBaseRegister = "M3000";
         private const string EmergencyStopRegister = "M3100";
 
-        // WebView2 + timer
-        private readonly WebView2 webView;
-        private readonly System.Windows.Forms.Timer plcPollTimer = new System.Windows.Forms.Timer();
+        private readonly WpfUiState ui = new WpfUiState();
+        private readonly DispatcherTimer plcPollTimer = new DispatcherTimer();
+        private readonly SemaphoreSlim cadLoadGate = new SemaphoreSlim(1, 1);
 
-        // Serializer
-        private readonly JavaScriptSerializer serializer = new JavaScriptSerializer
-        {
-            MaxJsonLength = int.MaxValue,
-            RecursionLimit = 256
-        };
+        private readonly CadDocumentService cadService = new CadDocumentService();
+        private readonly GcodeCoordinateService gcodeCoordinateService = new GcodeCoordinateService();
 
-        // Services
-        private readonly CadDocumentService       cadService             = new CadDocumentService();
-        private readonly GcodeCoordinateService   gcodeCoordinateService = new GcodeCoordinateService();
+        private readonly List<MonitorRow> monitorRows = new List<MonitorRow>();
+        private readonly List<ProcessRow> processRows = new List<ProcessRow>();
+        private readonly Dictionary<string, string> assignedPointKeys =
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
-        // Data lists
-        private readonly List<MonitorRow>  monitorRows  = new List<MonitorRow>();
-        private readonly List<ProcessRow>  processRows  = new List<ProcessRow>();
-        private readonly Dictionary<string, string> assignedPointKeys
-            = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        private readonly List<string> telemetryRegisters = new List<string> { "U0\\G800", "U0\\G900", "U0\\G1000", "U0\\G1100" };
+        private readonly List<TelemetryBuffer> telemetryBuffers = new List<TelemetryBuffer> { new TelemetryBuffer { Path = "U0\\G2006", Length = 2 } };
 
-        // Telemetry configuration
-        private readonly List<string>          telemetryRegisters = new List<string> { "U0\\G800", "U0\\G900", "U0\\G1000", "U0\\G1100" };
-        private readonly List<TelemetryBuffer> telemetryBuffers   = new List<TelemetryBuffer> { new TelemetryBuffer { Path = "U0\\G2006", Length = 2 } };
-
-        // Axis data (4 axes)
-        private readonly int[] axCurrentPos   = new int[4];
+        private readonly int[] axCurrentPos = new int[4];
         private readonly int[] axCurrentSpeed = new int[4];
-        private readonly int[] axMCode        = new int[4];
-        private readonly int[] axErrorCode    = new int[4];
-        private readonly int[] axWarningCode  = new int[4];
-        private readonly int[] axAxisStatus   = new int[4];
-        private readonly int[] axSignals      = new int[4]; // Md.30: b0=Limit-, b1=Limit+, b6=Home(DOG)
+        private readonly int[] axMCode = new int[4];
+        private readonly int[] axErrorCode = new int[4];
+        private readonly int[] axWarningCode = new int[4];
+        private readonly int[] axAxisStatus = new int[4];
+        private readonly int[] axSignals = new int[4];
         private readonly int[] axCurrentDataNo = new int[4];
-        private readonly int[] axLastDataNo    = new int[4];
-        private readonly int[] axErrorReset   = new int[4];
-        private readonly int[] axJogSpeed     = new int[4];
-        private readonly int[] axNewSpeed     = new int[4];
+        private readonly int[] axLastDataNo = new int[4];
+        private readonly int[] axErrorReset = new int[4];
+        private readonly int[] axJogSpeed = new int[4];
+        private readonly int[] axNewSpeed = new int[4];
         private int logicalStation = 0;
 
-        // Log store
         private readonly List<LogEntry> logs = new List<LogEntry>();
-
-        // PLC connection
         private PLCCommunication plcComm;
 
-        // CAD / DXF
         private CadDocumentService.CadLoadResult activeCadDocument;
         private string selectedCadPointKey;
         private string activeDocumentKind = "DXF";
-        private string globalZDown  = "";
-        private string globalZSafe  = "";
+        private string globalZDown = "";
+        private string globalZSafe = "";
         private string globalZStart = "";
         private string globalSpeed = "1000";
-        private string globalSpeedM3 = "10000"; // Tốc độ M03 Rapid cho DXF
-        private string rapidSpeed  = "10000"; // Tốc độ G00 — cài đặt từ Settings tab
+        private string globalSpeedM3 = "10000";
+        private string rapidSpeed = "10000";
         private double offsetX = 0.0;
         private double offsetY = 0.0;
-        private double workspaceWidth  = 170.0; // Kích thước không gian làm việc X (mm)
-        private double workspaceHeight = 170.0; // Kích thước không gian làm việc Y (mm)
-        private string globalDwellM3 = "100"; // Dwell time (ms) cho M03 (bắt đầu dispensing)
-        private string globalDwellM4 = "100"; // Dwell time (ms) cho M04 (kết thúc dispensing)
-        private string memberPassword = ""; // Mật khẩu thành viên (admin tạo)
-        // G54-G59 Work Coordinate System offsets (chỉ áp dụng cho G-code)
+        private double workspaceWidth = 170.0;
+        private double workspaceHeight = 170.0;
+        private string globalDwellM3 = "100";
+        private string globalDwellM4 = "100";
+        private string memberPassword = "";
         private string activeWcs = "G54";
-        private readonly double[] wcsOffsetX = new double[6]; // G54=0, G55=1, ..., G59=5
+        private readonly double[] wcsOffsetX = new double[6];
         private readonly double[] wcsOffsetY = new double[6];
         private string rawGcodeText = string.Empty;
-        private QD75RingBufferRunner activeRingRunner; // Ring buffer runner cho >600 điểm
+        private QD75RingBufferRunner activeRingRunner;
 
-        // UI state
         private volatile bool webReady;
         private volatile bool isClosing;
         private volatile bool isPolling;
-        private string currentView    = "control";
-        private string currentTheme   = "dark";
-        private string plcIpAddress   = "192.168.3.39";
-        private int    plcPort        = 3000;
+        private string currentView = "control";
+        private string currentTheme = "dark";
+        private string plcIpAddress = "192.168.3.39";
+        private int plcPort = 3000;
         private string connectionBanner = "PLC disconnected";
         private string integrityState = "IDLE";
         private string integrityDetail = "STOP";
-        private string integrityTone  = "idle";
-        private float  currentJogSpeedD406 = 1000f;
+        private string integrityTone = "idle";
+        private float currentJogSpeedD406 = 1000f;
+        private bool allowClose;
 
-        // ── Constructor ──────────────────────────────────────────────────────────
         public Form1()
         {
             InitializeComponent();
-
-            Text          = "DACDT 2026";
-            StartPosition = FormStartPosition.CenterScreen;
-            MinimumSize   = new Size(1440, 860);
-            WindowState   = FormWindowState.Maximized;
-            FormBorderStyle = FormBorderStyle.None;
-            BackColor     = Color.FromArgb(10, 15, 30);
-
-            webView = new WebView2
-            {
-                Dock                  = DockStyle.Fill,
-                DefaultBackgroundColor = Color.FromArgb(10, 15, 30)
-            };
-            Controls.Add(webView);
-            Controls.SetChildIndex(webView, 0);
+            DataContext = ui;
 
             InitializeProcessRows();
             UpdateConnectionState(false, "PLC disconnected");
             UpdateIntegrityState(false);
 
-            plcPollTimer.Interval = 50; // 50 ms real-time polling
-            plcPollTimer.Tick    += PlcPollTimer_Tick;
+            plcPollTimer.Interval = TimeSpan.FromMilliseconds(50);
+            plcPollTimer.Tick += PlcPollTimer_Tick;
 
-            Shown += async (sender, e) => await InitializeWebViewAsync();
-
-            // Load settings từ file text
             LoadSettingsFromFile();
+            ConfigureCommands();
+            SyncSettingsToUi();
+
+            Loaded += async (sender, e) =>
+            {
+                webReady = true;
+                await PushAllStateAsync();
+            };
         }
 
-        // ── Settings persistence ─────────────────────────────────────────────────
         private static string SettingsFilePath =>
             Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "app_settings.txt");
 
         private static string ProfilesDirPath =>
             Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "settings_profiles");
+
+        private void ConfigureCommands()
+        {
+            ui.SwitchViewCommand = new RelayCommand(async p =>
+            {
+                currentView = Convert.ToString(p, CultureInfo.InvariantCulture) ?? "control";
+                ui.CurrentView = currentView;
+                await PushAllStateAsync();
+            });
+            ui.ToggleThemeCommand = new RelayCommand(async () =>
+            {
+                currentTheme = currentTheme == "dark" ? "light" : "dark";
+                ui.CurrentTheme = currentTheme;
+                await PushAllStateAsync();
+            });
+            ui.ConnectToggleCommand = new RelayCommand(() => HandleConnectToggleAsync(Payload("station", ui.LogicalStationInput)));
+            ui.EmergencyStopCommand = new RelayCommand(HandleEmergencyStopAsync);
+            ui.ExitCommand = new RelayCommand(() =>
+            {
+                allowClose = true;
+                Close();
+            });
+            ui.JogStartCommand = new RelayCommand(p => HandleJogWriteAsync(ToInt(p, -1), true));
+            ui.JogStopCommand = new RelayCommand(p => HandleJogWriteAsync(ToInt(p, -1), false));
+            ui.GoHomeStartCommand = new RelayCommand(() => HandleGoHomeWriteAsync(true));
+            ui.GoHomeStopCommand = new RelayCommand(() => HandleGoHomeWriteAsync(false));
+            ui.ResetErrorStartCommand = new RelayCommand(() => HandleResetErrorWriteAsync(true));
+            ui.ResetErrorStopCommand = new RelayCommand(() => HandleResetErrorWriteAsync(false));
+            ui.StartActionStartCommand = new RelayCommand(() => HandleStartWriteAsync(true));
+            ui.StartActionStopCommand = new RelayCommand(() => HandleStartWriteAsync(false));
+            ui.ContinueStartCommand = new RelayCommand(() => HandleContinueWriteAsync(true));
+            ui.ContinueStopCommand = new RelayCommand(() => HandleContinueWriteAsync(false));
+            ui.PauseStartCommand = new RelayCommand(() => HandlePauseWriteAsync(true));
+            ui.PauseStopCommand = new RelayCommand(() => HandlePauseWriteAsync(false));
+            ui.SetJogSpeedCommand = new RelayCommand(() => HandleSetJogSpeedAsync(ui.JogSpeedInput));
+            ui.OpenDxfCommand = new RelayCommand(HandleOpenDxfAsync);
+            ui.NewGcodeCommand = new RelayCommand(HandleNewGcodeAsync);
+            ui.SaveGcodeCommand = new RelayCommand(() => HandleSaveGcodeAsync(ui.RawGcodeText));
+            ui.PreviewGcodeCommand = new RelayCommand(() => HandlePreviewGcodeAsync(ui.RawGcodeText));
+            ui.ClearBufferCommand = new RelayCommand(HandleClearBufferAsync);
+            ui.SendCadXCommand = new RelayCommand(HandleSendCadXAsync);
+            ui.ClearLogsCommand = new RelayCommand(HandleClearLogsAsync);
+            ui.AddTelemetryRegisterCommand = new RelayCommand(() => HandleAddTelemetryRegisterAsync(ui.TelemetryAddressInput));
+            ui.AddTelemetryBufferCommand = new RelayCommand(() => HandleAddTelemetryBufferAsync(ui.TelemetryAddressInput, ui.TelemetryLengthInput));
+            ui.WriteBufferCommand = new RelayCommand(() => HandleWriteBufferRequestAsync(ui.WriteAddressInput, ui.WriteValueInput));
+            ui.ApplyDxfSettingsCommand = new RelayCommand(ApplyDxfSettingsAsync);
+            ui.SetG0SpeedCommand = new RelayCommand(async () =>
+            {
+                rapidSpeed = ui.RapidSpeedInput;
+                SaveSettingsToFile();
+                await PushDxfStateAsync();
+                await NotifyAsync("success", "Settings", "Updated G00 rapid speed.");
+            });
+            ui.SetWorkspaceCommand = new RelayCommand(async () =>
+            {
+                workspaceWidth = ui.WorkspaceWidthInput;
+                workspaceHeight = ui.WorkspaceHeightInput;
+                SaveSettingsToFile();
+                await PushDxfStateAsync();
+                await NotifyAsync("success", "Settings", "Updated workspace size.");
+            });
+            ui.SelectWcsCommand = new RelayCommand(async p =>
+            {
+                string selectedWcs = Convert.ToString(p, CultureInfo.InvariantCulture);
+                if (string.IsNullOrWhiteSpace(selectedWcs))
+                    return;
+
+                int wcsIdx = GetWcsIndex(selectedWcs);
+                activeWcs = "G5" + (4 + wcsIdx).ToString(CultureInfo.InvariantCulture);
+                ui.ActiveWcs = activeWcs;
+                var row = ui.WcsOffsets.FirstOrDefault(item =>
+                    string.Equals(item.Name, activeWcs, StringComparison.OrdinalIgnoreCase));
+                if (row != null)
+                {
+                    ui.WcsOffsetXInput = row.OffsetX;
+                    ui.WcsOffsetYInput = row.OffsetY;
+                }
+                await PushDxfStateAsync();
+            });
+            ui.SetWcsCommand = new RelayCommand(ApplyWcsSettingsAsync);
+            ui.ApplyPlcConnectionCommand = new RelayCommand(async () =>
+            {
+                plcIpAddress = ui.PlcIpAddressInput;
+                plcPort = ui.PlcPortInput;
+                SaveSettingsToFile();
+                await PushControlStateAsync();
+                await NotifyAsync("success", "PLC", "PLC connection settings saved.");
+            });
+            ui.SaveProfileCommand = new RelayCommand(SaveProfileAsync);
+            ui.LoadProfileCommand = new RelayCommand(LoadProfileAsync);
+            ui.DeleteProfileCommand = new RelayCommand(DeleteProfileAsync);
+        }
+
+        private async Task ApplyDxfSettingsAsync()
+        {
+            offsetX = ui.OffsetXInput;
+            offsetY = ui.OffsetYInput;
+            await HandleProcessValueAsync("speed", ui.GlobalSpeedInput);
+            await HandleProcessValueAsync("globalSpeedM3", ui.GlobalSpeedM3Input);
+            await HandleProcessValueAsync("dwellM3", ui.GlobalDwellM3Input);
+            await HandleProcessValueAsync("dwellM4", ui.GlobalDwellM4Input);
+            SaveSettingsToFile();
+            await HandleScanLimitsAsync();
+            await PushDxfStateAsync();
+        }
+
+        private async Task ApplyWcsSettingsAsync()
+        {
+            foreach (var row in ui.WcsOffsets)
+            {
+                int rowIndex = GetWcsIndex(row.Name);
+                wcsOffsetX[rowIndex] = row.OffsetX;
+                wcsOffsetY[rowIndex] = row.OffsetY;
+            }
+
+            int wcsIdx = GetWcsIndex(ui.ActiveWcs);
+            activeWcs = "G5" + (4 + wcsIdx).ToString(CultureInfo.InvariantCulture);
+            ui.ActiveWcs = activeWcs;
+            ui.WcsOffsetXInput = wcsOffsetX[wcsIdx];
+            ui.WcsOffsetYInput = wcsOffsetY[wcsIdx];
+            SaveSettingsToFile();
+            await PushDxfStateAsync();
+            await NotifyAsync("success", "WCS", $"Saved G54-G59 offsets. Active {activeWcs} X={ui.WcsOffsetXInput} Y={ui.WcsOffsetYInput}");
+        }
+
+        private async Task SaveProfileAsync()
+        {
+            string cleanName = CleanProfileName(ui.ProfileNameInput);
+            if (string.IsNullOrWhiteSpace(cleanName))
+            {
+                await NotifyAsync("error", "Profiles", "Ten cau hinh khong hop le.");
+                return;
+            }
+
+            Directory.CreateDirectory(ProfilesDirPath);
+            SaveSettingsToFile(Path.Combine(ProfilesDirPath, cleanName + ".txt"));
+            await NotifyAsync("success", "Profiles", $"Da luu cau hinh '{cleanName}'.");
+            await PushDxfStateAsync();
+        }
+
+        private async Task LoadProfileAsync()
+        {
+            string cleanName = CleanProfileName(ui.SelectedProfile);
+            string profilePath = Path.Combine(ProfilesDirPath, cleanName + ".txt");
+            if (string.IsNullOrWhiteSpace(cleanName) || !File.Exists(profilePath))
+            {
+                await NotifyAsync("error", "Profiles", "Khong tim thay cau hinh.");
+                return;
+            }
+
+            LoadSettingsFromFile(profilePath);
+            SaveSettingsToFile();
+            SyncSettingsToUi();
+
+            if (activeCadDocument != null)
+                await HandleImportCadToProcessAsync();
+
+            await HandleScanLimitsAsync();
+            await PushDxfStateAsync();
+            await NotifyAsync("success", "Profiles", $"Da tai cau hinh '{cleanName}'.");
+        }
+
+        private async Task DeleteProfileAsync()
+        {
+            string cleanName = CleanProfileName(ui.SelectedProfile);
+            string profilePath = Path.Combine(ProfilesDirPath, cleanName + ".txt");
+            if (string.IsNullOrWhiteSpace(cleanName) || !File.Exists(profilePath))
+            {
+                await NotifyAsync("error", "Profiles", "Khong tim thay cau hinh de xoa.");
+                return;
+            }
+
+            File.Delete(profilePath);
+            await NotifyAsync("success", "Profiles", $"Da xoa cau hinh '{cleanName}'.");
+            await PushDxfStateAsync();
+        }
+
+        private void SyncSettingsToUi()
+        {
+            ui.LogicalStationInput = logicalStation;
+            ui.PlcIpAddressInput = plcIpAddress;
+            ui.PlcPortInput = plcPort;
+            ui.JogSpeedInput = currentJogSpeedD406;
+            ui.GlobalSpeedInput = globalSpeed;
+            ui.GlobalSpeedM3Input = globalSpeedM3;
+            ui.RapidSpeedInput = rapidSpeed;
+            ui.GlobalDwellM3Input = globalDwellM3;
+            ui.GlobalDwellM4Input = globalDwellM4;
+            ui.OffsetXInput = offsetX;
+            ui.OffsetYInput = offsetY;
+            ui.WorkspaceWidthInput = workspaceWidth;
+            ui.WorkspaceHeightInput = workspaceHeight;
+            ui.ActiveWcs = activeWcs;
+            SyncWcsOffsetsToUi();
+        }
+
+        private void SyncWcsOffsetsToUi()
+        {
+            int activeIndex = GetWcsIndex(activeWcs);
+            activeWcs = "G5" + (4 + activeIndex).ToString(CultureInfo.InvariantCulture);
+
+            ui.WcsOffsets.Clear();
+            for (int i = 0; i < 6; i++)
+            {
+                ui.WcsOffsets.Add(new WcsOffsetViewModel
+                {
+                    Name = "G5" + (4 + i).ToString(CultureInfo.InvariantCulture),
+                    OffsetX = wcsOffsetX[i],
+                    OffsetY = wcsOffsetY[i]
+                });
+            }
+
+            ui.ActiveWcs = activeWcs;
+            ui.WcsOffsetXInput = wcsOffsetX[activeIndex];
+            ui.WcsOffsetYInput = wcsOffsetY[activeIndex];
+        }
 
         private void LoadSettingsFromFile(string path = null)
         {
@@ -198,7 +382,6 @@ namespace DACDT_2026
                         case "memberPassword": memberPassword = val; break;
                         case "activeWcs": activeWcs = val; break;
                         default:
-                            // WCS offsets: wcsG54X, wcsG54Y, wcsG55X, ...
                             for (int i = 0; i < 6; i++)
                             {
                                 string gName = "G5" + (4 + i);
@@ -209,7 +392,7 @@ namespace DACDT_2026
                     }
                 }
             }
-            catch { /* ignore load errors */ }
+            catch { }
         }
 
         private void SaveSettingsToFile(string path = null)
@@ -248,7 +431,7 @@ namespace DACDT_2026
                 }
                 File.WriteAllLines(path, lines);
             }
-            catch { /* ignore save errors */ }
+            catch { }
         }
 
         private List<string> GetProfilesList()
@@ -259,116 +442,65 @@ namespace DACDT_2026
                 if (Directory.Exists(ProfilesDirPath))
                 {
                     foreach (var file in Directory.GetFiles(ProfilesDirPath, "*.txt"))
-                    {
                         profiles.Add(Path.GetFileNameWithoutExtension(file));
-                    }
                 }
             }
             catch { }
             return profiles;
         }
 
-        // ── WebView2 initialization ───────────────────────────────────────────────
-        private async Task InitializeWebViewAsync()
+        private static Dictionary<string, object> Payload(params object[] keyValues)
         {
-            try
+            var payload = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+            for (int i = 0; i + 1 < keyValues.Length; i += 2)
+                payload[Convert.ToString(keyValues[i], CultureInfo.InvariantCulture)] = keyValues[i + 1];
+            return payload;
+        }
+
+        private static int ToInt(object value, int fallback)
+        {
+            if (value == null) return fallback;
+            int parsed;
+            return int.TryParse(Convert.ToString(value, CultureInfo.InvariantCulture), NumberStyles.Integer, CultureInfo.InvariantCulture, out parsed)
+                ? parsed
+                : fallback;
+        }
+
+        private static int GetWcsIndex(string wcs)
+        {
+            switch (wcs)
             {
-                string userDataFolder = Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                    "DACDT_2026", "WebView2");
-                System.IO.Directory.CreateDirectory(userDataFolder);
-
-                var options = new Microsoft.Web.WebView2.Core.CoreWebView2EnvironmentOptions
-                {
-                    // Enable WebGL and hardware acceleration for Three.js 3D view
-                    AdditionalBrowserArguments = "--enable-webgl --enable-gpu --ignore-gpu-blocklist --enable-unsafe-webgpu"
-                };
-
-                // Try embedded WebView2 Runtime first, fallback to system Runtime
-                Microsoft.Web.WebView2.Core.CoreWebView2Environment environment = null;
-                
-                // 1. Try embedded Runtime (WebView2Runtime folder in app directory)
-                string embeddedRuntimePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "WebView2Runtime");
-                if (Directory.Exists(embeddedRuntimePath))
-                {
-                    try
-                    {
-                        environment = await Microsoft.Web.WebView2.Core.CoreWebView2Environment.CreateAsync(
-                            embeddedRuntimePath, userDataFolder, options);
-                    }
-                    catch
-                    {
-                        // Embedded Runtime failed, will try system Runtime
-                        environment = null;
-                    }
-                }
-
-                // 2. Fallback to system Runtime
-                if (environment == null)
-                {
-                    try
-                    {
-                        environment = await Microsoft.Web.WebView2.Core.CoreWebView2Environment.CreateAsync(
-                            null, userDataFolder, options);
-                    }
-                    catch (Exception webViewEx)
-                    {
-                        // WebView2 Runtime not found
-                        if (webViewEx.HResult == -2147024888) // 0x80070008
-                        {
-                            MessageBox.Show(
-                                this,
-                                "WebView2 Runtime is not installed and embedded Runtime is not available.\n\n" +
-                                "Please either:\n" +
-                                "1. Download and install WebView2 Runtime from:\n" +
-                                "   https://developer.microsoft.com/en-us/microsoft-edge/webview2/\n\n" +
-                                "2. Or run setup_webview2_runtime.ps1 to download embedded Runtime\n\n" +
-                                "After installation, please restart this application.",
-                                "WebView2 Runtime Required",
-                                MessageBoxButtons.OK,
-                                MessageBoxIcon.Warning);
-                            return;
-                        }
-                        throw;
-                    }
-                }
-
-                await webView.EnsureCoreWebView2Async(environment);
-
-                webView.CoreWebView2.Settings.AreDefaultContextMenusEnabled  = false;
-                webView.CoreWebView2.Settings.AreDefaultScriptDialogsEnabled = true;
-                webView.CoreWebView2.Settings.AreDevToolsEnabled             = true;
-                webView.CoreWebView2.Settings.IsStatusBarEnabled             = false;
-                webView.CoreWebView2.WebMessageReceived += CoreWebView2_WebMessageReceived;
-
-                string uiPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ui", "index.html");
-                webView.Source = new Uri(uiPath);
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show(
-                    this,
-                    "Failed to initialize HTML dashboard.\n\n" + ex.Message,
-                    "Error",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Error);
+                case "G55": return 1;
+                case "G56": return 2;
+                case "G57": return 3;
+                case "G58": return 4;
+                case "G59": return 5;
+                default: return 0;
             }
         }
 
-        // ── Lifecycle ────────────────────────────────────────────────────────────
-        private bool allowClose = false; // Chỉ cho phép đóng khi nhấn EXIT APP
-
-        protected override void OnFormClosing(FormClosingEventArgs e)
+        private static string CleanProfileName(string rawName)
         {
-            if (!allowClose && e.CloseReason == CloseReason.UserClosing)
+            if (string.IsNullOrWhiteSpace(rawName)) return "";
+            var cleanName = "";
+            foreach (char c in rawName)
             {
-                e.Cancel = true; // Chặn Alt+F4 và X button
+                if (char.IsLetterOrDigit(c) || c == '_' || c == '-')
+                    cleanName += c;
+            }
+            return cleanName;
+        }
+
+        protected override void OnClosing(CancelEventArgs e)
+        {
+            if (!allowClose)
+            {
+                e.Cancel = true;
                 return;
             }
 
             isClosing = true;
-            webReady  = false;
-
+            webReady = false;
             plcPollTimer.Stop();
             plcPollTimer.Tick -= PlcPollTimer_Tick;
 
@@ -378,7 +510,7 @@ namespace DACDT_2026
                 plcComm = null;
             }
 
-            base.OnFormClosing(e);
+            base.OnClosing(e);
         }
     }
 }
