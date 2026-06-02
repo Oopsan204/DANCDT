@@ -772,15 +772,15 @@ namespace DACDT_2026
 
             labels.Add(new CadAxisLabelViewModel
             {
-                X = Clamp(xEnd.X - 18.0, 4.0, CadProjection.CanvasWidth - 24.0),
-                Y = Clamp(xEnd.Y - 24.0, 4.0, CadProjection.CanvasHeight - 24.0),
+                X = Clamp(xEnd.X - 22.0, 4.0, CadProjection.CanvasWidth - 24.0),
+                Y = Clamp(origin.Y + 10.0, 4.0, CadProjection.CanvasHeight - 24.0),
                 Text = "X",
                 Foreground = Brushes.IndianRed
             });
             labels.Add(new CadAxisLabelViewModel
             {
-                X = Clamp(yEnd.X + 8.0, 4.0, CadProjection.CanvasWidth - 24.0),
-                Y = Clamp(yEnd.Y + 2.0, 4.0, CadProjection.CanvasHeight - 24.0),
+                X = Clamp(origin.X + 12.0, 4.0, CadProjection.CanvasWidth - 24.0),
+                Y = Clamp(yEnd.Y + 18.0, 4.0, CadProjection.CanvasHeight - 24.0),
                 Text = "Y",
                 Foreground = Brushes.MediumSeaGreen
             });
