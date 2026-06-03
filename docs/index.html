@@ -312,24 +312,19 @@
                     <div class="active-badge"><span class="dot" id="cam-status-dot"></span><span id="cam-status-text">Recording stopped</span></div>
                 </div>
                 <div class="cam-toolbar">
-                    <select class="cam-select" id="cam-select"><option value="">— Chọn camera —</option></select>
-                    <button class="cam-btn refresh" id="btn-refresh" onclick="dashboard.refreshCameras()">REF</button>
-                    <button class="cam-btn start"   id="btn-start"   onclick="dashboard.startCamera()">START</button>
-                    <button class="cam-btn stop"    id="btn-stop"    onclick="dashboard.stopCamera()">STOP</button>
-                    <button class="cam-btn rec"     id="btn-rec"     onclick="dashboard.startRec()">REC</button>
-                    <button class="cam-btn stoprec" id="btn-stoprec" onclick="dashboard.stopRec()">STOP</button>
+                    <span style="font-size: 11px; color: var(--text-bright); padding: 4px 8px; font-weight: 600;">Nguồn: MQTT Stream (DACDT/camera/frame)</span>
                 </div>
                 <div class="cam-view" id="cam-view">
                     <div class="cam-placeholder" id="cam-placeholder">
                         <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
                             <rect x="2" y="7" width="15" height="10" rx="1"/><path d="M17 9l5-2v10l-5-2"/>
                         </svg>
-                        <span>Không có tín hiệu camera</span>
+                        <span>Đang chờ khung hình MQTT...</span>
                     </div>
-                    <video id="cam-video" style="display:none;width:100%;height:100%;object-fit:cover;" autoplay muted playsinline></video>
+                    <img id="cam-img" style="display:none;width:100%;height:100%;object-fit:contain;" />
                 </div>
                 <div class="rec-status" id="rec-status">
-                    <span class="dot rec-dot"></span><span id="rec-label">Recording stopped</span>
+                    <span class="dot rec-dot" id="mqtt-cam-dot"></span><span id="rec-label">Chưa nhận được dữ liệu</span>
                 </div>
             </div>
         </div>
@@ -391,8 +386,10 @@ class GantrySCADADashboard {
         this.MQTT_PORT     = 8884;
         this.MQTT_USERNAME = 'DACDT2026';
         this.MQTT_PASSWORD = 'trungaN123@';
-        this.MQTT_TOPIC    = 'monitor/#';
-        this.MQTT_TOPIC_OLD= 'DACDT/machine/state';
+        this.MQTT_TOPIC_MACHINE_STATE = 'DACDT/machine/state';
+        this.MQTT_TOPIC_MONITOR_STATE = 'DACDT/monitor/state';
+        this.MQTT_TOPIC_CAMERA_FRAME  = 'DACDT/camera/frame';
+        this.MQTT_TOPIC_MONITOR_WILD  = 'monitor/#';
 
         this.init();
     }
@@ -400,11 +397,10 @@ class GantrySCADADashboard {
     init() {
         // init UI
         document.getElementById('broker-value').textContent = this.MQTT_BROKER;
-        document.getElementById('topic-value').textContent = this.MQTT_TOPIC;
+        document.getElementById('topic-value').textContent = 'DACDT/machine/state, DACDT/monitor/state';
         
         this.addLog('Dashboard khởi động', 'info');
         this.connectMQTT();
-        this.refreshCameras();
     }
 
     /* ── LOGS ── */
@@ -472,10 +468,12 @@ class GantrySCADADashboard {
                     }
                     this.addLog('Kết nối MQTT thành công', 'info');
                     
-                    this.client.subscribe(this.MQTT_TOPIC, {
-                        onSuccess: () => this.addLog('Subscribe: ' + this.MQTT_TOPIC, 'info')
+                    this.client.subscribe(this.MQTT_TOPIC_MACHINE_STATE);
+                    this.client.subscribe(this.MQTT_TOPIC_MONITOR_STATE);
+                    this.client.subscribe(this.MQTT_TOPIC_CAMERA_FRAME);
+                    this.client.subscribe(this.MQTT_TOPIC_MONITOR_WILD, {
+                        onSuccess: () => this.addLog('Subscribe: DACDT/machine/state, DACDT/monitor/state, DACDT/camera/frame', 'info')
                     });
-                    this.client.subscribe(this.MQTT_TOPIC_OLD);
                 },
                 onFailure: (e) => this.addLog('Kết nối thất bại: ' + e.errorMessage, 'error')
             });
@@ -488,19 +486,88 @@ class GantrySCADADashboard {
         try {
             const topic = message.destinationName;
             const payload = message.payloadString;
+
+            if (topic === this.MQTT_TOPIC_CAMERA_FRAME) {
+                this.updateCameraFrame(payload);
+                return;
+            }
             
             this.msgCount++;
             document.getElementById('msg-count').textContent = this.msgCount;
             document.getElementById('last-update').textContent = new Date().toLocaleTimeString('vi-VN');
 
-            if (topic === 'monitor/all' || topic === this.MQTT_TOPIC_OLD) {
-                const data = JSON.parse(payload);
-                this.updateDashboard(data);
+            let data = null;
+            try { data = JSON.parse(payload); } catch(e) {}
+
+            if (data && data.fileKind === 'DXF') {
+                this.updateDxfInfo(data);
+            } else if (topic === this.MQTT_TOPIC_MACHINE_STATE || topic === this.MQTT_TOPIC_MONITOR_STATE || topic === 'monitor/all') {
+                if (data) this.updateDashboard(data);
             } else if (topic.startsWith('monitor/')) {
                 const key = topic.replace('monitor/', '');
                 this.updateIndividual(key, payload);
             }
         } catch(e) {}
+    }
+
+    updateDxfInfo(data) {
+        if (data.dxfCompletion) {
+            const pct = data.dxfCompletion.percent != null ? data.dxfCompletion.percent : 0;
+            const txt = data.dxfCompletion.text || `${pct}%`;
+            document.getElementById('dxf-pct').textContent = txt;
+            document.getElementById('dxf-progress-bar').style.width = pct + '%';
+            
+            const panel = document.getElementById('dxf-completion-panel');
+            if (panel) {
+                panel.style.opacity = data.dxfCompletion.visible === false ? '0.4' : '1';
+            }
+        }
+        
+        if (data.fileName || data.filePath) {
+            let labelText = data.fileName || 'Unknown file';
+            if (data.filePath) {
+                labelText += ' · ' + data.filePath;
+            }
+            document.getElementById('dxf-file-label').textContent = labelText;
+        }
+
+        if (data.dxfPoint) {
+            const dp = data.dxfPoint;
+            
+            if (dp.activeText) {
+                this._activeText = dp.activeText;
+            }
+
+            if (dp.activeRow) {
+                const row = dp.activeRow;
+                const pointData = {
+                    no: row.index,
+                    gcode: row.motionType,
+                    m: row.mCode,
+                    speed: row.speed,
+                    xy: row.endCoordinate
+                };
+                
+                const existingIdx = this.dxfPoints.findIndex(p => p.no == row.index);
+                if (existingIdx >= 0) {
+                    this.dxfPoints[existingIdx] = Object.assign(this.dxfPoints[existingIdx], pointData);
+                } else {
+                    this.dxfPoints.push(pointData);
+                    this.dxfPoints.sort((a, b) => parseInt(a.no) - parseInt(b.no));
+                    if (this.dxfPoints.length > 200) {
+                        this.dxfPoints.shift();
+                    }
+                }
+                this.renderDxfTable();
+            } else if (!this.dxfPoints.length) {
+                // render lại để cập nhật activeText nếu bảng đang trống
+                this.renderDxfTable();
+            }
+
+            if (dp.activeDataNo != null) {
+                this.setActiveDataNo(dp.activeDataNo, dp.totalPoints, dp.activeText);
+            }
+        }
     }
 
     updateIndividual(key, value) {
@@ -650,10 +717,12 @@ class GantrySCADADashboard {
         }
     }
 
-    setActiveDataNo(no) {
+    setActiveDataNo(no, total = null, text = null) {
         this.activeDataNo = no;
         document.getElementById('active-data-no').textContent = no;
-        document.getElementById('dxf-active-label').textContent = 'Active no: ' + no;
+        
+        let labelText = 'Active no: ' + no + (total != null ? ' / ' + total : '');
+        document.getElementById('dxf-active-label').textContent = labelText;
 
         // highlight row
         document.querySelectorAll('#dxf-tbody tr').forEach(tr => {
@@ -671,7 +740,14 @@ class GantrySCADADashboard {
     }
 
     renderDxfTable() {
-        if (!this.dxfPoints.length) return;
+        if (!this.dxfPoints.length) {
+            const tbody = document.getElementById('dxf-tbody');
+            if (tbody) {
+                const msg = this._activeText || 'Chờ dữ liệu DXF...';
+                tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:20px;">${msg}</td></tr>`;
+            }
+            return;
+        }
         const tbody = document.getElementById('dxf-tbody');
         tbody.innerHTML = this.dxfPoints.map(p => {
             const isActive = parseInt(p.no) === parseInt(this.activeDataNo);
@@ -681,87 +757,32 @@ class GantrySCADADashboard {
                 <td class="td-gcode">${p.gcode || ''}</td>
                 <td class="td-m">${p.m || ''}</td>
                 <td class="td-speed">${p.speed || ''}</td>
-                <td class="td-xy">${p.x != null ? p.x + ';' + p.y : ''}</td>
+                <td class="td-xy">${p.xy != null ? p.xy : (p.x != null ? p.x + ';' + p.y : '')}</td>
             </tr>`;
         }).join('');
     }
 
     /* ── CAMERA ── */
-    async refreshCameras() {
-        try {
-            const devices = await navigator.mediaDevices.enumerateDevices();
-            const cams = devices.filter(d => d.kind === 'videoinput');
-            const sel = document.getElementById('cam-select');
-            sel.innerHTML = '<option value="">— Chọn camera —</option>' +
-                cams.map((d, i) => `<option value="${d.deviceId}">${d.label || 'Camera ' + (i+1)}</option>`).join('');
-        } catch(e) {}
-    }
-
-    async startCamera() {
-        const sel = document.getElementById('cam-select');
-        const deviceId = sel.value;
-        try {
-            const constraints = { video: deviceId ? { deviceId: { exact: deviceId } } : true };
-            this.mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
-            const video = document.getElementById('cam-video');
-            video.srcObject = this.mediaStream;
-            video.style.display = 'block';
-            document.getElementById('cam-placeholder').style.display = 'none';
-            this.setCamStatus(true, 'Camera running');
-        } catch(e) {
-            alert('Không thể mở camera: ' + e.message);
+    updateCameraFrame(base64Data) {
+        const img = document.getElementById('cam-img');
+        const placeholder = document.getElementById('cam-placeholder');
+        if (img && placeholder) {
+            img.src = 'data:image/jpeg;base64,' + base64Data;
+            img.style.display = 'block';
+            placeholder.style.display = 'none';
         }
-    }
-
-    stopCamera() {
-        if (this.mediaStream) {
-            this.mediaStream.getTracks().forEach(t => t.stop());
-            this.mediaStream = null;
-        }
-        const video = document.getElementById('cam-video');
-        video.srcObject = null;
-        video.style.display = 'none';
-        document.getElementById('cam-placeholder').style.display = 'flex';
-        this.stopRec();
-        this.setCamStatus(false, 'Recording stopped');
-    }
-
-    startRec() {
-        if (!this.mediaStream) { alert('Hãy bật camera trước!'); return; }
-        this.recordedChunks = [];
-        this.mediaRecorder = new MediaRecorder(this.mediaStream);
-        this.mediaRecorder.ondataavailable = e => { if (e.data.size > 0) this.recordedChunks.push(e.data); };
-        this.mediaRecorder.onstop = () => this.saveRecording();
-        this.mediaRecorder.start();
-        this.isRecording = true;
-        document.getElementById('rec-status').classList.add('recording');
-        document.getElementById('rec-label').textContent = 'Recording...';
-        document.getElementById('cam-status-text').textContent = 'Recording';
-        document.getElementById('cam-status-dot').style.background = 'var(--red)';
-    }
-
-    stopRec() {
-        if (this.mediaRecorder && this.isRecording) {
-            this.mediaRecorder.stop();
-            this.isRecording = false;
-        }
-        document.getElementById('rec-status').classList.remove('recording');
-        document.getElementById('rec-label').textContent = 'Recording stopped';
-        document.getElementById('cam-status-text').textContent = 'Recording stopped';
-        document.getElementById('cam-status-dot').style.background = 'var(--muted)';
-    }
-
-    saveRecording() {
-        const blob = new Blob(this.recordedChunks, { type: 'video/webm' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url; a.download = 'camera_' + Date.now() + '.webm'; a.click();
-        URL.revokeObjectURL(url);
+        this.setCamStatus(true, 'MQTT Stream active');
+        const dot = document.getElementById('mqtt-cam-dot');
+        if (dot) dot.style.background = 'var(--green)';
+        const lbl = document.getElementById('rec-label');
+        if (lbl) lbl.textContent = 'Đang nhận frame: ' + (base64Data.length / 1024).toFixed(1) + ' KB';
     }
 
     setCamStatus(active, text) {
-        document.getElementById('cam-status-dot').style.background = active ? 'var(--green)' : 'var(--muted)';
-        document.getElementById('cam-status-text').textContent = text;
+        const dot = document.getElementById('cam-status-dot');
+        const txt = document.getElementById('cam-status-text');
+        if (dot) dot.style.background = active ? 'var(--green)' : 'var(--muted)';
+        if (txt) txt.textContent = text;
     }
 }
 

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Drawing.Imaging;
 using System.Globalization;
 using System.IO;
 using System.Linq;
@@ -23,6 +24,10 @@ namespace DACDT_2026
         private List<Bitmap> recordedFrames;
         private int recordedFrameCount;
         private object cameraLock = new object();
+        private DateTime lastCameraMqttPublishUtc = DateTime.MinValue;
+        private bool cameraMqttPublishInFlight;
+        private const int CameraMqttPublishIntervalMs = 500;
+        private const long CameraMqttJpegQuality = 55L;
 
         /// <summary>
         /// Refresh available camera devices and populate the UI list.
@@ -98,6 +103,8 @@ namespace DACDT_2026
                         ui.CameraStatus = "Camera started.";
                         recordedFrameCount = 0;
                         ui.CameraRecordedFrames = 0;
+                        lastCameraMqttPublishUtc = DateTime.MinValue;
+                        cameraMqttPublishInFlight = false;
                     }
                 }
                 catch (Exception ex)
@@ -173,6 +180,8 @@ namespace DACDT_2026
                     ui.IsCameraRunning = false;
                     recordedFrameCount = 0;
                     ui.CameraRecordedFrames = 0;
+                    lastCameraMqttPublishUtc = DateTime.MinValue;
+                    cameraMqttPublishInFlight = false;
                 }
             }
             catch { }
@@ -279,6 +288,8 @@ namespace DACDT_2026
                 {
                     using (var bitmap = (Bitmap)eventArgs.Frame.Clone())
                     {
+                        Bitmap mqttBitmap = null;
+
                         // Store frame to memory if recording
                         if (ui.IsCameraRecording && recordedFrames != null)
                         {
@@ -290,6 +301,9 @@ namespace DACDT_2026
                             }
                             catch { }
                         }
+
+                        if (ShouldPublishCameraFrameToMqtt(DateTime.UtcNow))
+                            mqttBitmap = (Bitmap)bitmap.Clone();
 
                         // Convert bitmap to BitmapImage for UI display
                         var bitmapImage = new BitmapImage();
@@ -306,6 +320,9 @@ namespace DACDT_2026
                         {
                             ui.CameraFrame = bitmapImage;
                         }));
+
+                        if (mqttBitmap != null)
+                            _ = Task.Run(() => PublishCameraBitmapToMqttAsync(mqttBitmap));
                     }
                 }
             }
@@ -323,6 +340,65 @@ namespace DACDT_2026
                     }
                     catch { }
                 }
+            }
+        }
+
+        private bool ShouldPublishCameraFrameToMqtt(DateTime nowUtc)
+        {
+            if (!mqttService.IsConnected || cameraMqttPublishInFlight)
+                return false;
+
+            if ((nowUtc - lastCameraMqttPublishUtc).TotalMilliseconds < CameraMqttPublishIntervalMs)
+                return false;
+
+            lastCameraMqttPublishUtc = nowUtc;
+            cameraMqttPublishInFlight = true;
+            return true;
+        }
+
+        private async Task PublishCameraBitmapToMqttAsync(Bitmap bitmap)
+        {
+            try
+            {
+                string base64;
+                using (bitmap)
+                using (var ms = new MemoryStream())
+                {
+                    SaveJpeg(bitmap, ms, CameraMqttJpegQuality);
+                    base64 = Convert.ToBase64String(ms.ToArray());
+                }
+
+                if (mqttService.IsConnected)
+                    await mqttService.PublishAsync("DACDT/camera/frame", base64);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[MQTT Camera] Publish error: {ex.Message}");
+            }
+            finally
+            {
+                lock (cameraLock)
+                {
+                    cameraMqttPublishInFlight = false;
+                }
+            }
+        }
+
+        private static void SaveJpeg(Bitmap bitmap, Stream stream, long quality)
+        {
+            ImageCodecInfo jpegCodec = ImageCodecInfo.GetImageEncoders()
+                .FirstOrDefault(codec => string.Equals(codec.MimeType, "image/jpeg", StringComparison.OrdinalIgnoreCase));
+
+            if (jpegCodec == null)
+            {
+                bitmap.Save(stream, ImageFormat.Jpeg);
+                return;
+            }
+
+            using (var parameters = new EncoderParameters(1))
+            {
+                parameters.Param[0] = new EncoderParameter(System.Drawing.Imaging.Encoder.Quality, quality);
+                bitmap.Save(stream, jpegCodec, parameters);
             }
         }
     }

@@ -239,7 +239,7 @@ namespace DACDT_2026
 
         /// <summary>
         /// Publish the current camera frame to MQTT as a Base64-encoded JPEG.
-        /// Topic: DACDT/monitor/camera/frame
+        /// Topic: DACDT/camera/frame
         /// Quality is kept at 60 to limit message size (~10-30 KB per frame).
         /// </summary>
         private async Task PublishCameraFrameToMqttAsync()
@@ -267,7 +267,7 @@ namespace DACDT_2026
                 if (jpegBytes == null || jpegBytes.Length == 0) return;
 
                 string base64 = Convert.ToBase64String(jpegBytes);
-                await mqttService.PublishAsync("DACDT/monitor/camera/frame", base64);
+                await mqttService.PublishAsync("DACDT/camera/frame", base64);
             }
             catch (Exception ex)
             {
