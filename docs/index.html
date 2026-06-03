@@ -181,6 +181,32 @@
         .log-entry.error .log-message { color: var(--red); }
         
         .plc-status-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--panel-gap); height: 100%; }
+
+        /* ── RESPONSIVE (MOBILE & TABLET) ── */
+        @media (max-width: 1024px) {
+            body { height: auto; overflow-y: auto; overflow-x: hidden; }
+            .layout-wrapper { display: flex; flex-direction: column; height: auto; overflow: visible; }
+            .main-content { overflow: visible; }
+            
+            #top-row { grid-template-columns: 1fr 1fr; }
+            #dxf-completion-panel { grid-column: 1 / -1; }
+            
+            #middle-row { grid-template-columns: 1fr; }
+            .dxf-table-wrap { min-height: 250px; max-height: 350px; }
+            .cam-view { min-height: 250px; max-height: 350px; }
+            
+            #bottom-row { grid-template-columns: 1fr; height: auto; }
+            .plc-status-grid { height: auto; }
+            #bottom-row .panel:last-child .panel-body { min-height: 250px; }
+            
+            .sidebar { max-height: none; overflow: visible; }
+            #sidebar-logs { display: none; } /* Hide small logs in sidebar on mobile */
+        }
+        
+        @media (max-width: 600px) {
+            #top-row { grid-template-columns: 1fr; }
+            .plc-status-grid { grid-template-columns: 1fr; }
+        }
         
     </style>
 </head>
@@ -192,6 +218,16 @@
         <div>
             <h2 style="font-size: 15px; margin-bottom: 4px; color: var(--text-bright);">📊 DACDT 2026</h2>
             <p style="font-size: 10px; color: var(--muted);">MQTT Real-time Dashboard</p>
+        </div>
+
+        <div>
+            <div class="sidebar-title">Điều khiển nhanh</div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                <button class="cam-btn start" onclick="dashboard.publishCommand('RUN', 'machine')" style="width:100%; text-align:center;">▶ RUN</button>
+                <button class="cam-btn rec" onclick="dashboard.publishCommand('STOP', 'machine')" style="width:100%; text-align:center;">■ STOP</button>
+                <button class="cam-btn" onclick="dashboard.publishCommand('PAUSE', 'machine')" style="width:100%; text-align:center; background: var(--yellow); color: #000; font-weight:600; border:none; border-radius:3px; font-size:11px; padding:4px 0;">⏸ PAUSE</button>
+                <button class="cam-btn" onclick="dashboard.publishCommand('RESET', 'machine')" style="width:100%; text-align:center; background: var(--blue); color: #fff; font-weight:600; border:none; border-radius:3px; font-size:11px; padding:4px 0;">↺ RESET</button>
+            </div>
         </div>
         
         <div>
@@ -313,6 +349,10 @@
                 </div>
                 <div class="cam-toolbar">
                     <span style="font-size: 11px; color: var(--text-bright); padding: 4px 8px; font-weight: 600;">Nguồn: MQTT Stream (DACDT/camera/frame)</span>
+                    <div style="margin-left: auto; display: flex; gap: 6px;">
+                        <button class="cam-btn start" onclick="dashboard.publishCommand('START', 'camera')">START CAM</button>
+                        <button class="cam-btn stop" onclick="dashboard.publishCommand('STOP', 'camera')">STOP CAM</button>
+                    </div>
                 </div>
                 <div class="cam-view" id="cam-view">
                     <div class="cam-placeholder" id="cam-placeholder">
@@ -480,6 +520,25 @@ class GantrySCADADashboard {
         } catch(e) {
             this.addLog('Lỗi MQTT: ' + e.message, 'error');
         }
+    }
+
+    publishCommand(cmd, target = 'machine') {
+        if (!this.isConnected) {
+            this.addLog('Lỗi: MQTT chưa kết nối!', 'error');
+            return;
+        }
+        
+        // Xác định topic tương ứng
+        const topic = target === 'camera' ? 'DACDT/camera/command' : 'DACDT/machine/command';
+        
+        // Bạn có thể điều chỉnh cấu trúc payload gửi đi (dạng chuỗi hoặc JSON)
+        const payload = cmd; 
+        
+        const msg = new Paho.MQTT.Message(payload);
+        msg.destinationName = topic;
+        this.client.send(msg);
+        
+        this.addLog(`Gửi lệnh [${cmd}] tới ${target}`, 'info');
     }
 
     handleMessage(message) {

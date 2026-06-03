@@ -116,6 +116,7 @@ namespace DACDT_2026
             LoadSettingsFromFile();
             ConfigureCommands();
             SyncSettingsToUi();
+            mqttService.MessageReceived += MqttService_MessageReceived;
 
             Loaded += async (sender, e) =>
             {
@@ -544,6 +545,11 @@ namespace DACDT_2026
                 string password = "trungaN123@";
                 Console.WriteLine($"[DEBUG] Starting MQTT connection to {broker}:8883...");
                 await mqttService.ConnectAsync(broker, username, password);
+                await mqttService.SubscribeAsync(
+                    "DACDT/machine/command",
+                    "DACDT/machine/comment",
+                    "DACDT/machine/coment",
+                    "DACDT/camera/command");
                 Console.WriteLine($"[DEBUG] MQTT connection completed. IsConnected={mqttService.IsConnected}");
             }
             catch (Exception ex)
@@ -551,6 +557,163 @@ namespace DACDT_2026
                 Console.WriteLine($"MQTT init failed: {ex.Message}");
                 Console.WriteLine($"[DEBUG] MQTT IsConnected after error: {mqttService.IsConnected}");
             }
+        }
+
+        private void MqttService_MessageReceived(string topic, string payload)
+        {
+            if (isClosing)
+                return;
+
+            _ = HandleMqttCommandAsync(topic, payload);
+        }
+
+        private async Task HandleMqttCommandAsync(string topic, string payload)
+        {
+            string command = ExtractMqttCommand(payload);
+            if (string.IsNullOrWhiteSpace(command))
+                return;
+
+            try
+            {
+                if (IsMachineCommandTopic(topic))
+                {
+                    await HandleMachineMqttCommandAsync(command);
+                }
+                else if (string.Equals(topic, "DACDT/camera/command", StringComparison.OrdinalIgnoreCase))
+                {
+                    await HandleCameraMqttCommandAsync(command);
+                }
+            }
+            catch (Exception ex)
+            {
+                await NotifyAsync("error", "MQTT Command", $"{topic}: {command} - {ex.Message}");
+            }
+        }
+
+        private async Task HandleMachineMqttCommandAsync(string command)
+        {
+            string normalized = NormalizeCommand(command);
+            switch (normalized)
+            {
+                case "RUN":
+                case "START":
+                    await PulsePlcCommandAsync(HandleStartWriteAsync);
+                    await NotifyAsync("success", "MQTT Machine", "RUN command executed.");
+                    break;
+
+                case "CONTINUE":
+                case "RESUME":
+                    await PulsePlcCommandAsync(HandleContinueWriteAsync);
+                    await NotifyAsync("success", "MQTT Machine", "CONTINUE command executed.");
+                    break;
+
+                case "PAUSE":
+                    await PulsePlcCommandAsync(HandlePauseWriteAsync);
+                    await NotifyAsync("success", "MQTT Machine", "PAUSE command executed.");
+                    break;
+
+                case "RESET":
+                    await PulsePlcCommandAsync(HandleResetErrorWriteAsync);
+                    await NotifyAsync("success", "MQTT Machine", "RESET command executed.");
+                    break;
+
+                case "STOP":
+                case "ESTOP":
+                case "EMERGENCYSTOP":
+                    activeRingRunner?.Stop();
+                    await HandleEmergencyStopAsync();
+                    await NotifyAsync("error", "MQTT Machine", "STOP command executed via emergency stop.");
+                    break;
+
+                default:
+                    await NotifyAsync("info", "MQTT Machine", "Ignored unknown command: " + command);
+                    break;
+            }
+        }
+
+        private async Task HandleCameraMqttCommandAsync(string command)
+        {
+            string normalized = NormalizeCommand(command);
+            switch (normalized)
+            {
+                case "START":
+                case "STARTCAM":
+                case "ON":
+                    await StartCameraAsync();
+                    await NotifyAsync("success", "MQTT Camera", "START command executed.");
+                    break;
+
+                case "STOP":
+                case "STOPCAM":
+                case "OFF":
+                    await StopCameraAsync();
+                    await NotifyAsync("info", "MQTT Camera", "STOP command executed.");
+                    break;
+
+                default:
+                    await NotifyAsync("info", "MQTT Camera", "Ignored unknown command: " + command);
+                    break;
+            }
+        }
+
+        private static async Task PulsePlcCommandAsync(Func<bool, Task> writeCommand)
+        {
+            await writeCommand(true);
+            await Task.Delay(150);
+            await writeCommand(false);
+        }
+
+        private static bool IsMachineCommandTopic(string topic)
+        {
+            return string.Equals(topic, "DACDT/machine/command", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(topic, "DACDT/machine/comment", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(topic, "DACDT/machine/coment", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static string NormalizeCommand(string command)
+        {
+            if (string.IsNullOrWhiteSpace(command))
+                return string.Empty;
+
+            var normalized = "";
+            foreach (char c in command.Trim())
+            {
+                if (char.IsLetterOrDigit(c))
+                    normalized += char.ToUpperInvariant(c);
+            }
+
+            return normalized;
+        }
+
+        private static string ExtractMqttCommand(string payload)
+        {
+            if (string.IsNullOrWhiteSpace(payload))
+                return string.Empty;
+
+            string text = payload.Trim();
+            try
+            {
+                var serializer = new System.Web.Script.Serialization.JavaScriptSerializer();
+                if (text.StartsWith("{", StringComparison.Ordinal) && text.EndsWith("}", StringComparison.Ordinal))
+                {
+                    var map = serializer.Deserialize<Dictionary<string, object>>(text);
+                    foreach (string key in new[] { "command", "cmd", "action", "value", "text" })
+                    {
+                        object value;
+                        if (map != null && map.TryGetValue(key, out value) && value != null)
+                            return Convert.ToString(value, CultureInfo.InvariantCulture)?.Trim() ?? string.Empty;
+                    }
+                }
+                else if (text.StartsWith("\"", StringComparison.Ordinal) && text.EndsWith("\"", StringComparison.Ordinal))
+                {
+                    return serializer.Deserialize<string>(text)?.Trim() ?? string.Empty;
+                }
+            }
+            catch
+            {
+            }
+
+            return text.Trim('"').Trim();
         }
 
         protected override void OnClosing(CancelEventArgs e)
