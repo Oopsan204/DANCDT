@@ -352,6 +352,8 @@
                     <div style="margin-left: auto; display: flex; gap: 6px;">
                         <button class="cam-btn start" onclick="dashboard.publishCommand('START', 'camera')">START CAM</button>
                         <button class="cam-btn stop" onclick="dashboard.publishCommand('STOP', 'camera')">STOP CAM</button>
+                        <button class="cam-btn rec" onclick="dashboard.publishCommand('RECORD_START', 'camera')">● REC</button>
+                        <button class="cam-btn stoprec" onclick="dashboard.publishCommand('RECORD_STOP', 'camera')">■ STOP REC</button>
                     </div>
                 </div>
                 <div class="cam-view" id="cam-view">
@@ -539,6 +541,27 @@ class GantrySCADADashboard {
         this.client.send(msg);
         
         this.addLog(`Gửi lệnh [${cmd}] tới ${target}`, 'info');
+
+        // Cập nhật giao diện nếu là lệnh ghi hình
+        if (target === 'camera') {
+            const recStatus = document.getElementById('rec-status');
+            const lbl = document.getElementById('rec-label');
+            const txt = document.getElementById('cam-status-text');
+            
+            if (cmd === 'RECORD_START') {
+                this.isRecording = true;
+                if (recStatus) recStatus.classList.add('recording');
+                if (lbl) lbl.textContent = 'Đang ghi hình...';
+                if (txt) txt.textContent = 'Recording active';
+                this.addLog('Bắt đầu ghi hình camera', 'info');
+            } else if (cmd === 'RECORD_STOP') {
+                this.isRecording = false;
+                if (recStatus) recStatus.classList.remove('recording');
+                if (lbl) lbl.textContent = 'Đã dừng ghi hình';
+                if (txt) txt.textContent = 'Recording stopped';
+                this.addLog('Dừng ghi hình camera', 'info');
+            }
+        }
     }
 
     handleMessage(message) {

@@ -72,7 +72,7 @@
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="62"/>
                         </Grid.ColumnDefinitions>
-                        <TextBox Text="{Binding JogSpeedInput, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,6,0"/>
+                        <TextBox Text="{Binding JogSpeedInputText, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,6,0"/>
                         <Button Grid.Column="1" Content="SET" Command="{Binding SetJogSpeedCommand}" Style="{StaticResource PrimaryButtonStyle}"/>
                     </Grid>
                     <TextBlock Text="{Binding JogSpeedD406, StringFormat=Live: {0:F3} mm/min}"
