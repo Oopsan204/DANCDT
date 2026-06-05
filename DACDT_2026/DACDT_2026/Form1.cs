@@ -238,6 +238,7 @@ namespace DACDT_2026
             ui.StopCameraCommand = new RelayCommand(StopCameraAsync);
             ui.StartCameraRecordingCommand = new RelayCommand(StartCameraRecordingAsync);
             ui.StopCameraRecordingCommand = new RelayCommand(StopCameraRecordingAsync);
+            ui.ExportQD75Command = new RelayCommand(() => _ = HandleExportQD75Async());
         }
 
         private async Task HandleSwitchViewAsync(object viewPayload)

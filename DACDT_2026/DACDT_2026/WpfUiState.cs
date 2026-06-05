@@ -193,6 +193,7 @@ namespace DACDT_2026
         public ICommand StopCameraCommand { get; set; }
         public ICommand StartCameraRecordingCommand { get; set; }
         public ICommand StopCameraRecordingCommand { get; set; }
+        public ICommand ExportQD75Command { get; set; }
 
         public string CurrentView
         {

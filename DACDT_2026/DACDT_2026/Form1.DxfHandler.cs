@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -799,6 +799,189 @@ namespace DACDT_2026
                 _ = SendProgressAsync(false, 0);
                 if (plcComm != null && plcComm.IsConnected && !isClosing)
                     StartPlcPolling();
+            }
+        }
+
+        // ── Export QD75 Positioning Data ──────────────────────────────────────────
+        private async Task HandleExportQD75Async()
+        {
+            if (processRows == null || processRows.Count == 0)
+            {
+                await NotifyAsync("info", "Export", "Không có dữ liệu trong bảng để xuất.");
+                return;
+            }
+
+            StopPlcPolling();
+            isPreviewingGcode = true;
+
+            string filePath = null;
+            char delimiter = ',';
+            try
+            {
+                var sfd = new Microsoft.Win32.SaveFileDialog
+                {
+                    Filter = "CSV (Comma delimited) (*.csv)|*.csv|CSV (Semicolon delimited) (*.csv)|*.csv|Text (Tab delimited) (*.txt)|*.txt|All files (*.*)|*.*",
+                    Title = "Export QD75 Positioning Data",
+                    FileName = "QD75_Positioning_Data_" + DateTime.Now.ToString("yyyyMMdd_HHmmss") + ".csv",
+                    FilterIndex = 1
+                };
+
+                if (sfd.ShowDialog(this) == true)
+                {
+                    filePath = sfd.FileName;
+                    if (sfd.FilterIndex == 2)
+                        delimiter = ';';
+                    else if (sfd.FilterIndex == 3)
+                        delimiter = '\t';
+                    else
+                        delimiter = ',';
+                }
+            }
+            finally
+            {
+                isPreviewingGcode = false;
+                if (plcComm != null && plcComm.IsConnected && !isClosing)
+                    StartPlcPolling();
+            }
+
+            if (string.IsNullOrEmpty(filePath))
+                return;
+
+            try
+            {
+                var dataRows = new List<QD75BufferWriter.PositioningDataRow>();
+                string lastSpeed = globalSpeed;
+                string snapRapid = rapidSpeed;
+                bool isGcodeFile = string.Equals(activeDocumentKind, "GCODE", StringComparison.OrdinalIgnoreCase);
+
+                foreach (var row in processRows)
+                {
+                    double sendOffsetX, sendOffsetY;
+                    if (isGcodeFile)
+                    {
+                        int wcsIdx = Math.Max(0, Math.Min(5, row.WcsIndex));
+                        sendOffsetX = wcsOffsetX[wcsIdx];
+                        sendOffsetY = wcsOffsetY[wcsIdx];
+                    }
+                    else
+                    {
+                        sendOffsetX = offsetX;
+                        sendOffsetY = offsetY;
+                    }
+
+                    string sendSpeed;
+                    bool rowIsRapid = row.MotionType.Contains("Rapid3") || row.MotionType.Contains("Rapid");
+
+                    if (rowIsRapid)
+                    {
+                        sendSpeed = snapRapid;
+                    }
+                    else
+                    {
+                        if (!string.IsNullOrEmpty(row.Speed) && int.TryParse(row.Speed, out int s) && s > 0)
+                        {
+                            lastSpeed = row.Speed;
+                        }
+                        sendSpeed = lastSpeed;
+                    }
+
+                    string sendEndCoordinate = ApplyOffsetToCoordSend(row.EndCoordinate, sendOffsetX, sendOffsetY);
+                    string sendCenterCoordinate = ApplyOffsetToCoordSend(row.CenterCoordinate, sendOffsetX, sendOffsetY);
+
+                    dataRows.Add(new QD75BufferWriter.PositioningDataRow
+                    {
+                        MotionType       = row.MotionType,
+                        MCodeValue       = row.MCodeValue,
+                        Dwell            = row.Dwell,
+                        Speed            = sendSpeed,
+                        EndCoordinate    = sendEndCoordinate,
+                        CenterCoordinate = sendCenterCoordinate,
+                        EndXMm           = GetCoordinateComponent(row.EndCoordinate, 0, row.EndXMm) + sendOffsetX,
+                        EndYMm           = GetCoordinateComponent(row.EndCoordinate, 1, row.EndYMm) + sendOffsetY,
+                        CenterXMm        = GetCoordinateComponent(row.CenterCoordinate, 0, row.CenterXMm) + sendOffsetX,
+                        CenterYMm        = GetCoordinateComponent(row.CenterCoordinate, 1, row.CenterYMm) + sendOffsetY,
+                        EndZ             = row.EndZ
+                    });
+                }
+
+                var sb = new StringBuilder();
+                string[] headers = {
+                    "No.", "Operation pattern", "Control system", "Axis to be interpolated",
+                    "Acceleration time No.", "Deceleration time No.", "Positioning address",
+                    "Arc address", "Command speed", "Dwell time", "M code"
+                };
+                sb.AppendLine(string.Join(delimiter.ToString(), headers));
+
+                for (int i = 0; i < dataRows.Count; i++)
+                {
+                    var row = dataRows[i];
+                    int pointNo = 2 * i + 1;
+
+                    QD75BufferWriter.ParseMotionType(row.MotionType, out var da1, out var da2);
+                    string patternStr = "0";
+                    if (da1 == QD75BufferWriter.OperationPattern.ContinuousPositioning)
+                        patternStr = "1";
+                    else if (da1 == QD75BufferWriter.OperationPattern.ContinuousPath)
+                        patternStr = "3";
+
+                    string controlStr = "0Ah";
+                    if (da2 == QD75BufferWriter.ControlSystem.ABS_CircularRight)
+                        controlStr = "0Fh";
+                    else if (da2 == QD75BufferWriter.ControlSystem.ABS_CircularLeft)
+                        controlStr = "10h";
+
+                    string axisStr = "Axis #2";
+                    string accelStr = "0:1000";
+                    string decelStr = "0:1000";
+
+                    int endX = Convert.ToInt32(Math.Round(row.EndXMm * 10000.0));
+                    string posStr = endX.ToString();
+
+                    int centerX = 0;
+                    if (da2 == QD75BufferWriter.ControlSystem.ABS_CircularRight || da2 == QD75BufferWriter.ControlSystem.ABS_CircularLeft)
+                    {
+                        centerX = Convert.ToInt32(Math.Round(row.CenterXMm * 10000.0));
+                    }
+                    string arcStr = centerX.ToString();
+
+                    int speedVal = 0;
+                    if (int.TryParse(row.Speed, out int sVal))
+                    {
+                        speedVal = sVal * 100;
+                    }
+                    string speedStr = speedVal.ToString();
+
+                    int dwellVal = 0;
+                    int.TryParse(row.Dwell, out dwellVal);
+                    string dwellStr = dwellVal.ToString();
+
+                    int mcodeVal = 0;
+                    int.TryParse(row.MCodeValue, out mcodeVal);
+                    string mcodeStr = mcodeVal.ToString();
+
+                    string[] values = {
+                        pointNo.ToString(), patternStr, controlStr, axisStr,
+                        accelStr, decelStr, posStr, arcStr, speedStr, dwellStr, mcodeStr
+                    };
+                    sb.AppendLine(string.Join(delimiter.ToString(), values));
+
+                    if (i < dataRows.Count - 1)
+                    {
+                        int spacerNo = pointNo + 1;
+                        string[] spacerValues = {
+                            spacerNo.ToString(), "", "", "", "", "", "", "", "", "", ""
+                        };
+                        sb.AppendLine(string.Join(delimiter.ToString(), spacerValues));
+                    }
+                }
+
+                File.WriteAllText(filePath, sb.ToString(), Encoding.UTF8);
+                await NotifyAsync("success", "Export", $"Đã xuất thành công {dataRows.Count} điểm ra file {Path.GetFileName(filePath)}.");
+                await LogUIAsync("Export", $"Exported {dataRows.Count} positioning data rows to {filePath}.");
+            }
+            catch (Exception ex)
+            {
+                await NotifyAsync("error", "Export", $"Lỗi xuất file: {ex.Message}");
             }
         }
 
