@@ -84,7 +84,15 @@ namespace DACDT_2026
                     axCurrentPos[1]));
             });
 
-            // --- Publish machine state to MQTT for remote web UI ---
+        }
+
+        /// <summary>
+        /// Called by the dedicated MQTT publishing loop (every 500 ms).
+        /// Publishes machine state + monitor state to MQTT without blocking the PLC polling loop.
+        /// </summary>
+        private async Task PublishAllMqttAsync()
+        {
+            bool connected = plcComm != null && plcComm.IsConnected;
             await PublishMachineStateToMqttAsync(connected);
         }
 
@@ -414,7 +422,6 @@ namespace DACDT_2026
                 ReplaceCollection(ui.Profiles, snapProfiles);
             });
 
-            await PublishMonitorStateToMqttAsync(snapConnected);
         }
 
         private static void UpdateActiveProgramHighlight(WpfUiState state, int activeIndex)

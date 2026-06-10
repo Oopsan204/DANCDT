@@ -99,6 +99,10 @@ namespace DACDT_2026
         private volatile bool isPolling;
         private CancellationTokenSource plcPollCts;
         private Task plcPollTask;
+        
+        private volatile bool isMqttPublishing;
+        private CancellationTokenSource mqttPublishCts;
+        private Task mqttPublishTask;
         private string currentView = "control";
         private string currentTheme = "dark";
         private string plcIpAddress = "192.168.3.39";
@@ -137,6 +141,9 @@ namespace DACDT_2026
                 // Start PLC polling if not already started
                 if (!isPolling)
                     StartPlcPolling();
+                    
+                if (!isMqttPublishing)
+                    StartMqttPublishing();
             };
         }
 
@@ -737,6 +744,48 @@ namespace DACDT_2026
             return text.Trim('"').Trim();
         }
 
+        private void StartMqttPublishing()
+        {
+            if (isMqttPublishing) return;
+            isMqttPublishing = true;
+            mqttPublishCts = new CancellationTokenSource();
+            mqttPublishTask = Task.Run(async () =>
+            {
+                while (!mqttPublishCts.Token.IsCancellationRequested)
+                {
+                    try
+                    {
+                        await Task.Delay(200, mqttPublishCts.Token);
+                        if (isClosing) break;
+                        
+                        await PublishAllMqttAsync();
+                    }
+                    catch (TaskCanceledException) { break; }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[MQTT Publish Loop Error] {ex.Message}");
+                    }
+                }
+            }, mqttPublishCts.Token);
+        }
+
+        private void StopMqttPublishing()
+        {
+            if (!isMqttPublishing) return;
+            isMqttPublishing = false;
+            if (mqttPublishCts != null)
+            {
+                mqttPublishCts.Cancel();
+                try
+                {
+                    mqttPublishTask?.Wait(500);
+                }
+                catch { }
+                mqttPublishCts.Dispose();
+                mqttPublishCts = null;
+            }
+        }
+
         protected override void OnClosing(CancelEventArgs e)
         {
             if (!allowClose)
@@ -749,6 +798,7 @@ namespace DACDT_2026
             webReady = false;
             StopCameraCore();
             StopPlcPolling();
+            StopMqttPublishing();
 
             if (plcComm != null)
             {
