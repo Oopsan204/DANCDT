@@ -277,6 +277,46 @@ namespace DACDT_2026
             }
         }
 
+        private async Task HandleSetLaserPowerAsync(double value)
+        {
+            try
+            {
+                int intPercent = (int)Math.Round(value);
+                if (intPercent < 0) intPercent = 0;
+                if (intPercent > 2000) intPercent = 2000;
+
+                laserPower = intPercent.ToString(CultureInfo.InvariantCulture);
+                ui.LaserPowerInput = laserPower;
+                SaveSettingsToFile();
+
+                if (plcComm == null || !plcComm.IsConnected)
+                {
+                    await NotifyAsync("success", "Laser Power", $"Đã lưu cục bộ: Công suất laze = {intPercent}% (PLC chưa kết nối).");
+                    return;
+                }
+
+                await Task.Run(() =>
+                {
+                    string used;
+                    // Bước 1: Nạp 0 vào Cd.12 (U0\G1812) để vô hiệu hóa việc đổi thời gian gia/giảm tốc
+                    plcComm.WriteInt16ToDevicePath("U0\\G1812", 0, out used);
+
+                    // Bước 2: Ghi tốc độ mới vào Cd.14 (U0\G1814) dạng 32-bit (Double Word)
+                    plcComm.WriteDeviceValue("U0\\G1814", intPercent);
+
+                    // Bước 3: Nạp 1 vào Cd.15 (U0\G1816) để kích hoạt lệnh đổi tốc độ
+                    plcComm.WriteInt16ToDevicePath("U0\\G1816", 1, out used);
+                });
+
+                AddLogEntry("U0\\G1814", intPercent.ToString(CultureInfo.InvariantCulture), "Write", "OK", "Set Laser Power (%) via Axis 4 Speed Change");
+                await NotifyAsync("success", "Laser Power", $"Đã đặt công suất laze: {intPercent}% (Cd.14 = {intPercent})");
+            }
+            catch (Exception ex)
+            {
+                await NotifyAsync("error", "Laser Power", "Lỗi ghi công suất laze: " + ex.Message);
+            }
+        }
+
         // ── Emergency Stop ───────────────────────────────────────────────────────
         private async Task HandleEmergencyStopAsync()
         {

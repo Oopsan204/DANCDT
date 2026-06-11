@@ -108,7 +108,7 @@ namespace DACDT_2026
                 .WithTopic(topic)
                 .WithPayload(payload)
                 .WithRetainFlag(retain)
-                .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtLeastOnce)
+                .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtMostOnce)
                 .Build();
             
             try

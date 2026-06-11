@@ -86,6 +86,7 @@ namespace DACDT_2026
         private int plcPortInput = 3000;
         private float jogSpeedD406 = 1000f;
         private double jogSpeedInput = 1000.0;
+        private string laserPowerInput = "100";
         private string progressText = "0%";
         private bool progressVisible;
         private int progressPercent;
@@ -169,6 +170,7 @@ namespace DACDT_2026
         public ICommand PauseStartCommand { get; set; }
         public ICommand PauseStopCommand { get; set; }
         public ICommand SetJogSpeedCommand { get; set; }
+        public ICommand SetLaserPowerCommand { get; set; }
         public ICommand OpenDxfCommand { get; set; }
         public ICommand NewGcodeCommand { get; set; }
         public ICommand SaveGcodeCommand { get; set; }
@@ -284,6 +286,29 @@ namespace DACDT_2026
         {
             get => jogSpeedInput;
             set => SetProperty(ref jogSpeedInput, value);
+        }
+
+        public string LaserPowerInput
+        {
+            get => laserPowerInput;
+            set
+            {
+                if (string.IsNullOrEmpty(value))
+                {
+                    SetProperty(ref laserPowerInput, "");
+                    return;
+                }
+                if (int.TryParse(value, out int val))
+                {
+                    if (val > 2000) value = "2000";
+                    else if (val < 0) value = "0";
+                }
+                else
+                {
+                    return;
+                }
+                SetProperty(ref laserPowerInput, value);
+            }
         }
 
         public bool ProgressVisible

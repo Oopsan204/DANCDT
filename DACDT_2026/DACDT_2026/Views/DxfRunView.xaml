@@ -17,12 +17,18 @@
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="126"/>
+                    <ColumnDefinition Width="120"/>
+                    <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
                 <TextBox Text="{Binding FilePath}" IsReadOnly="True" Margin="0,0,6,0"/>
                 <TextBox Grid.Column="1" Text="{Binding FileName}" IsReadOnly="True" Margin="0,0,6,0"/>
-                <WrapPanel Grid.Column="2" Orientation="Horizontal">
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="0,0,10,0" VerticalAlignment="Center">
+                    <TextBlock Text="Laser (%):" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                    <TextBox Text="{Binding LaserPowerInput, UpdateSourceTrigger=PropertyChanged}" Width="50" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                    <Button Content="SET" Command="{Binding SetLaserPowerCommand}" Style="{StaticResource PrimaryButtonStyle}" Height="24" Padding="6,0" VerticalAlignment="Center"/>
+                </StackPanel>
+                <WrapPanel Grid.Column="3" Orientation="Horizontal">
                     <Button Content="New" Command="{Binding NewGcodeCommand}" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,4,0"/>
                     <Button Content="Open" Command="{Binding OpenDxfCommand}" Style="{StaticResource PrimaryButtonStyle}" Margin="0,0,4,0"/>
                     <Button Content="HOME" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,4,0" Tag="home" PreviewMouseDown="HoldButton_PreviewMouseDown" PreviewMouseUp="HoldButton_PreviewMouseUp" MouseLeave="HoldButton_MouseLeave"/>

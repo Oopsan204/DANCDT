@@ -75,6 +75,7 @@ namespace DACDT_2026
         private string globalSpeed = "1000";
         private string globalSpeedM3 = "10000";
         private string rapidSpeed = "10000";
+        private string laserPower = "100";
         private double offsetX = 0.0;
         private double offsetY = 0.0;
         private double workspaceWidth = 170.0;
@@ -176,6 +177,17 @@ namespace DACDT_2026
             ui.PauseStartCommand = new RelayCommand(() => HandlePauseWriteAsync(true));
             ui.PauseStopCommand = new RelayCommand(() => HandlePauseWriteAsync(false));
             ui.SetJogSpeedCommand = new RelayCommand(() => HandleSetJogSpeedAsync(ui.JogSpeedInput));
+            ui.SetLaserPowerCommand = new RelayCommand(async () =>
+            {
+                if (double.TryParse(ui.LaserPowerInput, NumberStyles.Any, CultureInfo.InvariantCulture, out double val))
+                {
+                    await HandleSetLaserPowerAsync(val);
+                }
+                else
+                {
+                    await NotifyAsync("error", "Laser Power", "Giá trị công suất laze không hợp lệ.");
+                }
+            });
             ui.OpenDxfCommand = new RelayCommand(HandleOpenDxfAsync);
             ui.NewGcodeCommand = new RelayCommand(HandleNewGcodeAsync);
             ui.SaveGcodeCommand = new RelayCommand(() => HandleSaveGcodeAsync(ui.RawGcodeText));
@@ -375,6 +387,7 @@ namespace DACDT_2026
             ui.WorkspaceWidthInput = workspaceWidth;
             ui.WorkspaceHeightInput = workspaceHeight;
             ui.ActiveWcs = activeWcs;
+            ui.LaserPowerInput = laserPower;
             SyncWcsOffsetsToUi();
         }
 
@@ -434,6 +447,7 @@ namespace DACDT_2026
                         case "globalDwellM4": globalDwellM4 = val; break;
                         case "memberPassword": memberPassword = val; break;
                         case "activeWcs": activeWcs = val; break;
+                        case "laserPower": laserPower = val; break;
                         default:
                             for (int i = 0; i < 6; i++)
                             {
@@ -475,6 +489,7 @@ namespace DACDT_2026
                     $"globalSpeedM3={globalSpeedM3}",
                     $"memberPassword={memberPassword}",
                     $"activeWcs={activeWcs}",
+                    $"laserPower={laserPower}",
                 };
                 for (int i = 0; i < 6; i++)
                 {
