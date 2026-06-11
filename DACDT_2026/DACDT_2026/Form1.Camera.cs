@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
-using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.Globalization;
 using System.IO;
@@ -27,9 +26,8 @@ namespace DACDT_2026
         private object cameraLock = new object();
         private DateTime lastCameraMqttPublishUtc = DateTime.MinValue;
         private bool cameraMqttPublishInFlight;
-        private const int CameraMqttPublishIntervalMs = 200;
-        private const int CameraMqttMaxWidth = 640;
-        private const long CameraMqttJpegQuality = 45L;
+        private const int CameraMqttPublishIntervalMs = 500;
+        private const long CameraMqttJpegQuality = 55L;
 
         /// <summary>
         /// Refresh available camera devices and populate the UI list.
@@ -305,7 +303,7 @@ namespace DACDT_2026
                         }
 
                         if (ShouldPublishCameraFrameToMqtt(DateTime.UtcNow))
-                            mqttBitmap = CreateMqttFrameBitmap(bitmap);
+                            mqttBitmap = (Bitmap)bitmap.Clone();
 
                         // Convert bitmap to BitmapImage for UI display
                         var bitmapImage = new BitmapImage();
@@ -384,28 +382,6 @@ namespace DACDT_2026
                     cameraMqttPublishInFlight = false;
                 }
             }
-        }
-
-        private static Bitmap CreateMqttFrameBitmap(Bitmap source)
-        {
-            if (source.Width <= CameraMqttMaxWidth)
-                return (Bitmap)source.Clone();
-
-            double scale = CameraMqttMaxWidth / (double)source.Width;
-            int height = Math.Max(1, (int)Math.Round(source.Height * scale));
-            var resized = new Bitmap(CameraMqttMaxWidth, height);
-
-            using (Graphics graphics = Graphics.FromImage(resized))
-            {
-                graphics.CompositingMode = CompositingMode.SourceCopy;
-                graphics.CompositingQuality = CompositingQuality.HighSpeed;
-                graphics.InterpolationMode = InterpolationMode.Bilinear;
-                graphics.SmoothingMode = SmoothingMode.None;
-                graphics.PixelOffsetMode = PixelOffsetMode.Half;
-                graphics.DrawImage(source, 0, 0, CameraMqttMaxWidth, height);
-            }
-
-            return resized;
         }
 
         private static void SaveJpeg(Bitmap bitmap, Stream stream, long quality)

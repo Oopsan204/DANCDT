@@ -31,13 +31,10 @@ namespace DACDT_2026
 
         private const string JogBaseRegister = "M3000";
         private const string EmergencyStopRegister = "M3100";
-        private const int JogControlCount = 6;
         private const int PlcPollIntervalMs = 100;
 
         private readonly WpfUiState ui = new WpfUiState();
         private readonly SemaphoreSlim cadLoadGate = new SemaphoreSlim(1, 1);
-        private readonly SemaphoreSlim jogControlGate = new SemaphoreSlim(1, 1);
-        private readonly SemaphoreSlim jogSpeedGate = new SemaphoreSlim(1, 1);
         private readonly object plcPollSync = new object();
 
         private readonly CadDocumentService cadService = new CadDocumentService();
@@ -90,9 +87,6 @@ namespace DACDT_2026
         private readonly double[] wcsOffsetY = new double[6];
         private string rawGcodeText = string.Empty;
         private QD75RingBufferRunner activeRingRunner;
-        private int activeJogOffset = -1;
-        private volatile bool jogControlWriteInProgress;
-        private volatile bool jogSpeedWriteInProgress;
 
         private volatile bool webReady;
         private volatile bool isClosing;
@@ -135,9 +129,7 @@ namespace DACDT_2026
                 // Wait a bit for MQTT to connect
                 await Task.Delay(500);
                 await PushAllStateAsync();
-                await RefreshCamerasAsync();
-                if (!ui.IsCameraRunning && !string.IsNullOrWhiteSpace(ui.SelectedCameraMoniker))
-                    await StartCameraAsync();
+                _ = RefreshCamerasAsync();
                 // Start PLC polling if not already started
                 if (!isPolling)
                     StartPlcPolling();
@@ -183,7 +175,7 @@ namespace DACDT_2026
             ui.ContinueStopCommand = new RelayCommand(() => HandleContinueWriteAsync(false));
             ui.PauseStartCommand = new RelayCommand(() => HandlePauseWriteAsync(true));
             ui.PauseStopCommand = new RelayCommand(() => HandlePauseWriteAsync(false));
-            ui.SetJogSpeedCommand = new RelayCommand(() => HandleSetJogSpeedAsync(ui.JogSpeedInputText));
+            ui.SetJogSpeedCommand = new RelayCommand(() => HandleSetJogSpeedAsync(ui.JogSpeedInput));
             ui.OpenDxfCommand = new RelayCommand(HandleOpenDxfAsync);
             ui.NewGcodeCommand = new RelayCommand(HandleNewGcodeAsync);
             ui.SaveGcodeCommand = new RelayCommand(() => HandleSaveGcodeAsync(ui.RawGcodeText));
@@ -372,7 +364,7 @@ namespace DACDT_2026
             ui.LogicalStationInput = logicalStation;
             ui.PlcIpAddressInput = plcIpAddress;
             ui.PlcPortInput = plcPort;
-            ui.JogSpeedInputText = currentJogSpeedD406.ToString("0.###", CultureInfo.InvariantCulture);
+            ui.JogSpeedInput = currentJogSpeedD406;
             ui.GlobalSpeedInput = globalSpeed;
             ui.GlobalSpeedM3Input = globalSpeedM3;
             ui.RapidSpeedInput = rapidSpeed;
@@ -664,18 +656,6 @@ namespace DACDT_2026
                 case "OFF":
                     await StopCameraAsync();
                     await NotifyAsync("info", "MQTT Camera", "STOP command executed.");
-                    break;
-
-                case "RECORDSTART":
-                case "STARTRECORD":
-                    await StartCameraRecordingAsync();
-                    await NotifyAsync("success", "MQTT Camera", "RECORD_START command executed.");
-                    break;
-
-                case "RECORDSTOP":
-                case "STOPRECORD":
-                    await StopCameraRecordingAsync();
-                    await NotifyAsync("info", "MQTT Camera", "RECORD_STOP command executed.");
                     break;
 
                 default:

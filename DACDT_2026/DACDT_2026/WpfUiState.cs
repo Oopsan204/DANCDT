@@ -85,7 +85,7 @@ namespace DACDT_2026
         private string plcIpAddressInput = "192.168.3.39";
         private int plcPortInput = 3000;
         private float jogSpeedD406 = 1000f;
-        private string jogSpeedInputText = "1000";
+        private double jogSpeedInput = 1000.0;
         private string progressText = "0%";
         private bool progressVisible;
         private int progressPercent;
@@ -280,10 +280,10 @@ namespace DACDT_2026
             set => SetProperty(ref jogSpeedD406, value);
         }
 
-        public string JogSpeedInputText
+        public double JogSpeedInput
         {
-            get => jogSpeedInputText;
-            set => SetProperty(ref jogSpeedInputText, value);
+            get => jogSpeedInput;
+            set => SetProperty(ref jogSpeedInput, value);
         }
 
         public bool ProgressVisible

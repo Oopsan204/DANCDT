@@ -114,27 +114,11 @@ namespace DACDT_2026
         // ── Jog ─────────────────────────────────────────────────────────────────
         private async Task HandleJogWriteAsync(int offset, bool active)
         {
-            if (offset < 0 || offset >= JogControlCount)
-                return;
+            if (offset < 0) return;
 
-            string register = GetSequentialDevice(JogBaseRegister, offset);
-            await jogControlGate.WaitAsync();
-            jogControlWriteInProgress = true;
             try
             {
-                if (active && jogSpeedWriteInProgress)
-                {
-                    AddLogEntry(register, "1", "Write", "Skipped", "Jog speed update in progress");
-                    return;
-                }
-
-                if (active && activeJogOffset >= 0 && activeJogOffset != offset)
-                {
-                    string previousRegister = GetSequentialDevice(JogBaseRegister, activeJogOffset);
-                    await WriteDeviceValueAsync(previousRegister, 0);
-                    AddLogEntry(previousRegister, "0", "Write", "OK", "JogAutoStop");
-                }
-
+                string register = GetSequentialDevice(JogBaseRegister, offset);
                 int v = active ? 1 : 0;
                 await WriteDeviceValueAsync(register, v);
                 UpdateIntegrityState(true);
@@ -142,40 +126,28 @@ namespace DACDT_2026
 
                 if (active)
                 {
-                    activeJogOffset = offset;
-                    string dir = GetJogDirectionName(offset);
+                    string dir = "Unknown";
+                    switch (offset)
+                    {
+                        case 0: dir = "Right (X+)"; break;
+                        case 1: dir = "Left (X-)";  break;
+                        case 2: dir = "Up (Y+)";    break;
+                        case 3: dir = "Down (Y-)";  break;
+                        case 4: dir = "Z+";         break;
+                        case 5: dir = "Z-";         break;
+                    }
                     await NotifyAsync("info", "Jog", $"Started Jog {dir} ({register})");
-                }
-                else if (activeJogOffset == offset)
-                {
-                    activeJogOffset = -1;
                 }
             }
             catch (Exception ex)
             {
-                UpdateIntegrityFault(ex.Message);
-                AddLogEntry(register, (active ? 1 : 0).ToString(CultureInfo.InvariantCulture), "Write", "Error", ex.Message);
-                await NotifyAsync("error", "Jog", ex.Message);
-                await PushControlStateAsync();
-            }
-            finally
-            {
-                jogControlWriteInProgress = false;
-                jogControlGate.Release();
-            }
-        }
-
-        private static string GetJogDirectionName(int offset)
-        {
-            switch (offset)
-            {
-                case 0: return "Right (X+)";
-                case 1: return "Left (X-)";
-                case 2: return "Up (Y+)";
-                case 3: return "Down (Y-)";
-                case 4: return "Z+";
-                case 5: return "Z-";
-                default: return "Unknown";
+                if (active)
+                {
+                    UpdateIntegrityFault(ex.Message);
+                    AddLogEntry(JogBaseRegister, (active ? 1 : 0).ToString(CultureInfo.InvariantCulture), "Write", "Error", ex.Message);
+                    await NotifyAsync("error", "Jog", ex.Message);
+                    await PushControlStateAsync();
+                }
             }
         }
 
@@ -288,75 +260,21 @@ namespace DACDT_2026
             }
         }
 
-        private async Task HandleSetJogSpeedAsync(string rawValue)
+        private async Task HandleSetJogSpeedAsync(double value)
         {
-            if (!TryParseJogSpeed(rawValue, out double value))
-            {
-                await NotifyAsync("error", "Settings", "Jog speed must be a positive decimal number.");
-                return;
-            }
-
-            await jogSpeedGate.WaitAsync();
-            jogSpeedWriteInProgress = true;
             try
             {
-                await jogControlGate.WaitAsync();
-                jogControlWriteInProgress = true;
-                try
-                {
-                    for (int i = 0; i < JogControlCount; i++)
-                    {
-                        string jogRegister = GetSequentialDevice(JogBaseRegister, i);
-                        await WriteDeviceValueAsync(jogRegister, 0);
-                        AddLogEntry(jogRegister, "0", "Write", "OK", "JogStopBeforeSpeed");
-                    }
-
-                    activeJogOffset = -1;
-
-                    float fVal = (float)value;
-                    byte[] bytes = BitConverter.GetBytes(fVal);
-                    int intVal = BitConverter.ToInt32(bytes, 0);
-                    await WriteDeviceValueAsync("D406", intVal);
-
-                    currentJogSpeedD406 = fVal;
-                    ui.JogSpeedD406 = fVal;
-                    ui.JogSpeedInputText = value.ToString("0.###", CultureInfo.InvariantCulture);
-                    UpdateIntegrityState(true);
-                    AddLogEntry("D406", value.ToString("F3", CultureInfo.InvariantCulture), "Write", "OK", "SetJogSpeed(mm/min)");
-                    await NotifyAsync("success", "Settings", $"Updated Jog speed: {value:F3} mm/min (D406)");
-                }
-                finally
-                {
-                    jogControlWriteInProgress = false;
-                    jogControlGate.Release();
-                }
+                float fVal = (float)value;
+                byte[] bytes = BitConverter.GetBytes(fVal);
+                int intVal = BitConverter.ToInt32(bytes, 0);
+                await WriteDeviceValueAsync("D406", intVal);
+                AddLogEntry("D406", value.ToString("F3", CultureInfo.InvariantCulture), "Write", "OK", "SetJogSpeed(mm/min)");
+                await NotifyAsync("success", "Settings", $"Updated Jog speed: {value:F3} mm/min (D406)");
             }
             catch (Exception ex)
             {
-                UpdateIntegrityFault(ex.Message);
-                AddLogEntry("D406", rawValue ?? string.Empty, "Write", "Error", ex.Message);
                 await NotifyAsync("error", "Settings", "Error updating Jog speed: " + ex.Message);
-                await PushControlStateAsync();
             }
-            finally
-            {
-                jogSpeedWriteInProgress = false;
-                jogSpeedGate.Release();
-            }
-        }
-
-        private static bool TryParseJogSpeed(string rawValue, out double value)
-        {
-            value = 0.0;
-            if (string.IsNullOrWhiteSpace(rawValue))
-                return false;
-
-            string normalized = rawValue.Trim().Replace(" ", string.Empty).Replace(',', '.');
-            return double.TryParse(normalized, NumberStyles.Float, CultureInfo.InvariantCulture, out value)
-                && !double.IsNaN(value)
-                && !double.IsInfinity(value)
-                && value > 0.0
-                && value <= float.MaxValue;
         }
 
         // ── Emergency Stop ───────────────────────────────────────────────────────
@@ -468,7 +386,7 @@ namespace DACDT_2026
 
         private async Task PollPlcOnceAsync(CancellationToken token)
         {
-            if (isClosing || isPolling || jogControlWriteInProgress || jogSpeedWriteInProgress)
+            if (isClosing || isPolling)
                 return;
 
             var comm = plcComm;
