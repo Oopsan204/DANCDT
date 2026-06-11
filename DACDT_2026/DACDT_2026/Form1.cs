@@ -77,6 +77,7 @@ namespace DACDT_2026
         private string globalZStart = "";
         private string globalSpeed = "1000";
         private string globalSpeedM3 = "10000";
+        private string gcodeSpeedM3 = "10000";
         private string rapidSpeed = "10000";
         private string laserPower = "100";
         private double offsetX = 0.0;
@@ -203,6 +204,7 @@ namespace DACDT_2026
             ui.AddTelemetryBufferCommand = new RelayCommand(() => HandleAddTelemetryBufferAsync(ui.TelemetryAddressInput, ui.TelemetryLengthInput));
             ui.WriteBufferCommand = new RelayCommand(() => HandleWriteBufferRequestAsync(ui.WriteAddressInput, ui.WriteValueInput));
             ui.ApplyDxfSettingsCommand = new RelayCommand(ApplyDxfSettingsAsync);
+            ui.ApplyGcodeSettingsCommand = new RelayCommand(ApplyGcodeSettingsAsync);
             ui.SetG0SpeedCommand = new RelayCommand(async () =>
             {
                 rapidSpeed = ui.RapidSpeedInput;
@@ -304,6 +306,13 @@ namespace DACDT_2026
             await PushDxfStateAsync();
         }
 
+        private async Task ApplyGcodeSettingsAsync()
+        {
+            await HandleProcessValueAsync("gcodeSpeedM3", ui.GcodeSpeedM3Input);
+            SaveSettingsToFile();
+            await PushDxfStateAsync();
+        }
+
         private async Task ApplyWcsSettingsAsync()
         {
             foreach (var row in ui.WcsOffsets)
@@ -383,6 +392,7 @@ namespace DACDT_2026
             ui.JogSpeedInput = currentJogSpeedD406;
             ui.GlobalSpeedInput = globalSpeed;
             ui.GlobalSpeedM3Input = globalSpeedM3;
+            ui.GcodeSpeedM3Input = gcodeSpeedM3;
             ui.RapidSpeedInput = rapidSpeed;
             ui.GlobalDwellM3Input = globalDwellM3;
             ui.GlobalDwellM4Input = globalDwellM4;
@@ -437,6 +447,7 @@ namespace DACDT_2026
                         case "rapidSpeed": rapidSpeed = val; break;
                         case "globalSpeed": globalSpeed = val; break;
                         case "globalSpeedM3": globalSpeedM3 = val; break;
+                        case "gcodeSpeedM3": gcodeSpeedM3 = val; break;
                         case "workspaceWidth": double.TryParse(val, NumberStyles.Any, CultureInfo.InvariantCulture, out workspaceWidth); break;
                         case "workspaceHeight": double.TryParse(val, NumberStyles.Any, CultureInfo.InvariantCulture, out workspaceHeight); break;
                         case "offsetX": double.TryParse(val, NumberStyles.Any, CultureInfo.InvariantCulture, out offsetX); break;
@@ -478,6 +489,7 @@ namespace DACDT_2026
                     "# DACDT_2026 Settings",
                     $"rapidSpeed={rapidSpeed}",
                     $"globalSpeed={globalSpeed}",
+                    $"gcodeSpeedM3={gcodeSpeedM3}",
                     $"workspaceWidth={workspaceWidth.ToString("0.###", CultureInfo.InvariantCulture)}",
                     $"workspaceHeight={workspaceHeight.ToString("0.###", CultureInfo.InvariantCulture)}",
                     $"offsetX={offsetX.ToString("0.###", CultureInfo.InvariantCulture)}",

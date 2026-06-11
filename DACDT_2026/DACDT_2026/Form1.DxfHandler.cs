@@ -142,7 +142,7 @@ namespace DACDT_2026
                 {
                     var firstSpeed = activeCadDocument?.Primitives?.FirstOrDefault(p => !string.IsNullOrEmpty(p.Speed))?.Speed;
                     if (!string.IsNullOrEmpty(firstSpeed))
-                        globalSpeed = firstSpeed;
+                        gcodeSpeedM3 = firstSpeed;
                 }
 
                 currentView = "dxf";
@@ -223,7 +223,7 @@ namespace DACDT_2026
 
                 var firstSpeed = activeCadDocument?.Primitives?.FirstOrDefault(p => !string.IsNullOrEmpty(p.Speed))?.Speed;
                 if (!string.IsNullOrEmpty(firstSpeed))
-                    globalSpeed = firstSpeed;
+                    gcodeSpeedM3 = firstSpeed;
 
                 await HandleImportCadToProcessAsync();
                 await SendProgressAsync(true, 65);
@@ -375,19 +375,37 @@ namespace DACDT_2026
             if (string.Equals(key, "speed", StringComparison.OrdinalIgnoreCase))
             {
                 globalSpeed = value;
-                foreach (var row in processRows)
+                if (string.Equals(activeDocumentKind, "DXF", StringComparison.OrdinalIgnoreCase))
                 {
-                    if (row.MCodeValue != "3")
-                        row.Speed = value;
+                    foreach (var row in processRows)
+                    {
+                        if (row.MCodeValue != "3")
+                            row.Speed = value;
+                    }
                 }
             }
             else if (string.Equals(key, "globalSpeedM3", StringComparison.OrdinalIgnoreCase) || string.Equals(key, "speedM3", StringComparison.OrdinalIgnoreCase))
             {
                 globalSpeedM3 = value;
-                foreach (var row in processRows)
+                if (string.Equals(activeDocumentKind, "DXF", StringComparison.OrdinalIgnoreCase))
                 {
-                    if (row.MCodeValue == "3")
-                        row.Speed = value;
+                    foreach (var row in processRows)
+                    {
+                        if (row.MCodeValue == "3")
+                            row.Speed = value;
+                    }
+                }
+            }
+            else if (string.Equals(key, "gcodeSpeedM3", StringComparison.OrdinalIgnoreCase))
+            {
+                gcodeSpeedM3 = value;
+                if (string.Equals(activeDocumentKind, "GCODE", StringComparison.OrdinalIgnoreCase))
+                {
+                    foreach (var row in processRows)
+                    {
+                        if (row.MCodeValue == "3")
+                            row.Speed = value;
+                    }
                 }
             }
             else if (string.Equals(key, "dwell", StringComparison.OrdinalIgnoreCase))
@@ -557,7 +575,7 @@ namespace DACDT_2026
 
             bool isGcodeDoc  = string.Equals(activeDocumentKind, "GCODE", StringComparison.OrdinalIgnoreCase);
             string snapSpeed = globalSpeed;
-            string snapSpeedM3 = globalSpeedM3;
+            string snapSpeedM3 = isGcodeDoc ? gcodeSpeedM3 : globalSpeedM3;
 
             // Build and post-process rows on a background thread.
             List<ProcessRow> rows = await Task.Run(() =>
@@ -575,17 +593,12 @@ namespace DACDT_2026
 
                     if (string.IsNullOrEmpty(row.Speed))
                     {
-                        // DXF: dùng globalSpeed/globalSpeedM3 làm fallback
+                        // DXF/G-code dùng tốc độ fallback riêng theo loại file.
                         // GCODE Rapid3: đã được gán rapidSpeed trong BuildConnectedPathsFromCad
-                        // GCODE G1/G2/G3 không có F: không gán fallback — speed = 0 là hợp lệ
-                        //   (PLC sẽ dùng speed từ lệnh trước theo modal của module)
-                        if (!isGcodeDoc)
-                        {
-                            if (row.MCodeValue == "3")
-                                row.Speed = snapSpeedM3;
-                            else
-                                row.Speed = snapSpeed;
-                        }
+                        if (row.MCodeValue == "3")
+                            row.Speed = snapSpeedM3;
+                        else
+                            row.Speed = snapSpeed;
                     }
                 }
 
@@ -622,13 +635,13 @@ namespace DACDT_2026
 
             // Map ProcessRow → QD75BufferWriter.PositioningDataRow (tọa độ đã cộng offset)
             var dataRows = new List<QD75BufferWriter.PositioningDataRow>();
-            string lastSpeed = globalSpeed; // fallback to globalSpeed if no F at all
             string snapRapid = rapidSpeed;  // snapshot rapidSpeed cho G0
 
             // Xác định offset áp dụng:
             // - G-code: dùng WCS offset (G54-G59) per-row — mỗi row có WcsIndex riêng
             // - DXF: dùng offset X/Y từ Settings
             bool isGcodeFile = string.Equals(activeDocumentKind, "GCODE", StringComparison.OrdinalIgnoreCase);
+            string lastSpeed = globalSpeed;
 
             foreach (var row in processRows)
             {
@@ -657,7 +670,7 @@ namespace DACDT_2026
                 }
                 else
                 {
-                    // G1/G2/G3: dùng speed từ row (đã là modal F đúng), fallback globalSpeed
+                    // G1/G2/G3: dùng speed từ row, fallback theo loại file.
                     if (!string.IsNullOrEmpty(row.Speed) && int.TryParse(row.Speed, out int s) && s > 0)
                     {
                         lastSpeed = row.Speed;
@@ -850,9 +863,9 @@ namespace DACDT_2026
             try
             {
                 var dataRows = new List<QD75BufferWriter.PositioningDataRow>();
-                string lastSpeed = globalSpeed;
                 string snapRapid = rapidSpeed;
                 bool isGcodeFile = string.Equals(activeDocumentKind, "GCODE", StringComparison.OrdinalIgnoreCase);
+                string lastSpeed = globalSpeed;
 
                 foreach (var row in processRows)
                 {

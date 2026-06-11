@@ -12,7 +12,7 @@
                 <Border Style="{StaticResource PanelBorderStyle}">
                     <StackPanel>
                         <TextBlock Text="DXF Offset &amp; Speed" Style="{StaticResource PanelTitleStyle}"/>
-                        <TextBlock Text="Parameters applied to DXF paths" Style="{StaticResource PanelSubtitleStyle}"/>
+                        <TextBlock Text="Parameters applied only to DXF paths" Style="{StaticResource PanelSubtitleStyle}"/>
                         <UniformGrid Columns="2" Margin="0,10,0,0">
                             <StackPanel Margin="0,0,6,6">
                                 <TextBlock Text="Offset X (mm)" Foreground="{StaticResource MutedBrush}"/>
@@ -23,11 +23,11 @@
                                 <TextBox Text="{Binding OffsetYInput, UpdateSourceTrigger=PropertyChanged}"/>
                             </StackPanel>
                             <StackPanel Margin="0,0,6,6">
-                                <TextBlock Text="Speed M03" Foreground="{StaticResource MutedBrush}"/>
+                                <TextBlock Text="DXF Speed M03" Foreground="{StaticResource MutedBrush}"/>
                                 <TextBox Text="{Binding GlobalSpeedM3Input, UpdateSourceTrigger=PropertyChanged}"/>
                             </StackPanel>
                             <StackPanel Margin="6,0,0,6">
-                                <TextBlock Text="Speed M04" Foreground="{StaticResource MutedBrush}"/>
+                                <TextBlock Text="DXF Speed M04" Foreground="{StaticResource MutedBrush}"/>
                                 <TextBox Text="{Binding GlobalSpeedInput, UpdateSourceTrigger=PropertyChanged}"/>
                             </StackPanel>
                             <StackPanel Margin="0,0,6,6">
@@ -40,6 +40,20 @@
                             </StackPanel>
                         </UniformGrid>
                         <Button Content="Apply DXF Settings" Command="{Binding ApplyDxfSettingsCommand}" Style="{StaticResource PrimaryButtonStyle}"/>
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource PanelBorderStyle}">
+                    <StackPanel>
+                        <TextBlock Text="G-code Speed" Style="{StaticResource PanelTitleStyle}"/>
+                        <TextBlock Text="M03 speed applied only to G-code paths" Style="{StaticResource PanelSubtitleStyle}"/>
+                        <UniformGrid Columns="1" Margin="0,10,0,0">
+                            <StackPanel Margin="0,0,0,6">
+                                <TextBlock Text="G-code Speed M03" Foreground="{StaticResource MutedBrush}"/>
+                                <TextBox Text="{Binding GcodeSpeedM3Input, UpdateSourceTrigger=PropertyChanged}"/>
+                            </StackPanel>
+                        </UniformGrid>
+                        <Button Content="Apply G-code Settings" Command="{Binding ApplyGcodeSettingsCommand}" Style="{StaticResource PrimaryButtonStyle}"/>
                     </StackPanel>
                 </Border>
 

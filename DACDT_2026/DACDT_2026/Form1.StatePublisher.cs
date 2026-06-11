@@ -305,6 +305,7 @@ namespace DACDT_2026
             var snapCurrentTheme = currentTheme;
             var snapGlobalSpeed = globalSpeed;
             var snapGlobalSpeedM3 = globalSpeedM3;
+            var snapGcodeSpeedM3 = gcodeSpeedM3;
             var snapRapidSpeed = rapidSpeed;
             var snapGlobalDwellM3 = globalDwellM3;
             var snapGlobalDwellM4 = globalDwellM4;
@@ -394,20 +395,27 @@ namespace DACDT_2026
                 ui.RawGcodeText = snapRawText != null && snapRawText.Length > 200000
                     ? snapRawText.Substring(0, 200000) + "\n... [TRUNCATED FOR UI]"
                     : snapRawText ?? string.Empty;
-                ui.GlobalSpeedInput = snapGlobalSpeed;
-                ui.GlobalSpeedM3Input = snapGlobalSpeedM3;
-                ui.RapidSpeedInput = snapRapidSpeed;
-                ui.GlobalDwellM3Input = snapGlobalDwellM3;
-                ui.GlobalDwellM4Input = snapGlobalDwellM4;
-                ui.OffsetXInput = snapOx;
-                ui.OffsetYInput = snapOy;
-                ui.WorkspaceWidthInput = snapWorkspaceWidth;
-                ui.WorkspaceHeightInput = snapWorkspaceHeight;
+                if (!string.Equals(snapCurrentView, "settings", StringComparison.OrdinalIgnoreCase))
+                {
+                    ui.GlobalSpeedInput = snapGlobalSpeed;
+                    ui.GlobalSpeedM3Input = snapGlobalSpeedM3;
+                    ui.GcodeSpeedM3Input = snapGcodeSpeedM3;
+                    ui.RapidSpeedInput = snapRapidSpeed;
+                    ui.GlobalDwellM3Input = snapGlobalDwellM3;
+                    ui.GlobalDwellM4Input = snapGlobalDwellM4;
+                    ui.OffsetXInput = snapOx;
+                    ui.OffsetYInput = snapOy;
+                    ui.WorkspaceWidthInput = snapWorkspaceWidth;
+                    ui.WorkspaceHeightInput = snapWorkspaceHeight;
+                }
                 ui.ActiveWcs = snapActiveWcs;
                 ui.ActiveProgramIndex = snapActiveProgramIndex;
                 int wIdx = GetWcsIndex(snapActiveWcs);
-                ui.WcsOffsetXInput = snapWcsOffsetX[wIdx];
-                ui.WcsOffsetYInput = snapWcsOffsetY[wIdx];
+                if (!string.Equals(snapCurrentView, "settings", StringComparison.OrdinalIgnoreCase))
+                {
+                    ui.WcsOffsetXInput = snapWcsOffsetX[wIdx];
+                    ui.WcsOffsetYInput = snapWcsOffsetY[wIdx];
+                }
                 ui.SelectedPointKey = snapPointKey;
 
                 ui.SetCadPointRows(model.points, snapActiveProgramIndex);

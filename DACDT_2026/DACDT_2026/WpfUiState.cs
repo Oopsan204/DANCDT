@@ -96,6 +96,7 @@ namespace DACDT_2026
         private string rawGcodeText = "";
         private string globalSpeedInput = "1000";
         private string globalSpeedM3Input = "10000";
+        private string gcodeSpeedM3Input = "10000";
         private string rapidSpeedInput = "10000";
         private string globalDwellM3Input = "100";
         private string globalDwellM4Input = "100";
@@ -183,6 +184,7 @@ namespace DACDT_2026
         public ICommand AddTelemetryBufferCommand { get; set; }
         public ICommand WriteBufferCommand { get; set; }
         public ICommand ApplyDxfSettingsCommand { get; set; }
+        public ICommand ApplyGcodeSettingsCommand { get; set; }
         public ICommand SetG0SpeedCommand { get; set; }
         public ICommand SetWorkspaceCommand { get; set; }
         public ICommand SelectWcsCommand { get; set; }
@@ -379,6 +381,12 @@ namespace DACDT_2026
         {
             get => globalSpeedM3Input;
             set => SetProperty(ref globalSpeedM3Input, value);
+        }
+
+        public string GcodeSpeedM3Input
+        {
+            get => gcodeSpeedM3Input;
+            set => SetProperty(ref gcodeSpeedM3Input, value);
         }
 
         public string RapidSpeedInput
