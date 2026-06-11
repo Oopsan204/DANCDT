@@ -1014,7 +1014,7 @@ namespace DACDT_2026
                 if (clearResult.Success)
                 {
                     await NotifyAsync("success", "Clear Buffer", 
-                        "Đã xóa toàn bộ buffer PLC (Axis 1, 2, 3). Tất cả dữ liệu cũ đã bị xóa.");
+                        "Đã xóa toàn bộ buffer PLC cho tất cả trục. Tất cả dữ liệu cũ đã bị xóa.");
                 }
                 else
                 {

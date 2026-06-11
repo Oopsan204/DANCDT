@@ -23,11 +23,11 @@
                 <TextBlock Text="3. PLC Connection And Control Buttons" FontSize="16" FontWeight="Bold" Margin="0,14,0,5"/>
                 <TextBlock TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}">
                     Enter the Logical station no. and press CONNECT PLC Q to connect to the PLC. HOME, RESET,
-                    START ACTION, CONTINUE and PAUSE are hold buttons: pressing writes 1, releasing writes 0.
+                    CONTINUE, STOP and PAUSE pulse ON for 100 ms, then reset to 0 automatically.
                 </TextBlock>
                 <TextBlock TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" Margin="0,8,0,0">
                     Control addresses: HOME = M502, RESET = M400, START ACTION = M2000,
-                    CONTINUE = M401, PAUSE = M402, EMERGENCY STOP = M3100.
+                    CONTINUE = M211, STOP = M212, PAUSE = M210, EMERGENCY STOP = M3100.
                 </TextBlock>
 
                 <TextBlock Text="4. Manual Jog" FontSize="16" FontWeight="Bold" Margin="0,14,0,5"/>

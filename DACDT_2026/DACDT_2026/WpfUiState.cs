@@ -156,6 +156,7 @@ namespace DACDT_2026
         public ICommand ToggleThemeCommand { get; set; }
         public ICommand ConnectToggleCommand { get; set; }
         public ICommand EmergencyStopCommand { get; set; }
+        public ICommand StopRunCommand { get; set; }
         public ICommand ExitCommand { get; set; }
         public ICommand JogStartCommand { get; set; }
         public ICommand JogStopCommand { get; set; }

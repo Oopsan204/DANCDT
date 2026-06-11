@@ -1008,8 +1008,35 @@ namespace DACDT_2026
                     });
                 }
 
-                // Xóa Start No. về 0 cho Axis 1 và Axis 2
-                for (int axisIdx = 0; axisIdx < 2; axisIdx++)
+                for (int axisIdx = 2; axisIdx < ProgramBaseG.Length; axisIdx++)
+                {
+                    int axisBase = ProgramBaseG[axisIdx];
+                    int res = plcComm.WriteBuffer(0, axisBase, zeroData);
+                    if (res != 0)
+                    {
+                        result.WriteResults.Add(new WriteResult
+                        {
+                            Address = $"U0\\G{axisBase}",
+                            Value = "Clear buffer",
+                            Status = $"Error({res})",
+                            Message = $"Failed to clear Axis {axisIdx + 1} buffer"
+                        });
+                        result.Success = false;
+                    }
+                    else
+                    {
+                        result.WriteResults.Add(new WriteResult
+                        {
+                            Address = $"U0\\G{axisBase} to U0\\G{axisBase + totalWords - 1}",
+                            Value = $"Cleared {maxPoints} points",
+                            Status = "OK",
+                            Message = $"Axis {axisIdx + 1} buffer cleared"
+                        });
+                    }
+                }
+
+                // Xóa Start No. về 0 cho tất cả trục
+                for (int axisIdx = 0; axisIdx < ControlBaseG.Length; axisIdx++)
                 {
                     string startDevice = $"U0\\G{ControlBaseG[axisIdx]}";
                     string used;

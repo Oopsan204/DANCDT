@@ -483,7 +483,8 @@ namespace DACDT_2026
             if (string.IsNullOrWhiteSpace(devicePath))
                 return -1;
 
-            // Nếu là địa chỉ U\G, chỉ sử dụng WriteBuffer
+            // Nếu là địa chỉ U\G, thử WriteBuffer trước; nếu driver không hỗ trợ
+            // ghi block tại vùng này thì fallback sang ghi Low/High word riêng.
             if (TryParseUDevicePath(devicePath, out int u, out int g))
             {
                 usedMethod = "WriteBuffer (32-bit)";
@@ -491,20 +492,18 @@ namespace DACDT_2026
                 short highWord = (short)((value >> 16) & 0xFFFF);
                 try
                 {
-                    // WriteBuffer ném exception nếu lỗi, bắt và trả về mã lỗi
-                    return WriteBuffer(u, g, new short[] { lowWord, highWord });
+                    int result = WriteBuffer(u, g, new short[] { lowWord, highWord });
+                    if (result == 0)
+                        return 0;
                 }
-                catch (Exception ex)
+                catch
                 {
-                    // Trích xuất mã lỗi từ exception message nếu có
-                    var match = System.Text.RegularExpressions.Regex.Match(ex.Message, @"0x([0-9A-F]+)");
-                    if (match.Success && int.TryParse(match.Groups[1].Value, System.Globalization.NumberStyles.HexNumber, System.Globalization.CultureInfo.InvariantCulture, out int errorCode))
-                    {
-                        return errorCode;
-                    }
-                    // Nếu không tìm được mã lỗi, trả về -1
-                    return -1;
                 }
+
+                usedMethod = "SetDevice2 x2 U\\G fallback (Low word -> High word)";
+                string lowWordDevice = $"U{u:X}\\G{g}";
+                string highWordDevice = $"U{u:X}\\G{g + 1}";
+                return WriteInt32ByWords(lowWordDevice, highWordDevice, value);
             }
 
             // Đối với các thanh ghi khác (D, W, R), ghi 2 word riêng lẻ

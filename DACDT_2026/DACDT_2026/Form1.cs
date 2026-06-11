@@ -31,6 +31,9 @@ namespace DACDT_2026
 
         private const string JogBaseRegister = "M3000";
         private const string EmergencyStopRegister = "M3100";
+        private const string StopRunRegister = "M212";
+        private const string ContinueRegister = "M211";
+        private const string PauseRegister = "M210";
         private const int PlcPollIntervalMs = 100;
 
         private readonly WpfUiState ui = new WpfUiState();
@@ -159,6 +162,7 @@ namespace DACDT_2026
             });
             ui.ConnectToggleCommand = new RelayCommand(() => HandleConnectToggleAsync(Payload("station", ui.LogicalStationInput)));
             ui.EmergencyStopCommand = new RelayCommand(HandleEmergencyStopAsync);
+            ui.StopRunCommand = new RelayCommand(HandleStopRunAsync);
             ui.ExitCommand = new RelayCommand(() =>
             {
                 allowClose = true;
@@ -641,6 +645,10 @@ namespace DACDT_2026
                     break;
 
                 case "STOP":
+                    await HandleStopRunAsync();
+                    await NotifyAsync("error", "MQTT Machine", "STOP command executed; run buffer cleared.");
+                    break;
+
                 case "ESTOP":
                 case "EMERGENCYSTOP":
                     activeRingRunner?.Stop();

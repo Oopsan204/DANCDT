@@ -220,43 +220,129 @@ namespace DACDT_2026
         // ── Jog Speed ────────────────────────────────────────────────────────────
         private async Task HandleContinueWriteAsync(bool active)
         {
+            if (!active)
+                return;
+
             try
             {
-                int v = active ? 1 : 0;
-                await WriteDeviceValueAsync("M401", v);
+                await WriteDeviceValueAsync(ContinueRegister, 1);
                 UpdateIntegrityState(true);
-                AddLogEntry("M401", v.ToString(CultureInfo.InvariantCulture), "Write", "OK", "Continue");
+                AddLogEntry(ContinueRegister, "1", "Write", "OK", "Continue");
+                await Task.Delay(100);
+                await WriteDeviceValueAsync(ContinueRegister, 0);
+                AddLogEntry(ContinueRegister, "0", "Write", "OK", "Continue reset");
             }
             catch (Exception ex)
             {
-                if (active)
+                try
                 {
-                    UpdateIntegrityFault(ex.Message);
-                    AddLogEntry("M401", (active ? 1 : 0).ToString(CultureInfo.InvariantCulture), "Write", "Error", ex.Message);
-                    await NotifyAsync("error", "Continue", ex.Message);
-                    await PushControlStateAsync();
+                    await WriteDeviceValueAsync(ContinueRegister, 0);
                 }
+                catch
+                {
+                }
+
+                UpdateIntegrityFault(ex.Message);
+                AddLogEntry(ContinueRegister, "1", "Write", "Error", ex.Message);
+                await NotifyAsync("error", "Continue", ex.Message);
+                await PushControlStateAsync();
             }
         }
 
         private async Task HandlePauseWriteAsync(bool active)
         {
+            if (!active)
+                return;
+
             try
             {
-                int v = active ? 1 : 0;
-                await WriteDeviceValueAsync("M402", v);
+                await WriteDeviceValueAsync(PauseRegister, 1);
                 UpdateIntegrityState(true);
-                AddLogEntry("M402", v.ToString(CultureInfo.InvariantCulture), "Write", "OK", "Pause");
+                AddLogEntry(PauseRegister, "1", "Write", "OK", "Pause");
+                await Task.Delay(100);
+                await WriteDeviceValueAsync(PauseRegister, 0);
+                AddLogEntry(PauseRegister, "0", "Write", "OK", "Pause reset");
             }
             catch (Exception ex)
             {
-                if (active)
+                try
                 {
-                    UpdateIntegrityFault(ex.Message);
-                    AddLogEntry("M402", (active ? 1 : 0).ToString(CultureInfo.InvariantCulture), "Write", "Error", ex.Message);
-                    await NotifyAsync("error", "Pause", ex.Message);
-                    await PushControlStateAsync();
+                    await WriteDeviceValueAsync(PauseRegister, 0);
                 }
+                catch
+                {
+                }
+
+                UpdateIntegrityFault(ex.Message);
+                AddLogEntry(PauseRegister, "1", "Write", "Error", ex.Message);
+                await NotifyAsync("error", "Pause", ex.Message);
+                await PushControlStateAsync();
+            }
+        }
+
+        private async Task HandleStopRunAsync()
+        {
+            if (plcComm == null || !plcComm.IsConnected)
+            {
+                await NotifyAsync("error", "Stop", "PLC is not connected.");
+                return;
+            }
+
+            activeRingRunner?.Stop();
+            await StopPlcPollingAsync();
+
+            try
+            {
+                await LogUIAsync("Stop", "Stopping run and clearing PLC positioning buffers...");
+
+                await WriteDeviceValueAsync(StopRunRegister, 1);
+                AddLogEntry(StopRunRegister, "1", "Write", "OK", "Stop");
+                await Task.Delay(100);
+                await WriteDeviceValueAsync(StopRunRegister, 0);
+                AddLogEntry(StopRunRegister, "0", "Write", "OK", "Stop reset");
+
+                var clearResult = await Task.Run(() => QD75BufferWriter.ClearAllBuffers(plcComm, maxPoints: 600));
+                foreach (var wr in clearResult.WriteResults)
+                {
+                    AddLogEntry(wr.Address, wr.Value, "Clear", wr.Status, wr.Message);
+                    if (!wr.Status.StartsWith("OK"))
+                        await NotifyAsync("warning", "Stop", $"{wr.Address}: {wr.Message}");
+                }
+
+                if (clearResult.Success)
+                {
+                    UpdateIntegrityFault("Run stopped and buffer cleared");
+                    await NotifyAsync("success", "Stop", "Đã Stop và xoá buffer tọa độ/lệnh chạy.");
+                }
+                else
+                {
+                    UpdateIntegrityFault(clearResult.ErrorMessage);
+                    await NotifyAsync("error", "Stop", "Stop đã gửi, nhưng xoá buffer chưa hoàn tất. Kiểm tra log.");
+                }
+
+                await PushControlStateAsync();
+            }
+            catch (Exception ex)
+            {
+                try
+                {
+                    await WriteDeviceValueAsync(StopRunRegister, 0);
+                    AddLogEntry(StopRunRegister, "0", "Write", "OK", "Stop reset after error");
+                }
+                catch
+                {
+                }
+
+                UpdateIntegrityFault(ex.Message);
+                AddLogEntry(StopRunRegister, "1", "Write", "Error", ex.Message);
+                await PushControlStateAsync();
+                await NotifyAsync("error", "Stop", ex.Message);
+            }
+            finally
+            {
+                _ = SendProgressAsync(false, 0);
+                if (plcComm != null && plcComm.IsConnected && !isClosing)
+                    StartPlcPolling();
             }
         }
 
@@ -295,20 +381,51 @@ namespace DACDT_2026
                     return;
                 }
 
+                string writeMode = null;
                 await Task.Run(() =>
                 {
-                    string used;
-                    // Bước 1: Nạp 0 vào Cd.12 (U0\G1812) để vô hiệu hóa việc đổi thời gian gia/giảm tốc
-                    plcComm.WriteInt16ToDevicePath("U0\\G1812", 0, out used);
+                    short lowWord = (short)(intPercent & 0xFFFF);
+                    short highWord = (short)((intPercent >> 16) & 0xFFFF);
 
-                    // Bước 2: Ghi tốc độ mới vào Cd.14 (U0\G1814) dạng 32-bit (Double Word)
-                    plcComm.WriteDeviceValue("U0\\G1814", intPercent);
+                    try
+                    {
+                        int keepG1813 = 0;
+                        try
+                        {
+                            int[] current = plcComm.ReadBuffer(0, 1813, 1);
+                            if (current != null && current.Length > 0)
+                                keepG1813 = current[0];
+                        }
+                        catch
+                        {
+                        }
 
-                    // Bước 3: Nạp 1 vào Cd.15 (U0\G1816) để kích hoạt lệnh đổi tốc độ
-                    plcComm.WriteInt16ToDevicePath("U0\\G1816", 1, out used);
+                        short[] speedChange = new short[]
+                        {
+                            0,                  // G1812: Cd.12, keep accel/decel time
+                            (short)keepG1813,   // G1813: preserve intermediate control word
+                            lowWord,            // G1814: Cd.14 low word
+                            highWord,           // G1815: Cd.14 high word
+                            1                   // G1816: Cd.15 speed change request
+                        };
+
+                        int result = plcComm.WriteBuffer(0, 1812, speedChange);
+                        if (result != 0)
+                            throw new Exception($"WriteBuffer U0\\G1812 length 5 failed: {result}");
+
+                        writeMode = "WriteBuffer x5 (U0\\G1812..G1816)";
+                    }
+                    catch
+                    {
+                        string used;
+                        plcComm.WriteInt16ToDevicePath("U0\\G1812", 0, out used);
+                        plcComm.WriteDeviceValue("U0\\G1814", intPercent);
+                        plcComm.WriteInt16ToDevicePath("U0\\G1816", 1, out used);
+                        writeMode = "Fallback individual writes";
+                    }
                 });
 
-                AddLogEntry("U0\\G1814", intPercent.ToString(CultureInfo.InvariantCulture), "Write", "OK", "Set Laser Power (%) via Axis 4 Speed Change");
+                AddLogEntry("U0\\G1812..G1816", intPercent.ToString(CultureInfo.InvariantCulture), "Write", "OK", $"Set Laser Power (%) via Axis 4 Speed Change - {writeMode}");
                 await NotifyAsync("success", "Laser Power", $"Đã đặt công suất laze: {intPercent}% (Cd.14 = {intPercent})");
             }
             catch (Exception ex)
