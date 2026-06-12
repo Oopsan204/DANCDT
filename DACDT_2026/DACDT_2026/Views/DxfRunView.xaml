@@ -15,31 +15,64 @@
 
         <Border Style="{StaticResource PanelBorderStyle}" Padding="8">
             <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="120"/>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
-                <TextBox Text="{Binding FilePath}" IsReadOnly="True" Margin="0,0,6,0"/>
-                <TextBox Grid.Column="1" Text="{Binding FileName}" IsReadOnly="True" Margin="0,0,6,0"/>
-                <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="0,0,10,0" VerticalAlignment="Center">
-                    <TextBlock Text="Laser (%):" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                    <TextBox Text="{Binding LaserPowerInput, UpdateSourceTrigger=PropertyChanged}" Width="50" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                    <Button Content="SET" Command="{Binding SetLaserPowerCommand}" Style="{StaticResource PrimaryButtonStyle}" Height="24" Padding="6,0" VerticalAlignment="Center"/>
-                </StackPanel>
-                <WrapPanel Grid.Column="3" Orientation="Horizontal">
-                    <Button Content="New" Command="{Binding NewGcodeCommand}" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,4,0"/>
-                    <Button Content="Open" Command="{Binding OpenDxfCommand}" Style="{StaticResource PrimaryButtonStyle}" Margin="0,0,4,0"/>
-                    <Button Content="HOME" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,4,0" Tag="home" PreviewMouseDown="HoldButton_PreviewMouseDown" PreviewMouseUp="HoldButton_PreviewMouseUp" MouseLeave="HoldButton_MouseLeave"/>
-                    <Button Content="RESET" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,4,0" Tag="reset" PreviewMouseDown="HoldButton_PreviewMouseDown" PreviewMouseUp="HoldButton_PreviewMouseUp" MouseLeave="HoldButton_MouseLeave"/>
-                    <Button Content="RUN" Style="{StaticResource PrimaryButtonStyle}" Margin="0,0,4,0" Tag="start" PreviewMouseDown="HoldButton_PreviewMouseDown" PreviewMouseUp="HoldButton_PreviewMouseUp" MouseLeave="HoldButton_MouseLeave"/>
-                    <Button Content="CONTINUE" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,4,0" Tag="continue" PreviewMouseDown="HoldButton_PreviewMouseDown" PreviewMouseUp="HoldButton_PreviewMouseUp" MouseLeave="HoldButton_MouseLeave"/>
-                    <Button Content="STOP" Command="{Binding StopRunCommand}" Style="{StaticResource DangerButtonStyle}" Margin="0,0,4,0"/>
-                    <Button Content="PAUSE" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,4,0" Tag="pause" PreviewMouseDown="HoldButton_PreviewMouseDown" PreviewMouseUp="HoldButton_PreviewMouseUp" MouseLeave="HoldButton_MouseLeave"/>
-                    <Button Content="Clear Buffer" Command="{Binding ClearBufferCommand}" Style="{StaticResource DangerButtonStyle}" Margin="0,0,4,0"/>
-                    <Button Content="Export QD75" Command="{Binding ExportQD75Command}" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,4,0"/>
-                    <Button Content="Send to PLC" Command="{Binding SendCadXCommand}" Style="{StaticResource PrimaryButtonStyle}"/>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <!-- Row 0: File & Laser Config -->
+                <Grid Grid.Row="0" Margin="0,0,0,10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="200"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <TextBox Text="{Binding FilePath}" IsReadOnly="True" Margin="0,0,6,0"/>
+                    <TextBox Grid.Column="1" Text="{Binding FileName}" IsReadOnly="True" Margin="0,0,12,0" FontSize="13" FontWeight="Bold"/>
+
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="Laser (%):" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center" Margin="0,0,6,0" FontWeight="SemiBold"/>
+                        <TextBox Text="{Binding LaserPowerInput, UpdateSourceTrigger=PropertyChanged}" Width="60" VerticalAlignment="Center" Margin="0,0,6,0" HorizontalContentAlignment="Center"/>
+                        <Button Content="SET POWER" Command="{Binding SetLaserPowerCommand}" Style="{StaticResource PrimaryButtonStyle}" Height="30" Padding="12,0" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Grid>
+
+                <!-- Row 1: Action Buttons Toolbar -->
+                <WrapPanel Grid.Row="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <!-- Group: File -->
+                    <Border BorderBrush="{StaticResource BorderSoftBrush}" BorderThickness="0,0,1,0" Padding="0,0,10,0" Margin="0,0,10,0">
+                        <StackPanel Orientation="Horizontal">
+                            <Button Content="New Gcode" Command="{Binding NewGcodeCommand}" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,6,0" Width="100"/>
+                            <Button Content="Open DXF" Command="{Binding OpenDxfCommand}" Style="{StaticResource PrimaryButtonStyle}" Width="100"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Group: PLC Transfer & Setup -->
+                    <Border BorderBrush="{StaticResource BorderSoftBrush}" BorderThickness="0,0,1,0" Padding="0,0,10,0" Margin="0,0,10,0">
+                        <StackPanel Orientation="Horizontal">
+                            <Button Content="Send to PLC" Command="{Binding SendCadXCommand}" Style="{StaticResource PrimaryButtonStyle}" Margin="0,0,6,0" Width="110"/>
+                            <Button Content="HOME" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,6,0" Width="80" Tag="home" PreviewMouseDown="HoldButton_PreviewMouseDown" PreviewMouseUp="HoldButton_PreviewMouseUp" MouseLeave="HoldButton_MouseLeave"/>
+                            <Button Content="RESET" Style="{StaticResource SecondaryButtonStyle}" Width="80" Tag="reset" PreviewMouseDown="HoldButton_PreviewMouseDown" PreviewMouseUp="HoldButton_PreviewMouseUp" MouseLeave="HoldButton_MouseLeave"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Group: Execution -->
+                    <Border BorderBrush="{StaticResource BorderSoftBrush}" BorderThickness="0,0,1,0" Padding="0,0,10,0" Margin="0,0,10,0">
+                        <StackPanel Orientation="Horizontal">
+                            <Button Content="RUN" Style="{StaticResource PrimaryButtonStyle}" Margin="0,0,6,0" Width="80" Tag="start" PreviewMouseDown="HoldButton_PreviewMouseDown" PreviewMouseUp="HoldButton_PreviewMouseUp" MouseLeave="HoldButton_MouseLeave"/>
+                            <Button Content="PAUSE" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,6,0" Width="80" Tag="pause" PreviewMouseDown="HoldButton_PreviewMouseDown" PreviewMouseUp="HoldButton_PreviewMouseUp" MouseLeave="HoldButton_MouseLeave"/>
+                            <Button Content="CONTINUE" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,6,0" Width="90" Tag="continue" PreviewMouseDown="HoldButton_PreviewMouseDown" PreviewMouseUp="HoldButton_PreviewMouseUp" MouseLeave="HoldButton_MouseLeave"/>
+                            <Button Content="STOP" Command="{Binding StopRunCommand}" Style="{StaticResource DangerButtonStyle}" Width="80"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Group: Utilities -->
+                    <StackPanel Orientation="Horizontal">
+                        <Button Content="Test Vùng Khắc" Command="{Binding TestEngraveAreaCommand}" Style="{StaticResource PrimaryButtonStyle}" Margin="0,0,6,0" Width="120"/>
+                        <Button Content="Clear Buffer" Command="{Binding ClearBufferCommand}" Style="{StaticResource DangerButtonStyle}" Margin="0,0,6,0" Width="100"/>
+                        <Button Content="Export QD75" Command="{Binding ExportQD75Command}" Style="{StaticResource SecondaryButtonStyle}" Width="100"/>
+                    </StackPanel>
                 </WrapPanel>
             </Grid>
         </Border>

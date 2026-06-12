@@ -26,7 +26,7 @@
                     CONTINUE, STOP and PAUSE pulse ON for 100 ms, then reset to 0 automatically.
                 </TextBlock>
                 <TextBlock TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" Margin="0,8,0,0">
-                    Control addresses: HOME = M502, RESET = M300, START ACTION = M2000,
+                    Control addresses: HOME = M503, RESET = M300, START ACTION = M2000,
                     CONTINUE = M211, STOP = M212, PAUSE = M210, EMERGENCY STOP = M3100.
                 </TextBlock>
 

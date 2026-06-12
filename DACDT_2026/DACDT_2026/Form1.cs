@@ -173,6 +173,8 @@ namespace DACDT_2026
             ui.JogStopCommand = new RelayCommand(p => HandleJogWriteAsync(ToInt(p, -1), false));
             ui.GoHomeStartCommand = new RelayCommand(() => HandleGoHomeWriteAsync(true));
             ui.GoHomeStopCommand = new RelayCommand(() => HandleGoHomeWriteAsync(false));
+            ui.HomeAllStartCommand = new RelayCommand(() => HandleHomeAllWriteAsync(true));
+            ui.HomeAllStopCommand = new RelayCommand(() => HandleHomeAllWriteAsync(false));
             ui.ResetErrorStartCommand = new RelayCommand(() => HandleResetErrorWriteAsync(true));
             ui.ResetErrorStopCommand = new RelayCommand(() => HandleResetErrorWriteAsync(false));
             ui.StartActionStartCommand = new RelayCommand(() => HandleStartWriteAsync(true));
@@ -199,6 +201,7 @@ namespace DACDT_2026
             ui.PreviewGcodeCommand = new RelayCommand(() => HandlePreviewGcodeAsync(ui.RawGcodeText));
             ui.ClearBufferCommand = new RelayCommand(HandleClearBufferAsync);
             ui.SendCadXCommand = new RelayCommand(HandleSendCadXAsync);
+            ui.TestEngraveAreaCommand = new RelayCommand(HandleTestEngraveAreaAsync);
             ui.ClearLogsCommand = new RelayCommand(HandleClearLogsAsync);
             ui.AddTelemetryRegisterCommand = new RelayCommand(() => HandleAddTelemetryRegisterAsync(ui.TelemetryAddressInput));
             ui.AddTelemetryBufferCommand = new RelayCommand(() => HandleAddTelemetryBufferAsync(ui.TelemetryAddressInput, ui.TelemetryLengthInput));

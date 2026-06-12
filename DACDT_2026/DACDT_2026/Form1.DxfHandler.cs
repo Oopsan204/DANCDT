@@ -822,6 +822,179 @@ namespace DACDT_2026
             }
         }
 
+        // ── Test Vùng Khắc ────────────────────────────────────────────────────────
+        private async Task HandleTestEngraveAreaAsync()
+        {
+            if (plcComm == null || !plcComm.IsConnected)
+            {
+                await NotifyAsync("error", "Test Vùng Khắc", "PLC chưa kết nối.");
+                return;
+            }
+
+            if (activeCadDocument == null)
+            {
+                await NotifyAsync("error", "Test Vùng Khắc", "Chưa tải file DXF/G-code.");
+                return;
+            }
+
+            // Step 1: Collect coordinates and find min/max
+            var allX = new List<double>();
+            var allY = new List<double>();
+
+            if (activeCadDocument.Primitives != null)
+            {
+                foreach (var prim in activeCadDocument.Primitives)
+                {
+                    if (prim.Points == null) continue;
+                    foreach (var pt in prim.Points)
+                    {
+                        allX.Add(pt.X);
+                        allY.Add(pt.Y);
+                    }
+                }
+            }
+
+            if (allX.Count == 0 && activeCadDocument.Points != null)
+            {
+                foreach (var pt in activeCadDocument.Points)
+                {
+                    allX.Add(pt.X);
+                    allY.Add(pt.Y);
+                }
+            }
+
+            if (allX.Count == 0)
+            {
+                await NotifyAsync("error", "Test Vùng Khắc", "Không tìm thấy tọa độ trong file.");
+                return;
+            }
+
+            double minX = allX.Min();
+            double maxX = allX.Max();
+            double minY = allY.Min();
+            double maxY = allY.Max();
+
+            // Apply offsets
+            double adjMinX = minX + offsetX;
+            double adjMaxX = maxX + offsetX;
+            double adjMinY = minY + offsetY;
+            double adjMaxY = maxY + offsetY;
+
+            // Check machine limits (170x170)
+            const double LimitX = 170.0;
+            const double LimitY = 170.0;
+            if (adjMinX < 0.0 || adjMaxX > LimitX || adjMinY < 0.0 || adjMaxY > LimitY)
+            {
+                await NotifyAsync("error", "Test Vùng Khắc", "Vùng khắc vượt quá giới hạn hành trình máy (170x170).");
+                return;
+            }
+
+            // Step 2: Set Laser Power to 100
+            await LogUIAsync("Test", "Setting laser power to 100...");
+            await HandleSetLaserPowerAsync(100);
+
+            // Step 3: Define 4 boundary movement rows (plus initial positioning)
+            bool isGcodeDoc = string.Equals(activeDocumentKind, "GCODE", StringComparison.OrdinalIgnoreCase);
+            string m3Speed = isGcodeDoc ? gcodeSpeedM3 : globalSpeedM3;
+
+            var dataRows = new List<QD75BufferWriter.PositioningDataRow>();
+
+            // Move 1: Rapid to MinX, MinY (Start corner) - laser OFF
+            dataRows.Add(new QD75BufferWriter.PositioningDataRow
+            {
+                MotionType = "Linear (Continuous Path)",
+                MCodeValue = "0",
+                Dwell = "0",
+                Speed = rapidSpeed,
+                EndCoordinate = $"{adjMinX};{adjMinY}",
+                EndXMm = adjMinX,
+                EndYMm = adjMinY
+            });
+
+            // Move 2: MinX, MinY -> MaxX, MinY (with laser speed/power) - laser ON
+            dataRows.Add(new QD75BufferWriter.PositioningDataRow
+            {
+                MotionType = "Linear (Continuous Path)",
+                MCodeValue = "3",
+                Dwell = "0",
+                Speed = m3Speed,
+                EndCoordinate = $"{adjMaxX};{adjMinY}",
+                EndXMm = adjMaxX,
+                EndYMm = adjMinY
+            });
+
+            // Move 3: MaxX, MinY -> MaxX, MaxY
+            dataRows.Add(new QD75BufferWriter.PositioningDataRow
+            {
+                MotionType = "Linear (Continuous Path)",
+                MCodeValue = "3",
+                Dwell = "0",
+                Speed = m3Speed,
+                EndCoordinate = $"{adjMaxX};{adjMaxY}",
+                EndXMm = adjMaxX,
+                EndYMm = adjMaxY
+            });
+
+            // Move 4: MaxX, MaxY -> MinX, MaxY
+            dataRows.Add(new QD75BufferWriter.PositioningDataRow
+            {
+                MotionType = "Linear (Continuous Path)",
+                MCodeValue = "3",
+                Dwell = "0",
+                Speed = m3Speed,
+                EndCoordinate = $"{adjMinX};{adjMaxY}",
+                EndXMm = adjMinX,
+                EndYMm = adjMaxY
+            });
+
+            // Move 5: MinX, MaxY -> MinX, MinY (close boundary and End) - laser OFF
+            dataRows.Add(new QD75BufferWriter.PositioningDataRow
+            {
+                MotionType = "Linear (End)",
+                MCodeValue = "5",
+                Dwell = "0",
+                Speed = m3Speed,
+                EndCoordinate = $"{adjMinX};{adjMinY}",
+                EndXMm = adjMinX,
+                EndYMm = adjMinY
+            });
+
+            // Step 4: Write to PLC
+            await StopPlcPollingAsync();
+            try
+            {
+                await LogUIAsync("Test", "Clearing buffer...");
+                await Task.Run(() => QD75BufferWriter.ClearAllBuffers(plcComm, maxPoints: 600));
+
+                await LogUIAsync("Test", "Sending boundary path to PLC...");
+                var sendResult = await Task.Run(() => QD75BufferWriter.WritePositioningDataBulk(plcComm, 0, dataRows, writeStartNo: false));
+                if (!sendResult.Success)
+                {
+                    await NotifyAsync("error", "Test Vùng Khắc", "Không thể gửi dữ liệu Master Axis.");
+                    return;
+                }
+
+                var slaveResult = await Task.Run(() => QD75BufferWriter.WriteSlaveAxisDataBulk(plcComm, dataRows, slaveBaseG: 8000));
+                if (!slaveResult.Success)
+                {
+                    await NotifyAsync("error", "Test Vùng Khắc", "Không thể gửi dữ liệu Slave Axis.");
+                    return;
+                }
+
+                ui.IsStartActionEnabled = true;
+                await NotifyAsync("success", "Test Vùng Khắc", "Đã nạp biên dạng bao lớn nhất. Nhấn RUN để bắt đầu kiểm tra.");
+            }
+            catch (Exception ex)
+            {
+                await NotifyAsync("error", "Test Vùng Khắc", "Lỗi nạp biên dạng: " + ex.Message);
+            }
+            finally
+            {
+                if (plcComm != null && plcComm.IsConnected && !isClosing)
+                    StartPlcPolling();
+            }
+        }
+
         // ── Export QD75 Positioning Data ──────────────────────────────────────────
         private async Task HandleExportQD75Async()
         {

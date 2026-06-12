@@ -56,7 +56,7 @@ Read D:\DACDT_2026\DANCDT\DACDT_2026\CODEX_HANDOFF.md first, then continue the D
 
 ## PLC Buttons / Addresses
 
-- HOME: `M502`
+- HOME: `M503`
 - RESET: `M300`
 - START ACTION: `M2000`
 - CONTINUE: `M211`

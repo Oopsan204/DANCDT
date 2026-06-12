@@ -164,6 +164,8 @@ namespace DACDT_2026
         public ICommand JogStopCommand { get; set; }
         public ICommand GoHomeStartCommand { get; set; }
         public ICommand GoHomeStopCommand { get; set; }
+        public ICommand HomeAllStartCommand { get; set; }
+        public ICommand HomeAllStopCommand { get; set; }
         public ICommand ResetErrorStartCommand { get; set; }
         public ICommand ResetErrorStopCommand { get; set; }
         public ICommand StartActionStartCommand { get; set; }
@@ -180,6 +182,7 @@ namespace DACDT_2026
         public ICommand PreviewGcodeCommand { get; set; }
         public ICommand ClearBufferCommand { get; set; }
         public ICommand SendCadXCommand { get; set; }
+        public ICommand TestEngraveAreaCommand { get; set; }
         public ICommand ClearLogsCommand { get; set; }
         public ICommand AddTelemetryRegisterCommand { get; set; }
         public ICommand AddTelemetryBufferCommand { get; set; }
