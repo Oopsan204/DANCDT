@@ -179,16 +179,16 @@ namespace DACDT_2026
             try
             {
                 int v = active ? 1 : 0;
-                await WriteDeviceValueAsync("M400", v);
+                await WriteDeviceValueAsync("M300", v);
                 UpdateIntegrityState(true);
-                AddLogEntry("M400", v.ToString(CultureInfo.InvariantCulture), "Write", "OK", "ResetError");
+                AddLogEntry("M300", v.ToString(CultureInfo.InvariantCulture), "Write", "OK", "ResetError");
             }
             catch (Exception ex)
             {
                 if (active)
                 {
                     UpdateIntegrityFault(ex.Message);
-                    AddLogEntry("M400", (active ? 1 : 0).ToString(CultureInfo.InvariantCulture), "Write", "Error", ex.Message);
+                    AddLogEntry("M300", (active ? 1 : 0).ToString(CultureInfo.InvariantCulture), "Write", "Error", ex.Message);
                     await NotifyAsync("error", "Reset Error", ex.Message);
                     await PushControlStateAsync();
                 }
@@ -311,6 +311,7 @@ namespace DACDT_2026
 
                 if (clearResult.Success)
                 {
+                    ui.IsStartActionEnabled = false;
                     UpdateIntegrityFault("Run stopped and buffer cleared");
                     await NotifyAsync("success", "Stop", "Đã Stop và xoá buffer tọa độ/lệnh chạy.");
                 }

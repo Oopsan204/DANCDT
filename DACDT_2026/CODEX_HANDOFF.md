@@ -57,10 +57,10 @@ Read D:\DACDT_2026\DANCDT\DACDT_2026\CODEX_HANDOFF.md first, then continue the D
 ## PLC Buttons / Addresses
 
 - HOME: `M502`
-- RESET: `M400`
+- RESET: `M300`
 - START ACTION: `M2000`
-- CONTINUE: `M401`
-- PAUSE: `M402`
+- CONTINUE: `M211`
+- PAUSE: `M210`
 - Manual jog base: `M3000-M3005`
 - Emergency stop: `M3100`
 - Jog speed label should be `Jog speed D406 (mm/min)`.

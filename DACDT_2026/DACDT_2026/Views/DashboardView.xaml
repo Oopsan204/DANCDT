@@ -4,7 +4,7 @@
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="*"/>
-            <RowDefinition Height="250"/>
+            <RowDefinition Height="300"/>
         </Grid.RowDefinitions>
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="300"/>
@@ -229,7 +229,7 @@
                     <Button Grid.Column="0" Content="HOME" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,4,0" Tag="home" PreviewMouseDown="HoldButton_PreviewMouseDown" PreviewMouseUp="HoldButton_PreviewMouseUp" MouseLeave="HoldButton_MouseLeave"/>
                     <Button Grid.Column="1" Content="RESET" Style="{StaticResource SecondaryButtonStyle}" Margin="4,0,0,0" Tag="reset" PreviewMouseDown="HoldButton_PreviewMouseDown" PreviewMouseUp="HoldButton_PreviewMouseUp" MouseLeave="HoldButton_MouseLeave"/>
                 </Grid>
-                <Button Content="START ACTION" Style="{StaticResource PrimaryButtonStyle}" Margin="0,6,0,0" Tag="start" PreviewMouseDown="HoldButton_PreviewMouseDown" PreviewMouseUp="HoldButton_PreviewMouseUp" MouseLeave="HoldButton_MouseLeave"/>
+                <Button Content="START ACTION" IsEnabled="{Binding IsStartActionEnabled}" Style="{StaticResource PrimaryButtonStyle}" Margin="0,6,0,0" Tag="start" PreviewMouseDown="HoldButton_PreviewMouseDown" PreviewMouseUp="HoldButton_PreviewMouseUp" MouseLeave="HoldButton_MouseLeave"/>
                 <Grid Margin="0,6,0,0">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition/>

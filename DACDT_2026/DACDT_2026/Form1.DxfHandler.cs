@@ -178,6 +178,7 @@ namespace DACDT_2026
             assignedPointKeys.Clear();
             rawGcodeText = string.Empty;
             processRows.Clear();
+            ui.IsStartActionEnabled = false;
         }
 
         private bool isPreviewingGcode = false;
@@ -621,6 +622,8 @@ namespace DACDT_2026
         // ── Send CAD X axis data to PLC ──────────────────────────────────────────
         private async Task HandleSendCadXAsync()
         {
+            ui.IsStartActionEnabled = false;
+
             if (plcComm == null || !plcComm.IsConnected)
             {
                 await NotifyAsync("error", "Telemetry", "PLC is not connected.");
@@ -755,6 +758,8 @@ namespace DACDT_2026
                     // Start ring buffer (load points 1-599 + JUMP at 600, then cross-write by Md.44)
                     _ = ringRunner.StartAsync(); // Fire-and-forget — runs while QD75 executes
 
+                    ui.IsStartActionEnabled = true;
+
                     await NotifyAsync("success", "PLC",
                         $"Ring Buffer started: {dataRows.Count} points. Point 600 is fixed JUMP. Monitoring Md.44 for refill. Press START/RUN.");
                 }
@@ -802,6 +807,8 @@ namespace DACDT_2026
                         await NotifyAsync("error", "Telemetry [Axis2]", "Failed to load Axis 2 buffer.");
                         return;
                     }
+
+                    ui.IsStartActionEnabled = true;
 
                     await NotifyAsync("success", "PLC",
                         $"Loaded {sendResult.RowCount} commands → Axis 1 (G2000+) & Axis 2 (G8000+). Press START/RUN to execute.");
@@ -1026,6 +1033,7 @@ namespace DACDT_2026
 
                 if (clearResult.Success)
                 {
+                    ui.IsStartActionEnabled = false;
                     await NotifyAsync("success", "Clear Buffer", 
                         "Đã xóa toàn bộ buffer PLC cho tất cả trục. Tất cả dữ liệu cũ đã bị xóa.");
                 }

@@ -78,6 +78,7 @@ namespace DACDT_2026
         private string currentView = "control";
         private string currentTheme = "dark";
         private bool isConnected;
+        private bool isStartActionEnabled;
         private string connectionBanner = "PLC disconnected";
         private string connectionButtonText = "CONNECT PLC Q";
         private string connectionMeta = "MX Component logical station: 0";
@@ -241,6 +242,12 @@ namespace DACDT_2026
         {
             get => isConnected;
             set => SetProperty(ref isConnected, value);
+        }
+
+        public bool IsStartActionEnabled
+        {
+            get => isStartActionEnabled;
+            set => SetProperty(ref isStartActionEnabled, value);
         }
 
         public string ConnectionBanner
