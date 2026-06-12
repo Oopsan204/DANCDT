@@ -570,13 +570,46 @@ namespace DACDT_2026
             set
             {
                 if (SetProperty(ref activeProgramIndex, value))
+                {
                     OnPropertyChanged(nameof(ActiveProgramText));
+                    OnPropertyChanged(nameof(RunProgressText));
+                    OnPropertyChanged(nameof(RunProgressPercent));
+                }
             }
         }
 
         public string ActiveProgramText => ActiveProgramIndex > 0
             ? "Active data no: " + ActiveProgramIndex
             : "Waiting for PLC data no.";
+
+        public int RunProgressPercent
+        {
+            get
+            {
+                int total = allProcessRows.Count;
+                if (total <= 0 || ActiveProgramIndex <= 0)
+                    return 0;
+
+                int current = ActiveProgramIndex > total ? total : ActiveProgramIndex;
+                return (int)System.Math.Round(current * 100.0 / total);
+            }
+        }
+
+        public string RunProgressText
+        {
+            get
+            {
+                int total = allProcessRows.Count;
+                if (total <= 0)
+                    return "No program loaded";
+
+                int current = ActiveProgramIndex;
+                if (current < 0) current = 0;
+                if (current > total) current = total;
+
+                return "Running line " + current + " / " + total + " (" + RunProgressPercent + "%)";
+            }
+        }
 
         public string ProgramMonitorTitle
         {
@@ -620,6 +653,8 @@ namespace DACDT_2026
             ReplaceVisibleRows(ProcessRows, allProcessRows, GetInitialVisibleCount(allProcessRows.Count, 0));
             ReplaceProgramRowsWindow(activeIndex);
             lastHighlightedProgramIndex = activeIndex;
+            OnPropertyChanged(nameof(RunProgressText));
+            OnPropertyChanged(nameof(RunProgressPercent));
         }
 
         public bool LoadMoreCadPoints()

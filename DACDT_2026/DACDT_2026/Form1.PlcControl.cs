@@ -198,22 +198,32 @@ namespace DACDT_2026
         // ── Start ────────────────────────────────────────────────────────────────
         private async Task HandleStartWriteAsync(bool active)
         {
+            if (!active)
+                return;
+
             try
             {
-                int v = active ? 1 : 0;
-                await WriteDeviceValueAsync("M2000", v);
+                await WriteDeviceValueAsync("M2000", 1);
                 UpdateIntegrityState(true);
-                AddLogEntry("M2000", v.ToString(CultureInfo.InvariantCulture), "Write", "OK", "Start");
+                AddLogEntry("M2000", "1", "Write", "OK", "Start");
+                await Task.Delay(100);
+                await WriteDeviceValueAsync("M2000", 0);
+                AddLogEntry("M2000", "0", "Write", "OK", "Start reset");
             }
             catch (Exception ex)
             {
-                if (active)
+                try
                 {
-                    UpdateIntegrityFault(ex.Message);
-                    AddLogEntry("M2000", (active ? 1 : 0).ToString(CultureInfo.InvariantCulture), "Write", "Error", ex.Message);
-                    await NotifyAsync("error", "Start", ex.Message);
-                    await PushControlStateAsync();
+                    await WriteDeviceValueAsync("M2000", 0);
                 }
+                catch
+                {
+                }
+
+                UpdateIntegrityFault(ex.Message);
+                AddLogEntry("M2000", "1", "Write", "Error", ex.Message);
+                await NotifyAsync("error", "Start", ex.Message);
+                await PushControlStateAsync();
             }
         }
 
