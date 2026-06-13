@@ -651,6 +651,17 @@ namespace DACDT_2026
                     await NotifyAsync("success", "MQTT Machine", "PAUSE command executed.");
                     break;
 
+                case "HOME":
+                case "GOHOME":
+                    await PulsePlcCommandAsync(HandleGoHomeWriteAsync);
+                    await NotifyAsync("success", "MQTT Machine", "HOME command executed.");
+                    break;
+
+                case "HOMEALL":
+                    await PulsePlcCommandAsync(HandleHomeAllWriteAsync);
+                    await NotifyAsync("success", "MQTT Machine", "HOME ALL command executed.");
+                    break;
+
                 case "RESET":
                     await PulsePlcCommandAsync(HandleResetErrorWriteAsync);
                     await NotifyAsync("success", "MQTT Machine", "RESET command executed.");
