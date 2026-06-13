@@ -748,6 +748,11 @@ namespace DACDT_2026
                     {
                         await NotifyAsync("success", "PLC", $"Ring buffer loaded — all {dataRows.Count} points have been streamed.");
                         _ = SendProgressAsync(false, 0);
+
+                        // Tự động dừng quay camera khi DXF hoàn thành
+                        await StopCameraRecordingAsync();
+                        await StopCameraAsync();
+                        await NotifyAsync("info", "Camera", "Tự động dừng quay khi DXF hoàn thành.");
                     };
                     ringRunner.OnError += async (err) =>
                     {

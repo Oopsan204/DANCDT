@@ -702,6 +702,20 @@ namespace DACDT_2026
                     await NotifyAsync("info", "MQTT Camera", "STOP command executed.");
                     break;
 
+                case "STARTRECORD":
+                case "BATDAUQUAY":
+                    await StartCameraAsync();
+                    await StartCameraRecordingAsync();
+                    await NotifyAsync("success", "MQTT Camera", "Bắt đầu quay camera.");
+                    break;
+
+                case "STOPRECORD":
+                case "DUNGQUAY":
+                    await StopCameraRecordingAsync();
+                    await StopCameraAsync();
+                    await NotifyAsync("info", "MQTT Camera", "Dừng quay camera.");
+                    break;
+
                 default:
                     await NotifyAsync("info", "MQTT Camera", "Ignored unknown command: " + command);
                     break;
