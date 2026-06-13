@@ -87,13 +87,12 @@ namespace DACDT_2026
         }
 
         /// <summary>
-        /// Publishes machine state + monitor state + cad state to MQTT.
-        /// Triggered manually or by explicit request from the web interface.
+        /// Publishes CAD state to MQTT on explicit web request.
+        /// Machine/monitor state are published by the PLC polling loop.
         /// </summary>
         private async Task PublishAllMqttAsync()
         {
             bool connected = plcComm != null && plcComm.IsConnected;
-            await PublishMachineStateToMqttAsync(connected);
             await PublishCadStateToMqttAsync(connected);
         }
 
