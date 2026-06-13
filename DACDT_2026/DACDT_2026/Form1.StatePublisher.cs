@@ -94,6 +94,137 @@ namespace DACDT_2026
         {
             bool connected = plcComm != null && plcComm.IsConnected;
             await PublishMachineStateToMqttAsync(connected);
+            await PublishCadStateToMqttAsync(connected);
+        }
+
+        private async Task PublishCadStateToMqttAsync(bool connected)
+        {
+            if (!mqttService.IsConnected)
+                return;
+
+            try
+            {
+                var sb = new StringBuilder(2048);
+                sb.Append("{");
+                bool isGcodeKind = string.Equals(activeDocumentKind, "GCODE", StringComparison.OrdinalIgnoreCase);
+                var rawDoc = CloneCadDocumentForUi(activeCadDocument);
+                var displayDoc = CreateDisplayCadDocument(
+                    rawDoc,
+                    isGcodeKind,
+                    offsetX,
+                    offsetY,
+                    wcsOffsetX.ToArray(),
+                    wcsOffsetY.ToArray());
+
+                sb.AppendFormat("\"fileKind\":\"{0}\"", EscapeJson(activeDocumentKind ?? string.Empty));
+                sb.AppendFormat(",\"fileName\":\"{0}\"", EscapeJson(displayDoc?.FileName ?? string.Empty));
+                sb.AppendFormat(",\"filePath\":\"{0}\"", EscapeJson(displayDoc?.FilePath ?? string.Empty));
+                sb.AppendFormat(",\"workspaceWidth\":{0}", workspaceWidth.ToString("0.###", CultureInfo.InvariantCulture));
+                sb.AppendFormat(",\"workspaceHeight\":{0}", workspaceHeight.ToString("0.###", CultureInfo.InvariantCulture));
+                sb.Append(",\"bounds\":");
+                AppendCadBoundsJson(sb, displayDoc?.Bounds);
+
+                sb.Append(",\"cadPrimitives\":[");
+                if (displayDoc != null && displayDoc.Primitives != null)
+                {
+                    bool first = true;
+                    foreach (var prim in displayDoc.Primitives.Take(50000))
+                    {
+                        if (!first) sb.Append(",");
+                        first = false;
+
+                        sb.Append("{");
+                        sb.AppendFormat("\"sourceType\":\"{0}\"", EscapeJson(prim.SourceType ?? string.Empty));
+                        sb.AppendFormat(",\"isCw\":{0}", prim.IsCw ? "true" : "false");
+                        sb.AppendFormat(",\"isCircle\":{0}", prim.IsCircle ? "true" : "false");
+                        sb.AppendFormat(",\"wcsIndex\":{0}", prim.WcsIndex);
+                        sb.AppendFormat(",\"mCode\":\"{0}\"", EscapeJson(prim.MCodeValue ?? string.Empty));
+                        sb.AppendFormat(",\"speed\":\"{0}\"", EscapeJson(prim.Speed ?? string.Empty));
+                        sb.AppendFormat(",\"dwell\":\"{0}\"", EscapeJson(prim.Dwell ?? string.Empty));
+                        sb.Append(",\"center\":");
+                        AppendCadCoordinateJson(sb, prim.Center);
+                        sb.Append(",\"points\":[");
+                        if (prim.Points != null)
+                        {
+                            for (int i = 0; i < prim.Points.Count; i++)
+                            {
+                                if (i > 0) sb.Append(",");
+                                AppendCadCoordinateJson(sb, prim.Points[i]);
+                            }
+                        }
+                        sb.Append("]}");
+                    }
+                }
+                sb.Append("]");
+
+                sb.Append(",\"trackingPoints\":[");
+                var trackingPoints = BuildRobotTrackingPoints(
+                    activeCadDocument,
+                    workspaceWidth,
+                    workspaceHeight,
+                    connected,
+                    axCurrentPos[0],
+                    axCurrentPos[1]);
+
+                bool firstTp = true;
+                foreach(var tp in trackingPoints)
+                {
+                    if (!firstTp) sb.Append(",");
+                    firstTp = false;
+                    sb.Append("{");
+                    sb.AppendFormat("\"x\":{0}", tp.X.ToString(CultureInfo.InvariantCulture));
+                    sb.AppendFormat(",\"y\":{0}", tp.Y.ToString(CultureInfo.InvariantCulture));
+                    sb.AppendFormat(",\"size\":{0}", tp.Size.ToString(CultureInfo.InvariantCulture));
+                    sb.AppendFormat(",\"label\":\"{0}\"", EscapeJson(tp.Label ?? string.Empty));
+                    sb.AppendFormat(",\"tooltip\":\"{0}\"", EscapeJson(tp.ToolTip ?? string.Empty));
+                    sb.Append("}");
+                }
+                sb.Append("]");
+
+                sb.AppendFormat(",\"timestamp\":\"{0}\"", DateTime.UtcNow.ToString("o"));
+                sb.Append("}");
+
+                await mqttService.PublishAsync("DACDT/cad/state", sb.ToString());
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"MQTT cad publish error: {ex.Message}");
+            }
+        }
+
+        private static void AppendCadBoundsJson(StringBuilder sb, CadDocumentService.CadBounds bounds)
+        {
+            if (bounds == null)
+            {
+                sb.Append("null");
+                return;
+            }
+
+            sb.Append("{");
+            sb.AppendFormat("\"left\":{0}", bounds.Left.ToString("0.###", CultureInfo.InvariantCulture));
+            sb.AppendFormat(",\"top\":{0}", bounds.Top.ToString("0.###", CultureInfo.InvariantCulture));
+            sb.AppendFormat(",\"right\":{0}", bounds.Right.ToString("0.###", CultureInfo.InvariantCulture));
+            sb.AppendFormat(",\"bottom\":{0}", bounds.Bottom.ToString("0.###", CultureInfo.InvariantCulture));
+            sb.AppendFormat(",\"width\":{0}", bounds.Width.ToString("0.###", CultureInfo.InvariantCulture));
+            sb.AppendFormat(",\"height\":{0}", bounds.Height.ToString("0.###", CultureInfo.InvariantCulture));
+            sb.AppendFormat(",\"minZ\":{0}", bounds.MinZ.ToString("0.###", CultureInfo.InvariantCulture));
+            sb.AppendFormat(",\"maxZ\":{0}", bounds.MaxZ.ToString("0.###", CultureInfo.InvariantCulture));
+            sb.Append("}");
+        }
+
+        private static void AppendCadCoordinateJson(StringBuilder sb, CadDocumentService.CadCoordinate point)
+        {
+            if (point == null)
+            {
+                sb.Append("null");
+                return;
+            }
+
+            sb.Append("{");
+            sb.AppendFormat("\"x\":{0}", point.X.ToString("0.###", CultureInfo.InvariantCulture));
+            sb.AppendFormat(",\"y\":{0}", point.Y.ToString("0.###", CultureInfo.InvariantCulture));
+            sb.AppendFormat(",\"z\":{0}", point.Z.ToString("0.###", CultureInfo.InvariantCulture));
+            sb.Append("}");
         }
 
         private async Task PublishMachineStateToMqttAsync(bool connected)

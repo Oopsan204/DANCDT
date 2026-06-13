@@ -90,7 +90,8 @@
 
         /* ── GRID ROWS ── */
         #top-row { display: grid; grid-template-columns: repeat(4, 1fr) 200px; gap: var(--panel-gap); flex-shrink: 0; }
-        #middle-row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--panel-gap); flex: 1; min-height: 0; }
+        #middle-row { display: grid; grid-template-columns: minmax(0,1fr) 320px 320px; gap: var(--panel-gap); flex: 1; min-height: 0; }
+        @media (max-width: 1200px) { #middle-row { grid-template-columns: 1fr 1fr; } #cad-panel { display: none; } }
         #bottom-row { display: grid; grid-template-columns: 1fr 2fr; gap: var(--panel-gap); height: 200px; flex-shrink: 0; }
 
         /* ── AXIS PANELS ── */
@@ -137,6 +138,16 @@
         table.dxf-table td.td-speed { color: var(--text-bright); }
         table.dxf-table td.td-xy { color: var(--text-bright); font-family: 'Courier New', monospace; }
         table.dxf-table td.td-m { color: var(--orange); }
+
+        /* ── CAD PREVIEW ── */
+        .cad-wrap { flex: 1; position: relative; background: #0a0d12; overflow: hidden; }
+        .cad-canvas { width: 100%; height: 100%; display: block; }
+        .cad-overlay-info { position: absolute; top: 6px; left: 8px; font-size: 10px; color: var(--muted); pointer-events: none; line-height: 1.6; }
+        .cad-overlay-info span { display: block; }
+        .cad-no-data { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--muted); font-size: 12px; gap: 8px; }
+        .cad-legend { position: absolute; bottom: 6px; right: 8px; display: flex; flex-direction: column; gap: 4px; font-size: 10px; pointer-events: none; }
+        .cad-legend-item { display: flex; align-items: center; gap: 5px; }
+        .cad-legend-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
 
         /* ── CAMERA ── */
         .cam-toolbar { background: var(--bg3); border-bottom: 1px solid var(--border); padding: 6px 10px; display: flex; align-items: center; gap: 6px; flex-shrink: 0; flex-wrap: wrap; }
@@ -317,8 +328,37 @@
             </div>
         </div>
 
-        <!-- ── MIDDLE ROW: DXF TABLE & CAMERA ── -->
+        <!-- ── MIDDLE ROW: CAD MAIN, DXF SIDE & CAMERA ── -->
         <div id="middle-row">
+            <div class="panel" id="cad-panel">
+                <div class="panel-header">
+                    <div>
+                        <div class="ph-title">CAD Preview</div>
+                        <div class="ph-sub" id="cad-file-sub">Chờ dữ liệu DACDT/cad/state…</div>
+                    </div>
+                    <div class="active-badge">
+                        <span class="dot" id="cad-live-dot" style="background:var(--muted)"></span>
+                        <span id="cad-prims-count">0 prims</span>
+                    </div>
+                </div>
+                <div class="cad-wrap" id="cad-wrap">
+                    <canvas class="cad-canvas" id="cad-canvas"></canvas>
+                    <div class="cad-overlay-info" id="cad-info"></div>
+                    <div class="cad-no-data" id="cad-no-data">
+                        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" opacity=".3">
+                            <rect x="3" y="3" width="18" height="18" rx="2"/>
+                            <path d="M3 9h18M9 21V9"/>
+                        </svg>
+                        <span>Chờ dữ liệu CAD từ MQTT…</span>
+                    </div>
+                    <div class="cad-legend" id="cad-legend" style="display:none">
+                        <div class="cad-legend-item"><div class="cad-legend-dot" style="background:#29b6f6"></div><span style="color:var(--muted)">Line / Arc</span></div>
+                        <div class="cad-legend-item"><div class="cad-legend-dot" style="background:#f44336"></div><span style="color:var(--muted)">Rapid (G0)</span></div>
+                        <div class="cad-legend-item"><div class="cad-legend-dot" style="background:#76ff03;border:2px solid #fff"></div><span style="color:var(--muted)">Robot</span></div>
+                    </div>
+                </div>
+            </div>
+
             <div class="panel">
                 <div class="panel-header">
                     <div>
@@ -429,7 +469,10 @@ class GantrySCADADashboard {
         this.MQTT_TOPIC_MACHINE_STATE = 'DACDT/machine/state';
         this.MQTT_TOPIC_MONITOR_STATE = 'DACDT/monitor/state';
         this.MQTT_TOPIC_CAMERA_FRAME  = 'DACDT/camera/frame';
+        this.MQTT_TOPIC_CAD_STATE     = 'DACDT/cad/state';
         this.MQTT_TOPIC_MONITOR_WILD  = 'monitor/#';
+        this._cadData = null;
+        this._cadDirty = false;
 
         this.init();
     }
@@ -437,7 +480,7 @@ class GantrySCADADashboard {
     init() {
         // init UI
         document.getElementById('broker-value').textContent = this.MQTT_BROKER;
-        document.getElementById('topic-value').textContent = 'DACDT/machine/state, DACDT/monitor/state';
+        document.getElementById('topic-value').textContent = 'machine, monitor, camera, cad';
         
         this.addLog('Dashboard khởi động', 'info');
         this.connectMQTT();
@@ -511,8 +554,9 @@ class GantrySCADADashboard {
                     this.client.subscribe(this.MQTT_TOPIC_MACHINE_STATE);
                     this.client.subscribe(this.MQTT_TOPIC_MONITOR_STATE);
                     this.client.subscribe(this.MQTT_TOPIC_CAMERA_FRAME);
+                    this.client.subscribe(this.MQTT_TOPIC_CAD_STATE);
                     this.client.subscribe(this.MQTT_TOPIC_MONITOR_WILD, {
-                        onSuccess: () => this.addLog('Subscribe: DACDT/machine/state, DACDT/monitor/state, DACDT/camera/frame', 'info')
+                        onSuccess: () => this.addLog('Subscribe: machine, monitor, camera, cad', 'info')
                     });
                 },
                 onFailure: (e) => this.addLog('Kết nối thất bại: ' + e.errorMessage, 'error')
@@ -548,6 +592,15 @@ class GantrySCADADashboard {
 
             if (topic === this.MQTT_TOPIC_CAMERA_FRAME) {
                 this.updateCameraFrame(payload);
+                return;
+            }
+
+            if (topic === this.MQTT_TOPIC_CAD_STATE) {
+                this.msgCount++;
+                document.getElementById('msg-count').textContent = this.msgCount;
+                document.getElementById('last-update').textContent = new Date().toLocaleTimeString('vi-VN');
+                const cadData = JSON.parse(payload);
+                this.renderCadPreview(cadData);
                 return;
             }
             
@@ -687,6 +740,7 @@ class GantrySCADADashboard {
     }
 
     updateDashboard(data) {
+        this._lastDashboardData = data;
         // Adapt old vs new format
         const connected = data.plc_connected !== undefined ? (data.plc_connected == 1) : (data.connected === true);
         const mStatus = data.machine_status || data.integrityState || '-';
@@ -731,6 +785,7 @@ class GantrySCADADashboard {
     }
 
     renderAxesList(axesList) {
+        const data = this._lastDashboardData || {};
         axesList.forEach((a, i) => {
             const idx = a.idx != null ? a.idx : i;
             if (idx > 3) return;
@@ -819,6 +874,115 @@ class GantrySCADADashboard {
                 <td class="td-xy">${p.xy != null ? p.xy : (p.x != null ? p.x + ';' + p.y : '')}</td>
             </tr>`;
         }).join('');
+    }
+
+    /* ── CAD PREVIEW ── */
+    renderCadPreview(data) {
+        const wrap = document.getElementById('cad-wrap');
+        const canvas = document.getElementById('cad-canvas');
+        if (!wrap || !canvas) return;
+
+        const ctx = canvas.getContext('2d');
+        const W = wrap.clientWidth || 320;
+        const H = wrap.clientHeight || 260;
+        canvas.width = W;
+        canvas.height = H;
+        ctx.clearRect(0, 0, W, H);
+
+        const primitives = Array.isArray(data.cadPrimitives) ? data.cadPrimitives : [];
+        const tracking = Array.isArray(data.trackingPoints) ? data.trackingPoints : [];
+        const hasPrims = primitives.length > 0;
+
+        const noData = document.getElementById('cad-no-data');
+        const legend = document.getElementById('cad-legend');
+        const liveDot = document.getElementById('cad-live-dot');
+        const count = document.getElementById('cad-prims-count');
+        const sub = document.getElementById('cad-file-sub');
+        const info = document.getElementById('cad-info');
+
+        if (noData) noData.style.display = hasPrims ? 'none' : 'flex';
+        if (legend) legend.style.display = hasPrims ? 'flex' : 'none';
+        if (liveDot) liveDot.style.background = hasPrims ? 'var(--green)' : 'var(--muted)';
+        if (count) count.textContent = primitives.length + ' prims';
+        if (sub) sub.textContent = (data.fileKind || 'CAD') + (data.fileName ? ' · ' + data.fileName : '');
+        if (info && data.bounds) {
+            info.innerHTML = `<span>W: ${(data.bounds.width || 0).toFixed(1)} mm</span><span>H: ${(data.bounds.height || 0).toFixed(1)} mm</span>`;
+        }
+
+        if (!hasPrims) return;
+
+        let minX = data.bounds && isFinite(data.bounds.left) ? data.bounds.left : Infinity;
+        let maxX = data.bounds && isFinite(data.bounds.right) ? data.bounds.right : -Infinity;
+        let minY = data.bounds && isFinite(data.bounds.top) ? data.bounds.top : Infinity;
+        let maxY = data.bounds && isFinite(data.bounds.bottom) ? data.bounds.bottom : -Infinity;
+
+        for (const prim of primitives) {
+            for (const p of (prim.points || [])) {
+                minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x);
+                minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y);
+            }
+        }
+        minX = Math.min(minX, 0);
+        minY = Math.min(minY, 0);
+        if (data.workspaceWidth > 0) maxX = Math.max(maxX, data.workspaceWidth);
+        if (data.workspaceHeight > 0) maxY = Math.max(maxY, data.workspaceHeight);
+        if (!isFinite(minX) || maxX <= minX) { minX = 0; maxX = 100; }
+        if (!isFinite(minY) || maxY <= minY) { minY = 0; maxY = 100; }
+
+        const pad = 20;
+        const scale = Math.min((W - pad * 2) / (maxX - minX), (H - pad * 2) / (maxY - minY));
+        const ox = pad + ((W - pad * 2) - (maxX - minX) * scale) / 2;
+        const oy = pad + ((H - pad * 2) - (maxY - minY) * scale) / 2;
+        const cx = x => ox + (x - minX) * scale;
+        const cy = y => oy + (maxY - y) * scale;
+
+        if (data.workspaceWidth > 0 && data.workspaceHeight > 0) {
+            ctx.save();
+            ctx.strokeStyle = '#1f6feb';
+            ctx.fillStyle = 'rgba(31,111,235,0.04)';
+            ctx.setLineDash([5, 4]);
+            const x1 = cx(0), y1 = cy(data.workspaceHeight);
+            const x2 = cx(data.workspaceWidth), y2 = cy(0);
+            ctx.fillRect(x1, y1, x2 - x1, y2 - y1);
+            ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
+            ctx.restore();
+        }
+
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        for (const prim of primitives) {
+            const pts = prim.points || [];
+            if (pts.length < 2) continue;
+            const source = String(prim.sourceType || '').toLowerCase();
+            const rapid = source.includes('g0') || source.includes('rapid');
+            ctx.save();
+            ctx.strokeStyle = rapid ? 'rgba(248,81,73,.55)' : '#29b6f6';
+            ctx.lineWidth = rapid ? 0.8 : 1.1;
+            if (rapid) ctx.setLineDash([4, 3]);
+            ctx.beginPath();
+            ctx.moveTo(cx(pts[0].x), cy(pts[0].y));
+            for (let i = 1; i < pts.length; i++) ctx.lineTo(cx(pts[i].x), cy(pts[i].y));
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        for (const tp of tracking) {
+            const x = cx(tp.x || 0), y = cy(tp.y || 0);
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(x, y, Math.max(4, (tp.size || 12) / 2), 0, Math.PI * 2);
+            ctx.fillStyle = '#76ff03';
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 1.5;
+            ctx.fill();
+            ctx.stroke();
+            if (tp.label) {
+                ctx.fillStyle = '#fff';
+                ctx.font = '10px Segoe UI';
+                ctx.fillText(tp.label, x + 8, y + 3);
+            }
+            ctx.restore();
+        }
     }
 
     /* ── CAMERA ── */
