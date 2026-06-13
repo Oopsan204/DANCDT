@@ -87,8 +87,8 @@ namespace DACDT_2026
         }
 
         /// <summary>
-        /// Called by the dedicated MQTT publishing loop (every 500 ms).
-        /// Publishes machine state + monitor state to MQTT without blocking the PLC polling loop.
+        /// Publishes machine state + monitor state + cad state to MQTT.
+        /// Triggered manually or by explicit request from the web interface.
         /// </summary>
         private async Task PublishAllMqttAsync()
         {
@@ -268,8 +268,6 @@ namespace DACDT_2026
                     sb.Append("}");
                 }
                 sb.Append("]");
-                sb.Append(",\"monitor\":");
-                AppendMonitorStateJson(sb, connected);
                 sb.AppendFormat(",\"timestamp\":\"{0}\"", DateTime.UtcNow.ToString("o"));
                 sb.Append("}");
 
@@ -1209,8 +1207,6 @@ namespace DACDT_2026
             int rawY)
         {
             var points = new List<CadTrackingPointViewModel>();
-            if (!connected)
-                return points;
 
             var projection = doc == null
                 ? new CadProjection(0.0, 0.0, Math.Max(workspaceWidthValue, 1.0), Math.Max(workspaceHeightValue, 1.0))
