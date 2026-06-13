@@ -554,13 +554,38 @@ class GantrySCADADashboard {
                     this.client.subscribe(this.MQTT_TOPIC_MONITOR_STATE);
                     this.client.subscribe(this.MQTT_TOPIC_CAMERA_FRAME);
                     this.client.subscribe(this.MQTT_TOPIC_CAD_STATE, {
-                        onSuccess: () => this.addLog('Subscribe: machine, monitor, camera, cad', 'info')
+                        onSuccess: () => {
+                            this.addLog('Subscribe: machine, monitor, camera, cad', 'info');
+                            this.requestStateSnapshot();
+                        }
                     });
                 },
                 onFailure: (e) => this.addLog('Kết nối thất bại: ' + e.errorMessage, 'error')
             });
         } catch(e) {
             this.addLog('Lỗi MQTT: ' + e.message, 'error');
+        }
+    }
+
+    requestStateSnapshot() {
+        if (!this.isConnected || !this.client) {
+            return;
+        }
+
+        try {
+            const payload = JSON.stringify({
+                command: 'GET_STATE',
+                source: 'web',
+                ts: new Date().toISOString()
+            });
+            const msg = new Paho.MQTT.Message(payload);
+            msg.destinationName = 'DACDT/machine/request';
+            msg.qos = 1;
+            msg.retained = false;
+            this.client.send(msg);
+            this.addLog('Gửi yêu cầu cập nhật machine/monitor/cad', 'info');
+        } catch (e) {
+            this.addLog('Không gửi được yêu cầu cập nhật: ' + e.message, 'error');
         }
     }
 
