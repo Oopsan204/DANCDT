@@ -1155,21 +1155,24 @@ class GantrySCADADashboard {
 
         if (!hasPrims) return;
 
-        let minX = data.bounds && isFinite(data.bounds.left) ? data.bounds.left : Infinity;
-        let maxX = data.bounds && isFinite(data.bounds.right) ? data.bounds.right : -Infinity;
-        let minY = data.bounds && isFinite(data.bounds.top) ? data.bounds.top : Infinity;
-        let maxY = data.bounds && isFinite(data.bounds.bottom) ? data.bounds.bottom : -Infinity;
+        const viewBounds = data.viewBounds || data.bounds;
+        let minX = viewBounds && isFinite(viewBounds.left) ? viewBounds.left : Infinity;
+        let maxX = viewBounds && isFinite(viewBounds.right) ? viewBounds.right : -Infinity;
+        let minY = viewBounds && isFinite(viewBounds.top) ? viewBounds.top : Infinity;
+        let maxY = viewBounds && isFinite(viewBounds.bottom) ? viewBounds.bottom : -Infinity;
 
-        for (const prim of primitives) {
-            for (const p of (prim.points || [])) {
-                minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x);
-                minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y);
+        if (!data.viewBounds) {
+            for (const prim of primitives) {
+                for (const p of (prim.points || [])) {
+                    minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x);
+                    minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y);
+                }
             }
+            minX = Math.min(minX, 0);
+            minY = Math.min(minY, 0);
+            if (data.workspaceWidth > 0) maxX = Math.max(maxX, data.workspaceWidth);
+            if (data.workspaceHeight > 0) maxY = Math.max(maxY, data.workspaceHeight);
         }
-        minX = Math.min(minX, 0);
-        minY = Math.min(minY, 0);
-        if (data.workspaceWidth > 0) maxX = Math.max(maxX, data.workspaceWidth);
-        if (data.workspaceHeight > 0) maxY = Math.max(maxY, data.workspaceHeight);
         if (!isFinite(minX) || maxX <= minX) { minX = 0; maxX = 100; }
         if (!isFinite(minY) || maxY <= minY) { minY = 0; maxY = 100; }
 

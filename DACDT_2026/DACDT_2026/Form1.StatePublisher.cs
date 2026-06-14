@@ -114,6 +114,7 @@ namespace DACDT_2026
                     offsetY,
                     wcsOffsetX.ToArray(),
                     wcsOffsetY.ToArray());
+                var viewBounds = BuildCadViewBounds(rawDoc, workspaceWidth, workspaceHeight);
 
                 sb.AppendFormat("\"fileKind\":\"{0}\"", EscapeJson(activeDocumentKind ?? string.Empty));
                 sb.AppendFormat(",\"fileName\":\"{0}\"", EscapeJson(displayDoc?.FileName ?? string.Empty));
@@ -122,6 +123,8 @@ namespace DACDT_2026
                 sb.AppendFormat(",\"workspaceHeight\":{0}", workspaceHeight.ToString("0.###", CultureInfo.InvariantCulture));
                 sb.Append(",\"bounds\":");
                 AppendCadBoundsJson(sb, displayDoc?.Bounds);
+                sb.Append(",\"viewBounds\":");
+                AppendCadBoundsJson(sb, viewBounds);
 
                 sb.Append(",\"cadPrimitives\":[");
                 if (displayDoc != null && displayDoc.Primitives != null)
@@ -503,13 +506,13 @@ namespace DACDT_2026
                     };
                 }).ToList();
 
-                var projection = CreateCadProjection(snapDoc, snapWorkspaceWidth, snapWorkspaceHeight);
+                var projection = CreateCadProjection(rawDoc, snapWorkspaceWidth, snapWorkspaceHeight);
                 var cadPreviewImage = BuildCadPreviewImage(snapDoc, projection);
                 var limitAreas = BuildCadLimitAreas(snapWorkspaceWidth, snapWorkspaceHeight, projection);
                 var axisLines = BuildCadAxisLines(snapDoc, projection);
                 var axisLabels = BuildCadAxisLabels(snapDoc, projection);
                 var trackingPoints = BuildRobotTrackingPoints(
-                    snapDoc,
+                    rawDoc,
                     snapWorkspaceWidth,
                     snapWorkspaceHeight,
                     snapConnected,
@@ -800,6 +803,28 @@ namespace DACDT_2026
                 Height = Math.Max(maxY - minY, 1.0),
                 MinZ = minZ == double.MaxValue ? 0.0 : minZ,
                 MaxZ = maxZ == double.MinValue ? 0.0 : maxZ
+            };
+        }
+
+        private static CadDocumentService.CadBounds BuildCadViewBounds(
+            CadDocumentService.CadLoadResult doc,
+            double workspaceWidthValue,
+            double workspaceHeightValue)
+        {
+            var projection = CreateCadProjection(doc, workspaceWidthValue, workspaceHeightValue);
+            if (projection == null)
+                return null;
+
+            return new CadDocumentService.CadBounds
+            {
+                Left = projection.Left,
+                Top = projection.Top,
+                Right = projection.Right,
+                Bottom = projection.Bottom,
+                Width = Math.Max(projection.Right - projection.Left, 1.0),
+                Height = Math.Max(projection.Bottom - projection.Top, 1.0),
+                MinZ = doc?.Bounds?.MinZ ?? 0.0,
+                MaxZ = doc?.Bounds?.MaxZ ?? 0.0
             };
         }
 
@@ -1241,7 +1266,10 @@ namespace DACDT_2026
             double workspaceWidthValue,
             double workspaceHeightValue)
         {
-            if (doc == null)
+            if (workspaceWidthValue > 0.0 && workspaceHeightValue > 0.0)
+                return new CadProjection(0.0, 0.0, workspaceWidthValue, workspaceHeightValue);
+
+            if (doc?.Bounds == null)
                 return null;
 
             double left = doc.Bounds.Left;
@@ -1254,13 +1282,16 @@ namespace DACDT_2026
 
             Include(ref left, ref top, ref right, ref bottom, 0.0, 0.0);
 
-            if (workspaceWidthValue > 0.0 || workspaceHeightValue > 0.0)
+            if (workspaceWidthValue > 0.0)
             {
-                double w = Math.Max(workspaceWidthValue, 0.0);
-                double h = Math.Max(workspaceHeightValue, 0.0);
-                Include(ref left, ref top, ref right, ref bottom, w, 0.0);
-                Include(ref left, ref top, ref right, ref bottom, 0.0, h);
-                Include(ref left, ref top, ref right, ref bottom, w, h);
+                Include(ref left, ref top, ref right, ref bottom, workspaceWidthValue, 0.0);
+                Include(ref left, ref top, ref right, ref bottom, workspaceWidthValue, bottom);
+            }
+
+            if (workspaceHeightValue > 0.0)
+            {
+                Include(ref left, ref top, ref right, ref bottom, 0.0, workspaceHeightValue);
+                Include(ref left, ref top, ref right, ref bottom, right, workspaceHeightValue);
             }
 
             return new CadProjection(left, top, right, bottom);
