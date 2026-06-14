@@ -380,7 +380,8 @@ namespace DACDT_2026
                 {
                     foreach (var row in processRows)
                     {
-                        if (row.MCodeValue != "3")
+                        // DXF: MCodeValue != 3 gets globalSpeed, EXCEPT the home point (MCodeValue == "0" and coordinate "0;0") which gets globalSpeedM3
+                        if (row.MCodeValue != "3" && !(row.MCodeValue == "0" && string.Equals(row.EndCoordinate, "0;0")))
                             row.Speed = value;
                     }
                 }
@@ -392,7 +393,8 @@ namespace DACDT_2026
                 {
                     foreach (var row in processRows)
                     {
-                        if (row.MCodeValue == "3")
+                        // DXF: MCodeValue == 3 gets globalSpeedM3, AND the home point (MCodeValue == "0" and coordinate "0;0") gets globalSpeedM3
+                        if (row.MCodeValue == "3" || (row.MCodeValue == "0" && string.Equals(row.EndCoordinate, "0;0")))
                             row.Speed = value;
                     }
                 }
@@ -408,6 +410,10 @@ namespace DACDT_2026
                             row.Speed = value;
                     }
                 }
+            }
+            else if (string.Equals(key, "testEngraveSpeed", StringComparison.OrdinalIgnoreCase))
+            {
+                testEngraveSpeed = value;
             }
             else if (string.Equals(key, "dwell", StringComparison.OrdinalIgnoreCase))
             {
@@ -574,36 +580,11 @@ namespace DACDT_2026
                 if (pt != null) glueEndCoord = FormatPoint(pt);
             }
 
-            bool isGcodeDoc  = string.Equals(activeDocumentKind, "GCODE", StringComparison.OrdinalIgnoreCase);
-            string snapSpeed = globalSpeed;
-            string snapSpeedM3 = isGcodeDoc ? gcodeSpeedM3 : globalSpeedM3;
-
             // Build and post-process rows on a background thread.
             List<ProcessRow> rows = await Task.Run(() =>
             {
                 var builtRows = BuildConnectedPathsFromCad();
-                if (builtRows == null || builtRows.Count == 0)
-                    return builtRows;
-
-                foreach (var row in builtRows)
-                {
-                    if (glueStartCoord != null && string.Equals(row.EndCoordinate, glueStartCoord))
-                        row.MCodeValue = "1";
-                    if (glueEndCoord != null && string.Equals(row.EndCoordinate, glueEndCoord))
-                        row.MCodeValue = "2";
-
-                    if (string.IsNullOrEmpty(row.Speed))
-                    {
-                        // DXF/G-code dùng tốc độ fallback riêng theo loại file.
-                        // GCODE Rapid3: đã được gán rapidSpeed trong BuildConnectedPathsFromCad
-                        if (row.MCodeValue == "3")
-                            row.Speed = snapSpeedM3;
-                        else
-                            row.Speed = snapSpeed;
-                    }
-                }
-
-                return builtRows;
+                return PostProcessCompiledRows(builtRows);
             });
 
             if (rows == null || rows.Count == 0)
@@ -614,26 +595,33 @@ namespace DACDT_2026
 
             processRows.Clear();
             processRows.AddRange(rows);
+            ui.IsStartActionEnabled = true;
 
             // Không gọi PushDxfStateAsync ở đây — caller sẽ gọi sau khi cần
             await LogUIAsync("DXF", $"Compiled {rows.Count} movement commands into the process table.");
         }
 
         // ── Send CAD X axis data to PLC ──────────────────────────────────────────
-        private async Task HandleSendCadXAsync()
+        private async Task<bool> HandleSendCadXAsync()
         {
             ui.IsStartActionEnabled = false;
+
+            if (activeRingRunner != null)
+            {
+                activeRingRunner.Stop();
+                activeRingRunner = null;
+            }
 
             if (plcComm == null || !plcComm.IsConnected)
             {
                 await NotifyAsync("error", "Telemetry", "PLC is not connected.");
-                return;
+                return false;
             }
 
             if (processRows.Count == 0)
             {
                 await NotifyAsync("info", "Telemetry", "No points to send.");
-                return;
+                return false;
             }
 
             // Map ProcessRow → QD75BufferWriter.PositioningDataRow (tọa độ đã cộng offset)
@@ -674,11 +662,22 @@ namespace DACDT_2026
                 else
                 {
                     // G1/G2/G3: dùng speed từ row, fallback theo loại file.
-                    if (!string.IsNullOrEmpty(row.Speed) && int.TryParse(row.Speed, out int s) && s > 0)
+                    if (isGcodeFile)
                     {
-                        lastSpeed = row.Speed;
+                        if (!string.IsNullOrEmpty(row.Speed) && int.TryParse(row.Speed, out int s) && s > 0)
+                        {
+                            lastSpeed = row.Speed;
+                        }
+                        sendSpeed = lastSpeed;
                     }
-                    sendSpeed = lastSpeed;
+                    else
+                    {
+                        // DXF: chỉ dòng có M03 và điểm home (toạ độ 0;0, Mcode = 0) chạy tốc độ M03 (globalSpeedM3), còn lại chạy tốc độ M04 (globalSpeed)
+                        if (row.MCodeValue == "3" || (row.MCodeValue == "0" && string.Equals(row.EndCoordinate, "0;0")))
+                            sendSpeed = globalSpeedM3;
+                        else
+                            sendSpeed = globalSpeed;
+                    }
                 }
 
                 string sendEndCoordinate = ApplyOffsetToCoordSend(row.EndCoordinate, sendOffsetX, sendOffsetY);
@@ -767,6 +766,7 @@ namespace DACDT_2026
 
                     await NotifyAsync("success", "PLC",
                         $"Ring Buffer started: {dataRows.Count} points. Point 600 is fixed JUMP. Monitoring Md.44 for refill. Press START/RUN.");
+                    return true;
                 }
                 else
                 {
@@ -789,7 +789,7 @@ namespace DACDT_2026
                     if (!sendResult.Success)
                     {
                         await NotifyAsync("error", "Telemetry [Axis1]", "Failed to load Axis 1 buffer.");
-                        return;
+                        return false;
                     }
 
                     var axisYTask = Task.Run(() =>
@@ -810,14 +810,20 @@ namespace DACDT_2026
                     if (!slaveResult.Success)
                     {
                         await NotifyAsync("error", "Telemetry [Axis2]", "Failed to load Axis 2 buffer.");
-                        return;
+                        return false;
                     }
 
                     ui.IsStartActionEnabled = true;
 
                     await NotifyAsync("success", "PLC",
                         $"Loaded {sendResult.RowCount} commands → Axis 1 (G2000+) & Axis 2 (G8000+). Press START/RUN to execute.");
+                    return true;
                 }
+            }
+            catch (Exception ex)
+            {
+                AddLogEntry("SendCad", "", "Error", "Exception", ex.Message);
+                return false;
             }
             finally
             {
@@ -827,18 +833,18 @@ namespace DACDT_2026
             }
         }
 
-        // ── Test Vùng Khắc ────────────────────────────────────────────────────────
+        // ── Test Area (Engrave Boundary Test) ────────────────────────────────────
         private async Task HandleTestEngraveAreaAsync()
         {
             if (plcComm == null || !plcComm.IsConnected)
             {
-                await NotifyAsync("error", "Test Vùng Khắc", "PLC chưa kết nối.");
+                await NotifyAsync("error", "Test Area", "PLC is not connected.");
                 return;
             }
 
             if (activeCadDocument == null)
             {
-                await NotifyAsync("error", "Test Vùng Khắc", "Chưa tải file DXF/G-code.");
+                await NotifyAsync("error", "Test Area", "DXF/G-code file not loaded.");
                 return;
             }
 
@@ -870,7 +876,7 @@ namespace DACDT_2026
 
             if (allX.Count == 0)
             {
-                await NotifyAsync("error", "Test Vùng Khắc", "Không tìm thấy tọa độ trong file.");
+                await NotifyAsync("error", "Test Area", "No coordinates found in file.");
                 return;
             }
 
@@ -879,18 +885,18 @@ namespace DACDT_2026
             double minY = allY.Min();
             double maxY = allY.Max();
 
-            // Apply offsets
-            double adjMinX = minX + offsetX;
-            double adjMaxX = maxX + offsetX;
-            double adjMinY = minY + offsetY;
-            double adjMaxY = maxY + offsetY;
+            // Apply offsets and expand by 2mm in each direction
+            double adjMinX = minX + offsetX - 2.0;
+            double adjMaxX = maxX + offsetX + 2.0;
+            double adjMinY = minY + offsetY - 2.0;
+            double adjMaxY = maxY + offsetY + 2.0;
 
             // Check machine limits (170x170)
             const double LimitX = 170.0;
             const double LimitY = 170.0;
             if (adjMinX < 0.0 || adjMaxX > LimitX || adjMinY < 0.0 || adjMaxY > LimitY)
             {
-                await NotifyAsync("error", "Test Vùng Khắc", "Vùng khắc vượt quá giới hạn hành trình máy (170x170).");
+                await NotifyAsync("error", "Test Area", "Engrave area exceeds machine limits (170x170).");
                 return;
             }
 
@@ -899,15 +905,12 @@ namespace DACDT_2026
             await HandleSetLaserPowerAsync(100);
 
             // Step 3: Define 4 boundary movement rows (plus initial positioning)
-            bool isGcodeDoc = string.Equals(activeDocumentKind, "GCODE", StringComparison.OrdinalIgnoreCase);
-            string m3Speed = isGcodeDoc ? gcodeSpeedM3 : globalSpeedM3;
-
             var dataRows = new List<QD75BufferWriter.PositioningDataRow>();
 
             // Move 1: Rapid to MinX, MinY (Start corner) - laser OFF
             dataRows.Add(new QD75BufferWriter.PositioningDataRow
             {
-                MotionType = "Linear (Continuous Path)",
+                MotionType = "Linear (Continuous Positioning)",
                 MCodeValue = "0",
                 Dwell = "0",
                 Speed = rapidSpeed,
@@ -919,10 +922,10 @@ namespace DACDT_2026
             // Move 2: MinX, MinY -> MaxX, MinY (with laser speed/power) - laser ON
             dataRows.Add(new QD75BufferWriter.PositioningDataRow
             {
-                MotionType = "Linear (Continuous Path)",
+                MotionType = "Linear (Continuous Positioning)",
                 MCodeValue = "3",
                 Dwell = "0",
-                Speed = m3Speed,
+                Speed = testEngraveSpeed,
                 EndCoordinate = $"{adjMaxX};{adjMinY}",
                 EndXMm = adjMaxX,
                 EndYMm = adjMinY
@@ -931,10 +934,10 @@ namespace DACDT_2026
             // Move 3: MaxX, MinY -> MaxX, MaxY
             dataRows.Add(new QD75BufferWriter.PositioningDataRow
             {
-                MotionType = "Linear (Continuous Path)",
+                MotionType = "Linear (Continuous Positioning)",
                 MCodeValue = "3",
                 Dwell = "0",
-                Speed = m3Speed,
+                Speed = testEngraveSpeed,
                 EndCoordinate = $"{adjMaxX};{adjMaxY}",
                 EndXMm = adjMaxX,
                 EndYMm = adjMaxY
@@ -943,10 +946,10 @@ namespace DACDT_2026
             // Move 4: MaxX, MaxY -> MinX, MaxY
             dataRows.Add(new QD75BufferWriter.PositioningDataRow
             {
-                MotionType = "Linear (Continuous Path)",
+                MotionType = "Linear (Continuous Positioning)",
                 MCodeValue = "3",
                 Dwell = "0",
-                Speed = m3Speed,
+                Speed = testEngraveSpeed,
                 EndCoordinate = $"{adjMinX};{adjMaxY}",
                 EndXMm = adjMinX,
                 EndYMm = adjMaxY
@@ -958,7 +961,7 @@ namespace DACDT_2026
                 MotionType = "Linear (End)",
                 MCodeValue = "5",
                 Dwell = "0",
-                Speed = m3Speed,
+                Speed = testEngraveSpeed,
                 EndCoordinate = $"{adjMinX};{adjMinY}",
                 EndXMm = adjMinX,
                 EndYMm = adjMinY
@@ -975,23 +978,53 @@ namespace DACDT_2026
                 var sendResult = await Task.Run(() => QD75BufferWriter.WritePositioningDataBulk(plcComm, 0, dataRows, writeStartNo: false));
                 if (!sendResult.Success)
                 {
-                    await NotifyAsync("error", "Test Vùng Khắc", "Không thể gửi dữ liệu Master Axis.");
+                    await NotifyAsync("error", "Test Area", "Failed to send Master Axis data.");
                     return;
                 }
 
                 var slaveResult = await Task.Run(() => QD75BufferWriter.WriteSlaveAxisDataBulk(plcComm, dataRows, slaveBaseG: 8000));
                 if (!slaveResult.Success)
                 {
-                    await NotifyAsync("error", "Test Vùng Khắc", "Không thể gửi dữ liệu Slave Axis.");
+                    await NotifyAsync("error", "Test Area", "Failed to send Slave Axis data.");
                     return;
                 }
 
-                ui.IsStartActionEnabled = true;
-                await NotifyAsync("success", "Test Vùng Khắc", "Đã nạp biên dạng bao lớn nhất. Nhấn RUN để bắt đầu kiểm tra.");
+                // Populate process rows so that Pause/Continue buttons and monitoring recognize coordinates are loaded and active
+                processRows.Clear();
+                int pIndex = 1;
+                foreach (var r in dataRows)
+                {
+                    processRows.Add(new ProcessRow
+                    {
+                        Key = pIndex.ToString(),
+                        MotionType = r.MotionType,
+                        MCodeValue = r.MCodeValue,
+                        Dwell = r.Dwell,
+                        Speed = r.Speed.ToString(CultureInfo.InvariantCulture),
+                        EndCoordinate = r.EndCoordinate,
+                        EndXMm = r.EndXMm,
+                        EndYMm = r.EndYMm,
+                        WcsIndex = -1
+                    });
+                    pIndex++;
+                }
+
+                await PushDxfStateAsync();
+
+                // Trigger execution immediately
+                await LogUIAsync("Test", "Starting test area execution...");
+                await WriteDeviceValueAsync("M2000", 1);
+                UpdateIntegrityState(true);
+                AddLogEntry("M2000", "1", "Write", "OK", "Start Test Area");
+                await Task.Delay(100);
+                await WriteDeviceValueAsync("M2000", 0);
+                AddLogEntry("M2000", "0", "Write", "OK", "Start Test Area reset");
+
+                await NotifyAsync("success", "Test Area", "Đã nạp tọa độ vùng khắc và đang chạy test...");
             }
             catch (Exception ex)
             {
-                await NotifyAsync("error", "Test Vùng Khắc", "Lỗi nạp biên dạng: " + ex.Message);
+                await NotifyAsync("error", "Test Area", "Contour load error: " + ex.Message);
             }
             finally
             {
@@ -1076,11 +1109,22 @@ namespace DACDT_2026
                     }
                     else
                     {
-                        if (!string.IsNullOrEmpty(row.Speed) && int.TryParse(row.Speed, out int s) && s > 0)
+                        if (isGcodeFile)
                         {
-                            lastSpeed = row.Speed;
+                            if (!string.IsNullOrEmpty(row.Speed) && int.TryParse(row.Speed, out int s) && s > 0)
+                            {
+                                lastSpeed = row.Speed;
+                            }
+                            sendSpeed = lastSpeed;
                         }
-                        sendSpeed = lastSpeed;
+                        else
+                        {
+                            // DXF: chỉ dòng có M03 và điểm home (toạ độ 0;0, Mcode = 0) chạy tốc độ M03 (globalSpeedM3), còn lại chạy tốc độ M04 (globalSpeed)
+                            if (row.MCodeValue == "3" || (row.MCodeValue == "0" && string.Equals(row.EndCoordinate, "0;0")))
+                                sendSpeed = globalSpeedM3;
+                            else
+                                sendSpeed = globalSpeed;
+                        }
                     }
 
                     string sendEndCoordinate = ApplyOffsetToCoordSend(row.EndCoordinate, sendOffsetX, sendOffsetY);
@@ -1257,6 +1301,62 @@ namespace DACDT_2026
                 _ = SendProgressAsync(true, pct);
                 await Task.Delay(stepMs);
             }
+        }
+
+        private List<ProcessRow> PostProcessCompiledRows(List<ProcessRow> builtRows)
+        {
+            if (builtRows == null || builtRows.Count == 0)
+                return builtRows;
+
+            bool isGcodeDoc = string.Equals(activeDocumentKind, "GCODE", StringComparison.OrdinalIgnoreCase);
+            string snapSpeed = globalSpeed;
+            string snapSpeedM3 = isGcodeDoc ? gcodeSpeedM3 : globalSpeedM3;
+
+            string glueStartCoord = null;
+            string glueEndCoord   = null;
+            if (activeCadDocument != null)
+            {
+                if (assignedPointKeys.TryGetValue("glueStart", out string gStartKey))
+                {
+                    var pt = activeCadDocument.Points.FirstOrDefault(p => p.Key == gStartKey);
+                    if (pt != null) glueStartCoord = FormatPoint(pt);
+                }
+                if (assignedPointKeys.TryGetValue("glueEnd", out string gEndKey))
+                {
+                    var pt = activeCadDocument.Points.FirstOrDefault(p => p.Key == gEndKey);
+                    if (pt != null) glueEndCoord = FormatPoint(pt);
+                }
+            }
+
+            foreach (var row in builtRows)
+            {
+                if (glueStartCoord != null && string.Equals(row.EndCoordinate, glueStartCoord))
+                    row.MCodeValue = "1";
+                if (glueEndCoord != null && string.Equals(row.EndCoordinate, glueEndCoord))
+                    row.MCodeValue = "2";
+
+                if (isGcodeDoc)
+                {
+                    if (string.IsNullOrEmpty(row.Speed))
+                    {
+                        if (row.MCodeValue == "3")
+                            row.Speed = snapSpeedM3;
+                        else
+                            row.Speed = snapSpeed;
+                    }
+                }
+                else
+                {
+                    // DXF: Always enforce M3 -> globalSpeedM3, others -> globalSpeed
+                    // Exception: the final home point (MCodeValue == "0" and coordinate "0;0") runs at globalSpeedM3 (M3 speed value)
+                    if (row.MCodeValue == "3" || (row.MCodeValue == "0" && string.Equals(row.EndCoordinate, "0;0")))
+                        row.Speed = snapSpeedM3;
+                    else
+                        row.Speed = snapSpeed;
+                }
+            }
+
+            return builtRows;
         }
 
         // ── Build ProcessRow list from connected CAD paths ───────────────────────
@@ -1438,6 +1538,32 @@ namespace DACDT_2026
                         result.Add(row);
                     }
                 }
+            }
+
+            // ── Thêm điểm cuối có toạ độ 0 0 và Mcode = 0 ─────────────────────────────
+            if (result.Count > 0)
+            {
+                // Thay đổi điểm cuối trước đó từ (End) thành (Continuous Positioning)
+                var prevLast = result[result.Count - 1];
+                prevLast.MotionType = prevLast.MotionType
+                    .Replace("(End)", "(Continuous Positioning)")
+                    .Replace(" (End)", " (Continuous Positioning)");
+
+                // Tạo điểm home 0 0
+                var homeRow = new ProcessRow
+                {
+                    MotionType = hasZ ? "Linear3 (End)" : "Line (End)",
+                    EndCoordinate = "0;0",
+                    EndXMm = 0.0,
+                    EndYMm = 0.0,
+                    CenterCoordinate = string.Empty,
+                    CenterXMm = 0.0,
+                    CenterYMm = 0.0,
+                    MCodeValue = "0",
+                    EndZ = hasZ ? zSafe : 0.0,
+                    WcsIndex = -1
+                };
+                result.Add(homeRow);
             }
 
             // ── Post-process: đảm bảo mã lệnh chạy đúng (theo manual SH-080058) ──

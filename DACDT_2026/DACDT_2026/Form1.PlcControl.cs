@@ -326,6 +326,26 @@ namespace DACDT_2026
 
             try
             {
+                // Rebuild drawing process rows from active CAD/G-code document if loaded, to clear any Test Area data
+                if (activeCadDocument != null)
+                {
+                    var drawingRows = BuildConnectedPathsFromCad();
+                    drawingRows = PostProcessCompiledRows(drawingRows);
+                    if (drawingRows != null && drawingRows.Count > 0)
+                    {
+                        processRows.Clear();
+                        processRows.AddRange(drawingRows);
+                        await PushDxfStateAsync();
+                    }
+                }
+
+                // Tự động gửi dữ liệu xuống PLC trước khi chạy
+                bool sendOk = await HandleSendCadXAsync();
+                if (!sendOk)
+                {
+                    return; // Gửi không thành công (lỗi kết nối hoặc không có dữ liệu) -> Dừng, không chạy
+                }
+
                 await WriteDeviceValueAsync("M2000", 1);
                 UpdateIntegrityState(true);
                 AddLogEntry("M2000", "1", "Write", "OK", "Start");
@@ -355,6 +375,13 @@ namespace DACDT_2026
         {
             if (!active)
                 return;
+
+            int activeIdx = GetActiveProgramIndex();
+            if (processRows.Count == 0 || activeIdx <= 0 || activeIdx > processRows.Count)
+            {
+                await NotifyAsync("warning", "Continue", "Không có tọa độ hoặc máy không ở trạng thái đang chạy.");
+                return;
+            }
 
             try
             {
@@ -386,6 +413,13 @@ namespace DACDT_2026
         {
             if (!active)
                 return;
+
+            int activeIdx = GetActiveProgramIndex();
+            if (processRows.Count == 0 || activeIdx <= 0 || activeIdx > processRows.Count)
+            {
+                await NotifyAsync("warning", "Pause", "Không có tọa độ hoặc máy không ở trạng thái đang chạy.");
+                return;
+            }
 
             try
             {
@@ -469,7 +503,7 @@ namespace DACDT_2026
 
                 if (clearResult.Success)
                 {
-                    ui.IsStartActionEnabled = false;
+                    ui.IsStartActionEnabled = processRows.Count > 0;
                     UpdateIntegrityFault("Run stopped and buffer cleared");
                     await NotifyAsync("success", "Stop", "Đã Stop và xoá buffer tọa độ/lệnh chạy.");
                 }

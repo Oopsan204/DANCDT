@@ -79,6 +79,7 @@ namespace DACDT_2026
         private string globalSpeedM3 = "10000";
         private string gcodeSpeedM3 = "10000";
         private string rapidSpeed = "10000";
+        private string testEngraveSpeed = "10000";
         private string laserPower = "100";
         private double offsetX = 0.0;
         private double offsetY = 0.0;
@@ -92,6 +93,13 @@ namespace DACDT_2026
         private readonly double[] wcsOffsetY = new double[6];
         private string rawGcodeText = string.Empty;
         private QD75RingBufferRunner activeRingRunner;
+
+        private int GetActiveProgramIndex()
+        {
+            var runner = activeRingRunner;
+            int raw = (plcComm != null && plcComm.IsConnected) ? Math.Max(0, axCurrentDataNo[0]) : 0;
+            return (runner != null) ? runner.GetContinuousIndex(raw) : raw;
+        }
 
         private volatile bool webReady;
         private volatile bool isClosing;
@@ -195,7 +203,7 @@ namespace DACDT_2026
             ui.SaveGcodeCommand = new RelayCommand(() => HandleSaveGcodeAsync(ui.RawGcodeText));
             ui.PreviewGcodeCommand = new RelayCommand(() => HandlePreviewGcodeAsync(ui.RawGcodeText));
             ui.ClearBufferCommand = new RelayCommand(HandleClearBufferAsync);
-            ui.SendCadXCommand = new RelayCommand(HandleSendCadXAsync);
+            ui.SendCadXCommand = new RelayCommand(async () => await HandleSendCadXAsync());
             ui.TestEngraveAreaCommand = new RelayCommand(HandleTestEngraveAreaAsync);
             ui.ClearLogsCommand = new RelayCommand(HandleClearLogsAsync);
             ui.AddTelemetryRegisterCommand = new RelayCommand(() => HandleAddTelemetryRegisterAsync(ui.TelemetryAddressInput));
@@ -299,6 +307,7 @@ namespace DACDT_2026
             await HandleProcessValueAsync("globalSpeedM3", ui.GlobalSpeedM3Input);
             await HandleProcessValueAsync("dwellM3", ui.GlobalDwellM3Input);
             await HandleProcessValueAsync("dwellM4", ui.GlobalDwellM4Input);
+            await HandleProcessValueAsync("testEngraveSpeed", ui.TestEngraveSpeedInput);
             SaveSettingsToFile();
             await HandleScanLimitsAsync();
             await PushDxfStateAsync();
@@ -392,6 +401,7 @@ namespace DACDT_2026
             ui.GlobalSpeedM3Input = globalSpeedM3;
             ui.GcodeSpeedM3Input = gcodeSpeedM3;
             ui.RapidSpeedInput = rapidSpeed;
+            ui.TestEngraveSpeedInput = testEngraveSpeed;
             ui.GlobalDwellM3Input = globalDwellM3;
             ui.GlobalDwellM4Input = globalDwellM4;
             ui.OffsetXInput = offsetX;
@@ -446,6 +456,7 @@ namespace DACDT_2026
                         case "globalSpeed": globalSpeed = val; break;
                         case "globalSpeedM3": globalSpeedM3 = val; break;
                         case "gcodeSpeedM3": gcodeSpeedM3 = val; break;
+                        case "testEngraveSpeed": testEngraveSpeed = val; break;
                         case "workspaceWidth": double.TryParse(val, NumberStyles.Any, CultureInfo.InvariantCulture, out workspaceWidth); break;
                         case "workspaceHeight": double.TryParse(val, NumberStyles.Any, CultureInfo.InvariantCulture, out workspaceHeight); break;
                         case "offsetX": double.TryParse(val, NumberStyles.Any, CultureInfo.InvariantCulture, out offsetX); break;
@@ -501,6 +512,7 @@ namespace DACDT_2026
                     $"globalDwellM3={globalDwellM3}",
                     $"globalDwellM4={globalDwellM4}",
                     $"globalSpeedM3={globalSpeedM3}",
+                    $"testEngraveSpeed={testEngraveSpeed}",
                     $"memberPassword={memberPassword}",
                     $"activeWcs={activeWcs}",
                     $"laserPower={laserPower}",

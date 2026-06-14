@@ -27,6 +27,9 @@ namespace DACDT_2026
         private int nextRowIndex;
         private int totalPointsLoaded;
         private bool completionRaised;
+        private int zone1StartRowIndex;
+        private int zone2StartRowIndex;
+        private int finalTargetBufferIndex;
 
         public event Action<int, int> OnProgress;
         public event Action<string> OnLog;
@@ -90,6 +93,8 @@ namespace DACDT_2026
         {
             nextRowIndex = 0;
             totalPointsLoaded = 0;
+            zone1StartRowIndex = 0;
+            zone2StartRowIndex = 300;
 
             WriteNextZone(Zone1Offset, Zone1Size, zoneName: "1-300");
             WriteNextZone(Zone2Offset, Zone2Size, zoneName: "301-599", forceLastBeforeJump: true);
@@ -105,23 +110,51 @@ namespace DACDT_2026
 
             while (!ct.IsCancellationRequested)
             {
-                if (nextRowIndex >= allRows.Count)
-                {
-                    RaiseCompleteOnce();
-                    return;
-                }
-
                 int md44 = ReadMd44Word();
 
-                if (pendingZone == RefillZone.Zone1 && IsInZone2(md44))
+                if (nextRowIndex >= allRows.Count)
                 {
-                    WriteNextZone(Zone1Offset, Zone1Size, zoneName: "1-300");
-                    pendingZone = RefillZone.Zone2;
+                    // Đã tải hết điểm lên PLC, chờ chạy nốt các điểm còn lại trong buffer
+                    bool isFinished = false;
+                    if (md44 == 0)
+                    {
+                        isFinished = true;
+                    }
+                    else if (finalTargetBufferIndex <= Zone1Size)
+                    {
+                        // Final batch is in Zone 1 (points 1 to 300)
+                        if (md44 >= 1 && md44 <= Zone1Size && md44 >= finalTargetBufferIndex)
+                        {
+                            isFinished = true;
+                        }
+                    }
+                    else
+                    {
+                        // Final batch is in Zone 2 (points 301 to 599)
+                        if (md44 >= Zone2Offset + 1 && md44 <= BufferSize - 1 && md44 >= finalTargetBufferIndex)
+                        {
+                            isFinished = true;
+                        }
+                    }
+
+                    if (isFinished || GetContinuousIndex(md44) >= allRows.Count)
+                    {
+                        RaiseCompleteOnce();
+                        return;
+                    }
                 }
-                else if (pendingZone == RefillZone.Zone2 && IsInZone1(md44))
+                else
                 {
-                    WriteNextZone(Zone2Offset, Zone2Size, zoneName: "301-599", forceLastBeforeJump: true);
-                    pendingZone = RefillZone.Zone1;
+                    if (pendingZone == RefillZone.Zone1 && IsInZone2(md44))
+                    {
+                        WriteNextZone(Zone1Offset, Zone1Size, zoneName: "1-300");
+                        pendingZone = RefillZone.Zone2;
+                    }
+                    else if (pendingZone == RefillZone.Zone2 && IsInZone1(md44))
+                    {
+                        WriteNextZone(Zone2Offset, Zone2Size, zoneName: "301-599", forceLastBeforeJump: true);
+                        pendingZone = RefillZone.Zone1;
+                    }
                 }
 
                 await Task.Delay(PollIntervalMs, ct);
@@ -138,9 +171,19 @@ namespace DACDT_2026
             bool isLastBatch = nextRowIndex + countToWrite >= allRows.Count;
             var batch = CloneRows(allRows.GetRange(nextRowIndex, countToWrite));
 
+            if (pointOffset == Zone1Offset)
+            {
+                zone1StartRowIndex = nextRowIndex;
+            }
+            else if (pointOffset == Zone2Offset)
+            {
+                zone2StartRowIndex = nextRowIndex;
+            }
+
             if (isLastBatch)
             {
                 ForceLastRowToEnd(batch);
+                finalTargetBufferIndex = pointOffset + countToWrite;
             }
             else if (forceLastBeforeJump)
             {
@@ -363,6 +406,34 @@ namespace DACDT_2026
             completionRaised = true;
             Log($"All {allRows.Count} source points have been loaded into the ring buffer.");
             OnComplete?.Invoke();
+        }
+
+        public int GetContinuousIndex(int md44)
+        {
+            if (allRows.Count <= BufferSize)
+            {
+                return md44;
+            }
+
+            if (md44 <= 0)
+                return 0;
+
+            if (md44 >= 1 && md44 <= 300)
+            {
+                int val = zone1StartRowIndex + md44;
+                return Math.Min(val, allRows.Count);
+            }
+            else if (md44 >= 301 && md44 <= 599)
+            {
+                int val = zone2StartRowIndex + (md44 - 300);
+                return Math.Min(val, allRows.Count);
+            }
+            else // md44 == 600
+            {
+                // JUMP command is executing. It represents the point just after the end of Zone 2's loaded data.
+                int val = zone2StartRowIndex + 299;
+                return Math.Min(val, allRows.Count);
+            }
         }
 
         private void Log(string message)

@@ -38,6 +38,11 @@
                                 <TextBlock Text="Dwell M04 (ms)" Foreground="{StaticResource MutedBrush}"/>
                                 <TextBox Text="{Binding GlobalDwellM4Input, UpdateSourceTrigger=PropertyChanged}"/>
                             </StackPanel>
+                            <StackPanel Margin="0,0,6,6">
+                                <TextBlock Text="Test Area Speed (mm/min)" Foreground="{StaticResource MutedBrush}"/>
+                                <TextBox Text="{Binding TestEngraveSpeedInput, UpdateSourceTrigger=PropertyChanged}"/>
+                            </StackPanel>
+                            <StackPanel Margin="6,0,0,6"/>
                         </UniformGrid>
                         <Button Content="Apply DXF Settings" Command="{Binding ApplyDxfSettingsCommand}" Style="{StaticResource PrimaryButtonStyle}"/>
                     </StackPanel>

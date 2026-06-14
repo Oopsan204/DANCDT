@@ -99,6 +99,7 @@ namespace DACDT_2026
         private string globalSpeedM3Input = "10000";
         private string gcodeSpeedM3Input = "10000";
         private string rapidSpeedInput = "10000";
+        private string testEngraveSpeedInput = "10000";
         private string globalDwellM3Input = "100";
         private string globalDwellM4Input = "100";
         private double offsetXInput;
@@ -405,6 +406,12 @@ namespace DACDT_2026
             set => SetProperty(ref rapidSpeedInput, value);
         }
 
+        public string TestEngraveSpeedInput
+        {
+            get => testEngraveSpeedInput;
+            set => SetProperty(ref testEngraveSpeedInput, value);
+        }
+
         public string GlobalDwellM3Input
         {
             get => globalDwellM3Input;
@@ -577,9 +584,12 @@ namespace DACDT_2026
                     OnPropertyChanged(nameof(ActiveProgramText));
                     OnPropertyChanged(nameof(RunProgressText));
                     OnPropertyChanged(nameof(RunProgressPercent));
+                    OnPropertyChanged(nameof(IsPauseContinueEnabled));
                 }
             }
         }
+
+        public bool IsPauseContinueEnabled => allProcessRows.Count > 0 && ActiveProgramIndex > 0 && ActiveProgramIndex <= allProcessRows.Count;
 
         public string ActiveProgramText => ActiveProgramIndex > 0
             ? "Active data no: " + ActiveProgramIndex
@@ -658,6 +668,7 @@ namespace DACDT_2026
             lastHighlightedProgramIndex = activeIndex;
             OnPropertyChanged(nameof(RunProgressText));
             OnPropertyChanged(nameof(RunProgressPercent));
+            OnPropertyChanged(nameof(IsPauseContinueEnabled));
         }
 
         public bool LoadMoreCadPoints()

@@ -73,7 +73,7 @@ namespace DACDT_2026
                     axis.IsComplete = connected && rawStatus == 0;
                 }
 
-                UpdateActiveProgramHighlight(ui, connected ? Math.Max(0, axCurrentDataNo[0]) : 0);
+                UpdateActiveProgramHighlight(ui, GetActiveProgramIndex());
 
                 ReplaceCollection(ui.CadTrackingPoints, BuildRobotTrackingPoints(
                     activeCadDocument,
@@ -301,7 +301,7 @@ namespace DACDT_2026
         private void AppendMonitorStateJson(StringBuilder sb, bool connected)
         {
             int activeDataNo = connected
-                ? Math.Max(0, axCurrentDataNo[0])
+                ? GetActiveProgramIndex()
                 : Math.Max(0, ui.ActiveProgramIndex);
             ProcessRow[] rowsSnapshot = processRows.ToArray();
             int totalPoints = rowsSnapshot.Length;
@@ -316,9 +316,14 @@ namespace DACDT_2026
             sb.AppendFormat(",\"filePath\":\"{0}\"", EscapeJson(activeCadDocument?.FilePath ?? string.Empty));
             sb.AppendFormat(",\"currentView\":\"{0}\"", EscapeJson(currentView ?? string.Empty));
             sb.Append(",\"dxfCompletion\":{");
-            sb.AppendFormat("\"visible\":{0}", ui.ProgressVisible ? "true" : "false");
-            sb.AppendFormat(",\"percent\":{0}", ui.ProgressPercent);
-            sb.AppendFormat(",\"text\":\"{0}\"", EscapeJson(ui.ProgressText ?? string.Empty));
+            bool isRunning = activeDataNo > 0 && totalPoints > 0;
+            bool visible = isRunning || ui.ProgressVisible;
+            int percent = isRunning ? ui.RunProgressPercent : ui.ProgressPercent;
+            string text = isRunning ? $"{ui.RunProgressPercent}%" : (ui.ProgressText ?? string.Empty);
+            
+            sb.AppendFormat("\"visible\":{0}", visible ? "true" : "false");
+            sb.AppendFormat(",\"percent\":{0}", percent);
+            sb.AppendFormat(",\"text\":\"{0}\"", EscapeJson(text));
             sb.Append("}");
             sb.Append(",\"dxfPoint\":{");
             sb.AppendFormat("\"activeDataNo\":{0}", activeDataNo);
@@ -428,7 +433,7 @@ namespace DACDT_2026
             var snapConnected = plcComm != null && plcComm.IsConnected;
             var snapRobotRawX = axCurrentPos[0];
             var snapRobotRawY = axCurrentPos[1];
-            var snapActiveProgramIndex = snapConnected ? Math.Max(0, axCurrentDataNo[0]) : 0;
+            var snapActiveProgramIndex = GetActiveProgramIndex();
             var snapCurrentView = currentView;
             var snapCurrentTheme = currentTheme;
             var snapGlobalSpeed = globalSpeed;
