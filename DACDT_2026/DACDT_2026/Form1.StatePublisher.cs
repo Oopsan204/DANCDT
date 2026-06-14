@@ -508,6 +508,7 @@ namespace DACDT_2026
 
                 var projection = CreateCadProjection(rawDoc, snapWorkspaceWidth, snapWorkspaceHeight);
                 var cadPreviewImage = BuildCadPreviewImage(snapDoc, projection);
+                var cadPreviewGeometry = BuildCadPreviewGeometry(snapDoc, projection);
                 var limitAreas = BuildCadLimitAreas(snapWorkspaceWidth, snapWorkspaceHeight, projection);
                 var axisLines = BuildCadAxisLines(snapDoc, projection);
                 var axisLabels = BuildCadAxisLabels(snapDoc, projection);
@@ -518,7 +519,7 @@ namespace DACDT_2026
                     snapConnected,
                     snapRobotRawX,
                     snapRobotRawY);
-                return new { doc = snapDoc, points, geometryRows, rows, cadPreviewImage, limitAreas, axisLines, axisLabels, trackingPoints };
+                return new { doc = snapDoc, points, geometryRows, rows, cadPreviewImage, cadPreviewGeometry, limitAreas, axisLines, axisLabels, trackingPoints };
             });
 
             await RunOnUiAsync(() =>
@@ -558,6 +559,7 @@ namespace DACDT_2026
                 ui.SetGeometryRows(model.geometryRows);
                 ui.SetProcessRows(model.rows, snapActiveProgramIndex);
                 ui.CadPreviewImage = model.cadPreviewImage;
+                ui.CadPreviewGeometry = model.cadPreviewGeometry;
                 ReplaceCollection(ui.CadPrimitives, Enumerable.Empty<CadPrimitiveViewModel>());
                 ReplaceCollection(ui.CadLimitAreas, model.limitAreas);
                 ReplaceCollection(ui.CadAxisLines, model.axisLines);
@@ -1002,6 +1004,35 @@ namespace DACDT_2026
         private static string FormatGeometryNumber(double value)
             => value.ToString("0.000", CultureInfo.InvariantCulture);
 
+        private static System.Windows.Media.Geometry BuildCadPreviewGeometry(CadDocumentService.CadLoadResult doc, CadProjection projection)
+        {
+            if (doc?.Primitives == null || doc.Primitives.Count == 0 || projection == null)
+                return null;
+
+            var geometry = new StreamGeometry { FillRule = FillRule.EvenOdd };
+            using (var context = geometry.Open())
+            {
+                foreach (var primitive in doc.Primitives)
+                {
+                    if (primitive?.Points == null || primitive.Points.Count < 2)
+                        continue;
+
+                    var start = projection.Project(primitive.Points[0].X, primitive.Points[0].Y);
+                    var points = new List<System.Windows.Point>(primitive.Points.Count - 1);
+                    for (int i = 1; i < primitive.Points.Count; i++)
+                    {
+                        var pt = primitive.Points[i];
+                        points.Add(projection.Project(pt.X, pt.Y));
+                    }
+
+                    context.BeginFigure(start, isFilled: false, isClosed: false);
+                    context.PolyLineTo(points, isStroked: true, isSmoothJoin: true);
+                }
+            }
+            geometry.Freeze();
+            return geometry;
+        }
+
         private static ImageSource BuildCadPreviewImage(CadDocumentService.CadLoadResult doc, CadProjection projection)
         {
             if (doc?.Primitives == null || doc.Primitives.Count == 0 || projection == null)
@@ -1251,10 +1282,10 @@ namespace DACDT_2026
             {
                 X = projected.X,
                 Y = projected.Y,
-                Size = 14.0,
+                Size = 4.0,
                 Fill = Brushes.Lime,
                 Stroke = Brushes.White,
-                Label = "Robot",
+                Label = "",
                 ToolTip = string.Format(CultureInfo.InvariantCulture, "Robot actual position: X={0:0.0000} mm, Y={1:0.0000} mm", robotX, robotY)
             });
 

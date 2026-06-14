@@ -1,10 +1,12 @@
 <UserControl x:Class="DACDT_2026.Views.DxfRunView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:sys="clr-namespace:System;assembly=mscorlib"
              xmlns:local="clr-namespace:DACDT_2026">
     <UserControl.Resources>
         <local:InverseZoomStrokeThicknessConverter x:Key="InverseZoomStrokeThicknessConverter"/>
         <local:NegativeHalfConverter x:Key="NegativeHalfConverter"/>
+        <sys:Double x:Key="BaseStrokeThickness">1.0</sys:Double>
     </UserControl.Resources>
 
     <Grid>
@@ -171,11 +173,16 @@
                                         </ItemsControl.ItemTemplate>
                                     </ItemsControl>
 
-                                    <Image Source="{Binding CadPreviewImage}"
-                                           Width="1000"
-                                           Height="620"
-                                           Stretch="Fill"
-                                           IsHitTestVisible="False"/>
+                                     <Path Data="{Binding CadPreviewGeometry}"
+                                           Stroke="DeepSkyBlue"
+                                           IsHitTestVisible="False">
+                                         <Path.StrokeThickness>
+                                             <MultiBinding Converter="{StaticResource InverseZoomStrokeThicknessConverter}">
+                                                 <Binding Path="CadPreviewStrokeThickness"/>
+                                                 <Binding RelativeSource="{RelativeSource AncestorType={x:Type UserControl}}" Path="CadDisplayZoom"/>
+                                             </MultiBinding>
+                                         </Path.StrokeThickness>
+                                     </Path>
 
                                     <ItemsControl ItemsSource="{Binding CadAxisLabels}" IsHitTestVisible="False">
                                         <ItemsControl.ItemsPanel>
@@ -230,9 +237,15 @@
                                                         <TranslateTransform X="{Binding ActualWidth, ElementName=TrackingMarker, Converter={StaticResource NegativeHalfConverter}}"
                                                                             Y="{Binding ActualHeight, ElementName=TrackingMarker, Converter={StaticResource NegativeHalfConverter}}"/>
                                                     </Grid.RenderTransform>
-                                                    <Ellipse Fill="{Binding Fill}"
-                                                             Stroke="{Binding Stroke}"
-                                                             StrokeThickness="2"/>
+                                                     <Ellipse Fill="{Binding Fill}"
+                                                              Stroke="{Binding Stroke}">
+                                                         <Ellipse.StrokeThickness>
+                                                             <MultiBinding Converter="{StaticResource InverseZoomStrokeThicknessConverter}">
+                                                                 <Binding Source="{StaticResource BaseStrokeThickness}"/>
+                                                                 <Binding RelativeSource="{RelativeSource AncestorType={x:Type UserControl}}" Path="CadDisplayZoom"/>
+                                                             </MultiBinding>
+                                                         </Ellipse.StrokeThickness>
+                                                     </Ellipse>
                                                     <TextBlock Text="{Binding Label}"
                                                                Foreground="{Binding Stroke}"
                                                                FontSize="12"

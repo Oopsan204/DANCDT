@@ -193,11 +193,18 @@ namespace DACDT_2026
             {
                 if (double.TryParse(ui.LaserPowerInput, NumberStyles.Any, CultureInfo.InvariantCulture, out double val))
                 {
+                    if (val < 0 || val > 100)
+                    {
+                        await NotifyAsync("warning", "Laser Power", "Công suất laze phải nằm trong khoảng 0-100%.");
+                        ui.LaserPowerInput = laserPower;
+                        return;
+                    }
                     await HandleSetLaserPowerAsync(val);
                 }
                 else
                 {
                     await NotifyAsync("error", "Laser Power", "Giá trị công suất laze không hợp lệ.");
+                    ui.LaserPowerInput = laserPower;
                 }
             });
             ui.OpenDxfCommand = new RelayCommand(HandleOpenDxfAsync);

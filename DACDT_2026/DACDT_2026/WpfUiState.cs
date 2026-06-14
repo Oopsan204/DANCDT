@@ -120,6 +120,8 @@ namespace DACDT_2026
         private int activeProgramIndex;
         private int lastHighlightedProgramIndex;
         private ImageSource cadPreviewImage;
+        private System.Windows.Media.Geometry cadPreviewGeometry;
+        private double cadPreviewStrokeThickness = 0.65;
         private ImageSource cameraFrame;
         private string selectedCameraMoniker = "";
         private string cameraStatus = "Camera idle.";
@@ -518,6 +520,18 @@ namespace DACDT_2026
         {
             get => cadPreviewImage;
             set => SetProperty(ref cadPreviewImage, value);
+        }
+
+        public System.Windows.Media.Geometry CadPreviewGeometry
+        {
+            get => cadPreviewGeometry;
+            set => SetProperty(ref cadPreviewGeometry, value);
+        }
+
+        public double CadPreviewStrokeThickness
+        {
+            get => cadPreviewStrokeThickness;
+            set => SetProperty(ref cadPreviewStrokeThickness, value);
         }
 
         public ImageSource CameraFrame

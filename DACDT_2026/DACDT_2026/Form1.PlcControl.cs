@@ -566,26 +566,27 @@ namespace DACDT_2026
         {
             try
             {
-                int intPercent = (int)Math.Round(value);
-                if (intPercent < 0) intPercent = 0;
-                if (intPercent > 2000) intPercent = 2000;
+                // UI inputs percentage (0-100%). Map it to PLC value (450-2000).
+                int plcValue = (int)Math.Round(450.0 + (value / 100.0) * (2000.0 - 450.0));
+                if (plcValue < 450) plcValue = 450;
+                if (plcValue > 2000) plcValue = 2000;
 
-                laserPower = intPercent.ToString(CultureInfo.InvariantCulture);
+                laserPower = value.ToString("0.##", CultureInfo.InvariantCulture);
                 ui.LaserPowerInput = laserPower;
                 SaveSettingsToFile();
 
                 if (plcComm == null || !plcComm.IsConnected)
                 {
-                    await NotifyAsync("success", "Laser Power", $"Đã lưu cục bộ: Công suất laze = {intPercent}% (PLC chưa kết nối).");
+                    await NotifyAsync("success", "Laser Power", $"Đã lưu cục bộ: Công suất laze = {value:0.##}% (PLC chưa kết nối, giá trị map PLC = {plcValue}).");
                     return;
                 }
 
-                bool success = await ExecuteAxis4SpeedChangeAsync(intPercent, "Set Laser Power");
+                bool success = await ExecuteAxis4SpeedChangeAsync(plcValue, "Set Laser Power");
 
                 if (success)
                 {
-                    AddLogEntry("U0\\G1812..G1816", intPercent.ToString(CultureInfo.InvariantCulture), "Write", "OK", "Set Laser Power (%) via Axis 4 Speed Change - Standard 3-step sequence");
-                    await NotifyAsync("success", "Laser Power", $"Đã đặt công suất laze: {intPercent}% (Cd.14 = {intPercent})");
+                    AddLogEntry("U0\\G1812..G1816", plcValue.ToString(CultureInfo.InvariantCulture), "Write", "OK", $"Set Laser Power: {value:0.##}% mapped to PLC speed change value {plcValue}");
+                    await NotifyAsync("success", "Laser Power", $"Đã đặt công suất laze: {value:0.##}% (Cd.14 = {plcValue})");
                 }
                 else
                 {
