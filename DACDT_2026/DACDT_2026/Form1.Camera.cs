@@ -26,8 +26,8 @@ namespace DACDT_2026
         private object cameraLock = new object();
         private DateTime lastCameraMqttPublishUtc = DateTime.MinValue;
         private bool cameraMqttPublishInFlight;
-        private const int CameraMqttPublishIntervalMs = 1200;
-        private const long CameraMqttJpegQuality = 40L;
+        private const int CameraMqttPublishIntervalMs = 2500;
+        private const long CameraMqttJpegQuality = 25L;
 
         /// <summary>
         /// Refresh available camera devices and populate the UI list.

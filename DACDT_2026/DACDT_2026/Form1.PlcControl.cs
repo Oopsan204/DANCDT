@@ -787,7 +787,14 @@ namespace DACDT_2026
                 token.ThrowIfCancellationRequested();
                 UpdateIntegrityState(true);
                 await PushControlStateAsync();
-                await PublishMachineStateToMqttAsync(connected: true);
+
+                var nowUtc = DateTime.UtcNow;
+                if ((nowUtc - lastMachineMqttPublishUtc).TotalMilliseconds >= MachineMqttPublishIntervalMs)
+                {
+                    lastMachineMqttPublishUtc = nowUtc;
+                    _ = Task.Run(() => PublishMachineStateToMqttAsync(connected: true));
+                }
+
                 if (currentView == "telemetry")
                     await PushTelemetryStateAsync();
             }

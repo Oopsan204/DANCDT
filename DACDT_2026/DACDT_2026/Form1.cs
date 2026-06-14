@@ -93,6 +93,8 @@ namespace DACDT_2026
         private readonly double[] wcsOffsetY = new double[6];
         private string rawGcodeText = string.Empty;
         private QD75RingBufferRunner activeRingRunner;
+        private DateTime lastMachineMqttPublishUtc = DateTime.MinValue;
+        private const int MachineMqttPublishIntervalMs = 500;
 
         private int GetActiveProgramIndex()
         {
