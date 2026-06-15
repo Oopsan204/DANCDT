@@ -303,6 +303,16 @@ namespace DACDT_2026
             {
                 int v = active ? 1 : 0;
                 await WriteDeviceValueAsync("M300", v);
+                if (active)
+                {
+                    try
+                    {
+                        await WriteDeviceValueAsync("D104", 0);
+                        await WriteDeviceValueAsync("D114", 0);
+                        await WriteDeviceValueAsync("D124", 0);
+                    }
+                    catch { }
+                }
                 UpdateIntegrityState(true);
                 AddLogEntry("M300", v.ToString(CultureInfo.InvariantCulture), "Write", "OK", "ResetError");
             }

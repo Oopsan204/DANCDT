@@ -650,6 +650,13 @@ namespace DACDT_2026
                     sendOffsetY = offsetY;
                 }
 
+                // Nếu là điểm home (MCode = 0 và toạ độ 0;0), không cộng offset để toạ độ sau khi offset vẫn là 0 0
+                if (row.MCodeValue == "0" && string.Equals(row.EndCoordinate, "0;0"))
+                {
+                    sendOffsetX = 0;
+                    sendOffsetY = 0;
+                }
+
                 // Xác định speed thực sự gửi xuống PLC
                 string sendSpeed;
                 bool rowIsRapid = row.MotionType.Contains("Rapid3") || row.MotionType.Contains("Rapid");
@@ -919,11 +926,11 @@ namespace DACDT_2026
                 EndYMm = adjMinY
             });
 
-            // Move 2: MinX, MinY -> MaxX, MinY (with laser speed/power) - laser ON
+            // Move 2: MinX, MinY -> MaxX, MinY (with laser speed/power) - laser OFF (MCode = 0)
             dataRows.Add(new QD75BufferWriter.PositioningDataRow
             {
-                MotionType = "Linear (Continuous Positioning)",
-                MCodeValue = "3",
+                MotionType = "Linear (Continuous Path)",
+                MCodeValue = "0",
                 Dwell = "0",
                 Speed = testEngraveSpeed,
                 EndCoordinate = $"{adjMaxX};{adjMinY}",
@@ -934,8 +941,8 @@ namespace DACDT_2026
             // Move 3: MaxX, MinY -> MaxX, MaxY
             dataRows.Add(new QD75BufferWriter.PositioningDataRow
             {
-                MotionType = "Linear (Continuous Positioning)",
-                MCodeValue = "3",
+                MotionType = "Linear (Continuous Path)",
+                MCodeValue = "0",
                 Dwell = "0",
                 Speed = testEngraveSpeed,
                 EndCoordinate = $"{adjMaxX};{adjMaxY}",
@@ -946,8 +953,8 @@ namespace DACDT_2026
             // Move 4: MaxX, MaxY -> MinX, MaxY
             dataRows.Add(new QD75BufferWriter.PositioningDataRow
             {
-                MotionType = "Linear (Continuous Positioning)",
-                MCodeValue = "3",
+                MotionType = "Linear (Continuous Path)",
+                MCodeValue = "0",
                 Dwell = "0",
                 Speed = testEngraveSpeed,
                 EndCoordinate = $"{adjMinX};{adjMaxY}",
@@ -959,7 +966,7 @@ namespace DACDT_2026
             dataRows.Add(new QD75BufferWriter.PositioningDataRow
             {
                 MotionType = "Linear (End)",
-                MCodeValue = "5",
+                MCodeValue = "0",
                 Dwell = "0",
                 Speed = testEngraveSpeed,
                 EndCoordinate = $"{adjMinX};{adjMinY}",
@@ -1010,6 +1017,18 @@ namespace DACDT_2026
                 }
 
                 await PushDxfStateAsync();
+
+                // Clear active M-codes in PLC registers (D104, D114, D124) to 0
+                try
+                {
+                    await WriteDeviceValueAsync("D104", 0);
+                    await WriteDeviceValueAsync("D114", 0);
+                    await WriteDeviceValueAsync("D124", 0);
+                }
+                catch (Exception ex)
+                {
+                    await LogUIAsync("Test", "Warning: Could not clear M-code registers: " + ex.Message);
+                }
 
                 // Trigger execution immediately
                 await LogUIAsync("Test", "Starting test area execution...");
@@ -1098,6 +1117,13 @@ namespace DACDT_2026
                     {
                         sendOffsetX = offsetX;
                         sendOffsetY = offsetY;
+                    }
+
+                    // Nếu là điểm home (MCode = 0 và toạ độ 0;0), không cộng offset để toạ độ sau khi offset vẫn là 0 0
+                    if (row.MCodeValue == "0" && string.Equals(row.EndCoordinate, "0;0"))
+                    {
+                        sendOffsetX = 0;
+                        sendOffsetY = 0;
                     }
 
                     string sendSpeed;

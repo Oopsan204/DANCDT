@@ -350,7 +350,12 @@ namespace DACDT_2026
 
             double rowOx;
             double rowOy;
-            if (string.Equals(activeDocumentKind, "GCODE", StringComparison.OrdinalIgnoreCase))
+            if (row.MCodeValue == "0" && string.Equals(row.EndCoordinate, "0;0"))
+            {
+                rowOx = 0.0;
+                rowOy = 0.0;
+            }
+            else if (string.Equals(activeDocumentKind, "GCODE", StringComparison.OrdinalIgnoreCase))
             {
                 int wIdx = Math.Max(0, Math.Min(5, row.WcsIndex));
                 rowOx = wcsOffsetX[wIdx];
@@ -479,7 +484,12 @@ namespace DACDT_2026
                 {
                     double rowOx;
                     double rowOy;
-                    if (isGcodeKind)
+                    if (row.MCodeValue == "0" && string.Equals(row.EndCoordinate, "0;0"))
+                    {
+                        rowOx = 0.0;
+                        rowOy = 0.0;
+                    }
+                    else if (isGcodeKind)
                     {
                         int wIdx = Math.Max(0, Math.Min(5, row.WcsIndex));
                         rowOx = snapWcsOffsetX[wIdx];
