@@ -887,7 +887,7 @@ class GantrySCADADashboard {
             const payload = message.payloadString;
 
             if (topic === this.MQTT_TOPIC_CAMERA_FRAME) {
-                this.updateCameraFrame(payload);
+                this.updateCameraFrame(message);
                 return;
             }
 
@@ -908,7 +908,7 @@ class GantrySCADADashboard {
             let data = null;
             try { data = JSON.parse(payload); } catch(e) {}
 
-            if (data && data.fileKind === 'DXF') {
+            if (data && (data.fileKind === 'DXF' || data.fileKind === 'GCODE')) {
                 this.updateDxfInfo(data);
             } else if (topic === this.MQTT_TOPIC_MACHINE_STATE || topic === this.MQTT_TOPIC_MONITOR_STATE) {
                 if (data) this.updateDashboard(data);
@@ -918,6 +918,11 @@ class GantrySCADADashboard {
 
     updateDxfInfo(data) {
         this._monitorData = data;
+
+        if (data.trackingPoints) {
+            if (!this._cadData) this._cadData = {};
+            this._cadData.trackingPoints = data.trackingPoints;
+        }
 
         if (data.dxfCompletion) {
             const pct = data.dxfCompletion.percent != null ? data.dxfCompletion.percent : 0;
@@ -975,10 +980,10 @@ class GantrySCADADashboard {
             if (dp.activeDataNo != null) {
                 this.setActiveDataNo(dp.activeDataNo, dp.totalPoints, dp.activeText);
             }
+        }
 
-            if (this._cadData) {
-                this.renderCadPreview(this._cadData);
-            }
+        if (this._cadData) {
+            this.renderCadPreview(this._cadData);
         }
     }
 
@@ -1276,19 +1281,42 @@ class GantrySCADADashboard {
     }
 
     /* ── CAMERA ── */
-    updateCameraFrame(base64Data) {
+    updateCameraFrame(message) {
         const img = document.getElementById('cam-img');
         const placeholder = document.getElementById('cam-placeholder');
         if (img && placeholder) {
-            img.src = 'data:image/jpeg;base64,' + base64Data;
-            img.style.display = 'block';
-            placeholder.style.display = 'none';
+            let srcUrl = '';
+            let isBlob = false;
+            let len = 0;
+
+            if (message && message.payloadBytes && message.payloadBytes.length > 0) {
+                const blob = new Blob([message.payloadBytes], { type: 'image/jpeg' });
+                srcUrl = URL.createObjectURL(blob);
+                isBlob = true;
+                len = message.payloadBytes.length;
+            } else if (message && typeof message.payloadString === 'string') {
+                const base64 = message.payloadString;
+                srcUrl = 'data:image/jpeg;base64,' + base64;
+                len = base64.length * 0.75;
+            }
+
+            if (srcUrl) {
+                const oldUrl = img.src;
+                img.src = srcUrl;
+                img.style.display = 'block';
+                placeholder.style.display = 'none';
+
+                if (isBlob && oldUrl && oldUrl.startsWith('blob:')) {
+                    URL.revokeObjectURL(oldUrl);
+                }
+
+                const lbl = document.getElementById('rec-label');
+                if (lbl) lbl.textContent = 'Đang nhận frame: ' + (len / 1024).toFixed(1) + ' KB';
+            }
         }
         this.setCamStatus(true, 'MQTT Stream active');
         const dot = document.getElementById('mqtt-cam-dot');
         if (dot) dot.style.background = 'var(--green)';
-        const lbl = document.getElementById('rec-label');
-        if (lbl) lbl.textContent = 'Đang nhận frame: ' + (base64Data.length / 1024).toFixed(1) + ' KB';
     }
 
     setCamStatus(active, text) {

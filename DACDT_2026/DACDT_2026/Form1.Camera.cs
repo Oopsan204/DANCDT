@@ -26,7 +26,7 @@ namespace DACDT_2026
         private object cameraLock = new object();
         private DateTime lastCameraMqttPublishUtc = DateTime.MinValue;
         private bool cameraMqttPublishInFlight;
-        private const int CameraMqttPublishIntervalMs = 2500;
+        private const int CameraMqttPublishIntervalMs = 200;
         private const long CameraMqttJpegQuality = 25L;
 
         /// <summary>
@@ -356,20 +356,62 @@ namespace DACDT_2026
             return true;
         }
 
+        private static Bitmap ResizeBitmap(Bitmap source, int targetWidth, int targetHeight)
+        {
+            var result = new Bitmap(targetWidth, targetHeight, PixelFormat.Format24bppRgb);
+            using (var g = Graphics.FromImage(result))
+            {
+                g.CompositingMode = System.Drawing.Drawing2D.CompositingMode.SourceCopy;
+                g.CompositingQuality = System.Drawing.Drawing2D.CompositingQuality.HighSpeed;
+                g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.Low;
+                g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.HighSpeed;
+                g.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.HighSpeed;
+                g.DrawImage(source, 0, 0, targetWidth, targetHeight);
+            }
+            return result;
+        }
+
         private async Task PublishCameraBitmapToMqttAsync(Bitmap bitmap)
         {
             try
             {
-                string base64;
+                byte[] jpegBytes = null;
                 using (bitmap)
-                using (var ms = new MemoryStream())
                 {
-                    SaveJpeg(bitmap, ms, CameraMqttJpegQuality);
-                    base64 = Convert.ToBase64String(ms.ToArray());
+                    // Downsample to max width 640px for lightweight web streaming
+                    const int MaxWebWidth = 640;
+                    Bitmap processedBitmap = bitmap;
+                    bool wasResized = false;
+
+                    if (bitmap.Width > MaxWebWidth)
+                    {
+                        int targetHeight = (int)Math.Round((double)bitmap.Height * MaxWebWidth / bitmap.Width);
+                        processedBitmap = ResizeBitmap(bitmap, MaxWebWidth, targetHeight);
+                        wasResized = true;
+                    }
+
+                    try
+                    {
+                        using (var ms = new MemoryStream())
+                        {
+                            SaveJpeg(processedBitmap, ms, CameraMqttJpegQuality);
+                            jpegBytes = ms.ToArray();
+                        }
+                    }
+                    finally
+                    {
+                        if (wasResized)
+                        {
+                            processedBitmap.Dispose();
+                        }
+                    }
                 }
 
-                if (mqttService.IsConnected)
-                    await mqttService.PublishAsync("DACDT/camera/frame", base64);
+                if (jpegBytes != null && jpegBytes.Length > 0 && mqttService.IsConnected)
+                {
+                    // Publish raw binary bytes (more efficient than Base64)
+                    await mqttService.PublishAsync("DACDT/camera/frame", jpegBytes);
+                }
             }
             catch (Exception ex)
             {

@@ -121,6 +121,31 @@ namespace DACDT_2026
             }
         }
 
+        public async Task PublishAsync(string topic, byte[] payload, bool retain = false)
+        {
+            if (!_isConnected)
+            {
+                Console.WriteLine("Cannot publish message, MQTT client is not connected.");
+                return;
+            }
+
+            var message = new MqttApplicationMessageBuilder()
+                .WithTopic(topic)
+                .WithPayload(payload)
+                .WithRetainFlag(retain)
+                .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtMostOnce)
+                .Build();
+            
+            try
+            {
+                await _mqttClient.PublishAsync(message, CancellationToken.None);
+            }
+            catch (MqttCommunicationException ex)
+            {
+                 Console.WriteLine($"Error publishing MQTT message: {ex.Message}");
+            }
+        }
+
         public async Task SubscribeAsync(params string[] topics)
         {
             var topicsToSubscribe = new List<string>();
