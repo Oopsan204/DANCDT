@@ -6,6 +6,7 @@
     <title>Gantry SCADA - DACDT 2026</title>
     <meta name="description" content="Real-time Gantry SCADA dashboard with MQTT, DXF Point Monitor and Camera Monitor">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.2/mqttws31.min.js"></script>
+    <script src="error_codes.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         :root {
@@ -96,7 +97,7 @@
 
         /* ── GRID ROWS ── */
         #top-row { display: grid; grid-template-columns: repeat(4, 1fr) 200px; gap: var(--panel-gap); flex-shrink: 0; }
-        #middle-row { display: grid; grid-template-columns: minmax(0,1fr) 320px 320px; gap: var(--panel-gap); flex: 1; min-height: 0; }
+        #middle-row { display: grid; grid-template-columns: minmax(0,1.2fr) 320px minmax(0,0.8fr); gap: var(--panel-gap); flex: 1; min-height: 0; }
         @media (max-width: 1200px) { #middle-row { grid-template-columns: 1fr 1fr; } #cad-panel { display: none; } }
         #bottom-row { display: grid; grid-template-columns: 1fr 2fr; gap: var(--panel-gap); height: 200px; flex-shrink: 0; }
 
@@ -553,6 +554,14 @@
                 <div class="limit-indicators">
                     <span class="limit-tag" id="ax-lm-0">LIM-</span><span class="limit-tag" id="ax-lp-0">LIM+</span><span class="limit-tag" id="ax-home-0">HOME</span>
                 </div>
+                <div class="ax-error-box" id="ax-err-box-0" style="display:none; margin-top:8px; padding:6px; border-radius:3px; background:rgba(248,81,73,0.1); border:1px solid rgba(248,81,73,0.3); font-size:10px; color:#ff8080; white-space:normal; cursor:help;">
+                    <div style="font-weight:bold; text-transform:uppercase; font-size:9px; color:var(--red); margin-bottom:2px;">Lỗi <span id="ax-err-code-0"></span></div>
+                    <div id="ax-err-desc-0" style="line-height:1.2;">-</div>
+                </div>
+                <div class="ax-warning-box" id="ax-warn-box-0" style="display:none; margin-top:4px; padding:6px; border-radius:3px; background:rgba(251,133,0,0.1); border:1px solid rgba(251,133,0,0.3); font-size:10px; color:#ffb060; white-space:normal; cursor:help;">
+                    <div style="font-weight:bold; text-transform:uppercase; font-size:9px; color:var(--orange); margin-bottom:2px;">Cảnh báo <span id="ax-warn-code-0"></span></div>
+                    <div id="ax-warn-desc-0" style="line-height:1.2;">-</div>
+                </div>
             </div>
             <div class="panel axis-panel" id="axis-panel-1">
                 <div class="axis-panel-title">
@@ -564,6 +573,14 @@
                 <div class="ax-metric"><span class="lbl">MD.44</span><span class="val small" id="ax-md-1">0</span></div>
                 <div class="limit-indicators">
                     <span class="limit-tag" id="ax-lm-1">LIM-</span><span class="limit-tag" id="ax-lp-1">LIM+</span><span class="limit-tag" id="ax-home-1">HOME</span>
+                </div>
+                <div class="ax-error-box" id="ax-err-box-1" style="display:none; margin-top:8px; padding:6px; border-radius:3px; background:rgba(248,81,73,0.1); border:1px solid rgba(248,81,73,0.3); font-size:10px; color:#ff8080; white-space:normal; cursor:help;">
+                    <div style="font-weight:bold; text-transform:uppercase; font-size:9px; color:var(--red); margin-bottom:2px;">Lỗi <span id="ax-err-code-1"></span></div>
+                    <div id="ax-err-desc-1" style="line-height:1.2;">-</div>
+                </div>
+                <div class="ax-warning-box" id="ax-warn-box-1" style="display:none; margin-top:4px; padding:6px; border-radius:3px; background:rgba(251,133,0,0.1); border:1px solid rgba(251,133,0,0.3); font-size:10px; color:#ffb060; white-space:normal; cursor:help;">
+                    <div style="font-weight:bold; text-transform:uppercase; font-size:9px; color:var(--orange); margin-bottom:2px;">Cảnh báo <span id="ax-warn-code-1"></span></div>
+                    <div id="ax-warn-desc-1" style="line-height:1.2;">-</div>
                 </div>
             </div>
             <div class="panel axis-panel" id="axis-panel-2">
@@ -577,6 +594,14 @@
                 <div class="limit-indicators">
                     <span class="limit-tag" id="ax-lm-2">LIM-</span><span class="limit-tag" id="ax-lp-2">LIM+</span><span class="limit-tag" id="ax-home-2">HOME</span>
                 </div>
+                <div class="ax-error-box" id="ax-err-box-2" style="display:none; margin-top:8px; padding:6px; border-radius:3px; background:rgba(248,81,73,0.1); border:1px solid rgba(248,81,73,0.3); font-size:10px; color:#ff8080; white-space:normal; cursor:help;">
+                    <div style="font-weight:bold; text-transform:uppercase; font-size:9px; color:var(--red); margin-bottom:2px;">Lỗi <span id="ax-err-code-2"></span></div>
+                    <div id="ax-err-desc-2" style="line-height:1.2;">-</div>
+                </div>
+                <div class="ax-warning-box" id="ax-warn-box-2" style="display:none; margin-top:4px; padding:6px; border-radius:3px; background:rgba(251,133,0,0.1); border:1px solid rgba(251,133,0,0.3); font-size:10px; color:#ffb060; white-space:normal; cursor:help;">
+                    <div style="font-weight:bold; text-transform:uppercase; font-size:9px; color:var(--orange); margin-bottom:2px;">Cảnh báo <span id="ax-warn-code-2"></span></div>
+                    <div id="ax-warn-desc-2" style="line-height:1.2;">-</div>
+                </div>
             </div>
             <div class="panel axis-panel" id="axis-panel-3">
                 <div class="axis-panel-title">
@@ -588,6 +613,14 @@
                 <div class="ax-metric"><span class="lbl">MD.44</span><span class="val small" id="ax-md-3">0</span></div>
                 <div class="limit-indicators">
                     <span class="limit-tag" id="ax-lm-3">LIM-</span><span class="limit-tag" id="ax-lp-3">LIM+</span><span class="limit-tag" id="ax-home-3">HOME</span>
+                </div>
+                <div class="ax-error-box" id="ax-err-box-3" style="display:none; margin-top:8px; padding:6px; border-radius:3px; background:rgba(248,81,73,0.1); border:1px solid rgba(248,81,73,0.3); font-size:10px; color:#ff8080; white-space:normal; cursor:help;">
+                    <div style="font-weight:bold; text-transform:uppercase; font-size:9px; color:var(--red); margin-bottom:2px;">Lỗi <span id="ax-err-code-3"></span></div>
+                    <div id="ax-err-desc-3" style="line-height:1.2;">-</div>
+                </div>
+                <div class="ax-warning-box" id="ax-warn-box-3" style="display:none; margin-top:4px; padding:6px; border-radius:3px; background:rgba(251,133,0,0.1); border:1px solid rgba(251,133,0,0.3); font-size:10px; color:#ffb060; white-space:normal; cursor:help;">
+                    <div style="font-weight:bold; text-transform:uppercase; font-size:9px; color:var(--orange); margin-bottom:2px;">Cảnh báo <span id="ax-warn-code-3"></span></div>
+                    <div id="ax-warn-desc-3" style="line-height:1.2;">-</div>
                 </div>
             </div>
 
@@ -661,7 +694,7 @@
                     <div class="active-badge"><span class="dot" id="cam-status-dot"></span><span id="cam-status-text">Recording stopped</span></div>
                 </div>
                 <div class="cam-toolbar">
-                    <span style="font-size: 11px; color: var(--text-bright); padding: 4px 8px; font-weight: 600;">Nguồn: MQTT Stream (DACDT/camera/frame)</span>
+                    <span style="font-size: 11px; color: var(--text-bright); padding: 4px 8px; font-weight: 600;">Nguồn: WebRTC Video Stream</span>
                     <div style="margin-left: auto; display: flex; gap: 6px;">
                         <button class="cam-btn start" onclick="dashboard.publishCommand('STARTRECORD', 'camera')">Bắt đầu quay</button>
                         <button class="cam-btn stop" onclick="dashboard.publishCommand('STOPRECORD', 'camera')">Dừng quay</button>
@@ -672,9 +705,9 @@
                         <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
                             <rect x="2" y="7" width="15" height="10" rx="1"/><path d="M17 9l5-2v10l-5-2"/>
                         </svg>
-                        <span>Đang chờ khung hình MQTT...</span>
+                        <span id="cam-loading-text">Đang chờ camera hoạt động...</span>
                     </div>
-                    <img id="cam-img" style="display:none;width:100%;height:100%;object-fit:contain;" />
+                    <video id="cam-video" autoplay playsinline style="display:none;width:100%;height:100%;object-fit:contain;"></video>
                 </div>
                 <div class="rec-status" id="rec-status">
                     <span class="dot rec-dot" id="mqtt-cam-dot"></span><span id="rec-label">Chưa nhận được dữ liệu</span>
@@ -741,8 +774,10 @@ class GantrySCADADashboard {
         this.MQTT_PASSWORD = 'trungaN123@';
         this.MQTT_TOPIC_MACHINE_STATE = 'DACDT/machine/state';
         this.MQTT_TOPIC_MONITOR_STATE = 'DACDT/monitor/state';
-        this.MQTT_TOPIC_CAMERA_FRAME  = 'DACDT/camera/frame';
+        this.MQTT_TOPIC_CAMERA_STATUS = 'DACDT/camera/status';
         this.MQTT_TOPIC_CAD_STATE     = 'DACDT/cad/state';
+        this.webrtcClientId = 'web_' + Math.random().toString(36).substr(2, 9);
+        this.peerConnection = null;
         this._cadData = null;
         this._cadDirty = false;
 
@@ -825,10 +860,11 @@ class GantrySCADADashboard {
                     
                     this.client.subscribe(this.MQTT_TOPIC_MACHINE_STATE);
                     this.client.subscribe(this.MQTT_TOPIC_MONITOR_STATE);
-                    this.client.subscribe(this.MQTT_TOPIC_CAMERA_FRAME);
+                    this.client.subscribe(this.MQTT_TOPIC_CAMERA_STATUS);
+                    this.client.subscribe('DACDT/camera/webrtc/signaling/' + this.webrtcClientId + '/server');
                     this.client.subscribe(this.MQTT_TOPIC_CAD_STATE, {
                         onSuccess: () => {
-                            this.addLog('Subscribe: machine, monitor, camera, cad', 'info');
+                            this.addLog('Subscribe: machine, monitor, camera, status, signaling', 'info');
                             this.requestStateSnapshot();
                         }
                     });
@@ -886,8 +922,13 @@ class GantrySCADADashboard {
             const topic = message.destinationName;
             const payload = message.payloadString;
 
-            if (topic === this.MQTT_TOPIC_CAMERA_FRAME) {
-                this.updateCameraFrame(payload);
+            if (topic === this.MQTT_TOPIC_CAMERA_STATUS) {
+                this.handleCameraStatus(payload);
+                return;
+            }
+
+            if (topic === `DACDT/camera/webrtc/signaling/${this.webrtcClientId}/server`) {
+                this.handleSignalingMessage(payload);
                 return;
             }
 
@@ -908,7 +949,7 @@ class GantrySCADADashboard {
             let data = null;
             try { data = JSON.parse(payload); } catch(e) {}
 
-            if (data && data.fileKind === 'DXF') {
+            if (data && (data.fileKind === 'DXF' || data.fileKind === 'GCODE')) {
                 this.updateDxfInfo(data);
             } else if (topic === this.MQTT_TOPIC_MACHINE_STATE || topic === this.MQTT_TOPIC_MONITOR_STATE) {
                 if (data) this.updateDashboard(data);
@@ -918,6 +959,11 @@ class GantrySCADADashboard {
 
     updateDxfInfo(data) {
         this._monitorData = data;
+
+        if (data.trackingPoints) {
+            if (!this._cadData) this._cadData = {};
+            this._cadData.trackingPoints = data.trackingPoints;
+        }
 
         if (data.dxfCompletion) {
             const pct = data.dxfCompletion.percent != null ? data.dxfCompletion.percent : 0;
@@ -975,10 +1021,10 @@ class GantrySCADADashboard {
             if (dp.activeDataNo != null) {
                 this.setActiveDataNo(dp.activeDataNo, dp.totalPoints, dp.activeText);
             }
+        }
 
-            if (this._cadData) {
-                this.renderCadPreview(this._cadData);
-            }
+        if (this._cadData) {
+            this.renderCadPreview(this._cadData);
         }
     }
 
@@ -1027,6 +1073,51 @@ class GantrySCADADashboard {
         }
     }
 
+    findErrorDetails(code) {
+        if (!code || code === 0 || code === '0' || code === '--') return null;
+        if (typeof ERROR_CODES_DB === 'undefined' || !Array.isArray(ERROR_CODES_DB)) return null;
+
+        const codeStr = String(code).trim().toUpperCase();
+        
+        // 1. Try exact match (e.g. "4101", "7101H", "C1009")
+        let match = ERROR_CODES_DB.find(e => e.code.toUpperCase() === codeStr);
+        if (match) return match;
+
+        // 2. Try hex match or clean up common suffixes/prefixes
+        let cleanCodeStr = codeStr;
+        if (cleanCodeStr.endsWith('H')) {
+            cleanCodeStr = cleanCodeStr.substring(0, cleanCodeStr.length - 1);
+        } else if (cleanCodeStr.startsWith('0X')) {
+            cleanCodeStr = cleanCodeStr.substring(2);
+        }
+
+        // 3. Try to parse as integer to check ranges and decimal-to-hex
+        const val = parseInt(cleanCodeStr, 10);
+        const isDecimalVal = !isNaN(val) && /^\d+$/.test(cleanCodeStr);
+
+        if (isDecimalVal) {
+            // Check range match (e.g. "9100 - 9124")
+            match = ERROR_CODES_DB.find(e => {
+                const rMatch = e.code.match(/^(\d+)\s*-\s*(\d+)$/);
+                if (rMatch) {
+                    const min = parseInt(rMatch[1], 10);
+                    const max = parseInt(rMatch[2], 10);
+                    return val >= min && val <= max;
+                }
+                return false;
+            });
+            if (match) return match;
+
+            // Try decimal-to-hex representations (e.g. 28929 -> 7101H)
+            const hexUpper = val.toString(16).toUpperCase();
+            const hexCandidates = [hexUpper, hexUpper + 'H', '0X' + hexUpper];
+            match = ERROR_CODES_DB.find(e => hexCandidates.includes(e.code.toUpperCase()));
+            if (match) return match;
+        }
+
+        return null;
+    }
+
     renderAxesList(axesList) {
         const data = this._lastDashboardData || {};
         axesList.forEach((a, i) => {
@@ -1050,6 +1141,64 @@ class GantrySCADADashboard {
             if(lm) lm.className = 'limit-tag ' + (a.limitMinus ? 'active' : '');
             if(lp) lp.className = 'limit-tag ' + (a.limitPlus ? 'active' : '');
             if(home) home.className = 'limit-tag ' + (a.homeDog ? 'home' : '');
+
+            // error box
+            const errBox = document.getElementById(`ax-err-box-${idx}`);
+            const errCodeSpan = document.getElementById(`ax-err-code-${idx}`);
+            const errDescDiv = document.getElementById(`ax-err-desc-${idx}`);
+
+            if (errBox && errCodeSpan && errDescDiv) {
+                const errCode = a.error;
+                if (errCode && errCode !== 0 && errCode !== '0' && errCode !== '--') {
+                    errCodeSpan.textContent = errCode;
+                    let desc = a.errorDesc || '';
+                    if (!desc) {
+                        const lookup = this.findErrorDetails(errCode);
+                        if (lookup) {
+                            desc = `${lookup.description} | Nguyên nhân: ${lookup.cause} | Khắc phục: ${lookup.remedy}`;
+                        } else {
+                            desc = 'Lỗi không xác định';
+                        }
+                    }
+                    errDescDiv.textContent = desc;
+                    errBox.style.display = 'block';
+                    errBox.title = desc;
+                } else {
+                    errBox.style.display = 'none';
+                    errCodeSpan.textContent = '';
+                    errDescDiv.textContent = '-';
+                    errBox.removeAttribute('title');
+                }
+            }
+
+            // warning box
+            const warnBox = document.getElementById(`ax-warn-box-${idx}`);
+            const warnCodeSpan = document.getElementById(`ax-warn-code-${idx}`);
+            const warnDescDiv = document.getElementById(`ax-warn-desc-${idx}`);
+
+            if (warnBox && warnCodeSpan && warnDescDiv) {
+                const warnCode = a.warning;
+                if (warnCode && warnCode !== 0 && warnCode !== '0' && warnCode !== '--') {
+                    warnCodeSpan.textContent = warnCode;
+                    let desc = a.warningDesc || '';
+                    if (!desc) {
+                        const lookup = this.findErrorDetails(warnCode);
+                        if (lookup) {
+                            desc = `${lookup.description} | Nguyên nhân: ${lookup.cause} | Khắc phục: ${lookup.remedy}`;
+                        } else {
+                            desc = 'Cảnh báo không xác định';
+                        }
+                    }
+                    warnDescDiv.textContent = desc;
+                    warnBox.style.display = 'block';
+                    warnBox.title = desc;
+                } else {
+                    warnBox.style.display = 'none';
+                    warnCodeSpan.textContent = '';
+                    warnDescDiv.textContent = '-';
+                    warnBox.removeAttribute('title');
+                }
+            }
 
             // active data no from axis 0
             if (idx === 0 && a.dataNo != null) {
@@ -1276,19 +1425,155 @@ class GantrySCADADashboard {
     }
 
     /* ── CAMERA ── */
-    updateCameraFrame(base64Data) {
-        const img = document.getElementById('cam-img');
-        const placeholder = document.getElementById('cam-placeholder');
-        if (img && placeholder) {
-            img.src = 'data:image/jpeg;base64,' + base64Data;
-            img.style.display = 'block';
-            placeholder.style.display = 'none';
+    initWebRTC() {
+        this.addLog('Khởi tạo WebRTC...', 'info');
+        
+        if (this.peerConnection) {
+            try { this.peerConnection.close(); } catch(e) {}
+            this.peerConnection = null;
         }
-        this.setCamStatus(true, 'MQTT Stream active');
-        const dot = document.getElementById('mqtt-cam-dot');
-        if (dot) dot.style.background = 'var(--green)';
-        const lbl = document.getElementById('rec-label');
-        if (lbl) lbl.textContent = 'Đang nhận frame: ' + (base64Data.length / 1024).toFixed(1) + ' KB';
+
+        const video = document.getElementById('cam-video');
+        const placeholder = document.getElementById('cam-placeholder');
+        const loadingText = document.getElementById('cam-loading-text');
+
+        if (video) video.style.display = 'none';
+        if (placeholder) {
+            placeholder.style.display = 'flex';
+            if (loadingText) loadingText.textContent = 'Đang kết nối WebRTC...';
+        }
+
+        this.peerConnection = new RTCPeerConnection({
+            iceServers: [
+                { urls: 'stun:stun.l.google.com:19302' }
+            ]
+        });
+
+        this.peerConnection.onicecandidate = (event) => {
+            if (event.candidate) {
+                const payload = JSON.stringify({
+                    type: 'candidate',
+                    candidate: event.candidate.candidate,
+                    sdpMid: event.candidate.sdpMid,
+                    sdpMLineIndex: event.candidate.sdpMLineIndex
+                });
+                const msg = new Paho.MQTT.Message(payload);
+                msg.destinationName = `DACDT/camera/webrtc/signaling/${this.webrtcClientId}/client`;
+                this.client.send(msg);
+            }
+        };
+
+        this.peerConnection.ontrack = (event) => {
+            this.addLog('Nhận luồng video WebRTC', 'info');
+            if (video) {
+                video.srcObject = event.streams[0] || new MediaStream([event.track]);
+                video.style.display = 'block';
+                video.play().catch(err => {
+                    this.addLog('Không thể tự động phát video: ' + err.message, 'warning');
+                });
+            }
+            if (placeholder) placeholder.style.display = 'none';
+            this.setCamStatus(true, 'WebRTC Stream active');
+            
+            const dot = document.getElementById('mqtt-cam-dot');
+            if (dot) dot.style.background = 'var(--green)';
+            const lbl = document.getElementById('rec-label');
+            if (lbl) lbl.textContent = 'WebRTC Connected';
+        };
+
+        this.peerConnection.onconnectionstatechange = () => {
+            const state = this.peerConnection.connectionState;
+            this.addLog(`Trạng thái kết nối WebRTC: ${state}`, 'info');
+            if (state === 'failed' || state === 'disconnected' || state === 'closed') {
+                this.setCamStatus(false, 'Disconnected');
+                const dot = document.getElementById('mqtt-cam-dot');
+                if (dot) dot.style.background = 'var(--muted)';
+                const lbl = document.getElementById('rec-label');
+                if (lbl) lbl.textContent = 'WebRTC Mất kết nối';
+            }
+        };
+
+        this.peerConnection.addTransceiver('video', { direction: 'recvonly' });
+
+        this.peerConnection.createOffer().then(offer => {
+            return this.peerConnection.setLocalDescription(offer).then(() => {
+                const payload = JSON.stringify({
+                    type: 'offer',
+                    sdp: offer.sdp
+                });
+                const msg = new Paho.MQTT.Message(payload);
+                msg.destinationName = `DACDT/camera/webrtc/signaling/${this.webrtcClientId}/client`;
+                this.client.send(msg);
+                this.addLog('Đã gửi SDP Offer qua MQTT', 'info');
+            });
+        }).catch(err => {
+            this.addLog('Lỗi tạo SDP Offer: ' + err.message, 'error');
+        });
+    }
+
+    handleCameraStatus(payload) {
+        try {
+            const status = JSON.parse(payload);
+            const isRunning = status && status.running === true;
+            this.setCamStatus(isRunning, isRunning ? 'Camera running' : 'Camera stopped');
+            
+            const placeholder = document.getElementById('cam-placeholder');
+            const placeholderText = document.getElementById('cam-loading-text');
+            const video = document.getElementById('cam-video');
+            const dot = document.getElementById('cam-status-dot');
+
+            if (!isRunning) {
+                if (video) {
+                    video.style.display = 'none';
+                    try { video.srcObject = null; } catch(e) {}
+                }
+                if (placeholder) {
+                    placeholder.style.display = 'flex';
+                    if (placeholderText) placeholderText.textContent = 'Camera is stopped.';
+                }
+                if (dot) dot.style.background = 'var(--muted)';
+                
+                if (this.peerConnection) {
+                    try { this.peerConnection.close(); } catch(e) {}
+                    this.peerConnection = null;
+                }
+            } else {
+                if (!this.peerConnection || this.peerConnection.connectionState === 'failed' || this.peerConnection.connectionState === 'disconnected') {
+                    this.initWebRTC();
+                }
+            }
+        } catch(e) {
+            this.addLog('Lỗi xử lý camera status: ' + e.message, 'error');
+        }
+    }
+
+    handleSignalingMessage(payload) {
+        try {
+            const msg = JSON.parse(payload);
+            if (!this.peerConnection) return;
+
+            if (msg.type === 'answer') {
+                this.addLog('Nhận SDP Answer từ server', 'info');
+                this.peerConnection.setRemoteDescription(new RTCSessionDescription({
+                    type: 'answer',
+                    sdp: msg.sdp
+                })).catch(err => {
+                    this.addLog('Lỗi setRemoteDescription: ' + err.message, 'error');
+                });
+            } else if (msg.type === 'candidate') {
+                if (msg.candidate) {
+                    this.peerConnection.addIceCandidate(new RTCIceCandidate({
+                        candidate: msg.candidate,
+                        sdpMid: msg.sdpMid,
+                        sdpMLineIndex: msg.sdpMLineIndex
+                    })).catch(err => {
+                        console.warn('Lỗi addIceCandidate: ', err);
+                    });
+                }
+            }
+        } catch(e) {
+            this.addLog('Lỗi xử lý signaling message: ' + e.message, 'error');
+        }
     }
 
     setCamStatus(active, text) {
