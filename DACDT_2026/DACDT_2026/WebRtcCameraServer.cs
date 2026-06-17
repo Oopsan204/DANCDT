@@ -15,6 +15,7 @@ namespace DACDT_2026
     {
         private readonly MqttPublishService _mqttService;
         private readonly ConcurrentDictionary<string, RTCPeerConnection> _peerConnections = new ConcurrentDictionary<string, RTCPeerConnection>();
+        private readonly ConcurrentDictionary<string, List<RTCIceCandidateInit>> _bufferedCandidates = new ConcurrentDictionary<string, List<RTCIceCandidateInit>>();
         private readonly JavaScriptSerializer _serializer = new JavaScriptSerializer();
         private VpxVideoEncoder _vpxVideoEncoder;
         private readonly object _encoderLock = new object();
@@ -38,7 +39,7 @@ namespace DACDT_2026
                 _vpxVideoEncoder = new VpxVideoEncoder();
                 _vpxVideoEncoder.TargetKbps = 1000;
             }
-            Console.WriteLine("[WebRTC] Camera stream server started.");
+            Log("Camera stream server started.");
         }
 
         public void Stop()
@@ -54,10 +55,11 @@ namespace DACDT_2026
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"[WebRTC] Error closing peer connection for {kvp.Key}: {ex.Message}");
+                    Log($"Error closing peer connection for {kvp.Key}: {ex.Message}");
                 }
             }
             _peerConnections.Clear();
+            _bufferedCandidates.Clear();
 
             lock (_encoderLock)
             {
@@ -67,7 +69,7 @@ namespace DACDT_2026
                     _vpxVideoEncoder = null;
                 }
             }
-            Console.WriteLine("[WebRTC] Camera stream server stopped.");
+            Log("Camera stream server stopped.");
         }
 
         public async Task ProcessSignalingMessageAsync(string clientId, string type, string payload)
@@ -78,13 +80,13 @@ namespace DACDT_2026
             {
                 if (string.Equals(type, "offer", StringComparison.OrdinalIgnoreCase))
                 {
-                    Console.WriteLine($"[WebRTC] Received offer from client: {clientId}");
+                    Log($"Received offer from client: {clientId}");
                     
                     // Parse offer SDP
                     var dict = _serializer.Deserialize<Dictionary<string, object>>(payload);
                     if (dict == null || !dict.TryGetValue("sdp", out var sdpObj) || sdpObj == null)
                     {
-                        Console.WriteLine("[WebRTC] Offer SDP missing from payload");
+                        Log("Offer SDP missing from payload");
                         return;
                     }
                     string offerSdp = sdpObj.ToString();
@@ -94,6 +96,7 @@ namespace DACDT_2026
                     {
                         try { oldPc.close(); } catch { }
                     }
+                    _bufferedCandidates.TryRemove(clientId, out _);
 
                     // Create new Peer Connection
                     var config = new RTCConfiguration
@@ -131,13 +134,14 @@ namespace DACDT_2026
                     // Set up connection state change handling
                     pc.onconnectionstatechange += (state) =>
                     {
-                        Console.WriteLine($"[WebRTC] Client {clientId} connection state: {state}");
+                        Log($"Client {clientId} connection state: {state}");
                         if (state == RTCPeerConnectionState.closed || state == RTCPeerConnectionState.failed || state == RTCPeerConnectionState.disconnected)
                         {
                             if (_peerConnections.TryRemove(clientId, out var deadPc))
                             {
                                 try { deadPc.close(); } catch { }
                             }
+                            _bufferedCandidates.TryRemove(clientId, out _);
                         }
                     };
 
@@ -148,12 +152,33 @@ namespace DACDT_2026
                         sdp = offerSdp
                     };
 
+                    // Save connection early so candidate messages can find it
+                    _peerConnections[clientId] = pc;
+
                     var setDescResult = pc.setRemoteDescription(offerInit);
                     if (setDescResult != SetDescriptionResultEnum.OK)
                     {
-                        Console.WriteLine($"[WebRTC] SetRemoteDescription failed for client {clientId}: {setDescResult}");
+                        Log($"SetRemoteDescription failed for client {clientId}: {setDescResult}");
+                        _peerConnections.TryRemove(clientId, out _);
                         pc.close();
                         return;
+                    }
+
+                    // Apply any buffered candidates now that remoteDescription is set
+                    if (_bufferedCandidates.TryRemove(clientId, out var candidates))
+                    {
+                        Log($"Applying {candidates.Count} buffered candidates for {clientId}");
+                        foreach (var cand in candidates)
+                        {
+                            try
+                            {
+                                pc.addIceCandidate(cand);
+                            }
+                            catch (Exception ex)
+                            {
+                                Log($"Error adding buffered candidate: {ex.Message}");
+                            }
+                        }
                     }
 
                     // Create and set local answer
@@ -169,34 +194,39 @@ namespace DACDT_2026
                     string answerPayload = _serializer.Serialize(answerMsg);
                     await _mqttService.PublishAsync($"DACDT/camera/webrtc/signaling/{clientId}/server", answerPayload);
 
-                    // Save the connection
-                    _peerConnections[clientId] = pc;
-                    Console.WriteLine($"[WebRTC] Set answer and saved peer connection for: {clientId}");
+                    Log($"Set answer and saved peer connection for: {clientId}");
                 }
                 else if (string.Equals(type, "candidate", StringComparison.OrdinalIgnoreCase))
                 {
-                    if (_peerConnections.TryGetValue(clientId, out var pc))
+                    var dict = _serializer.Deserialize<Dictionary<string, object>>(payload);
+                    if (dict != null)
                     {
-                        var dict = _serializer.Deserialize<Dictionary<string, object>>(payload);
-                        if (dict != null)
+                        string candidateText = dict.TryGetValue("candidate", out var cVal) && cVal != null ? cVal.ToString() : null;
+                        string sdpMid = dict.TryGetValue("sdpMid", out var mVal) && mVal != null ? mVal.ToString() : null;
+                        ushort sdpMLineIndex = 0;
+                        if (dict.TryGetValue("sdpMLineIndex", out var idxVal) && idxVal != null)
                         {
-                            string candidateText = dict.TryGetValue("candidate", out var cVal) && cVal != null ? cVal.ToString() : null;
-                            string sdpMid = dict.TryGetValue("sdpMid", out var mVal) && mVal != null ? mVal.ToString() : null;
-                            ushort sdpMLineIndex = 0;
-                            if (dict.TryGetValue("sdpMLineIndex", out var idxVal) && idxVal != null)
-                            {
-                                ushort.TryParse(idxVal.ToString(), out sdpMLineIndex);
-                            }
+                            ushort.TryParse(idxVal.ToString(), out sdpMLineIndex);
+                        }
 
-                            if (!string.IsNullOrEmpty(candidateText))
+                        if (!string.IsNullOrEmpty(candidateText))
+                        {
+                            var candidateInit = new RTCIceCandidateInit
                             {
-                                var candidateInit = new RTCIceCandidateInit
-                                {
-                                    candidate = candidateText,
-                                    sdpMid = sdpMid,
-                                    sdpMLineIndex = sdpMLineIndex
-                                };
+                                candidate = candidateText,
+                                sdpMid = sdpMid,
+                                sdpMLineIndex = sdpMLineIndex
+                            };
+
+                            if (_peerConnections.TryGetValue(clientId, out var pc) && pc.remoteDescription != null)
+                            {
                                 pc.addIceCandidate(candidateInit);
+                            }
+                            else
+                            {
+                                _bufferedCandidates.AddOrUpdate(clientId,
+                                    new List<RTCIceCandidateInit> { candidateInit },
+                                    (k, list) => { lock (list) { list.Add(candidateInit); } return list; });
                             }
                         }
                     }
@@ -206,13 +236,14 @@ namespace DACDT_2026
                     if (_peerConnections.TryRemove(clientId, out var pc))
                     {
                         try { pc.close(); } catch { }
-                        Console.WriteLine($"[WebRTC] Client {clientId} disconnected via bye command.");
+                        Log($"Client {clientId} disconnected via bye command.");
                     }
+                    _bufferedCandidates.TryRemove(clientId, out _);
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[WebRTC] Error processing signaling message for client {clientId}: {ex.Message}");
+                Log($"Error processing signaling message for client {clientId}: {ex.Message}");
             }
         }
 
@@ -280,7 +311,7 @@ namespace DACDT_2026
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[WebRTC] Error extracting bitmap bytes: {ex.Message}");
+                Log($"Error extracting bitmap bytes: {ex.Message}");
                 return;
             }
             finally
@@ -310,7 +341,7 @@ namespace DACDT_2026
                     }
                     catch (Exception ex)
                     {
-                        Console.WriteLine($"[WebRTC] Encoder error: {ex.Message}");
+                        Log($"Encoder error: {ex.Message}");
                     }
                 }
             }
@@ -331,10 +362,22 @@ namespace DACDT_2026
                     }
                     catch (Exception ex)
                     {
-                        Console.WriteLine($"[WebRTC] SendVideo error for client {kvp.Key}: {ex.Message}");
+                        Log($"SendVideo error for client {kvp.Key}: {ex.Message}");
                     }
                 }
             }
+        }
+
+        private void Log(string message)
+        {
+            try
+            {
+                System.IO.File.AppendAllText(
+                    System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "crash_log.txt"),
+                    "[" + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff") + "] [WebRTC] " + message + "\r\n"
+                );
+            }
+            catch { }
         }
     }
 }

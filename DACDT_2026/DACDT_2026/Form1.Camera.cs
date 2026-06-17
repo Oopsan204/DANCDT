@@ -52,22 +52,33 @@ namespace DACDT_2026
                             });
                         }
 
-                        ui.Cameras.ReplaceWith(cameras);
+                        Dispatcher.Invoke(() =>
+                        {
+                            ui.Cameras.ReplaceWith(cameras);
 
-                        if (cameras.Count > 0)
-                        {
-                            ui.SelectedCameraMoniker = cameras[0].MonikerString;
-                            ui.CameraStatus = $"Found {cameras.Count} camera(s). Ready to start.";
-                        }
-                        else
-                        {
-                            ui.CameraStatus = "No cameras found.";
-                        }
+                            if (cameras.Count > 0)
+                            {
+                                // Prefer physical PnP USB cameras over virtual software ones
+                                var selected = cameras.FirstOrDefault(c => c.MonikerString.Contains("usb#") || c.MonikerString.StartsWith("@device:pnp", StringComparison.OrdinalIgnoreCase)) ?? cameras[0];
+                                ui.SelectedCameraMoniker = selected.MonikerString;
+                                ui.CameraStatus = $"Found {cameras.Count} camera(s). Ready to start.";
+                                try { System.IO.File.AppendAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "crash_log.txt"), 
+                                    "[" + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff") + "] [Camera] Found " + cameras.Count + " camera(s). Selected Moniker: " + ui.SelectedCameraMoniker + "\r\n"); } catch { }
+                            }
+                            else
+                            {
+                                ui.CameraStatus = "No cameras found.";
+                                try { System.IO.File.AppendAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "crash_log.txt"), 
+                                    "[" + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff") + "] [Camera] No cameras found.\r\n"); } catch { }
+                            }
+                        });
                     }
                 }
                 catch (Exception ex)
                 {
                     ui.CameraStatus = $"Error refreshing cameras: {ex.Message}";
+                    try { System.IO.File.AppendAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "crash_log.txt"), 
+                        "[" + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff") + "] [Camera] Error refreshing cameras: " + ex.Message + "\r\n" + ex.StackTrace + "\r\n"); } catch { }
                 }
             });
         }
@@ -83,6 +94,9 @@ namespace DACDT_2026
                 {
                     lock (cameraLock)
                     {
+                        try { System.IO.File.AppendAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "crash_log.txt"), 
+                            "[" + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff") + "] [Camera] Starting camera with Moniker: '" + ui.SelectedCameraMoniker + "'\r\n"); } catch { }
+
                         if (string.IsNullOrWhiteSpace(ui.SelectedCameraMoniker))
                         {
                             ui.CameraStatus = "No camera selected.";
@@ -113,6 +127,8 @@ namespace DACDT_2026
                 {
                     ui.IsCameraRunning = false;
                     ui.CameraStatus = $"Error starting camera: {ex.Message}";
+                    try { System.IO.File.AppendAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "crash_log.txt"), 
+                        "[" + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff") + "] [Camera] Error starting camera: " + ex.Message + "\r\n" + ex.StackTrace + "\r\n"); } catch { }
                 }
             });
         }

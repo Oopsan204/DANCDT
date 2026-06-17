@@ -1427,6 +1427,7 @@ class GantrySCADADashboard {
     /* ── CAMERA ── */
     initWebRTC() {
         this.addLog('Khởi tạo WebRTC...', 'info');
+        this.bufferedCandidates = [];
         
         if (this.peerConnection) {
             try { this.peerConnection.close(); } catch(e) {}
@@ -1557,18 +1558,35 @@ class GantrySCADADashboard {
                 this.peerConnection.setRemoteDescription(new RTCSessionDescription({
                     type: 'answer',
                     sdp: msg.sdp
-                })).catch(err => {
+                })).then(() => {
+                    this.addLog('Áp dụng các ICE Candidate đã lưu trong bộ đệm', 'info');
+                    if (this.bufferedCandidates && this.bufferedCandidates.length > 0) {
+                        this.bufferedCandidates.forEach(cand => {
+                            this.peerConnection.addIceCandidate(cand).catch(err => {
+                                console.warn('Lỗi addIceCandidate từ bộ đệm: ', err);
+                            });
+                        });
+                        this.bufferedCandidates = [];
+                    }
+                }).catch(err => {
                     this.addLog('Lỗi setRemoteDescription: ' + err.message, 'error');
                 });
             } else if (msg.type === 'candidate') {
                 if (msg.candidate) {
-                    this.peerConnection.addIceCandidate(new RTCIceCandidate({
+                    const cand = new RTCIceCandidate({
                         candidate: msg.candidate,
                         sdpMid: msg.sdpMid,
                         sdpMLineIndex: msg.sdpMLineIndex
-                    })).catch(err => {
-                        console.warn('Lỗi addIceCandidate: ', err);
                     });
+                    if (this.peerConnection.remoteDescription) {
+                        this.peerConnection.addIceCandidate(cand).catch(err => {
+                            console.warn('Lỗi addIceCandidate: ', err);
+                        });
+                    } else {
+                        if (!this.bufferedCandidates) this.bufferedCandidates = [];
+                        this.bufferedCandidates.push(cand);
+                        this.addLog('Lưu ICE Candidate vào bộ đệm (chưa nhận Answer)', 'info');
+                    }
                 }
             }
         } catch(e) {

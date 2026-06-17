@@ -627,6 +627,13 @@ namespace DACDT_2026
             if (isClosing)
                 return;
 
+            try
+            {
+                File.AppendAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "crash_log.txt"), 
+                    "[" + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff") + "] [MQTT] Topic: " + topic + ", Payload: " + payload + "\r\n");
+            }
+            catch { }
+
             if (topic.StartsWith("DACDT/camera/webrtc/signaling/", StringComparison.OrdinalIgnoreCase))
             {
                 _ = HandleSignalingMqttMessageAsync(topic, payload);
