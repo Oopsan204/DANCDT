@@ -86,7 +86,21 @@
                                                 <Run Text="ERROR CODE "/>
                                                 <Run Text="{Binding ErrorCodeAddr}"/>
                                             </TextBlock>
-                                            <TextBlock Text="{Binding ErrorCode}" Style="{StaticResource AxisMetricValueStyle}"/>
+                                            <TextBlock Text="{Binding ErrorCode}" ToolTip="{Binding ErrorDescription}" Style="{StaticResource AxisMetricValueStyle}"/>
+                                            <TextBlock Text="{Binding ErrorDescription}" TextWrapping="Wrap" Foreground="#f85149" FontSize="10" Margin="0,2,0,0">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Style.Triggers>
+                                                            <Trigger Property="Text" Value="">
+                                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                            </Trigger>
+                                                            <Trigger Property="Text" Value="{x:Null}">
+                                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                            </Trigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
                                         </StackPanel>
 
                                         <StackPanel Margin="0,0,0,9">
@@ -94,7 +108,21 @@
                                                 <Run Text="WARNING CODE "/>
                                                 <Run Text="{Binding WarningCodeAddr}"/>
                                             </TextBlock>
-                                            <TextBlock Text="{Binding WarningCode}" Style="{StaticResource AxisMetricValueStyle}"/>
+                                            <TextBlock Text="{Binding WarningCode}" ToolTip="{Binding WarningDescription}" Style="{StaticResource AxisMetricValueStyle}"/>
+                                            <TextBlock Text="{Binding WarningDescription}" TextWrapping="Wrap" Foreground="#ff9800" FontSize="10" Margin="0,2,0,0">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Style.Triggers>
+                                                            <Trigger Property="Text" Value="">
+                                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                            </Trigger>
+                                                            <Trigger Property="Text" Value="{x:Null}">
+                                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                            </Trigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
                                         </StackPanel>
 
                                         <StackPanel Margin="0,0,0,9">

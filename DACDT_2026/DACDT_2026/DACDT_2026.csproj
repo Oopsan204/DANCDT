@@ -122,6 +122,7 @@
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="HoldCommandRouter.cs" />
+    <Compile Include="ErrorCodeRegistry.cs" />
     <Compile Include="PLCCommunication.cs" />
     <Compile Include="QD75BufferWriter.cs" />
     <Compile Include="QD75RingBufferRunner.cs" />

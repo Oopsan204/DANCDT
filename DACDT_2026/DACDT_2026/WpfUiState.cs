@@ -905,8 +905,10 @@ namespace DACDT_2026
         private string mCodeAddr = "";
         private string errorCode = "--";
         private string errorCodeAddr = "";
+        private string errorDescription = "";
         private string warningCode = "--";
         private string warningCodeAddr = "";
+        private string warningDescription = "";
         private string axisStatus = "--";
         private string axisStatusAddr = "";
         private string currentDataNo = "--";
@@ -928,8 +930,10 @@ namespace DACDT_2026
         public string MCodeAddr { get => mCodeAddr; set => SetProperty(ref mCodeAddr, value); }
         public string ErrorCode { get => errorCode; set => SetProperty(ref errorCode, value); }
         public string ErrorCodeAddr { get => errorCodeAddr; set => SetProperty(ref errorCodeAddr, value); }
+        public string ErrorDescription { get => errorDescription; set => SetProperty(ref errorDescription, value); }
         public string WarningCode { get => warningCode; set => SetProperty(ref warningCode, value); }
         public string WarningCodeAddr { get => warningCodeAddr; set => SetProperty(ref warningCodeAddr, value); }
+        public string WarningDescription { get => warningDescription; set => SetProperty(ref warningDescription, value); }
         public string AxisStatus { get => axisStatus; set => SetProperty(ref axisStatus, value); }
         public string AxisStatusAddr { get => axisStatusAddr; set => SetProperty(ref axisStatusAddr, value); }
         public string CurrentDataNo { get => currentDataNo; set => SetProperty(ref currentDataNo, value); }

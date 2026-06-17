@@ -57,10 +57,24 @@ namespace DACDT_2026
                     axis.CurrentSpeedAddr = $"D{i * 10 + 4}";
                     axis.MCode = connected ? axMCode[i].ToString(CultureInfo.InvariantCulture) : dash;
                     axis.MCodeAddr = $"D{i * 10 + 104}";
+
+                    string errStr = connected ? axErrorCode[i].ToString(CultureInfo.InvariantCulture) : "0";
+                    string warnStr = connected ? axWarningCode[i].ToString(CultureInfo.InvariantCulture) : "0";
+
                     axis.ErrorCode = connected ? axErrorCode[i].ToString(CultureInfo.InvariantCulture) : dash;
                     axis.ErrorCodeAddr = $"U0\\G{mb + OffErrorCode}";
+                    var errLookup = ErrorCodeRegistry.Lookup(errStr);
+                    axis.ErrorDescription = errLookup != null
+                        ? $"{errLookup.Description}\nNguyên nhân: {errLookup.Cause}\nKhắc phục: {errLookup.Remedy}"
+                        : (connected && axErrorCode[i] != 0 ? "Lỗi không xác định" : "");
+
                     axis.WarningCode = connected ? axWarningCode[i].ToString(CultureInfo.InvariantCulture) : dash;
                     axis.WarningCodeAddr = $"U0\\G{mb + OffWarningCode}";
+                    var warnLookup = ErrorCodeRegistry.Lookup(warnStr);
+                    axis.WarningDescription = warnLookup != null
+                        ? $"{warnLookup.Description}\nNguyên nhân: {warnLookup.Cause}\nKhắc phục: {warnLookup.Remedy}"
+                        : (connected && axWarningCode[i] != 0 ? "Cảnh báo không xác định" : "");
+
                     axis.AxisStatus = connected ? FormatAxisStatus(rawStatus) : dash;
                     axis.AxisStatusAddr = $"U0\\G{mb + OffAxisStatus}";
                     axis.CurrentDataNo = connected ? axCurrentDataNo[i].ToString(CultureInfo.InvariantCulture) : dash;
@@ -260,7 +274,16 @@ namespace DACDT_2026
                     sb.AppendFormat(",\"speed\":\"{0}\"", connected ? FormatSpeedMm(axCurrentSpeed[i]) : dash);
                     sb.AppendFormat(",\"mCode\":{0}", connected ? axMCode[i] : 0);
                     sb.AppendFormat(",\"error\":{0}", connected ? axErrorCode[i] : 0);
+                    
+                    var errLookup = ErrorCodeRegistry.Lookup(connected ? axErrorCode[i].ToString(CultureInfo.InvariantCulture) : "0");
+                    string errDesc = errLookup != null ? $"{errLookup.Description} | Nguyên nhân: {errLookup.Cause} | Khắc phục: {errLookup.Remedy}" : "";
+                    sb.AppendFormat(",\"errorDesc\":\"{0}\"", EscapeJson(errDesc));
+
                     sb.AppendFormat(",\"warning\":{0}", connected ? axWarningCode[i] : 0);
+                    var warnLookup = ErrorCodeRegistry.Lookup(connected ? axWarningCode[i].ToString(CultureInfo.InvariantCulture) : "0");
+                    string warnDesc = warnLookup != null ? $"{warnLookup.Description} | Nguyên nhân: {warnLookup.Cause} | Khắc phục: {warnLookup.Remedy}" : "";
+                    sb.AppendFormat(",\"warningDesc\":\"{0}\"", EscapeJson(warnDesc));
+
                     sb.AppendFormat(",\"status\":\"{0}\"", connected ? FormatAxisStatus(rawStatus) : dash);
                     sb.AppendFormat(",\"dataNo\":{0}", connected ? axCurrentDataNo[i] : 0);
                     sb.AppendFormat(",\"limitMinus\":{0}", (connected && (axSignals[i] & 0x01) != 0) ? "true" : "false");

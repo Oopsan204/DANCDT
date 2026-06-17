@@ -39,24 +39,19 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 Source: "{#BuildDir}\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#BuildDir}\{#MyAppExeName}.config"; DestDir: "{app}"; Flags: ignoreversion
 
-; All DLLs (managed + native)
-Source: "{#BuildDir}\EPPlus.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#BuildDir}\Gcode.Common.Utils.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#BuildDir}\Gcode.Entity.dll"; DestDir: "{app}"; Flags: ignoreversion
+; All DLLs
+Source: "{#BuildDir}\AForge.dll"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#BuildDir}\AForge.Video.dll"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#BuildDir}\AForge.Video.DirectShow.dll"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#BuildDir}\Gcode.Utils.dll"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#BuildDir}\LibBase.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#BuildDir}\Microsoft.Web.WebView2.Core.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#BuildDir}\Microsoft.Web.WebView2.WinForms.dll"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#BuildDir}\MQTTnet.dll"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#BuildDir}\netDxf.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#BuildDir}\System.ComponentModel.Annotations.dll"; DestDir: "{app}"; Flags: ignoreversion
 
-; WebView2 native loader (all architectures)
-Source: "{#BuildDir}\runtimes\win-x64\native\*"; DestDir: "{app}\runtimes\win-x64\native"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "{#BuildDir}\runtimes\win-x86\native\*"; DestDir: "{app}\runtimes\win-x86\native"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "{#BuildDir}\runtimes\win-arm64\native\*"; DestDir: "{app}\runtimes\win-arm64\native"; Flags: ignoreversion recursesubdirs createallsubdirs
-
-; UI web assets
-Source: "{#BuildDir}\ui\*"; DestDir: "{app}\ui"; Flags: ignoreversion recursesubdirs createallsubdirs
+; UI web assets (Web SCADA)
+Source: "DACDT_2026\index.html"; DestDir: "{app}\ui"; Flags: ignoreversion
+Source: "DACDT_2026\error_codes.js"; DestDir: "{app}\ui"; Flags: ignoreversion
+Source: "DACDT_2026\error_codes.json"; DestDir: "{app}\ui"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
@@ -80,16 +75,6 @@ begin
   end;
 end;
 
-// Check if WebView2 Runtime is installed
-function IsWebView2Installed(): Boolean;
-var
-  version: String;
-begin
-  Result := RegQueryStringValue(HKLM, 'SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}', 'pv', version)
-         or RegQueryStringValue(HKLM, 'SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}', 'pv', version)
-         or RegQueryStringValue(HKCU, 'SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}', 'pv', version);
-end;
-
 function InitializeSetup(): Boolean;
 begin
   Result := True;
@@ -102,20 +87,6 @@ begin
            mbError, MB_OK);
     Result := False;
     Exit;
-  end;
-
-  // Check WebView2
-  if not IsWebView2Installed() then
-  begin
-    if MsgBox('Microsoft Edge WebView2 Runtime is required but not installed.' + #13#10#13#10 +
-              'Would you like to continue installation anyway?' + #13#10 +
-              '(You will need to install WebView2 Runtime before running the application.' + #13#10 +
-              'Download: https://go.microsoft.com/fwlink/p/?LinkId=2124703)',
-              mbConfirmation, MB_YESNO) = IDNO then
-    begin
-      Result := False;
-      Exit;
-    end;
   end;
 end;
 
