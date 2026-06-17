@@ -43,6 +43,7 @@ namespace DACDT_2026
         private readonly CadDocumentService cadService = new CadDocumentService();
         private readonly GcodeCoordinateService gcodeCoordinateService = new GcodeCoordinateService();
         private readonly MqttPublishService mqttService = new MqttPublishService();
+        private readonly WebRtcCameraServer webRtcCameraServer;
 
         private readonly List<MonitorRow> monitorRows = new List<MonitorRow>();
         private readonly List<ProcessRow> processRows = new List<ProcessRow>();
@@ -132,6 +133,7 @@ namespace DACDT_2026
             LoadSettingsFromFile();
             ConfigureCommands();
             SyncSettingsToUi();
+            webRtcCameraServer = new WebRtcCameraServer(mqttService);
             mqttService.MessageReceived += MqttService_MessageReceived;
 
             Loaded += async (sender, e) =>
@@ -609,7 +611,8 @@ namespace DACDT_2026
                     "DACDT/machine/coment",
                     "DACDT/machine/request",
                     "DACDT/web/connected",
-                    "DACDT/camera/command");
+                    "DACDT/camera/command",
+                    "DACDT/camera/webrtc/signaling/+/client");
                 Console.WriteLine($"[DEBUG] MQTT connection completed. IsConnected={mqttService.IsConnected}");
             }
             catch (Exception ex)
@@ -624,7 +627,39 @@ namespace DACDT_2026
             if (isClosing)
                 return;
 
+            if (topic.StartsWith("DACDT/camera/webrtc/signaling/", StringComparison.OrdinalIgnoreCase))
+            {
+                _ = HandleSignalingMqttMessageAsync(topic, payload);
+                return;
+            }
+
             _ = HandleMqttCommandAsync(topic, payload);
+        }
+
+        private async Task HandleSignalingMqttMessageAsync(string topic, string payload)
+        {
+            try
+            {
+                var parts = topic.Split('/');
+                if (parts.Length >= 6)
+                {
+                    string clientId = parts[4];
+                    var serializer = new System.Web.Script.Serialization.JavaScriptSerializer();
+                    var dict = serializer.Deserialize<Dictionary<string, object>>(payload);
+                    if (dict != null && dict.TryGetValue("type", out var typeVal) && typeVal != null)
+                    {
+                        string type = typeVal.ToString();
+                        if (webRtcCameraServer != null)
+                        {
+                            await webRtcCameraServer.ProcessSignalingMessageAsync(clientId, type, payload);
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[WebRTC Signaling] Error handling message on topic {topic}: {ex.Message}");
+            }
         }
 
         private async Task HandleMqttCommandAsync(string topic, string payload)

@@ -97,7 +97,7 @@
 
         /* ── GRID ROWS ── */
         #top-row { display: grid; grid-template-columns: repeat(4, 1fr) 200px; gap: var(--panel-gap); flex-shrink: 0; }
-        #middle-row { display: grid; grid-template-columns: minmax(0,1fr) 320px 320px; gap: var(--panel-gap); flex: 1; min-height: 0; }
+        #middle-row { display: grid; grid-template-columns: minmax(0,1.2fr) 320px minmax(0,0.8fr); gap: var(--panel-gap); flex: 1; min-height: 0; }
         @media (max-width: 1200px) { #middle-row { grid-template-columns: 1fr 1fr; } #cad-panel { display: none; } }
         #bottom-row { display: grid; grid-template-columns: 1fr 2fr; gap: var(--panel-gap); height: 200px; flex-shrink: 0; }
 
@@ -694,7 +694,7 @@
                     <div class="active-badge"><span class="dot" id="cam-status-dot"></span><span id="cam-status-text">Recording stopped</span></div>
                 </div>
                 <div class="cam-toolbar">
-                    <span style="font-size: 11px; color: var(--text-bright); padding: 4px 8px; font-weight: 600;">Nguồn: MQTT Stream (DACDT/camera/frame)</span>
+                    <span style="font-size: 11px; color: var(--text-bright); padding: 4px 8px; font-weight: 600;">Nguồn: WebRTC Video Stream</span>
                     <div style="margin-left: auto; display: flex; gap: 6px;">
                         <button class="cam-btn start" onclick="dashboard.publishCommand('STARTRECORD', 'camera')">Bắt đầu quay</button>
                         <button class="cam-btn stop" onclick="dashboard.publishCommand('STOPRECORD', 'camera')">Dừng quay</button>
@@ -705,9 +705,9 @@
                         <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
                             <rect x="2" y="7" width="15" height="10" rx="1"/><path d="M17 9l5-2v10l-5-2"/>
                         </svg>
-                        <span>Đang chờ khung hình MQTT...</span>
+                        <span id="cam-loading-text">Đang chờ camera hoạt động...</span>
                     </div>
-                    <img id="cam-img" style="display:none;width:100%;height:100%;object-fit:contain;" />
+                    <video id="cam-video" autoplay playsinline style="display:none;width:100%;height:100%;object-fit:contain;"></video>
                 </div>
                 <div class="rec-status" id="rec-status">
                     <span class="dot rec-dot" id="mqtt-cam-dot"></span><span id="rec-label">Chưa nhận được dữ liệu</span>
@@ -774,8 +774,10 @@ class GantrySCADADashboard {
         this.MQTT_PASSWORD = 'trungaN123@';
         this.MQTT_TOPIC_MACHINE_STATE = 'DACDT/machine/state';
         this.MQTT_TOPIC_MONITOR_STATE = 'DACDT/monitor/state';
-        this.MQTT_TOPIC_CAMERA_FRAME  = 'DACDT/camera/frame';
+        this.MQTT_TOPIC_CAMERA_STATUS = 'DACDT/camera/status';
         this.MQTT_TOPIC_CAD_STATE     = 'DACDT/cad/state';
+        this.webrtcClientId = 'web_' + Math.random().toString(36).substr(2, 9);
+        this.peerConnection = null;
         this._cadData = null;
         this._cadDirty = false;
 
@@ -858,10 +860,11 @@ class GantrySCADADashboard {
                     
                     this.client.subscribe(this.MQTT_TOPIC_MACHINE_STATE);
                     this.client.subscribe(this.MQTT_TOPIC_MONITOR_STATE);
-                    this.client.subscribe(this.MQTT_TOPIC_CAMERA_FRAME);
+                    this.client.subscribe(this.MQTT_TOPIC_CAMERA_STATUS);
+                    this.client.subscribe('DACDT/camera/webrtc/signaling/' + this.webrtcClientId + '/server');
                     this.client.subscribe(this.MQTT_TOPIC_CAD_STATE, {
                         onSuccess: () => {
-                            this.addLog('Subscribe: machine, monitor, camera, cad', 'info');
+                            this.addLog('Subscribe: machine, monitor, camera, status, signaling', 'info');
                             this.requestStateSnapshot();
                         }
                     });
@@ -919,8 +922,13 @@ class GantrySCADADashboard {
             const topic = message.destinationName;
             const payload = message.payloadString;
 
-            if (topic === this.MQTT_TOPIC_CAMERA_FRAME) {
-                this.updateCameraFrame(message);
+            if (topic === this.MQTT_TOPIC_CAMERA_STATUS) {
+                this.handleCameraStatus(payload);
+                return;
+            }
+
+            if (topic === `DACDT/camera/webrtc/signaling/${this.webrtcClientId}/server`) {
+                this.handleSignalingMessage(payload);
                 return;
             }
 
@@ -1417,42 +1425,155 @@ class GantrySCADADashboard {
     }
 
     /* ── CAMERA ── */
-    updateCameraFrame(message) {
-        const img = document.getElementById('cam-img');
-        const placeholder = document.getElementById('cam-placeholder');
-        if (img && placeholder) {
-            let srcUrl = '';
-            let isBlob = false;
-            let len = 0;
-
-            if (message && message.payloadBytes && message.payloadBytes.length > 0) {
-                const blob = new Blob([message.payloadBytes], { type: 'image/jpeg' });
-                srcUrl = URL.createObjectURL(blob);
-                isBlob = true;
-                len = message.payloadBytes.length;
-            } else if (message && typeof message.payloadString === 'string') {
-                const base64 = message.payloadString;
-                srcUrl = 'data:image/jpeg;base64,' + base64;
-                len = base64.length * 0.75;
-            }
-
-            if (srcUrl) {
-                const oldUrl = img.src;
-                img.src = srcUrl;
-                img.style.display = 'block';
-                placeholder.style.display = 'none';
-
-                if (isBlob && oldUrl && oldUrl.startsWith('blob:')) {
-                    URL.revokeObjectURL(oldUrl);
-                }
-
-                const lbl = document.getElementById('rec-label');
-                if (lbl) lbl.textContent = 'Đang nhận frame: ' + (len / 1024).toFixed(1) + ' KB';
-            }
+    initWebRTC() {
+        this.addLog('Khởi tạo WebRTC...', 'info');
+        
+        if (this.peerConnection) {
+            try { this.peerConnection.close(); } catch(e) {}
+            this.peerConnection = null;
         }
-        this.setCamStatus(true, 'MQTT Stream active');
-        const dot = document.getElementById('mqtt-cam-dot');
-        if (dot) dot.style.background = 'var(--green)';
+
+        const video = document.getElementById('cam-video');
+        const placeholder = document.getElementById('cam-placeholder');
+        const loadingText = document.getElementById('cam-loading-text');
+
+        if (video) video.style.display = 'none';
+        if (placeholder) {
+            placeholder.style.display = 'flex';
+            if (loadingText) loadingText.textContent = 'Đang kết nối WebRTC...';
+        }
+
+        this.peerConnection = new RTCPeerConnection({
+            iceServers: [
+                { urls: 'stun:stun.l.google.com:19302' }
+            ]
+        });
+
+        this.peerConnection.onicecandidate = (event) => {
+            if (event.candidate) {
+                const payload = JSON.stringify({
+                    type: 'candidate',
+                    candidate: event.candidate.candidate,
+                    sdpMid: event.candidate.sdpMid,
+                    sdpMLineIndex: event.candidate.sdpMLineIndex
+                });
+                const msg = new Paho.MQTT.Message(payload);
+                msg.destinationName = `DACDT/camera/webrtc/signaling/${this.webrtcClientId}/client`;
+                this.client.send(msg);
+            }
+        };
+
+        this.peerConnection.ontrack = (event) => {
+            this.addLog('Nhận luồng video WebRTC', 'info');
+            if (video) {
+                video.srcObject = event.streams[0] || new MediaStream([event.track]);
+                video.style.display = 'block';
+                video.play().catch(err => {
+                    this.addLog('Không thể tự động phát video: ' + err.message, 'warning');
+                });
+            }
+            if (placeholder) placeholder.style.display = 'none';
+            this.setCamStatus(true, 'WebRTC Stream active');
+            
+            const dot = document.getElementById('mqtt-cam-dot');
+            if (dot) dot.style.background = 'var(--green)';
+            const lbl = document.getElementById('rec-label');
+            if (lbl) lbl.textContent = 'WebRTC Connected';
+        };
+
+        this.peerConnection.onconnectionstatechange = () => {
+            const state = this.peerConnection.connectionState;
+            this.addLog(`Trạng thái kết nối WebRTC: ${state}`, 'info');
+            if (state === 'failed' || state === 'disconnected' || state === 'closed') {
+                this.setCamStatus(false, 'Disconnected');
+                const dot = document.getElementById('mqtt-cam-dot');
+                if (dot) dot.style.background = 'var(--muted)';
+                const lbl = document.getElementById('rec-label');
+                if (lbl) lbl.textContent = 'WebRTC Mất kết nối';
+            }
+        };
+
+        this.peerConnection.addTransceiver('video', { direction: 'recvonly' });
+
+        this.peerConnection.createOffer().then(offer => {
+            return this.peerConnection.setLocalDescription(offer).then(() => {
+                const payload = JSON.stringify({
+                    type: 'offer',
+                    sdp: offer.sdp
+                });
+                const msg = new Paho.MQTT.Message(payload);
+                msg.destinationName = `DACDT/camera/webrtc/signaling/${this.webrtcClientId}/client`;
+                this.client.send(msg);
+                this.addLog('Đã gửi SDP Offer qua MQTT', 'info');
+            });
+        }).catch(err => {
+            this.addLog('Lỗi tạo SDP Offer: ' + err.message, 'error');
+        });
+    }
+
+    handleCameraStatus(payload) {
+        try {
+            const status = JSON.parse(payload);
+            const isRunning = status && status.running === true;
+            this.setCamStatus(isRunning, isRunning ? 'Camera running' : 'Camera stopped');
+            
+            const placeholder = document.getElementById('cam-placeholder');
+            const placeholderText = document.getElementById('cam-loading-text');
+            const video = document.getElementById('cam-video');
+            const dot = document.getElementById('cam-status-dot');
+
+            if (!isRunning) {
+                if (video) {
+                    video.style.display = 'none';
+                    try { video.srcObject = null; } catch(e) {}
+                }
+                if (placeholder) {
+                    placeholder.style.display = 'flex';
+                    if (placeholderText) placeholderText.textContent = 'Camera is stopped.';
+                }
+                if (dot) dot.style.background = 'var(--muted)';
+                
+                if (this.peerConnection) {
+                    try { this.peerConnection.close(); } catch(e) {}
+                    this.peerConnection = null;
+                }
+            } else {
+                if (!this.peerConnection || this.peerConnection.connectionState === 'failed' || this.peerConnection.connectionState === 'disconnected') {
+                    this.initWebRTC();
+                }
+            }
+        } catch(e) {
+            this.addLog('Lỗi xử lý camera status: ' + e.message, 'error');
+        }
+    }
+
+    handleSignalingMessage(payload) {
+        try {
+            const msg = JSON.parse(payload);
+            if (!this.peerConnection) return;
+
+            if (msg.type === 'answer') {
+                this.addLog('Nhận SDP Answer từ server', 'info');
+                this.peerConnection.setRemoteDescription(new RTCSessionDescription({
+                    type: 'answer',
+                    sdp: msg.sdp
+                })).catch(err => {
+                    this.addLog('Lỗi setRemoteDescription: ' + err.message, 'error');
+                });
+            } else if (msg.type === 'candidate') {
+                if (msg.candidate) {
+                    this.peerConnection.addIceCandidate(new RTCIceCandidate({
+                        candidate: msg.candidate,
+                        sdpMid: msg.sdpMid,
+                        sdpMLineIndex: msg.sdpMLineIndex
+                    })).catch(err => {
+                        console.warn('Lỗi addIceCandidate: ', err);
+                    });
+                }
+            }
+        } catch(e) {
+            this.addLog('Lỗi xử lý signaling message: ' + e.message, 'error');
+        }
     }
 
     setCamStatus(active, text) {

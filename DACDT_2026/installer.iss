@@ -39,14 +39,8 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 Source: "{#BuildDir}\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#BuildDir}\{#MyAppExeName}.config"; DestDir: "{app}"; Flags: ignoreversion
 
-; All DLLs
-Source: "{#BuildDir}\AForge.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#BuildDir}\AForge.Video.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#BuildDir}\AForge.Video.DirectShow.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#BuildDir}\Gcode.Utils.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#BuildDir}\LibBase.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#BuildDir}\MQTTnet.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#BuildDir}\netDxf.dll"; DestDir: "{app}"; Flags: ignoreversion
+; All DLLs (both managed and native)
+Source: "{#BuildDir}\*.dll"; DestDir: "{app}"; Flags: ignoreversion
 
 ; UI web assets (Web SCADA)
 Source: "DACDT_2026\index.html"; DestDir: "{app}\ui"; Flags: ignoreversion

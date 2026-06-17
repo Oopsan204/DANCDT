@@ -74,6 +74,15 @@
     <Reference Include="MQTTnet, Version=4.3.3.952, Culture=neutral, PublicKeyToken=fdb7629f2e364a63, processorArchitecture=MSIL">
       <HintPath>..\packages\MQTTnet.4.3.3.952\lib\net48\MQTTnet.dll</HintPath>
     </Reference>
+    <Reference Include="SIPSorcery">
+      <HintPath>..\packages\SIPSorcery.10.0.8\lib\net462\SIPSorcery.dll</HintPath>
+    </Reference>
+    <Reference Include="SIPSorceryMedia.Abstractions">
+      <HintPath>..\packages\SIPSorceryMedia.Abstractions.10.0.8\lib\netstandard2.0\SIPSorceryMedia.Abstractions.dll</HintPath>
+    </Reference>
+    <Reference Include="SIPSorceryMedia.Encoders">
+      <HintPath>..\packages\SIPSorceryMedia.Encoders.10.0.4\lib\net461\SIPSorceryMedia.Encoders.dll</HintPath>
+    </Reference>
     <Reference Include="PresentationCore" />
     <Reference Include="PresentationFramework" />
     <Reference Include="System" />
@@ -123,6 +132,7 @@
     </Compile>
     <Compile Include="HoldCommandRouter.cs" />
     <Compile Include="ErrorCodeRegistry.cs" />
+    <Compile Include="WebRtcCameraServer.cs" />
     <Compile Include="PLCCommunication.cs" />
     <Compile Include="QD75BufferWriter.cs" />
     <Compile Include="QD75RingBufferRunner.cs" />
@@ -202,4 +212,5 @@
   <ItemGroup>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <Import Project="..\packages\SIPSorceryMedia.Encoders.10.0.4\build\SIPSorceryMedia.Encoders.targets" Condition="Exists('..\packages\SIPSorceryMedia.Encoders.10.0.4\build\SIPSorceryMedia.Encoders.targets')" />
 </Project>

@@ -98,6 +98,8 @@ namespace DACDT_2026
                         cameraSource = new VideoCaptureDevice(ui.SelectedCameraMoniker);
                         cameraSource.NewFrame += CameraSource_NewFrame;
                         cameraSource.Start();
+                        webRtcCameraServer.Start();
+                        _ = mqttService.PublishAsync("DACDT/camera/status", "{\"running\":true}", true);
 
                         ui.IsCameraRunning = true;
                         ui.CameraStatus = "Camera started.";
@@ -133,6 +135,8 @@ namespace DACDT_2026
                             cameraSource.NewFrame -= CameraSource_NewFrame;
                             cameraSource = null;
                         }
+                        webRtcCameraServer.Stop();
+                        _ = mqttService.PublishAsync("DACDT/camera/status", "{\"running\":false}", true);
 
                         ui.IsCameraRunning = false;
                         ui.CameraStatus = "Camera stopped.";
@@ -176,6 +180,8 @@ namespace DACDT_2026
                         try { cameraSource.NewFrame -= CameraSource_NewFrame; } catch { }
                         cameraSource = null;
                     }
+                    try { webRtcCameraServer.Stop(); } catch { }
+                    _ = mqttService.PublishAsync("DACDT/camera/status", "{\"running\":false}", true);
 
                     ui.IsCameraRunning = false;
                     recordedFrameCount = 0;
@@ -288,8 +294,6 @@ namespace DACDT_2026
                 {
                     using (var bitmap = (Bitmap)eventArgs.Frame.Clone())
                     {
-                        Bitmap mqttBitmap = null;
-
                         // Store frame to memory if recording
                         if (ui.IsCameraRecording && recordedFrames != null)
                         {
@@ -302,8 +306,23 @@ namespace DACDT_2026
                             catch { }
                         }
 
-                        if (ShouldPublishCameraFrameToMqtt(DateTime.UtcNow))
-                            mqttBitmap = (Bitmap)bitmap.Clone();
+                        // Stream via WebRTC
+                        if (webRtcCameraServer != null && webRtcCameraServer.IsRunning)
+                        {
+                            var webrtcBitmap = (Bitmap)bitmap.Clone();
+                            _ = Task.Run(() =>
+                            {
+                                try
+                                {
+                                    webRtcCameraServer.SendFrame(webrtcBitmap);
+                                }
+                                catch { }
+                                finally
+                                {
+                                    try { webrtcBitmap.Dispose(); } catch { }
+                                }
+                            });
+                        }
 
                         // Convert bitmap to BitmapImage for UI display
                         var bitmapImage = new BitmapImage();
@@ -320,9 +339,6 @@ namespace DACDT_2026
                         {
                             ui.CameraFrame = bitmapImage;
                         }));
-
-                        if (mqttBitmap != null)
-                            _ = Task.Run(() => PublishCameraBitmapToMqttAsync(mqttBitmap));
                     }
                 }
             }
