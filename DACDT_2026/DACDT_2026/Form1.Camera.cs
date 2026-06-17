@@ -112,7 +112,7 @@ namespace DACDT_2026
                         cameraSource = new VideoCaptureDevice(ui.SelectedCameraMoniker);
                         cameraSource.NewFrame += CameraSource_NewFrame;
                         cameraSource.Start();
-                        // webRtcCameraServer.Start();
+                        webRtcCameraServer.Start();
                         _ = mqttService.PublishAsync("DACDT/camera/status", "{\"running\":true}", true);
 
                         ui.IsCameraRunning = true;
@@ -151,7 +151,7 @@ namespace DACDT_2026
                             cameraSource.NewFrame -= CameraSource_NewFrame;
                             cameraSource = null;
                         }
-                        // webRtcCameraServer.Stop();
+                        webRtcCameraServer.Stop();
                         _ = mqttService.PublishAsync("DACDT/camera/status", "{\"running\":false}", true);
 
                         ui.IsCameraRunning = false;
@@ -196,7 +196,7 @@ namespace DACDT_2026
                         try { cameraSource.NewFrame -= CameraSource_NewFrame; } catch { }
                         cameraSource = null;
                     }
-                    // try { webRtcCameraServer.Stop(); } catch { }
+                    try { webRtcCameraServer.Stop(); } catch { }
                     _ = mqttService.PublishAsync("DACDT/camera/status", "{\"running\":false}", true);
 
                     ui.IsCameraRunning = false;
@@ -331,6 +331,17 @@ namespace DACDT_2026
                         if (mqttBitmap != null)
                         {
                             _ = Task.Run(() => PublishCameraBitmapToMqttAsync(mqttBitmap));
+                        }
+
+                        // Feed frame to WebRTC server for browser streaming
+                        if (webRtcCameraServer != null && webRtcCameraServer.IsRunning)
+                        {
+                            var webRtcBitmap = (Bitmap)bitmap.Clone();
+                            _ = Task.Run(() =>
+                            {
+                                try { webRtcCameraServer.SendFrame(webRtcBitmap); }
+                                finally { webRtcBitmap.Dispose(); }
+                            });
                         }
 
                         // Convert bitmap to BitmapImage for UI display
