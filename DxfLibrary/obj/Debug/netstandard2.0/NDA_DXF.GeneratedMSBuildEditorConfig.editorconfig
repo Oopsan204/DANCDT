@@ -1,6 +1,6 @@
 is_global = true
 build_property.RootNamespace = NDA_DXF
-build_property.ProjectDir = D:\DACDT_2026\DANCDT\DxfLibrary\
+build_property.ProjectDir = E:\D\DANCDT1\DxfLibrary\
 build_property.EnableComHosting = 
 build_property.EnableGeneratedComInterfaceComImportInterop = 
 build_property.CsWinRTUseWindowsUIXamlProjections = false

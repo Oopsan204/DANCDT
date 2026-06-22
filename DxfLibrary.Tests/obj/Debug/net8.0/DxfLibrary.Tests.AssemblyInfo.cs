@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("DxfLibrary.Tests")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+6189b2ecc16ad11d2464c50f828f277189690948")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+42f47e79eeb6dcea204c4ccdb7811912126d663b")]
 [assembly: System.Reflection.AssemblyProductAttribute("DxfLibrary.Tests")]
 [assembly: System.Reflection.AssemblyTitleAttribute("DxfLibrary.Tests")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
