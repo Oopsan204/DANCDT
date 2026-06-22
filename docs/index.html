@@ -2270,6 +2270,17 @@
                 if (!this.peerConnection) return;
                 if (!candidateInit || !candidateInit.candidate) return;
 
+                // Filter out mDNS (.local) and host candidates that won't work on external networks
+                const candStr = candidateInit.candidate;
+                if (candStr.indexOf('.local') !== -1) {
+                    // mDNS candidates are only resolvable on the same LAN - skip silently
+                    return;
+                }
+                // Filter host candidates (typ host) - they use local IPs unreachable from outside
+                if (/\styp\s+host\s/.test(candStr)) {
+                    return;
+                }
+
                 const candidateKey = [
                     candidateInit.candidate,
                     candidateInit.sdpMid == null ? '' : candidateInit.sdpMid,
@@ -2295,6 +2306,8 @@
                 }
 
                 this.appliedRemoteCandidateKeys.add(candidateKey);
+                const candType = candStr.match(/typ\s+(\w+)/) ? candStr.match(/typ\s+(\w+)/)[1] : 'unknown';
+                this.addLog('Them ICE candidate loai: ' + candType, 'info');
                 this.peerConnection.addIceCandidate(new RTCIceCandidate(candidateInit)).catch(err => {
                     const state = this.peerConnection ? this.peerConnection.connectionState : 'closed';
                     const label = buffered ? 'buffered' : 'live';
