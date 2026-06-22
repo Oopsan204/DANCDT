@@ -2323,7 +2323,23 @@
                 this.peerConnection = new RTCPeerConnection({
                     iceServers: [
                         { urls: 'stun:stun.l.google.com:19302' },
-                        { urls: 'stun:global.stun.twilio.com:3478' }
+                        { urls: 'stun:global.stun.twilio.com:3478' },
+                        { urls: 'stun:openrelay.metered.ca:80' },
+                        {
+                            urls: 'turn:openrelay.metered.ca:80',
+                            username: 'openrelayproject',
+                            credential: 'openrelayproject'
+                        },
+                        {
+                            urls: 'turn:openrelay.metered.ca:443',
+                            username: 'openrelayproject',
+                            credential: 'openrelayproject'
+                        },
+                        {
+                            urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+                            username: 'openrelayproject',
+                            credential: 'openrelayproject'
+                        }
                     ]
                 });
 
@@ -2487,11 +2503,19 @@
                         });
                     } else if (msg.type === 'candidate') {
                         if (msg.candidate) {
+                            let candStr = msg.candidate;
+                            if (candStr.startsWith('a=')) {
+                                candStr = candStr.substring(2);
+                            }
                             const candidateInit = {
-                                candidate: msg.candidate,
-                                sdpMid: msg.sdpMid,
-                                sdpMLineIndex: msg.sdpMLineIndex
+                                candidate: candStr
                             };
+                            if (msg.sdpMid !== undefined && msg.sdpMid !== null && msg.sdpMid !== "") {
+                                candidateInit.sdpMid = msg.sdpMid;
+                            }
+                            if (msg.sdpMLineIndex !== undefined && msg.sdpMLineIndex !== null) {
+                                candidateInit.sdpMLineIndex = Number(msg.sdpMLineIndex);
+                            }
                             this.addRemoteIceCandidate(candidateInit);
                             return;
                         }
