@@ -176,6 +176,7 @@ namespace DACDT_2026
                     {
                         if (candidate != null)
                         {
+                            Log($"ICE candidate generated for {clientId}: type={candidate.type}, candidate={candidate.candidate}, sdpMid={candidate.sdpMid}, sdpMLineIndex={candidate.sdpMLineIndex}");
                             var candidateMsg = new
                             {
                                 type = "candidate",
@@ -186,6 +187,12 @@ namespace DACDT_2026
                             string candPayload = _serializer.Serialize(candidateMsg);
                             _ = _mqttService.PublishAsync($"DACDT/camera/webrtc/signaling/{clientId}/server", candPayload);
                         }
+                    };
+
+                    // Log ICE gathering state changes
+                    pc.onicegatheringstatechange += (gatherState) =>
+                    {
+                        Log($"Client {clientId} ICE gathering state: {gatherState}");
                     };
 
                     // Set up connection state change handling

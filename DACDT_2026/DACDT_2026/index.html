@@ -2352,6 +2352,10 @@
 
                 this.peerConnection.onicecandidate = (event) => {
                     if (event.candidate) {
+                        const c = event.candidate;
+                        const typeMatch = c.candidate.match(/typ\s+(\w+)/);
+                        const candType = typeMatch ? typeMatch[1] : 'unknown';
+                        this.addLog('CLIENT ICE candidate: type=' + candType + ' ' + c.candidate.substring(0, 120), 'info');
                         const payload = JSON.stringify({
                             type: 'candidate',
                             candidate: event.candidate.candidate,
@@ -2361,7 +2365,13 @@
                         const msg = new Paho.MQTT.Message(payload);
                         msg.destinationName = `DACDT/camera/webrtc/signaling/${this.webrtcClientId}/client`;
                         this.client.send(msg);
+                    } else {
+                        this.addLog('CLIENT ICE gathering complete (null candidate)', 'info');
                     }
+                };
+
+                this.peerConnection.onicegatheringstatechange = () => {
+                    this.addLog('CLIENT ICE gathering state: ' + this.peerConnection.iceGatheringState, 'info');
                 };
 
                 this.peerConnection.ontrack = (event) => {
@@ -2510,19 +2520,29 @@
                         });
                     } else if (msg.type === 'candidate') {
                         if (msg.candidate) {
+                            this.addLog('RAW candidate from server: ' + msg.candidate, 'info');
+                            this.addLog('RAW sdpMid=' + msg.sdpMid + ' sdpMLineIndex=' + msg.sdpMLineIndex, 'info');
                             let candStr = msg.candidate;
                             if (candStr.startsWith('a=')) {
                                 candStr = candStr.substring(2);
                             }
+                            // Ensure candidate starts with 'candidate:' as browsers require
+                            if (!candStr.startsWith('candidate:')) {
+                                candStr = 'candidate:' + candStr;
+                            }
                             const candidateInit = {
-                                candidate: candStr
+                                candidate: candStr,
+                                sdpMLineIndex: 0
                             };
                             if (msg.sdpMid !== undefined && msg.sdpMid !== null && msg.sdpMid !== "") {
-                                candidateInit.sdpMid = msg.sdpMid;
+                                candidateInit.sdpMid = String(msg.sdpMid);
+                            } else {
+                                candidateInit.sdpMid = '0';
                             }
                             if (msg.sdpMLineIndex !== undefined && msg.sdpMLineIndex !== null) {
                                 candidateInit.sdpMLineIndex = Number(msg.sdpMLineIndex);
                             }
+                            this.addLog('Parsed candidateInit: ' + JSON.stringify(candidateInit).substring(0, 200), 'info');
                             this.addRemoteIceCandidate(candidateInit);
                             return;
                         }
