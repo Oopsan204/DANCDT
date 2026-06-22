@@ -20,6 +20,15 @@ namespace WebRtcCameraService
         {
             Console.WriteLine("Starting WebRTC Camera Background Service (x64)...");
 
+            bool createdNew;
+            var instanceMutex = new Mutex(true, @"Local\DACDT_2026_WebRtcCameraService", out createdNew);
+            if (!createdNew)
+            {
+                Console.WriteLine("WebRTC Camera Background Service is already running.");
+                instanceMutex.Dispose();
+                return;
+            }
+
             // Connect to HiveMQ MQTT broker for signaling
             mqttService = new MqttPublishService();
             webRtcCameraServer = new WebRtcCameraServer(mqttService);

@@ -856,6 +856,13 @@ namespace DACDT_2026
         {
             try
             {
+                if (IsWebRtcBridgeListening())
+                {
+                    System.IO.File.AppendAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "crash_log.txt"),
+                        "[" + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff") + "] [Lifecycle] Reusing existing WebRTC background service.\r\n");
+                    return;
+                }
+
                 string serviceExe = FindBackgroundVideoServiceExecutable();
 
                 if (!string.IsNullOrEmpty(serviceExe))
@@ -882,6 +889,21 @@ namespace DACDT_2026
             {
                 System.IO.File.AppendAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "crash_log.txt"), 
                     "[" + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff") + "] [Lifecycle] Error starting service: " + ex.Message + "\r\n");
+            }
+        }
+
+        private static bool IsWebRtcBridgeListening()
+        {
+            try
+            {
+                return System.Net.NetworkInformation.IPGlobalProperties
+                    .GetIPGlobalProperties()
+                    .GetActiveTcpListeners()
+                    .Any(endpoint => endpoint.Port == 5080 && System.Net.IPAddress.IsLoopback(endpoint.Address));
+            }
+            catch
+            {
+                return false;
             }
         }
 
@@ -923,6 +945,10 @@ namespace DACDT_2026
         {
             try
             {
+                // Another dashboard can still be using the shared WebRTC service.
+                if (System.Diagnostics.Process.GetProcessesByName(System.Diagnostics.Process.GetCurrentProcess().ProcessName).Length > 1)
+                    return;
+
                 if (backgroundServiceProcess != null && !backgroundServiceProcess.HasExited)
                 {
                     backgroundServiceProcess.Kill();
