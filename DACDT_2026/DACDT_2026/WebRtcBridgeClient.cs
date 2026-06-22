@@ -8,6 +8,7 @@ namespace DACDT_2026
         private TcpClient _client;
         private NetworkStream _stream;
         private readonly object _lock = new object();
+        private const int ConnectTimeoutMs = 500;
 
         public void Connect()
         {
@@ -18,7 +19,16 @@ namespace DACDT_2026
                 {
                     _client = new TcpClient();
                     _client.SendTimeout = 2000;
-                    _client.Connect("127.0.0.1", 5080);
+                    _client.ReceiveTimeout = 2000;
+
+                    IAsyncResult result = _client.BeginConnect("127.0.0.1", 5080, null, null);
+                    if (!result.AsyncWaitHandle.WaitOne(ConnectTimeoutMs))
+                    {
+                        Disconnect();
+                        return;
+                    }
+
+                    _client.EndConnect(result);
                     _stream = _client.GetStream();
                 }
                 catch

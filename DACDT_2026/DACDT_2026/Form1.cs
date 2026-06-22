@@ -858,8 +858,7 @@ namespace DACDT_2026
             {
                 if (IsWebRtcBridgeListening())
                 {
-                    System.IO.File.AppendAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "crash_log.txt"),
-                        "[" + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff") + "] [Lifecycle] Reusing existing WebRTC background service.\r\n");
+                    LogLifecycle("Reusing existing WebRTC background service.");
                     return;
                 }
 
@@ -876,20 +875,52 @@ namespace DACDT_2026
                         WorkingDirectory = System.IO.Path.GetDirectoryName(serviceExe)
                     };
                     backgroundServiceProcess = System.Diagnostics.Process.Start(psi);
-                    System.IO.File.AppendAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "crash_log.txt"), 
-                        "[" + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff") + "] [Lifecycle] Started background service: " + serviceExe + "\r\n");
+                    LogLifecycle("Started background service: " + serviceExe);
+
+                    if (!WaitForWebRtcBridge(TimeSpan.FromSeconds(5)))
+                    {
+                        LogLifecycle("WebRTC background service did not open 127.0.0.1:5080 within 5 seconds.");
+                        ui.CameraStatus = "WebRTC service is not ready. Build/run WebRtcCameraService.";
+                    }
                 }
                 else
                 {
-                    System.IO.File.AppendAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "crash_log.txt"), 
-                        "[" + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff") + "] [Lifecycle] Background service executable not found!\r\n");
+                    LogLifecycle("Background service executable not found. Build the solution so WebRtcCameraService.exe is copied beside DACDT_2026.exe.");
+                    ui.CameraStatus = "WebRTC service executable not found.";
                 }
             }
             catch (Exception ex)
             {
-                System.IO.File.AppendAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "crash_log.txt"), 
-                    "[" + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff") + "] [Lifecycle] Error starting service: " + ex.Message + "\r\n");
+                LogLifecycle("Error starting service: " + ex.Message);
+                ui.CameraStatus = "Error starting WebRTC service: " + ex.Message;
             }
+        }
+
+        private static void LogLifecycle(string message)
+        {
+            try
+            {
+                System.IO.File.AppendAllText(
+                    System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "crash_log.txt"),
+                    "[" + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff") + "] [Lifecycle] " + message + "\r\n");
+            }
+            catch
+            {
+            }
+        }
+
+        private static bool WaitForWebRtcBridge(TimeSpan timeout)
+        {
+            var deadline = DateTime.UtcNow + timeout;
+            while (DateTime.UtcNow < deadline)
+            {
+                if (IsWebRtcBridgeListening())
+                    return true;
+
+                System.Threading.Thread.Sleep(100);
+            }
+
+            return IsWebRtcBridgeListening();
         }
 
         private static bool IsWebRtcBridgeListening()
@@ -933,6 +964,23 @@ namespace DACDT_2026
 
                     if (System.IO.File.Exists(candidate))
                         return candidate;
+                }
+
+                foreach (string platform in new[] { "x64", "Any CPU", "AnyCPU" })
+                {
+                    foreach (string configuration in new[] { "Debug", "Release" })
+                    {
+                        string candidate = System.IO.Path.Combine(
+                            directory.FullName,
+                            "WebRtcCameraService",
+                            "bin",
+                            platform,
+                            configuration,
+                            serviceFileName);
+
+                        if (System.IO.File.Exists(candidate))
+                            return candidate;
+                    }
                 }
 
                 directory = directory.Parent;
