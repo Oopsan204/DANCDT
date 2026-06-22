@@ -151,21 +151,15 @@ namespace DACDT_2026
                             new RTCIceServer { urls = "stun:stun.cloudflare.com:3478" },
                             new RTCIceServer
                             {
-                                urls = "turn:openrelay.metered.ca:80",
-                                username = "openrelayproject",
-                                credential = "openrelayproject"
+                                urls = "turn:free.expressturn.com:3478",
+                                username = "000000002097516783",
+                                credential = "RqnWXzfkmJ+Zu0ymmKTGk2SEBFY="
                             },
                             new RTCIceServer
                             {
-                                urls = "turn:openrelay.metered.ca:443",
-                                username = "openrelayproject",
-                                credential = "openrelayproject"
-                            },
-                            new RTCIceServer
-                            {
-                                urls = "turn:openrelay.metered.ca:443?transport=tcp",
-                                username = "openrelayproject",
-                                credential = "openrelayproject"
+                                urls = "turn:free.expressturn.com:3478?transport=tcp",
+                                username = "000000002097516783",
+                                credential = "RqnWXzfkmJ+Zu0ymmKTGk2SEBFY="
                             }
                         }
                     };
