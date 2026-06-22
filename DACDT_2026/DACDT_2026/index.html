@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+�<!DOCTYPE html>
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
@@ -168,7 +168,7 @@
         .cam-btn.stoprec { background: var(--bg4); border: 1px solid var(--border); color: var(--text-bright); }
         .cam-view { flex: 1; background: #000; position: relative; overflow: hidden; }
         .cam-view img, .cam-view video { width: 100%; height: 100%; object-fit: cover; }
-        .cam-placeholder { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 12px; flex-direction: column; gap: 8px; }
+        .cam-placeholder { position: absolute; inset: 0; z-index: 2; background: rgba(0,0,0,0.72); display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 12px; flex-direction: column; gap: 8px; text-align: center; padding: 12px; }
         .cam-placeholder svg { opacity: 0.3; }
         .rec-status { display: flex; align-items: center; gap: 6px; font-size: 10px; color: var(--muted); padding: 5px 10px; background: var(--bg2); border-top: 1px solid var(--border); flex-shrink: 0; }
         .rec-status .dot.rec-dot { background: var(--muted); }
@@ -695,7 +695,9 @@
                 </div>
                 <div class="cam-toolbar">
                     <span style="font-size: 11px; color: var(--text-bright); padding: 4px 8px; font-weight: 600;">Nguồn: WebRTC Video Stream</span>
-                    <div style="margin-left: auto; display: flex; gap: 6px;">
+                    <div style="margin-left: auto; display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end;">
+                        <button class="cam-btn start" onclick="dashboard.requestStartCameraStream()">Bat stream</button>
+                        <button class="cam-btn stop" onclick="dashboard.requestStopCameraStream()">Dung WebRTC</button>
                         <button class="cam-btn start" onclick="dashboard.publishCommand('STARTRECORD', 'camera')">Bắt đầu quay</button>
                         <button class="cam-btn stop" onclick="dashboard.publishCommand('STOPRECORD', 'camera')">Dừng quay</button>
                     </div>
@@ -707,7 +709,7 @@
                         </svg>
                         <span id="cam-loading-text">Đang chờ camera hoạt động...</span>
                     </div>
-                    <video id="cam-video" autoplay playsinline style="display:none;width:100%;height:100%;object-fit:contain;"></video>
+                    <video id="cam-video" autoplay muted playsinline style="display:none;width:100%;height:100%;object-fit:contain;"></video>
                 </div>
                 <div class="rec-status" id="rec-status">
                     <span class="dot rec-dot" id="mqtt-cam-dot"></span><span id="rec-label">Chưa nhận được dữ liệu</span>
@@ -775,9 +777,15 @@ class GantrySCADADashboard {
         this.MQTT_TOPIC_MACHINE_STATE = 'DACDT/machine/state';
         this.MQTT_TOPIC_MONITOR_STATE = 'DACDT/monitor/state';
         this.MQTT_TOPIC_CAMERA_STATUS = 'DACDT/camera/status';
+        this.MQTT_TOPIC_WEBRTC_STATUS = 'DACDT/camera/webrtc/status';
         this.MQTT_TOPIC_CAD_STATE     = 'DACDT/cad/state';
         this.webrtcClientId = 'web_' + Math.random().toString(36).substr(2, 9);
         this.peerConnection = null;
+        this.pendingRemoteCandidates = [];
+        this.appliedRemoteCandidateKeys = new Set();
+        this.isCameraStartRequested = false;
+        this.hasWebRtcTrack = false;
+        this.hasVideoFrame = false;
         this._cadData = null;
         this._cadDirty = false;
 
@@ -861,6 +869,7 @@ class GantrySCADADashboard {
                     this.client.subscribe(this.MQTT_TOPIC_MACHINE_STATE);
                     this.client.subscribe(this.MQTT_TOPIC_MONITOR_STATE);
                     this.client.subscribe(this.MQTT_TOPIC_CAMERA_STATUS);
+                    this.client.subscribe(this.MQTT_TOPIC_WEBRTC_STATUS);
                     this.client.subscribe('DACDT/camera/webrtc/signaling/' + this.webrtcClientId + '/server');
                     this.client.subscribe(this.MQTT_TOPIC_CAD_STATE, {
                         onSuccess: () => {
@@ -917,6 +926,33 @@ class GantrySCADADashboard {
         this.addLog(`Gửi lệnh [${cmd}] tới ${target}`, 'info');
     }
 
+    requestStartCameraStream() {
+        this.isCameraStartRequested = true;
+        const placeholder = document.getElementById('cam-placeholder');
+        const loadingText = document.getElementById('cam-loading-text');
+        if (placeholder) placeholder.style.display = 'flex';
+        if (loadingText) loadingText.textContent = 'Dang yeu cau bat camera...';
+        this.setCamStatus(false, 'Waiting for camera start');
+        this.publishCommand('START', 'camera');
+    }
+
+    requestStopCameraStream() {
+        this.isCameraStartRequested = false;
+        this.sendWebRtcBye();
+        this.closeWebRTC();
+        this.setCameraStreamHint('Da dung ket noi WebRTC. Camera tren ung dung dieu khien van giu nguyen.');
+        this.setCamStatus(false, 'WebRTC stopped');
+    }
+
+    sendWebRtcBye() {
+        if (!this.isConnected || !this.client) return;
+        const payload = JSON.stringify({ type: 'bye' });
+        const msg = new Paho.MQTT.Message(payload);
+        msg.destinationName = `DACDT/camera/webrtc/signaling/${this.webrtcClientId}/client`;
+        this.client.send(msg);
+        this.addLog('Da dung phien WebRTC tren web', 'info');
+    }
+
     handleMessage(message) {
         try {
             const topic = message.destinationName;
@@ -924,6 +960,11 @@ class GantrySCADADashboard {
 
             if (topic === this.MQTT_TOPIC_CAMERA_STATUS) {
                 this.handleCameraStatus(payload);
+                return;
+            }
+
+            if (topic === this.MQTT_TOPIC_WEBRTC_STATUS) {
+                this.handleWebRtcStatus(payload);
                 return;
             }
 
@@ -1420,18 +1461,114 @@ class GantrySCADADashboard {
         return {
             x,
             y,
-            label: idx != null ? `P${idx}` : 'Active'
+            label: idx != null ? 'P' + idx : 'Active'
         };
+    }
+
+    setCameraStreamHint(text) {
+        const placeholder = document.getElementById('cam-placeholder');
+        const loadingText = document.getElementById('cam-loading-text');
+        if (placeholder) placeholder.style.display = 'flex';
+        if (loadingText) loadingText.textContent = text;
+    }
+
+    markVideoFrameReceived(video, placeholder) {
+        this.hasVideoFrame = true;
+        if (placeholder) placeholder.style.display = 'none';
+        if (video) video.style.display = 'block';
+        this.setCamStatus(true, 'WebRTC video active');
+
+        const dot = document.getElementById('mqtt-cam-dot');
+        if (dot) dot.style.background = 'var(--green)';
+        const lbl = document.getElementById('rec-label');
+        if (lbl) lbl.textContent = 'WebRTC Video Active';
+    }
+
+    closeWebRTC() {
+        this.pendingRemoteCandidates = [];
+        this.appliedRemoteCandidateKeys.clear();
+        this.hasWebRtcTrack = false;
+        this.hasVideoFrame = false;
+        if (this.peerConnection) {
+            try { this.peerConnection.onicecandidate = null; } catch (e) {}
+            try { this.peerConnection.ontrack = null; } catch (e) {}
+            try { this.peerConnection.onconnectionstatechange = null; } catch (e) {}
+            try { this.peerConnection.close(); } catch (e) {}
+            this.peerConnection = null;
+        }
+
+        const video = document.getElementById('cam-video');
+        if (video) {
+            video.onloadeddata = null;
+            video.onplaying = null;
+            try { video.srcObject = null; } catch (e) {}
+            video.style.display = 'none';
+        }
+
+        const placeholder = document.getElementById('cam-placeholder');
+        if (placeholder) placeholder.style.display = 'flex';
+        if (this.isCameraStartRequested) {
+            this.setCameraStreamHint('Dang cho camera va WebRTC...');
+        } else {
+            this.setCameraStreamHint('Dang cho camera hoat dong...');
+        }
+        this.setCamStatus(false, 'Waiting');
+    }
+
+    flushPendingRemoteCandidates() {
+        if (!this.peerConnection || !this.peerConnection.remoteDescription || !this.pendingRemoteCandidates.length) {
+            return;
+        }
+
+        const queue = this.pendingRemoteCandidates.slice();
+        this.pendingRemoteCandidates.length = 0;
+        for (const candidate of queue) {
+            this.addRemoteIceCandidate(candidate, true);
+        }
+    }
+
+    addRemoteIceCandidate(candidateInit, buffered = false) {
+        if (!this.peerConnection) return;
+        if (!candidateInit || !candidateInit.candidate) return;
+
+        const candidateKey = [
+            candidateInit.candidate,
+            candidateInit.sdpMid == null ? '' : candidateInit.sdpMid,
+            candidateInit.sdpMLineIndex == null ? '' : candidateInit.sdpMLineIndex
+        ].join('|');
+        if (this.appliedRemoteCandidateKeys.has(candidateKey)) {
+            return;
+        }
+
+        if (!this.peerConnection.remoteDescription) {
+            const alreadyPending = this.pendingRemoteCandidates.some(candidate => {
+                return [
+                    candidate.candidate,
+                    candidate.sdpMid == null ? '' : candidate.sdpMid,
+                    candidate.sdpMLineIndex == null ? '' : candidate.sdpMLineIndex
+                ].join('|') === candidateKey;
+            });
+            if (alreadyPending) return;
+
+            this.pendingRemoteCandidates.push(candidateInit);
+            this.addLog('ICE candidate dang cho SDP answer', 'info');
+            return;
+        }
+
+        this.appliedRemoteCandidateKeys.add(candidateKey);
+        this.peerConnection.addIceCandidate(new RTCIceCandidate(candidateInit)).catch(err => {
+            const state = this.peerConnection ? this.peerConnection.connectionState : 'closed';
+            const label = buffered ? 'buffered' : 'live';
+            const level = state === 'failed' ? 'warning' : 'info';
+            this.addLog('Bo qua ICE candidate ' + label + ': ' + err.message, level);
+        });
     }
 
     /* ── CAMERA ── */
     initWebRTC() {
         this.addLog('Khởi tạo WebRTC...', 'info');
         
-        if (this.peerConnection) {
-            try { this.peerConnection.close(); } catch(e) {}
-            this.peerConnection = null;
-        }
+        this.closeWebRTC();
 
         const video = document.getElementById('cam-video');
         const placeholder = document.getElementById('cam-placeholder');
@@ -1442,10 +1579,12 @@ class GantrySCADADashboard {
             placeholder.style.display = 'flex';
             if (loadingText) loadingText.textContent = 'Đang kết nối WebRTC...';
         }
+        this.setCamStatus(false, 'Waiting for SDP offer / answer');
 
         this.peerConnection = new RTCPeerConnection({
             iceServers: [
-                { urls: 'stun:stun.l.google.com:19302' }
+                { urls: 'stun:stun.l.google.com:19302' },
+                { urls: 'stun:global.stun.twilio.com:3478' }
             ]
         });
 
@@ -1464,21 +1603,28 @@ class GantrySCADADashboard {
         };
 
         this.peerConnection.ontrack = (event) => {
-            this.addLog('Nhận luồng video WebRTC', 'info');
+            this.addLog('Nhan duong video WebRTC', 'info');
+            this.hasWebRtcTrack = true;
+            this.hasVideoFrame = false;
             if (video) {
+                video.muted = true;
+                video.autoplay = true;
+                video.playsInline = true;
+                video.onloadeddata = () => this.markVideoFrameReceived(video, placeholder);
+                video.onplaying = () => this.markVideoFrameReceived(video, placeholder);
                 video.srcObject = event.streams[0] || new MediaStream([event.track]);
                 video.style.display = 'block';
                 video.play().catch(err => {
-                    this.addLog('Không thể tự động phát video: ' + err.message, 'warning');
+                    this.addLog('Khong the tu dong phat video: ' + err.message, 'warning');
                 });
             }
-            if (placeholder) placeholder.style.display = 'none';
-            this.setCamStatus(true, 'WebRTC Stream active');
-            
+            this.setCameraStreamHint('Da nhan duong video. Dang cho frame dau tien tu encoder...');
+            this.setCamStatus(false, 'Waiting for first video frame');
+
             const dot = document.getElementById('mqtt-cam-dot');
-            if (dot) dot.style.background = 'var(--green)';
+            if (dot) dot.style.background = 'var(--orange)';
             const lbl = document.getElementById('rec-label');
-            if (lbl) lbl.textContent = 'WebRTC Connected';
+            if (lbl) lbl.textContent = 'WebRTC connected, waiting frame';
         };
 
         this.peerConnection.onconnectionstatechange = () => {
@@ -1515,7 +1661,10 @@ class GantrySCADADashboard {
         try {
             const status = JSON.parse(payload);
             const isRunning = status && status.running === true;
-            this.setCamStatus(isRunning, isRunning ? 'Camera running' : 'Camera stopped');
+            const state = status && status.state ? String(status.state) : '';
+            const detail = status && status.message ? String(status.message) : '';
+            const statusText = detail || state || (isRunning ? 'Camera running' : 'Camera stopped');
+            this.setCamStatus(isRunning, statusText);
             
             const placeholder = document.getElementById('cam-placeholder');
             const placeholderText = document.getElementById('cam-loading-text');
@@ -1529,21 +1678,52 @@ class GantrySCADADashboard {
                 }
                 if (placeholder) {
                     placeholder.style.display = 'flex';
-                    if (placeholderText) placeholderText.textContent = 'Camera is stopped.';
+                    if (placeholderText) placeholderText.textContent = 'Camera is stopped. Waiting for control app.';
                 }
                 if (dot) dot.style.background = 'var(--muted)';
-                
-                if (this.peerConnection) {
-                    try { this.peerConnection.close(); } catch(e) {}
-                    this.peerConnection = null;
-                }
+                this.closeWebRTC();
             } else {
-                if (!this.peerConnection || this.peerConnection.connectionState === 'failed' || this.peerConnection.connectionState === 'disconnected') {
+                if (!this.peerConnection || this.peerConnection.connectionState === 'failed' || this.peerConnection.connectionState === 'disconnected' || this.peerConnection.connectionState === 'closed') {
                     this.initWebRTC();
+                } else if (placeholderText) {
+                    placeholderText.textContent = 'Camera is running. Waiting for WebRTC stream...';
                 }
             }
         } catch(e) {
             this.addLog('Lỗi xử lý camera status: ' + e.message, 'error');
+        }
+    }
+
+    handleWebRtcStatus(payload) {
+        try {
+            const status = JSON.parse(payload);
+            const state = status && status.state ? String(status.state) : 'unknown';
+            const message = status && status.message ? String(status.message) : state;
+            const sentFrames = status && status.sentFrames != null ? Number(status.sentFrames) : 0;
+            const running = status && status.running === true;
+            const encoderReady = status && status.encoderReady === true;
+
+            if (state === 'encoder_error' || (running && encoderReady === false)) {
+                this.setCameraStreamHint('WebRTC encoder loi: ' + message + '. Hay chay ban x64 cua control app.');
+                this.setCamStatus(false, 'Encoder error');
+                const dot = document.getElementById('mqtt-cam-dot');
+                if (dot) dot.style.background = 'var(--red)';
+                const lbl = document.getElementById('rec-label');
+                if (lbl) lbl.textContent = 'WebRTC encoder error';
+                return;
+            }
+
+            if (state === 'streaming' && sentFrames > 0 && !this.hasVideoFrame) {
+                this.setCameraStreamHint('Control app da gui frame WebRTC. Dang cho trinh duyet render video...');
+                this.setCamStatus(false, 'Rendering video');
+                return;
+            }
+
+            if (!this.hasVideoFrame && this.hasWebRtcTrack) {
+                this.setCameraStreamHint(message || 'Da nhan track. Dang cho frame video...');
+            }
+        } catch (e) {
+            this.addLog('Loi xu ly WebRTC status: ' + e.message, 'error');
         }
     }
 
@@ -1554,21 +1734,27 @@ class GantrySCADADashboard {
 
             if (msg.type === 'answer') {
                 this.addLog('Nhận SDP Answer từ server', 'info');
+                if (this.peerConnection.signalingState !== 'have-local-offer') {
+                    this.addLog('Bo qua SDP Answer lap/cu vi WebRTC dang o trang thai ' + this.peerConnection.signalingState, 'info');
+                    return;
+                }
                 this.peerConnection.setRemoteDescription(new RTCSessionDescription({
                     type: 'answer',
                     sdp: msg.sdp
-                })).catch(err => {
+                })).then(() => {
+                    this.flushPendingRemoteCandidates();
+                }).catch(err => {
                     this.addLog('Lỗi setRemoteDescription: ' + err.message, 'error');
                 });
             } else if (msg.type === 'candidate') {
                 if (msg.candidate) {
-                    this.peerConnection.addIceCandidate(new RTCIceCandidate({
+                    const candidateInit = {
                         candidate: msg.candidate,
                         sdpMid: msg.sdpMid,
                         sdpMLineIndex: msg.sdpMLineIndex
-                    })).catch(err => {
-                        console.warn('Lỗi addIceCandidate: ', err);
-                    });
+                    };
+                    this.addRemoteIceCandidate(candidateInit);
+                    return;
                 }
             }
         } catch(e) {
@@ -1588,3 +1774,4 @@ document.addEventListener('DOMContentLoaded', () => { window.dashboard = new Gan
 </script>
 </body>
 </html>
+

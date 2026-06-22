@@ -21,6 +21,13 @@ namespace DACDT_2026
         private readonly object _encoderLock = new object();
         private bool _isRunning;
         private DateTime _startTime;
+        private DateTime _lastStatusPublishUtc = DateTime.MinValue;
+        private long _encodedFrameCount;
+        private long _sentFrameCount;
+        private string _lastEncoderError;
+        private const int MaxWebRtcStreamWidth = 640;
+        private const int TargetWebRtcKbps = 1000;
+        private const int StatusPublishIntervalMs = 1000;
 
         public bool IsRunning => _isRunning;
 
@@ -34,12 +41,17 @@ namespace DACDT_2026
             if (_isRunning) return;
             _isRunning = true;
             _startTime = DateTime.UtcNow;
+            _encodedFrameCount = 0;
+            _sentFrameCount = 0;
+            _lastEncoderError = null;
+            _lastStatusPublishUtc = DateTime.MinValue;
             lock (_encoderLock)
             {
                 _vpxVideoEncoder = new VpxVideoEncoder();
-                _vpxVideoEncoder.TargetKbps = 1000;
+                _vpxVideoEncoder.TargetKbps = TargetWebRtcKbps;
             }
             Log("Camera stream server started.");
+            _ = PublishWebRtcStatusAsync("waiting_peer", "WebRTC camera server started", true, true);
         }
 
         public void Stop()
@@ -70,6 +82,38 @@ namespace DACDT_2026
                 }
             }
             Log("Camera stream server stopped.");
+            _ = PublishWebRtcStatusAsync("stopped", "WebRTC camera server stopped", false, false);
+        }
+
+        private Task PublishWebRtcStatusAsync(string state, string message, bool running, bool encoderReady)
+        {
+            if (_mqttService == null || !_mqttService.IsConnected)
+                return Task.CompletedTask;
+
+            var payload = _serializer.Serialize(new
+            {
+                running = running,
+                state = state,
+                message = message,
+                encoderReady = encoderReady,
+                lastEncoderError = _lastEncoderError,
+                peerConnections = _peerConnections.Count,
+                encodedFrames = _encodedFrameCount,
+                sentFrames = _sentFrameCount,
+                timestampUtc = DateTime.UtcNow.ToString("o")
+            });
+
+            return _mqttService.PublishAsync("DACDT/camera/webrtc/status", payload, true);
+        }
+
+        private void PublishWebRtcStatusThrottled(string state, string message, bool encoderReady)
+        {
+            var nowUtc = DateTime.UtcNow;
+            if ((nowUtc - _lastStatusPublishUtc).TotalMilliseconds < StatusPublishIntervalMs)
+                return;
+
+            _lastStatusPublishUtc = nowUtc;
+            _ = PublishWebRtcStatusAsync(state, message, _isRunning, encoderReady);
         }
 
         public async Task ProcessSignalingMessageAsync(string clientId, string type, string payload)
@@ -135,6 +179,11 @@ namespace DACDT_2026
                     pc.onconnectionstatechange += (state) =>
                     {
                         Log($"Client {clientId} connection state: {state}");
+                        _ = PublishWebRtcStatusAsync(
+                            state.ToString().ToLowerInvariant(),
+                            $"Client {clientId} connection state: {state}",
+                            _isRunning,
+                            string.IsNullOrEmpty(_lastEncoderError));
                         if (state == RTCPeerConnectionState.closed || state == RTCPeerConnectionState.failed || state == RTCPeerConnectionState.disconnected)
                         {
                             if (_peerConnections.TryRemove(clientId, out var deadPc))
@@ -255,11 +304,11 @@ namespace DACDT_2026
             int width = bitmap.Width;
             int height = bitmap.Height;
 
-            // Downscale to max width 640px for lightweight stream
-            if (width > 640)
+            // Downscale for lightweight browser streaming.
+            if (width > MaxWebRtcStreamWidth)
             {
-                height = (int)Math.Round((double)height * 640 / width);
-                width = 640;
+                height = (int)Math.Round((double)height * MaxWebRtcStreamWidth / width);
+                width = MaxWebRtcStreamWidth;
             }
 
             // WebRTC encoders require even dimensions
@@ -338,16 +387,20 @@ namespace DACDT_2026
                     try
                     {
                         encodedBytes = _vpxVideoEncoder.EncodeVideo(width, height, bgraBytes, VideoPixelFormatsEnum.Bgra, VideoCodecsEnum.VP8);
+                        _lastEncoderError = null;
                     }
                     catch (Exception ex)
                     {
+                        _lastEncoderError = ex.Message;
                         Log($"Encoder error: {ex.Message}");
+                        PublishWebRtcStatusThrottled("encoder_error", ex.Message, false);
                     }
                 }
             }
 
             if (encodedBytes != null && encodedBytes.Length > 0)
             {
+                _encodedFrameCount++;
                 var elapsedMs = (uint)(DateTime.UtcNow - _startTime).TotalMilliseconds;
                 var rtpTimestamp = elapsedMs * 90; // 90 kHz clock
 
@@ -358,6 +411,8 @@ namespace DACDT_2026
                         if (kvp.Value.connectionState == RTCPeerConnectionState.connected)
                         {
                             kvp.Value.SendVideo(rtpTimestamp, encodedBytes);
+                            _sentFrameCount++;
+                            PublishWebRtcStatusThrottled("streaming", "WebRTC video frames are being sent", true);
                         }
                     }
                     catch (Exception ex)

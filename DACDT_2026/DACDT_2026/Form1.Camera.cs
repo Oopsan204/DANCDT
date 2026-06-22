@@ -5,7 +5,9 @@ using System.Drawing.Imaging;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
+using System.Web.Script.Serialization;
 using System.Windows.Media.Imaging;
 using AForge.Video;
 using AForge.Video.DirectShow;
@@ -26,8 +28,29 @@ namespace DACDT_2026
         private object cameraLock = new object();
         private DateTime lastCameraMqttPublishUtc = DateTime.MinValue;
         private bool cameraMqttPublishInFlight;
+        private int webRtcFrameInFlight;
+        private DateTime lastWebRtcFrameUtc = DateTime.MinValue;
+        private static readonly bool EnableMqttCameraFrameFallback = false;
         private const int CameraMqttPublishIntervalMs = 200;
         private const long CameraMqttJpegQuality = 25L;
+        private const int WebRtcFrameIntervalMs = 66;
+        private readonly JavaScriptSerializer cameraStatusSerializer = new JavaScriptSerializer();
+
+        private Task PublishCameraStatusAsync(bool running, string state, string message = null)
+        {
+            var payload = cameraStatusSerializer.Serialize(new
+            {
+                running = running,
+                state = state,
+                message = message,
+                cameraReady = cameraSource != null && cameraSource.IsRunning,
+                webrtcReady = true, // Managed by x64 service
+                selectedCamera = ui.SelectedCameraMoniker,
+                timestampUtc = DateTime.UtcNow.ToString("o")
+            });
+
+            return mqttService.PublishAsync("DACDT/camera/status", payload, true);
+        }
 
         /// <summary>
         /// Refresh available camera devices and populate the UI list.
@@ -77,6 +100,8 @@ namespace DACDT_2026
                 catch (Exception ex)
                 {
                     ui.CameraStatus = $"Error refreshing cameras: {ex.Message}";
+
+
                     try { System.IO.File.AppendAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "crash_log.txt"), 
                         "[" + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff") + "] [Camera] Error refreshing cameras: " + ex.Message + "\r\n" + ex.StackTrace + "\r\n"); } catch { }
                 }
@@ -105,6 +130,9 @@ namespace DACDT_2026
 
                         if (cameraSource != null && cameraSource.IsRunning)
                         {
+                            webRtcBridgeClient.Connect();
+                            _ = PublishCameraStatusAsync(true, "running", "camera already running");
+                            ui.IsCameraRunning = true;
                             ui.CameraStatus = "Camera already running.";
                             return;
                         }
@@ -112,21 +140,24 @@ namespace DACDT_2026
                         cameraSource = new VideoCaptureDevice(ui.SelectedCameraMoniker);
                         cameraSource.NewFrame += CameraSource_NewFrame;
                         cameraSource.Start();
-                        webRtcCameraServer.Start();
-                        _ = mqttService.PublishAsync("DACDT/camera/status", "{\"running\":true}", true);
+                        webRtcBridgeClient.Connect();
+                        _ = PublishCameraStatusAsync(true, "running", "camera started");
 
                         ui.IsCameraRunning = true;
                         ui.CameraStatus = "Camera started.";
                         recordedFrameCount = 0;
                         ui.CameraRecordedFrames = 0;
                         lastCameraMqttPublishUtc = DateTime.MinValue;
+                        lastWebRtcFrameUtc = DateTime.MinValue;
                         cameraMqttPublishInFlight = false;
+                        Interlocked.Exchange(ref webRtcFrameInFlight, 0);
                     }
                 }
                 catch (Exception ex)
                 {
                     ui.IsCameraRunning = false;
                     ui.CameraStatus = $"Error starting camera: {ex.Message}";
+                    _ = PublishCameraStatusAsync(false, "error", ex.Message);
                     try { System.IO.File.AppendAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "crash_log.txt"), 
                         "[" + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff") + "] [Camera] Error starting camera: " + ex.Message + "\r\n" + ex.StackTrace + "\r\n"); } catch { }
                 }
@@ -151,11 +182,12 @@ namespace DACDT_2026
                             cameraSource.NewFrame -= CameraSource_NewFrame;
                             cameraSource = null;
                         }
-                        webRtcCameraServer.Stop();
-                        _ = mqttService.PublishAsync("DACDT/camera/status", "{\"running\":false}", true);
+                        webRtcBridgeClient.Disconnect();
+                        _ = PublishCameraStatusAsync(false, "stopped", "camera stopped");
 
                         ui.IsCameraRunning = false;
                         ui.CameraStatus = "Camera stopped.";
+                        Interlocked.Exchange(ref webRtcFrameInFlight, 0);
                     }
                 }
                 catch (Exception ex)
@@ -196,14 +228,16 @@ namespace DACDT_2026
                         try { cameraSource.NewFrame -= CameraSource_NewFrame; } catch { }
                         cameraSource = null;
                     }
-                    try { webRtcCameraServer.Stop(); } catch { }
-                    _ = mqttService.PublishAsync("DACDT/camera/status", "{\"running\":false}", true);
+                    try { webRtcBridgeClient.Disconnect(); } catch { }
+                    _ = PublishCameraStatusAsync(false, "stopped", "camera stopped");
 
                     ui.IsCameraRunning = false;
                     recordedFrameCount = 0;
                     ui.CameraRecordedFrames = 0;
                     lastCameraMqttPublishUtc = DateTime.MinValue;
+                    lastWebRtcFrameUtc = DateTime.MinValue;
                     cameraMqttPublishInFlight = false;
+                    Interlocked.Exchange(ref webRtcFrameInFlight, 0);
                 }
             }
             catch { }
@@ -334,13 +368,25 @@ namespace DACDT_2026
                         }
 
                         // Feed frame to WebRTC server for browser streaming
-                        if (webRtcCameraServer != null && webRtcCameraServer.IsRunning)
+                        if (ShouldSendFrameToWebRtc(DateTime.UtcNow))
                         {
                             var webRtcBitmap = (Bitmap)bitmap.Clone();
                             _ = Task.Run(() =>
                             {
-                                try { webRtcCameraServer.SendFrame(webRtcBitmap); }
-                                finally { webRtcBitmap.Dispose(); }
+                                try
+                                {
+                                    using (var ms = new MemoryStream())
+                                    {
+                                        SaveJpeg(webRtcBitmap, ms, 50L); // 50% quality to reduce bandwidth
+                                        byte[] jpegBytes = ms.ToArray();
+                                        webRtcBridgeClient.SendFrame(jpegBytes);
+                                    }
+                                }
+                                finally
+                                {
+                                    webRtcBitmap.Dispose();
+                                    Interlocked.Exchange(ref webRtcFrameInFlight, 0);
+                                }
                             });
                         }
 
@@ -381,6 +427,9 @@ namespace DACDT_2026
 
         private bool ShouldPublishCameraFrameToMqtt(DateTime nowUtc)
         {
+            if (!EnableMqttCameraFrameFallback)
+                return false;
+
             if (!mqttService.IsConnected || cameraMqttPublishInFlight)
                 return false;
 
@@ -389,6 +438,21 @@ namespace DACDT_2026
 
             lastCameraMqttPublishUtc = nowUtc;
             cameraMqttPublishInFlight = true;
+            return true;
+        }
+
+        private bool ShouldSendFrameToWebRtc(DateTime nowUtc)
+        {
+            if (!ui.IsCameraRunning)
+                return false;
+
+            if ((nowUtc - lastWebRtcFrameUtc).TotalMilliseconds < WebRtcFrameIntervalMs)
+                return false;
+
+            if (Interlocked.CompareExchange(ref webRtcFrameInFlight, 1, 0) != 0)
+                return false;
+
+            lastWebRtcFrameUtc = nowUtc;
             return true;
         }
 

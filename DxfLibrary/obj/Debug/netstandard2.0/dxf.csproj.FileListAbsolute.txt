@@ -1,0 +1,11 @@
+D:\DACDT_2026\DANCDT\DxfLibrary\bin\Debug\netstandard2.0\dxf.deps.json
+D:\DACDT_2026\DANCDT\DxfLibrary\bin\Debug\netstandard2.0\dxf.dll
+D:\DACDT_2026\DANCDT\DxfLibrary\bin\Debug\netstandard2.0\dxf.pdb
+D:\DACDT_2026\DANCDT\DxfLibrary\obj\Debug\netstandard2.0\dxf.csproj.AssemblyReference.cache
+D:\DACDT_2026\DANCDT\DxfLibrary\obj\Debug\netstandard2.0\dxf.GeneratedMSBuildEditorConfig.editorconfig
+D:\DACDT_2026\DANCDT\DxfLibrary\obj\Debug\netstandard2.0\dxf.AssemblyInfoInputs.cache
+D:\DACDT_2026\DANCDT\DxfLibrary\obj\Debug\netstandard2.0\dxf.AssemblyInfo.cs
+D:\DACDT_2026\DANCDT\DxfLibrary\obj\Debug\netstandard2.0\dxf.csproj.CoreCompileInputs.cache
+D:\DACDT_2026\DANCDT\DxfLibrary\obj\Debug\netstandard2.0\dxf.sourcelink.json
+D:\DACDT_2026\DANCDT\DxfLibrary\obj\Debug\netstandard2.0\dxf.dll
+D:\DACDT_2026\DANCDT\DxfLibrary\obj\Debug\netstandard2.0\dxf.pdb

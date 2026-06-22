@@ -1,0 +1,11 @@
+D:\DACDT_2026\DANCDT\DxfLibrary\bin\Release\netstandard2.0\NDA_DXF.deps.json
+D:\DACDT_2026\DANCDT\DxfLibrary\bin\Release\netstandard2.0\NDA_DXF.dll
+D:\DACDT_2026\DANCDT\DxfLibrary\bin\Release\netstandard2.0\NDA_DXF.pdb
+D:\DACDT_2026\DANCDT\DxfLibrary\obj\Release\netstandard2.0\NDA_DXF.csproj.AssemblyReference.cache
+D:\DACDT_2026\DANCDT\DxfLibrary\obj\Release\netstandard2.0\NDA_DXF.GeneratedMSBuildEditorConfig.editorconfig
+D:\DACDT_2026\DANCDT\DxfLibrary\obj\Release\netstandard2.0\NDA_DXF.AssemblyInfoInputs.cache
+D:\DACDT_2026\DANCDT\DxfLibrary\obj\Release\netstandard2.0\NDA_DXF.AssemblyInfo.cs
+D:\DACDT_2026\DANCDT\DxfLibrary\obj\Release\netstandard2.0\NDA_DXF.csproj.CoreCompileInputs.cache
+D:\DACDT_2026\DANCDT\DxfLibrary\obj\Release\netstandard2.0\NDA_DXF.sourcelink.json
+D:\DACDT_2026\DANCDT\DxfLibrary\obj\Release\netstandard2.0\NDA_DXF.dll
+D:\DACDT_2026\DANCDT\DxfLibrary\obj\Release\netstandard2.0\NDA_DXF.pdb

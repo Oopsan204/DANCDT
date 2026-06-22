@@ -43,7 +43,8 @@ namespace DACDT_2026
         private readonly CadDocumentService cadService = new CadDocumentService();
         private readonly GcodeCoordinateService gcodeCoordinateService = new GcodeCoordinateService();
         private readonly MqttPublishService mqttService = new MqttPublishService();
-        private readonly WebRtcCameraServer webRtcCameraServer;
+        private readonly WebRtcBridgeClient webRtcBridgeClient = new WebRtcBridgeClient();
+        private System.Diagnostics.Process backgroundServiceProcess;
 
         private readonly List<MonitorRow> monitorRows = new List<MonitorRow>();
         private readonly List<ProcessRow> processRows = new List<ProcessRow>();
@@ -133,8 +134,8 @@ namespace DACDT_2026
             LoadSettingsFromFile();
             ConfigureCommands();
             SyncSettingsToUi();
-            webRtcCameraServer = new WebRtcCameraServer(mqttService);
             mqttService.MessageReceived += MqttService_MessageReceived;
+            StartBackgroundVideoService();
 
             Loaded += async (sender, e) =>
             {
@@ -611,8 +612,7 @@ namespace DACDT_2026
                     "DACDT/machine/coment",
                     "DACDT/machine/request",
                     "DACDT/web/connected",
-                    "DACDT/camera/command",
-                    "DACDT/camera/webrtc/signaling/+/client");
+                    "DACDT/camera/command");
                 Console.WriteLine($"[DEBUG] MQTT connection completed. IsConnected={mqttService.IsConnected}");
             }
             catch (Exception ex)
@@ -634,39 +634,9 @@ namespace DACDT_2026
             }
             catch { }
 
-            if (topic.StartsWith("DACDT/camera/webrtc/signaling/", StringComparison.OrdinalIgnoreCase))
-            {
-                _ = HandleSignalingMqttMessageAsync(topic, payload);
-                return;
-            }
+
 
             _ = HandleMqttCommandAsync(topic, payload);
-        }
-
-        private async Task HandleSignalingMqttMessageAsync(string topic, string payload)
-        {
-            try
-            {
-                var parts = topic.Split('/');
-                if (parts.Length >= 6)
-                {
-                    string clientId = parts[4];
-                    var serializer = new System.Web.Script.Serialization.JavaScriptSerializer();
-                    var dict = serializer.Deserialize<Dictionary<string, object>>(payload);
-                    if (dict != null && dict.TryGetValue("type", out var typeVal) && typeVal != null)
-                    {
-                        string type = typeVal.ToString();
-                        if (webRtcCameraServer != null)
-                        {
-                            await webRtcCameraServer.ProcessSignalingMessageAsync(clientId, type, payload);
-                        }
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[WebRTC Signaling] Error handling message on topic {topic}: {ex.Message}");
-            }
         }
 
         private async Task HandleMqttCommandAsync(string topic, string payload)
@@ -870,6 +840,8 @@ namespace DACDT_2026
             webReady = false;
             StopCameraCore();
             StopPlcPolling();
+            try { webRtcBridgeClient.Dispose(); } catch { }
+            StopBackgroundVideoService();
 
             if (plcComm != null)
             {
@@ -878,6 +850,89 @@ namespace DACDT_2026
             }
 
             base.OnClosing(e);
+        }
+
+        private void StartBackgroundVideoService()
+        {
+            try
+            {
+                string serviceExe = FindBackgroundVideoServiceExecutable();
+
+                if (!string.IsNullOrEmpty(serviceExe))
+                {
+                    var psi = new System.Diagnostics.ProcessStartInfo
+                    {
+                        FileName = serviceExe,
+                        UseShellExecute = false,
+                        CreateNoWindow = true,
+                        WindowStyle = System.Diagnostics.ProcessWindowStyle.Hidden,
+                        WorkingDirectory = System.IO.Path.GetDirectoryName(serviceExe)
+                    };
+                    backgroundServiceProcess = System.Diagnostics.Process.Start(psi);
+                    System.IO.File.AppendAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "crash_log.txt"), 
+                        "[" + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff") + "] [Lifecycle] Started background service: " + serviceExe + "\r\n");
+                }
+                else
+                {
+                    System.IO.File.AppendAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "crash_log.txt"), 
+                        "[" + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff") + "] [Lifecycle] Background service executable not found!\r\n");
+                }
+            }
+            catch (Exception ex)
+            {
+                System.IO.File.AppendAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "crash_log.txt"), 
+                    "[" + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff") + "] [Lifecycle] Error starting service: " + ex.Message + "\r\n");
+            }
+        }
+
+        private static string FindBackgroundVideoServiceExecutable()
+        {
+            const string serviceFileName = "WebRtcCameraService.exe";
+
+            // A deployed copy can sit beside the desktop application.
+            string localCopy = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, serviceFileName);
+            if (System.IO.File.Exists(localCopy))
+                return localCopy;
+
+            // During development the desktop app can run from Debug, x86\Debug,
+            // or x64\Debug. Walk upward instead of relying on a fixed number of
+            // ".." segments so all of those output layouts find the shared service.
+            var directory = new System.IO.DirectoryInfo(AppDomain.CurrentDomain.BaseDirectory);
+            while (directory != null)
+            {
+                foreach (string configuration in new[] { "Debug", "Release" })
+                {
+                    string candidate = System.IO.Path.Combine(
+                        directory.FullName,
+                        "WebRtcCameraService",
+                        "bin",
+                        configuration,
+                        serviceFileName);
+
+                    if (System.IO.File.Exists(candidate))
+                        return candidate;
+                }
+
+                directory = directory.Parent;
+            }
+
+            return null;
+        }
+
+        private void StopBackgroundVideoService()
+        {
+            try
+            {
+                if (backgroundServiceProcess != null && !backgroundServiceProcess.HasExited)
+                {
+                    backgroundServiceProcess.Kill();
+                    backgroundServiceProcess.Dispose();
+                    backgroundServiceProcess = null;
+                    System.IO.File.AppendAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "crash_log.txt"), 
+                        "[" + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff") + "] [Lifecycle] Stopped background service.\r\n");
+                }
+            }
+            catch { }
         }
     }
 }
