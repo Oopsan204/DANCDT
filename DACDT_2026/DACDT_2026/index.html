@@ -1,5 +1,6 @@
-�<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="vi">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -8,7 +9,12 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.2/mqttws31.min.js"></script>
     <script src="error_codes.js"></script>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
         :root {
             --bg: #111418;
             --bg2: #181c22;
@@ -27,6 +33,7 @@
             --axis-val: #3eb8d4;
             --panel-gap: 12px;
         }
+
         body {
             background: var(--bg);
             color: var(--text);
@@ -62,16 +69,71 @@
             gap: 20px;
             overflow-y: auto;
         }
-        .sidebar::-webkit-scrollbar { width: 6px; }
-        .sidebar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-        .sidebar-title { font-size: 10px; font-weight: 600; color: var(--muted); text-transform: uppercase; margin-bottom: 8px; letter-spacing: 0.5px; }
-        .status-info { display: flex; align-items: center; gap: 8px; padding: 10px; background: var(--bg4); border: 1px solid var(--border); border-radius: 4px; font-size: 12px; }
-        .status-info.connected { background: rgba(63,185,80,0.1); border-color: var(--green); }
-        .status-info.disconnected { background: rgba(248,81,73,0.1); border-color: var(--red); }
-        .info-item { display: flex; justify-content: space-between; padding: 8px; background: var(--bg4); border: 1px solid var(--border); border-radius: 4px; margin-bottom: 6px; font-size: 11px; }
-        .info-label { color: var(--muted); }
-        .info-value { color: var(--text-bright); font-weight: 500; font-family: 'Courier New', monospace; max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        
+
+        .sidebar::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .sidebar::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 3px;
+        }
+
+        .sidebar-title {
+            font-size: 10px;
+            font-weight: 600;
+            color: var(--muted);
+            text-transform: uppercase;
+            margin-bottom: 8px;
+            letter-spacing: 0.5px;
+        }
+
+        .status-info {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px;
+            background: var(--bg4);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            font-size: 12px;
+        }
+
+        .status-info.connected {
+            background: rgba(63, 185, 80, 0.1);
+            border-color: var(--green);
+        }
+
+        .status-info.disconnected {
+            background: rgba(248, 81, 73, 0.1);
+            border-color: var(--red);
+        }
+
+        .info-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px;
+            background: var(--bg4);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            margin-bottom: 6px;
+            font-size: 11px;
+        }
+
+        .info-label {
+            color: var(--muted);
+        }
+
+        .info-value {
+            color: var(--text-bright);
+            font-weight: 500;
+            font-family: 'Courier New', monospace;
+            max-width: 140px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
         .main-content {
             display: flex;
             flex-direction: column;
@@ -88,121 +150,646 @@
             flex-direction: column;
             overflow: hidden;
         }
-        .panel-header { background: var(--bg3); border-bottom: 1px solid var(--border); padding: 8px 14px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
-        .panel-title-group { display: flex; align-items: center; gap: 8px; }
-        .panel-icon { font-size: 14px; }
-        .ph-title { font-size: 12px; font-weight: 700; color: var(--text-bright); text-transform: uppercase; letter-spacing: 0.5px; }
-        .ph-sub { font-size: 10px; color: var(--muted); margin-top: 2px; }
-        .panel-body { padding: 12px; flex: 1; overflow-y: auto; }
+
+        .panel-header {
+            background: var(--bg3);
+            border-bottom: 1px solid var(--border);
+            padding: 8px 14px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-shrink: 0;
+        }
+
+        .panel-title-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .panel-icon {
+            font-size: 14px;
+        }
+
+        .ph-title {
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--text-bright);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .ph-sub {
+            font-size: 10px;
+            color: var(--muted);
+            margin-top: 2px;
+        }
+
+        .panel-body {
+            padding: 12px;
+            flex: 1;
+            overflow-y: auto;
+        }
 
         /* ── GRID ROWS ── */
-        #top-row { display: grid; grid-template-columns: repeat(4, 1fr) 200px; gap: var(--panel-gap); flex-shrink: 0; }
-        #middle-row { display: grid; grid-template-columns: minmax(0,1.2fr) 320px minmax(0,0.8fr); gap: var(--panel-gap); flex: 1; min-height: 0; }
-        @media (max-width: 1200px) { #middle-row { grid-template-columns: 1fr 1fr; } #cad-panel { display: none; } }
-        #bottom-row { display: grid; grid-template-columns: 1fr 2fr; gap: var(--panel-gap); height: 200px; flex-shrink: 0; }
+        #top-row {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr) 200px;
+            gap: var(--panel-gap);
+            flex-shrink: 0;
+        }
+
+        #middle-row {
+            display: grid;
+            grid-template-columns: minmax(0, 1.2fr) 320px minmax(0, 0.8fr);
+            gap: var(--panel-gap);
+            flex: 1;
+            min-height: 0;
+        }
+
+        @media (max-width: 1200px) {
+            #middle-row {
+                grid-template-columns: 1fr 1fr;
+            }
+
+            #cad-panel {
+                display: none;
+            }
+        }
+
+        #bottom-row {
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            gap: var(--panel-gap);
+            height: 200px;
+            flex-shrink: 0;
+        }
 
         /* ── AXIS PANELS ── */
-        .axis-panel { padding: 8px 12px; display: grid; grid-template-columns: auto 1fr 1fr 1fr; align-items: start; gap: 0 8px; }
-        .axis-panel-title { display: flex; flex-direction: column; gap: 2px; }
-        .ax-name { font-size: 12px; font-weight: 700; color: var(--text-bright); text-transform: uppercase; letter-spacing: 0.5px; }
-        .ax-mode { font-size: 9px; color: var(--muted); }
-        .ax-metric { display: flex; flex-direction: column; }
-        .ax-metric .lbl { font-size: 8px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 2px; }
-        .ax-metric .val { font-size: 16px; font-weight: 700; font-family: 'Courier New', monospace; color: var(--axis-val); line-height: 1; }
-        .ax-metric .val.small { font-size: 12px; color: var(--text-bright); }
-        .limit-indicators { grid-column: 1 / -1; display: flex; gap: 6px; margin-top: 6px; }
-        .limit-tag { font-size: 9px; padding: 2px 6px; border-radius: 3px; background: var(--bg4); border: 1px solid var(--border); color: var(--muted); }
-        .limit-tag.active { background: rgba(248,81,73,0.15); border-color: var(--red); color: var(--red); }
-        .limit-tag.home { background: rgba(210,153,34,0.15); border-color: var(--yellow); color: var(--yellow); }
+        .axis-panel {
+            padding: 8px 12px;
+            display: grid;
+            grid-template-columns: auto 1fr 1fr 1fr;
+            align-items: start;
+            gap: 0 8px;
+        }
+
+        .axis-panel-title {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .ax-name {
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--text-bright);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .ax-mode {
+            font-size: 9px;
+            color: var(--muted);
+        }
+
+        .ax-metric {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .ax-metric .lbl {
+            font-size: 8px;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            margin-bottom: 2px;
+        }
+
+        .ax-metric .val {
+            font-size: 16px;
+            font-weight: 700;
+            font-family: 'Courier New', monospace;
+            color: var(--axis-val);
+            line-height: 1;
+        }
+
+        .ax-metric .val.small {
+            font-size: 12px;
+            color: var(--text-bright);
+        }
+
+        .limit-indicators {
+            grid-column: 1 / -1;
+            display: flex;
+            gap: 6px;
+            margin-top: 6px;
+        }
+
+        .limit-tag {
+            font-size: 9px;
+            padding: 2px 6px;
+            border-radius: 3px;
+            background: var(--bg4);
+            border: 1px solid var(--border);
+            color: var(--muted);
+        }
+
+        .limit-tag.active {
+            background: rgba(248, 81, 73, 0.15);
+            border-color: var(--red);
+            color: var(--red);
+        }
+
+        .limit-tag.home {
+            background: rgba(210, 153, 34, 0.15);
+            border-color: var(--yellow);
+            color: var(--yellow);
+        }
 
         /* ── DXF COMPLETION ── */
-        #dxf-completion-panel { justify-content: center; padding: 10px; }
-        .dc-title { font-size: 11px; font-weight: 700; color: var(--text-bright); margin-bottom: 6px; }
-        .progress-bar-wrap { background: var(--bg4); border: 1px solid var(--border); border-radius: 3px; height: 10px; margin-bottom: 6px; overflow: hidden; }
-        .progress-bar-fill { height: 100%; background: linear-gradient(90deg, #1f6feb, #3eb8d4); width: 0%; transition: width 0.4s; }
-        .dc-bottom { display: flex; justify-content: space-between; align-items: flex-end; }
-        .dc-sub { font-size: 10px; color: var(--muted); }
-        .dc-pct { font-size: 20px; font-weight: 700; color: var(--cyan); line-height: 1; }
+        #dxf-completion-panel {
+            justify-content: center;
+            padding: 10px;
+        }
+
+        .dc-title {
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--text-bright);
+            margin-bottom: 6px;
+        }
+
+        .progress-bar-wrap {
+            background: var(--bg4);
+            border: 1px solid var(--border);
+            border-radius: 3px;
+            height: 10px;
+            margin-bottom: 6px;
+            overflow: hidden;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #1f6feb, #3eb8d4);
+            width: 0%;
+            transition: width 0.4s;
+        }
+
+        .dc-bottom {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+        }
+
+        .dc-sub {
+            font-size: 10px;
+            color: var(--muted);
+        }
+
+        .dc-pct {
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--cyan);
+            line-height: 1;
+        }
 
         /* ── DXF TABLE ── */
-        .active-badge { display: flex; align-items: center; gap: 6px; font-size: 10px; color: var(--text-bright); }
-        .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); display: inline-block; }
-        .dot.red { background: var(--red); }
-        
-        .dxf-table-wrap { flex: 1; overflow: auto; padding: 0; }
-        .dxf-table-wrap::-webkit-scrollbar { width: 6px; }
-        .dxf-table-wrap::-webkit-scrollbar-track { background: var(--bg); }
-        .dxf-table-wrap::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-        table.dxf-table { width: 100%; border-collapse: collapse; font-size: 11px; }
-        table.dxf-table thead th { background: var(--bg3); color: var(--muted); font-weight: 600; text-transform: uppercase; font-size: 10px; padding: 6px 12px; border-bottom: 1px solid var(--border); position: sticky; top: 0; letter-spacing: 0.3px; text-align: left; }
-        table.dxf-table tbody tr { border-bottom: 1px solid rgba(255,255,255,0.03); transition: background 0.15s; }
-        table.dxf-table tbody tr:hover { background: var(--bg3); }
-        table.dxf-table tbody tr.active-row { background: #1a3a1a; border-left: 3px solid var(--green); }
-        table.dxf-table tbody tr.active-row td { color: var(--text-bright); font-weight: 600; }
-        table.dxf-table td { padding: 5px 12px; color: var(--text); white-space: nowrap; }
-        table.dxf-table td.td-run { color: var(--green); font-weight: 700; font-size: 10px; width: 40px; }
-        table.dxf-table td.td-gcode { color: var(--cyan); }
-        table.dxf-table td.td-speed { color: var(--text-bright); }
-        table.dxf-table td.td-xy { color: var(--text-bright); font-family: 'Courier New', monospace; }
-        table.dxf-table td.td-m { color: var(--orange); }
+        .active-badge {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 10px;
+            color: var(--text-bright);
+        }
+
+        .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--green);
+            display: inline-block;
+        }
+
+        .dot.red {
+            background: var(--red);
+        }
+
+        .dxf-table-wrap {
+            flex: 1;
+            overflow: auto;
+            padding: 0;
+        }
+
+        .dxf-table-wrap::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .dxf-table-wrap::-webkit-scrollbar-track {
+            background: var(--bg);
+        }
+
+        .dxf-table-wrap::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 3px;
+        }
+
+        table.dxf-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 11px;
+        }
+
+        table.dxf-table thead th {
+            background: var(--bg3);
+            color: var(--muted);
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 10px;
+            padding: 6px 12px;
+            border-bottom: 1px solid var(--border);
+            position: sticky;
+            top: 0;
+            letter-spacing: 0.3px;
+            text-align: left;
+        }
+
+        table.dxf-table tbody tr {
+            border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+            transition: background 0.15s;
+        }
+
+        table.dxf-table tbody tr:hover {
+            background: var(--bg3);
+        }
+
+        table.dxf-table tbody tr.active-row {
+            background: #1a3a1a;
+            border-left: 3px solid var(--green);
+        }
+
+        table.dxf-table tbody tr.active-row td {
+            color: var(--text-bright);
+            font-weight: 600;
+        }
+
+        table.dxf-table td {
+            padding: 5px 12px;
+            color: var(--text);
+            white-space: nowrap;
+        }
+
+        table.dxf-table td.td-run {
+            color: var(--green);
+            font-weight: 700;
+            font-size: 10px;
+            width: 40px;
+        }
+
+        table.dxf-table td.td-gcode {
+            color: var(--cyan);
+        }
+
+        table.dxf-table td.td-speed {
+            color: var(--text-bright);
+        }
+
+        table.dxf-table td.td-xy {
+            color: var(--text-bright);
+            font-family: 'Courier New', monospace;
+        }
+
+        table.dxf-table td.td-m {
+            color: var(--orange);
+        }
 
         /* ── CAD PREVIEW ── */
-        .cad-wrap { flex: 1; position: relative; background: #0a0d12; overflow: hidden; }
-        .cad-canvas { width: 100%; height: 100%; display: block; }
-        .cad-overlay-info { position: absolute; top: 6px; left: 8px; font-size: 10px; color: var(--muted); pointer-events: none; line-height: 1.6; }
-        .cad-overlay-info span { display: block; }
-        .cad-no-data { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--muted); font-size: 12px; gap: 8px; }
-        .cad-legend { position: absolute; bottom: 6px; right: 8px; display: flex; flex-direction: column; gap: 4px; font-size: 10px; pointer-events: none; }
-        .cad-legend-item { display: flex; align-items: center; gap: 5px; }
-        .cad-legend-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+        .cad-wrap {
+            flex: 1;
+            position: relative;
+            background: #0a0d12;
+            overflow: hidden;
+        }
+
+        .cad-canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        .cad-overlay-info {
+            position: absolute;
+            top: 6px;
+            left: 8px;
+            font-size: 10px;
+            color: var(--muted);
+            pointer-events: none;
+            line-height: 1.6;
+        }
+
+        .cad-overlay-info span {
+            display: block;
+        }
+
+        .cad-no-data {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: var(--muted);
+            font-size: 12px;
+            gap: 8px;
+        }
+
+        .cad-legend {
+            position: absolute;
+            bottom: 6px;
+            right: 8px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            font-size: 10px;
+            pointer-events: none;
+        }
+
+        .cad-legend-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .cad-legend-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
 
         /* ── CAMERA ── */
-        .cam-toolbar { background: var(--bg3); border-bottom: 1px solid var(--border); padding: 6px 10px; display: flex; align-items: center; gap: 6px; flex-shrink: 0; flex-wrap: wrap; }
-        .cam-select { flex: 1; min-width: 100px; background: var(--bg4); border: 1px solid var(--border); color: var(--text); padding: 4px 8px; border-radius: 3px; font-size: 11px; outline: none; }
-        .cam-btn { padding: 4px 12px; border-radius: 3px; border: none; font-size: 11px; font-weight: 600; cursor: pointer; transition: opacity 0.15s; min-height: 28px; }
-        .cam-btn:hover { opacity: 0.85; }
-        .cam-btn.refresh { background: var(--bg4); border: 1px solid var(--border); color: var(--text-bright); }
-        .cam-btn.start { background: #1a8c3a; color: #fff; }
-        .cam-btn.stop { background: var(--bg4); border: 1px solid var(--border); color: var(--text-bright); }
-        .cam-btn.rec { background: var(--red); color: #fff; }
-        .cam-btn.stoprec { background: var(--bg4); border: 1px solid var(--border); color: var(--text-bright); }
-        .cam-view { flex: 1; background: #000; position: relative; overflow: hidden; }
-        .cam-view img, .cam-view video { width: 100%; height: 100%; object-fit: cover; }
-        .cam-placeholder { position: absolute; inset: 0; z-index: 2; background: rgba(0,0,0,0.72); display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 12px; flex-direction: column; gap: 8px; text-align: center; padding: 12px; }
-        .cam-placeholder svg { opacity: 0.3; }
-        .rec-status { display: flex; align-items: center; gap: 6px; font-size: 10px; color: var(--muted); padding: 5px 10px; background: var(--bg2); border-top: 1px solid var(--border); flex-shrink: 0; }
-        .rec-status .dot.rec-dot { background: var(--muted); }
-        .rec-status.recording .dot.rec-dot { background: var(--red); animation: blink 1s infinite; }
-        @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+        .cam-toolbar {
+            background: var(--bg3);
+            border-bottom: 1px solid var(--border);
+            padding: 6px 10px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            flex-shrink: 0;
+            flex-wrap: wrap;
+        }
+
+        .cam-select {
+            flex: 1;
+            min-width: 100px;
+            background: var(--bg4);
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 4px 8px;
+            border-radius: 3px;
+            font-size: 11px;
+            outline: none;
+        }
+
+        .cam-btn {
+            padding: 4px 12px;
+            border-radius: 3px;
+            border: none;
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.15s;
+            min-height: 28px;
+        }
+
+        .cam-btn:hover {
+            opacity: 0.85;
+        }
+
+        .cam-btn.refresh {
+            background: var(--bg4);
+            border: 1px solid var(--border);
+            color: var(--text-bright);
+        }
+
+        .cam-btn.start {
+            background: #1a8c3a;
+            color: #fff;
+        }
+
+        .cam-btn.stop {
+            background: var(--bg4);
+            border: 1px solid var(--border);
+            color: var(--text-bright);
+        }
+
+        .cam-btn.rec {
+            background: var(--red);
+            color: #fff;
+        }
+
+        .cam-btn.stoprec {
+            background: var(--bg4);
+            border: 1px solid var(--border);
+            color: var(--text-bright);
+        }
+
+        .cam-view {
+            flex: 1;
+            background: #000;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .cam-view img,
+        .cam-view video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .cam-placeholder {
+            position: absolute;
+            inset: 0;
+            z-index: 2;
+            background: rgba(0, 0, 0, 0.72);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--muted);
+            font-size: 12px;
+            flex-direction: column;
+            gap: 8px;
+            text-align: center;
+            padding: 12px;
+        }
+
+        .cam-placeholder svg {
+            opacity: 0.3;
+        }
+
+        .rec-status {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 10px;
+            color: var(--muted);
+            padding: 5px 10px;
+            background: var(--bg2);
+            border-top: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+
+        .rec-status .dot.rec-dot {
+            background: var(--muted);
+        }
+
+        .rec-status.recording .dot.rec-dot {
+            background: var(--red);
+            animation: blink 1s infinite;
+        }
+
+        @keyframes blink {
+
+            0%,
+            100% {
+                opacity: 1
+            }
+
+            50% {
+                opacity: 0.3
+            }
+        }
 
         /* ── BOTTOM PANELS ── */
-        .plc-info-group { display: flex; flex-direction: column; gap: 12px; }
-        .info-row { display: flex; flex-direction: column; gap: 4px; }
-        .info-lbl { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
-        .info-val { font-size: 13px; color: var(--text-bright); }
-        .info-val.large { font-size: 16px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
-        
-        .integrity-banner { padding: 8px 12px; border-radius: 4px; font-size: 12px; display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
-        .integrity-banner.ok { background: rgba(63,185,80,0.1); border: 1px solid var(--green); color: var(--green); }
-        .integrity-banner.warning { background: rgba(210,153,34,0.1); border: 1px solid var(--yellow); color: var(--yellow); }
-        .integrity-banner.error { background: rgba(248,81,73,0.1); border: 1px solid var(--red); color: var(--red); }
-        .integrity-banner.unknown { background: var(--bg4); border: 1px solid var(--border); color: var(--muted); }
+        .plc-info-group {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
 
-        .log-container { background: var(--bg); border: 1px solid var(--border); border-radius: 4px; padding: 10px; overflow-y: auto; font-family: 'Courier New', monospace; font-size: 11px; }
-        #sidebar-logs { height: 160px; font-size: 10px; padding: 6px; }
-        .log-entry { margin-bottom: 4px; padding: 2px 0; border-bottom: 1px solid rgba(255,255,255,0.03); display: flex; gap: 8px; }
-        .log-time { color: var(--muted); min-width: 60px; }
-        #logs-container .log-time { min-width: 75px; }
-        .log-message { color: var(--text); flex: 1; }
-        .log-entry.info .log-message { color: #79c0ff; }
-        .log-entry.warning .log-message { color: var(--yellow); }
-        .log-entry.error .log-message { color: var(--red); }
-        
-        .plc-status-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--panel-gap); height: 100%; }
+        .info-row {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .info-lbl {
+            font-size: 10px;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .info-val {
+            font-size: 13px;
+            color: var(--text-bright);
+        }
+
+        .info-val.large {
+            font-size: 16px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .integrity-banner {
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        .integrity-banner.ok {
+            background: rgba(63, 185, 80, 0.1);
+            border: 1px solid var(--green);
+            color: var(--green);
+        }
+
+        .integrity-banner.warning {
+            background: rgba(210, 153, 34, 0.1);
+            border: 1px solid var(--yellow);
+            color: var(--yellow);
+        }
+
+        .integrity-banner.error {
+            background: rgba(248, 81, 73, 0.1);
+            border: 1px solid var(--red);
+            color: var(--red);
+        }
+
+        .integrity-banner.unknown {
+            background: var(--bg4);
+            border: 1px solid var(--border);
+            color: var(--muted);
+        }
+
+        .log-container {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 10px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+        }
+
+        #sidebar-logs {
+            height: 160px;
+            font-size: 10px;
+            padding: 6px;
+        }
+
+        .log-entry {
+            margin-bottom: 4px;
+            padding: 2px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+            display: flex;
+            gap: 8px;
+        }
+
+        .log-time {
+            color: var(--muted);
+            min-width: 60px;
+        }
+
+        #logs-container .log-time {
+            min-width: 75px;
+        }
+
+        .log-message {
+            color: var(--text);
+            flex: 1;
+        }
+
+        .log-entry.info .log-message {
+            color: #79c0ff;
+        }
+
+        .log-entry.warning .log-message {
+            color: var(--yellow);
+        }
+
+        .log-entry.error .log-message {
+            color: var(--red);
+        }
+
+        .plc-status-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: var(--panel-gap);
+            height: 100%;
+        }
 
         /* ── RESPONSIVE (MOBILE & TABLET) ── */
         @media (max-width: 1024px) {
-            :root { --panel-gap: 10px; }
+            :root {
+                --panel-gap: 10px;
+            }
 
             body {
                 height: auto;
@@ -221,7 +808,9 @@
                 padding: 10px;
             }
 
-            .main-content { overflow: visible; }
+            .main-content {
+                overflow: visible;
+            }
 
             .sidebar {
                 max-height: none;
@@ -230,7 +819,7 @@
                 padding: 12px;
             }
 
-            .sidebar > div:first-child {
+            .sidebar>div:first-child {
                 display: flex;
                 align-items: baseline;
                 justify-content: space-between;
@@ -241,29 +830,70 @@
             .info-value {
                 max-width: 55vw;
             }
-            
-            #top-row { grid-template-columns: 1fr 1fr; }
-            #dxf-completion-panel { grid-column: 1 / -1; }
-            
-            #middle-row { grid-template-columns: 1fr; }
-            #cad-panel { display: flex; min-height: 300px; }
-            .cad-wrap { min-height: 260px; }
-            .dxf-table-wrap { min-height: 250px; max-height: 360px; }
-            .cam-view { min-height: 260px; max-height: 380px; }
-            
-            #bottom-row { grid-template-columns: 1fr; height: auto; }
-            .plc-status-grid { height: auto; }
-            #bottom-row .panel:last-child .panel-body { min-height: 250px; }
-            
-            #sidebar-logs { display: none; } /* Hide small logs in sidebar on mobile */
+
+            #top-row {
+                grid-template-columns: 1fr 1fr;
+            }
+
+            #dxf-completion-panel {
+                grid-column: 1 / -1;
+            }
+
+            #middle-row {
+                grid-template-columns: 1fr;
+            }
+
+            #cad-panel {
+                display: flex;
+                min-height: 300px;
+            }
+
+            .cad-wrap {
+                min-height: 260px;
+            }
+
+            .dxf-table-wrap {
+                min-height: 250px;
+                max-height: 360px;
+            }
+
+            .cam-view {
+                min-height: 260px;
+                max-height: 380px;
+            }
+
+            #bottom-row {
+                grid-template-columns: 1fr;
+                height: auto;
+            }
+
+            .plc-status-grid {
+                height: auto;
+            }
+
+            #bottom-row .panel:last-child .panel-body {
+                min-height: 250px;
+            }
+
+            #sidebar-logs {
+                display: none;
+            }
+
+            /* Hide small logs in sidebar on mobile */
         }
-        
+
         @media (max-width: 600px) {
-            :root { --panel-gap: 8px; }
+            :root {
+                --panel-gap: 8px;
+            }
 
-            body { font-size: 12px; }
+            body {
+                font-size: 12px;
+            }
 
-            .layout-wrapper { padding: 8px; }
+            .layout-wrapper {
+                padding: 8px;
+            }
 
             .panel {
                 border-radius: 8px;
@@ -294,7 +924,9 @@
                 padding: 10px;
             }
 
-            #top-row { grid-template-columns: 1fr; }
+            #top-row {
+                grid-template-columns: 1fr;
+            }
 
             .axis-panel {
                 grid-template-columns: 1fr 1fr;
@@ -354,7 +986,7 @@
                 left: 8px;
                 right: auto;
                 bottom: 8px;
-                background: rgba(17,20,24,.72);
+                background: rgba(17, 20, 24, .72);
                 padding: 6px;
                 border-radius: 6px;
             }
@@ -382,12 +1014,12 @@
                 align-items: stretch;
             }
 
-            .cam-toolbar > span {
+            .cam-toolbar>span {
                 width: 100%;
                 padding-left: 0 !important;
             }
 
-            .cam-toolbar > div {
+            .cam-toolbar>div {
                 width: 100%;
                 margin-left: 0 !important;
             }
@@ -404,7 +1036,9 @@
                 max-height: 320px;
             }
 
-            .plc-status-grid { grid-template-columns: 1fr; }
+            .plc-status-grid {
+                grid-template-columns: 1fr;
+            }
 
             .log-container {
                 font-size: 10px;
@@ -420,7 +1054,9 @@
         }
 
         @media (max-width: 420px) {
-            .layout-wrapper { padding: 6px; }
+            .layout-wrapper {
+                padding: 6px;
+            }
 
             .sidebar {
                 padding: 10px;
@@ -468,7 +1104,7 @@
                 justify-content: space-between;
             }
 
-            .cam-toolbar > div {
+            .cam-toolbar>div {
                 flex-direction: column;
             }
 
@@ -490,815 +1126,918 @@
                 min-width: 0;
             }
         }
-        
     </style>
 </head>
+
 <body>
 
-<div class="layout-wrapper">
-    <!-- ── SIDEBAR (LEFT) ── -->
-    <aside class="sidebar">
-        <div>
-            <h2 style="font-size: 15px; margin-bottom: 4px; color: var(--text-bright);">📊 DACDT 2026</h2>
-            <p style="font-size: 10px; color: var(--muted);">MQTT Real-time Dashboard</p>
-        </div>
+    <div class="layout-wrapper">
+        <!-- ── SIDEBAR (LEFT) ── -->
+        <aside class="sidebar">
+            <div>
+                <h2 style="font-size: 15px; margin-bottom: 4px; color: var(--text-bright);">📊 DACDT 2026</h2>
+                <p style="font-size: 10px; color: var(--muted);">MQTT Real-time Dashboard</p>
+            </div>
 
-        <div>
-            <div class="sidebar-title">Điều khiển nhanh</div>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
-                <button class="cam-btn start" onclick="dashboard.publishCommand('RUN', 'machine')" style="width:100%; text-align:center;">▶ RUN</button>
-                <button class="cam-btn rec" onclick="dashboard.publishCommand('STOP', 'machine')" style="width:100%; text-align:center;">■ STOP</button>
-                <button class="cam-btn" onclick="dashboard.publishCommand('PAUSE', 'machine')" style="width:100%; text-align:center; background: var(--yellow); color: #000; font-weight:600; border:none; border-radius:3px; font-size:11px; padding:4px 0;">⏸ PAUSE</button>
-                <button class="cam-btn" onclick="dashboard.publishCommand('RESET', 'machine')" style="width:100%; text-align:center; background: var(--blue); color: #fff; font-weight:600; border:none; border-radius:3px; font-size:11px; padding:4px 0;">↺ RESET</button>
-                <button class="cam-btn" onclick="dashboard.publishCommand('HOME', 'machine')" style="width:100%; text-align:center; background: var(--cyan); color: #000; font-weight:600; border:none; border-radius:3px; font-size:11px; padding:4px 0;">🏠 HOME</button>
-                <button class="cam-btn" onclick="dashboard.publishCommand('HOMEALL', 'machine')" style="width:100%; text-align:center; background: var(--orange); color: #000; font-weight:600; border:none; border-radius:3px; font-size:11px; padding:4px 0;">🏠 HOME ALL</button>
-            </div>
-        </div>
-        
-        <div>
-            <div class="sidebar-title">Trạng thái MQTT</div>
-            <div id="mqtt-status-sidebar" class="status-info disconnected">
-                <span class="dot red"></span>
-                <span style="color:var(--red)">Ngắt kết nối</span>
-            </div>
-        </div>
-        
-        <div>
-            <div class="sidebar-title">Kết nối</div>
-            <div class="info-item"><span class="info-label">Broker:</span><span class="info-value" id="broker-value">-</span></div>
-            <div class="info-item"><span class="info-label">Topic:</span><span class="info-value" id="topic-value">-</span></div>
-            <div class="info-item"><span class="info-label">Cập nhật:</span><span class="info-value" id="last-update">-</span></div>
-            <div class="info-item"><span class="info-label">Msg count:</span><span class="info-value" id="msg-count">0</span></div>
-        </div>
-        
-        <div style="flex: 1; display: flex; flex-direction: column;">
-            <div class="sidebar-title">Thông tin hệ thống</div>
-            <div id="sidebar-logs" class="log-container" style="flex: 1;">
-                <div class="log-entry info"><span class="log-time">[00:00]</span><span class="log-message">Chờ dữ liệu...</span></div>
-            </div>
-        </div>
-    </aside>
-
-    <!-- ── MAIN CONTENT (RIGHT) ── -->
-    <main class="main-content">
-        <!-- ── TOP ROW: AXES & PROGRESS ── -->
-        <div id="top-row">
-            <div class="panel axis-panel" id="axis-panel-0">
-                <div class="axis-panel-title">
-                    <span class="ax-name">Axis 1</span>
-                    <span class="ax-mode" id="ax-mode-0">Position control</span>
-                </div>
-                <div class="ax-metric"><span class="lbl">Position</span><span class="val" id="ax-pos-0">0.0000</span></div>
-                <div class="ax-metric"><span class="lbl">Speed</span><span class="val" id="ax-spd-0">0.00</span></div>
-                <div class="ax-metric"><span class="lbl">MD.44</span><span class="val small" id="ax-md-0">0</span></div>
-                <div class="limit-indicators">
-                    <span class="limit-tag" id="ax-lm-0">LIM-</span><span class="limit-tag" id="ax-lp-0">LIM+</span><span class="limit-tag" id="ax-home-0">HOME</span>
-                </div>
-                <div class="ax-error-box" id="ax-err-box-0" style="display:none; margin-top:8px; padding:6px; border-radius:3px; background:rgba(248,81,73,0.1); border:1px solid rgba(248,81,73,0.3); font-size:10px; color:#ff8080; white-space:normal; cursor:help;">
-                    <div style="font-weight:bold; text-transform:uppercase; font-size:9px; color:var(--red); margin-bottom:2px;">Lỗi <span id="ax-err-code-0"></span></div>
-                    <div id="ax-err-desc-0" style="line-height:1.2;">-</div>
-                </div>
-                <div class="ax-warning-box" id="ax-warn-box-0" style="display:none; margin-top:4px; padding:6px; border-radius:3px; background:rgba(251,133,0,0.1); border:1px solid rgba(251,133,0,0.3); font-size:10px; color:#ffb060; white-space:normal; cursor:help;">
-                    <div style="font-weight:bold; text-transform:uppercase; font-size:9px; color:var(--orange); margin-bottom:2px;">Cảnh báo <span id="ax-warn-code-0"></span></div>
-                    <div id="ax-warn-desc-0" style="line-height:1.2;">-</div>
-                </div>
-            </div>
-            <div class="panel axis-panel" id="axis-panel-1">
-                <div class="axis-panel-title">
-                    <span class="ax-name">Axis 2</span>
-                    <span class="ax-mode" id="ax-mode-1">Interpolation</span>
-                </div>
-                <div class="ax-metric"><span class="lbl">Position</span><span class="val" id="ax-pos-1">0.0000</span></div>
-                <div class="ax-metric"><span class="lbl">Speed</span><span class="val" id="ax-spd-1">0.00</span></div>
-                <div class="ax-metric"><span class="lbl">MD.44</span><span class="val small" id="ax-md-1">0</span></div>
-                <div class="limit-indicators">
-                    <span class="limit-tag" id="ax-lm-1">LIM-</span><span class="limit-tag" id="ax-lp-1">LIM+</span><span class="limit-tag" id="ax-home-1">HOME</span>
-                </div>
-                <div class="ax-error-box" id="ax-err-box-1" style="display:none; margin-top:8px; padding:6px; border-radius:3px; background:rgba(248,81,73,0.1); border:1px solid rgba(248,81,73,0.3); font-size:10px; color:#ff8080; white-space:normal; cursor:help;">
-                    <div style="font-weight:bold; text-transform:uppercase; font-size:9px; color:var(--red); margin-bottom:2px;">Lỗi <span id="ax-err-code-1"></span></div>
-                    <div id="ax-err-desc-1" style="line-height:1.2;">-</div>
-                </div>
-                <div class="ax-warning-box" id="ax-warn-box-1" style="display:none; margin-top:4px; padding:6px; border-radius:3px; background:rgba(251,133,0,0.1); border:1px solid rgba(251,133,0,0.3); font-size:10px; color:#ffb060; white-space:normal; cursor:help;">
-                    <div style="font-weight:bold; text-transform:uppercase; font-size:9px; color:var(--orange); margin-bottom:2px;">Cảnh báo <span id="ax-warn-code-1"></span></div>
-                    <div id="ax-warn-desc-1" style="line-height:1.2;">-</div>
-                </div>
-            </div>
-            <div class="panel axis-panel" id="axis-panel-2">
-                <div class="axis-panel-title">
-                    <span class="ax-name">Axis 3</span>
-                    <span class="ax-mode" id="ax-mode-2">Standby</span>
-                </div>
-                <div class="ax-metric"><span class="lbl">Position</span><span class="val" id="ax-pos-2">0.0000</span></div>
-                <div class="ax-metric"><span class="lbl">Speed</span><span class="val" id="ax-spd-2">0.00</span></div>
-                <div class="ax-metric"><span class="lbl">MD.44</span><span class="val small" id="ax-md-2">0</span></div>
-                <div class="limit-indicators">
-                    <span class="limit-tag" id="ax-lm-2">LIM-</span><span class="limit-tag" id="ax-lp-2">LIM+</span><span class="limit-tag" id="ax-home-2">HOME</span>
-                </div>
-                <div class="ax-error-box" id="ax-err-box-2" style="display:none; margin-top:8px; padding:6px; border-radius:3px; background:rgba(248,81,73,0.1); border:1px solid rgba(248,81,73,0.3); font-size:10px; color:#ff8080; white-space:normal; cursor:help;">
-                    <div style="font-weight:bold; text-transform:uppercase; font-size:9px; color:var(--red); margin-bottom:2px;">Lỗi <span id="ax-err-code-2"></span></div>
-                    <div id="ax-err-desc-2" style="line-height:1.2;">-</div>
-                </div>
-                <div class="ax-warning-box" id="ax-warn-box-2" style="display:none; margin-top:4px; padding:6px; border-radius:3px; background:rgba(251,133,0,0.1); border:1px solid rgba(251,133,0,0.3); font-size:10px; color:#ffb060; white-space:normal; cursor:help;">
-                    <div style="font-weight:bold; text-transform:uppercase; font-size:9px; color:var(--orange); margin-bottom:2px;">Cảnh báo <span id="ax-warn-code-2"></span></div>
-                    <div id="ax-warn-desc-2" style="line-height:1.2;">-</div>
-                </div>
-            </div>
-            <div class="panel axis-panel" id="axis-panel-3">
-                <div class="axis-panel-title">
-                    <span class="ax-name">Axis 4</span>
-                    <span class="ax-mode" id="ax-mode-3">Standby</span>
-                </div>
-                <div class="ax-metric"><span class="lbl">Position</span><span class="val" id="ax-pos-3">0.0000</span></div>
-                <div class="ax-metric"><span class="lbl">Speed</span><span class="val" id="ax-spd-3">0.00</span></div>
-                <div class="ax-metric"><span class="lbl">MD.44</span><span class="val small" id="ax-md-3">0</span></div>
-                <div class="limit-indicators">
-                    <span class="limit-tag" id="ax-lm-3">LIM-</span><span class="limit-tag" id="ax-lp-3">LIM+</span><span class="limit-tag" id="ax-home-3">HOME</span>
-                </div>
-                <div class="ax-error-box" id="ax-err-box-3" style="display:none; margin-top:8px; padding:6px; border-radius:3px; background:rgba(248,81,73,0.1); border:1px solid rgba(248,81,73,0.3); font-size:10px; color:#ff8080; white-space:normal; cursor:help;">
-                    <div style="font-weight:bold; text-transform:uppercase; font-size:9px; color:var(--red); margin-bottom:2px;">Lỗi <span id="ax-err-code-3"></span></div>
-                    <div id="ax-err-desc-3" style="line-height:1.2;">-</div>
-                </div>
-                <div class="ax-warning-box" id="ax-warn-box-3" style="display:none; margin-top:4px; padding:6px; border-radius:3px; background:rgba(251,133,0,0.1); border:1px solid rgba(251,133,0,0.3); font-size:10px; color:#ffb060; white-space:normal; cursor:help;">
-                    <div style="font-weight:bold; text-transform:uppercase; font-size:9px; color:var(--orange); margin-bottom:2px;">Cảnh báo <span id="ax-warn-code-3"></span></div>
-                    <div id="ax-warn-desc-3" style="line-height:1.2;">-</div>
+            <div>
+                <div class="sidebar-title">Điều khiển nhanh</div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                    <button class="cam-btn start" onclick="dashboard.publishCommand('RUN', 'machine')"
+                        style="width:100%; text-align:center;">▶ RUN</button>
+                    <button class="cam-btn rec" onclick="dashboard.publishCommand('STOP', 'machine')"
+                        style="width:100%; text-align:center;">■ STOP</button>
+                    <button class="cam-btn" onclick="dashboard.publishCommand('PAUSE', 'machine')"
+                        style="width:100%; text-align:center; background: var(--yellow); color: #000; font-weight:600; border:none; border-radius:3px; font-size:11px; padding:4px 0;">⏸
+                        PAUSE</button>
+                    <button class="cam-btn" onclick="dashboard.publishCommand('RESET', 'machine')"
+                        style="width:100%; text-align:center; background: var(--blue); color: #fff; font-weight:600; border:none; border-radius:3px; font-size:11px; padding:4px 0;">↺
+                        RESET</button>
+                    <button class="cam-btn" onclick="dashboard.publishCommand('HOME', 'machine')"
+                        style="width:100%; text-align:center; background: var(--cyan); color: #000; font-weight:600; border:none; border-radius:3px; font-size:11px; padding:4px 0;">🏠
+                        HOME</button>
+                    <button class="cam-btn" onclick="dashboard.publishCommand('HOMEALL', 'machine')"
+                        style="width:100%; text-align:center; background: var(--orange); color: #000; font-weight:600; border:none; border-radius:3px; font-size:11px; padding:4px 0;">🏠
+                        HOME ALL</button>
                 </div>
             </div>
 
-            <div class="panel" id="dxf-completion-panel">
-                <div class="dc-title">DXF Completion</div>
-                <div class="progress-bar-wrap"><div class="progress-bar-fill" id="dxf-progress-bar"></div></div>
-                <div class="dc-bottom">
-                    <div class="dc-sub" id="dxf-active-label">Active no: —</div>
-                    <div class="dc-pct" id="dxf-pct">0%</div>
-                </div>
-            </div>
-        </div>
-
-        <!-- ── MIDDLE ROW: CAD MAIN, DXF SIDE & CAMERA ── -->
-        <div id="middle-row">
-            <div class="panel" id="cad-panel">
-                <div class="panel-header">
-                    <div>
-                        <div class="ph-title">CAD Preview</div>
-                        <div class="ph-sub" id="cad-file-sub">Chờ dữ liệu DACDT/cad/state…</div>
-                    </div>
-                    <div class="active-badge">
-                        <span class="dot" id="cad-live-dot" style="background:var(--muted)"></span>
-                        <span id="cad-prims-count">0 prims</span>
-                    </div>
-                </div>
-                <div class="cad-wrap" id="cad-wrap">
-                    <canvas class="cad-canvas" id="cad-canvas"></canvas>
-                    <div class="cad-overlay-info" id="cad-info"></div>
-                    <div class="cad-no-data" id="cad-no-data">
-                        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" opacity=".3">
-                            <rect x="3" y="3" width="18" height="18" rx="2"/>
-                            <path d="M3 9h18M9 21V9"/>
-                        </svg>
-                        <span>Chờ dữ liệu CAD từ MQTT…</span>
-                    </div>
-                    <div class="cad-legend" id="cad-legend" style="display:none">
-                        <div class="cad-legend-item"><div class="cad-legend-dot" style="background:#29b6f6"></div><span style="color:var(--muted)">Line / Arc</span></div>
-                        <div class="cad-legend-item"><div class="cad-legend-dot" style="background:#f44336"></div><span style="color:var(--muted)">Rapid (G0)</span></div>
-                        <div class="cad-legend-item"><div class="cad-legend-dot" style="background:#76ff03;border:2px solid #fff"></div><span style="color:var(--muted)">Robot</span></div>
-                    </div>
+            <div>
+                <div class="sidebar-title">Trạng thái MQTT</div>
+                <div id="mqtt-status-sidebar" class="status-info disconnected">
+                    <span class="dot red"></span>
+                    <span style="color:var(--red)">Ngắt kết nối</span>
                 </div>
             </div>
 
-            <div class="panel">
-                <div class="panel-header">
-                    <div>
-                        <div class="ph-title">DXF Point Monitor</div>
-                        <div class="ph-sub" id="dxf-file-label">Không có file · Highlight follows Axis 1</div>
-                    </div>
-                    <div class="active-badge">Active: <span id="active-data-no">—</span><span class="dot" id="active-dot"></span></div>
+            <div>
+                <div class="sidebar-title">Kết nối</div>
+                <div class="info-item"><span class="info-label">Broker:</span><span class="info-value"
+                        id="broker-value">-</span></div>
+                <div class="info-item"><span class="info-label">Topic:</span><span class="info-value"
+                        id="topic-value">-</span></div>
+                <div class="info-item"><span class="info-label">Cập nhật:</span><span class="info-value"
+                        id="last-update">-</span></div>
+                <div class="info-item"><span class="info-label">Msg count:</span><span class="info-value"
+                        id="msg-count">0</span></div>
+            </div>
+
+            <div style="flex: 1; display: flex; flex-direction: column;">
+                <div class="sidebar-title">Thông tin hệ thống</div>
+                <div id="sidebar-logs" class="log-container" style="flex: 1;">
+                    <div class="log-entry info"><span class="log-time">[00:00]</span><span class="log-message">Chờ dữ
+                            liệu...</span></div>
                 </div>
-                <div class="panel-body dxf-table-wrap">
-                    <table class="dxf-table">
-                        <thead>
-                            <tr><th>Run</th><th>No.</th><th style="min-width:180px">G-code / Point</th><th>M</th><th>Speed</th><th>End X·Y</th></tr>
-                        </thead>
-                        <tbody id="dxf-tbody">
-                            <tr><td colspan="6" style="text-align:center;color:var(--muted);padding:20px;">Chờ dữ liệu DXF...</td></tr>
-                        </tbody>
-                    </table>
+            </div>
+        </aside>
+
+        <!-- ── MAIN CONTENT (RIGHT) ── -->
+        <main class="main-content">
+            <!-- ── TOP ROW: AXES & PROGRESS ── -->
+            <div id="top-row">
+                <div class="panel axis-panel" id="axis-panel-0">
+                    <div class="axis-panel-title">
+                        <span class="ax-name">Axis 1</span>
+                        <span class="ax-mode" id="ax-mode-0">Position control</span>
+                    </div>
+                    <div class="ax-metric"><span class="lbl">Position</span><span class="val"
+                            id="ax-pos-0">0.0000</span></div>
+                    <div class="ax-metric"><span class="lbl">Speed</span><span class="val" id="ax-spd-0">0.00</span>
+                    </div>
+                    <div class="ax-metric"><span class="lbl">MD.44</span><span class="val small" id="ax-md-0">0</span>
+                    </div>
+                    <div class="limit-indicators">
+                        <span class="limit-tag" id="ax-lm-0">LIM-</span><span class="limit-tag"
+                            id="ax-lp-0">LIM+</span><span class="limit-tag" id="ax-home-0">HOME</span>
+                    </div>
+                    <div class="ax-error-box" id="ax-err-box-0"
+                        style="display:none; margin-top:8px; padding:6px; border-radius:3px; background:rgba(248,81,73,0.1); border:1px solid rgba(248,81,73,0.3); font-size:10px; color:#ff8080; white-space:normal; cursor:help;">
+                        <div
+                            style="font-weight:bold; text-transform:uppercase; font-size:9px; color:var(--red); margin-bottom:2px;">
+                            Lỗi <span id="ax-err-code-0"></span></div>
+                        <div id="ax-err-desc-0" style="line-height:1.2;">-</div>
+                    </div>
+                    <div class="ax-warning-box" id="ax-warn-box-0"
+                        style="display:none; margin-top:4px; padding:6px; border-radius:3px; background:rgba(251,133,0,0.1); border:1px solid rgba(251,133,0,0.3); font-size:10px; color:#ffb060; white-space:normal; cursor:help;">
+                        <div
+                            style="font-weight:bold; text-transform:uppercase; font-size:9px; color:var(--orange); margin-bottom:2px;">
+                            Cảnh báo <span id="ax-warn-code-0"></span></div>
+                        <div id="ax-warn-desc-0" style="line-height:1.2;">-</div>
+                    </div>
+                </div>
+                <div class="panel axis-panel" id="axis-panel-1">
+                    <div class="axis-panel-title">
+                        <span class="ax-name">Axis 2</span>
+                        <span class="ax-mode" id="ax-mode-1">Interpolation</span>
+                    </div>
+                    <div class="ax-metric"><span class="lbl">Position</span><span class="val"
+                            id="ax-pos-1">0.0000</span></div>
+                    <div class="ax-metric"><span class="lbl">Speed</span><span class="val" id="ax-spd-1">0.00</span>
+                    </div>
+                    <div class="ax-metric"><span class="lbl">MD.44</span><span class="val small" id="ax-md-1">0</span>
+                    </div>
+                    <div class="limit-indicators">
+                        <span class="limit-tag" id="ax-lm-1">LIM-</span><span class="limit-tag"
+                            id="ax-lp-1">LIM+</span><span class="limit-tag" id="ax-home-1">HOME</span>
+                    </div>
+                    <div class="ax-error-box" id="ax-err-box-1"
+                        style="display:none; margin-top:8px; padding:6px; border-radius:3px; background:rgba(248,81,73,0.1); border:1px solid rgba(248,81,73,0.3); font-size:10px; color:#ff8080; white-space:normal; cursor:help;">
+                        <div
+                            style="font-weight:bold; text-transform:uppercase; font-size:9px; color:var(--red); margin-bottom:2px;">
+                            Lỗi <span id="ax-err-code-1"></span></div>
+                        <div id="ax-err-desc-1" style="line-height:1.2;">-</div>
+                    </div>
+                    <div class="ax-warning-box" id="ax-warn-box-1"
+                        style="display:none; margin-top:4px; padding:6px; border-radius:3px; background:rgba(251,133,0,0.1); border:1px solid rgba(251,133,0,0.3); font-size:10px; color:#ffb060; white-space:normal; cursor:help;">
+                        <div
+                            style="font-weight:bold; text-transform:uppercase; font-size:9px; color:var(--orange); margin-bottom:2px;">
+                            Cảnh báo <span id="ax-warn-code-1"></span></div>
+                        <div id="ax-warn-desc-1" style="line-height:1.2;">-</div>
+                    </div>
+                </div>
+                <div class="panel axis-panel" id="axis-panel-2">
+                    <div class="axis-panel-title">
+                        <span class="ax-name">Axis 3</span>
+                        <span class="ax-mode" id="ax-mode-2">Standby</span>
+                    </div>
+                    <div class="ax-metric"><span class="lbl">Position</span><span class="val"
+                            id="ax-pos-2">0.0000</span></div>
+                    <div class="ax-metric"><span class="lbl">Speed</span><span class="val" id="ax-spd-2">0.00</span>
+                    </div>
+                    <div class="ax-metric"><span class="lbl">MD.44</span><span class="val small" id="ax-md-2">0</span>
+                    </div>
+                    <div class="limit-indicators">
+                        <span class="limit-tag" id="ax-lm-2">LIM-</span><span class="limit-tag"
+                            id="ax-lp-2">LIM+</span><span class="limit-tag" id="ax-home-2">HOME</span>
+                    </div>
+                    <div class="ax-error-box" id="ax-err-box-2"
+                        style="display:none; margin-top:8px; padding:6px; border-radius:3px; background:rgba(248,81,73,0.1); border:1px solid rgba(248,81,73,0.3); font-size:10px; color:#ff8080; white-space:normal; cursor:help;">
+                        <div
+                            style="font-weight:bold; text-transform:uppercase; font-size:9px; color:var(--red); margin-bottom:2px;">
+                            Lỗi <span id="ax-err-code-2"></span></div>
+                        <div id="ax-err-desc-2" style="line-height:1.2;">-</div>
+                    </div>
+                    <div class="ax-warning-box" id="ax-warn-box-2"
+                        style="display:none; margin-top:4px; padding:6px; border-radius:3px; background:rgba(251,133,0,0.1); border:1px solid rgba(251,133,0,0.3); font-size:10px; color:#ffb060; white-space:normal; cursor:help;">
+                        <div
+                            style="font-weight:bold; text-transform:uppercase; font-size:9px; color:var(--orange); margin-bottom:2px;">
+                            Cảnh báo <span id="ax-warn-code-2"></span></div>
+                        <div id="ax-warn-desc-2" style="line-height:1.2;">-</div>
+                    </div>
+                </div>
+                <div class="panel axis-panel" id="axis-panel-3">
+                    <div class="axis-panel-title">
+                        <span class="ax-name">Axis 4</span>
+                        <span class="ax-mode" id="ax-mode-3">Standby</span>
+                    </div>
+                    <div class="ax-metric"><span class="lbl">Position</span><span class="val"
+                            id="ax-pos-3">0.0000</span></div>
+                    <div class="ax-metric"><span class="lbl">Speed</span><span class="val" id="ax-spd-3">0.00</span>
+                    </div>
+                    <div class="ax-metric"><span class="lbl">MD.44</span><span class="val small" id="ax-md-3">0</span>
+                    </div>
+                    <div class="limit-indicators">
+                        <span class="limit-tag" id="ax-lm-3">LIM-</span><span class="limit-tag"
+                            id="ax-lp-3">LIM+</span><span class="limit-tag" id="ax-home-3">HOME</span>
+                    </div>
+                    <div class="ax-error-box" id="ax-err-box-3"
+                        style="display:none; margin-top:8px; padding:6px; border-radius:3px; background:rgba(248,81,73,0.1); border:1px solid rgba(248,81,73,0.3); font-size:10px; color:#ff8080; white-space:normal; cursor:help;">
+                        <div
+                            style="font-weight:bold; text-transform:uppercase; font-size:9px; color:var(--red); margin-bottom:2px;">
+                            Lỗi <span id="ax-err-code-3"></span></div>
+                        <div id="ax-err-desc-3" style="line-height:1.2;">-</div>
+                    </div>
+                    <div class="ax-warning-box" id="ax-warn-box-3"
+                        style="display:none; margin-top:4px; padding:6px; border-radius:3px; background:rgba(251,133,0,0.1); border:1px solid rgba(251,133,0,0.3); font-size:10px; color:#ffb060; white-space:normal; cursor:help;">
+                        <div
+                            style="font-weight:bold; text-transform:uppercase; font-size:9px; color:var(--orange); margin-bottom:2px;">
+                            Cảnh báo <span id="ax-warn-code-3"></span></div>
+                        <div id="ax-warn-desc-3" style="line-height:1.2;">-</div>
+                    </div>
+                </div>
+
+                <div class="panel" id="dxf-completion-panel">
+                    <div class="dc-title">DXF Completion</div>
+                    <div class="progress-bar-wrap">
+                        <div class="progress-bar-fill" id="dxf-progress-bar"></div>
+                    </div>
+                    <div class="dc-bottom">
+                        <div class="dc-sub" id="dxf-active-label">Active no: —</div>
+                        <div class="dc-pct" id="dxf-pct">0%</div>
+                    </div>
                 </div>
             </div>
 
-            <div class="panel">
-                <div class="panel-header">
-                    <div>
-                        <div class="ph-title">Camera Monitor</div>
-                        <div class="ph-sub">Camera streaming</div>
-                    </div>
-                    <div class="active-badge"><span class="dot" id="cam-status-dot"></span><span id="cam-status-text">Recording stopped</span></div>
-                </div>
-                <div class="cam-toolbar">
-                    <span style="font-size: 11px; color: var(--text-bright); padding: 4px 8px; font-weight: 600;">Nguồn: WebRTC Video Stream</span>
-                    <div style="margin-left: auto; display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end;">
-                        <button class="cam-btn start" onclick="dashboard.requestStartCameraStream()">Bat stream</button>
-                        <button class="cam-btn stop" onclick="dashboard.requestStopCameraStream()">Dung WebRTC</button>
-                        <button class="cam-btn start" onclick="dashboard.publishCommand('STARTRECORD', 'camera')">Bắt đầu quay</button>
-                        <button class="cam-btn stop" onclick="dashboard.publishCommand('STOPRECORD', 'camera')">Dừng quay</button>
-                    </div>
-                </div>
-                <div class="cam-view" id="cam-view">
-                    <div class="cam-placeholder" id="cam-placeholder">
-                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                            <rect x="2" y="7" width="15" height="10" rx="1"/><path d="M17 9l5-2v10l-5-2"/>
-                        </svg>
-                        <span id="cam-loading-text">Đang chờ camera hoạt động...</span>
-                    </div>
-                    <video id="cam-video" autoplay muted playsinline style="display:none;width:100%;height:100%;object-fit:contain;"></video>
-                </div>
-                <div class="rec-status" id="rec-status">
-                    <span class="dot rec-dot" id="mqtt-cam-dot"></span><span id="rec-label">Chưa nhận được dữ liệu</span>
-                </div>
-            </div>
-        </div>
-
-        <!-- ── BOTTOM ROW: PLC & LOGS ── -->
-        <div id="bottom-row">
-            <div class="plc-status-grid">
-                <div class="panel">
-                    <div class="panel-header"><div class="panel-title-group"><span class="panel-icon">🔌</span><span class="ph-title">PLC Connection</span></div></div>
-                    <div class="panel-body plc-info-group">
-                        <div class="info-row"><span class="info-val large" id="plc-status"><span class="dot red" id="plc-dot"></span> Disconnected</span></div>
-                        <div class="info-row"><span class="info-lbl">Banner</span><span class="info-val" id="plc-banner">-</span></div>
-                        <div class="info-row"><span class="info-lbl">Jog Speed</span><span class="info-val" id="jog-speed">0</span></div>
-                    </div>
-                </div>
-
-                <div class="panel">
-                    <div class="panel-header"><div class="panel-title-group"><span class="panel-icon">🛡️</span><span class="ph-title">Integrity</span></div></div>
-                    <div class="panel-body plc-info-group" style="padding-top: 8px;">
-                        <div id="integrity-banner" class="integrity-banner unknown">
-                            <span>⏳</span><span id="integrity-state">Chờ dữ liệu...</span>
+            <!-- ── MIDDLE ROW: CAD MAIN, DXF SIDE & CAMERA ── -->
+            <div id="middle-row">
+                <div class="panel" id="cad-panel">
+                    <div class="panel-header">
+                        <div>
+                            <div class="ph-title">CAD Preview</div>
+                            <div class="ph-sub" id="cad-file-sub">Chờ dữ liệu DACDT/cad/state…</div>
                         </div>
-                        <div class="info-row"><span class="info-lbl">Chi tiết</span><span class="info-val" id="integrity-detail" style="word-break: break-word;">-</span></div>
-                        <div class="info-row"><span class="info-lbl">Tone</span><span class="info-val" id="integrity-tone">-</span></div>
+                        <div class="active-badge">
+                            <span class="dot" id="cad-live-dot" style="background:var(--muted)"></span>
+                            <span id="cad-prims-count">0 prims</span>
+                        </div>
+                    </div>
+                    <div class="cad-wrap" id="cad-wrap">
+                        <canvas class="cad-canvas" id="cad-canvas"></canvas>
+                        <div class="cad-overlay-info" id="cad-info"></div>
+                        <div class="cad-no-data" id="cad-no-data">
+                            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="1.2" opacity=".3">
+                                <rect x="3" y="3" width="18" height="18" rx="2" />
+                                <path d="M3 9h18M9 21V9" />
+                            </svg>
+                            <span>Chờ dữ liệu CAD từ MQTT…</span>
+                        </div>
+                        <div class="cad-legend" id="cad-legend" style="display:none">
+                            <div class="cad-legend-item">
+                                <div class="cad-legend-dot" style="background:#29b6f6"></div><span
+                                    style="color:var(--muted)">Line / Arc</span>
+                            </div>
+                            <div class="cad-legend-item">
+                                <div class="cad-legend-dot" style="background:#f44336"></div><span
+                                    style="color:var(--muted)">Rapid (G0)</span>
+                            </div>
+                            <div class="cad-legend-item">
+                                <div class="cad-legend-dot" style="background:#76ff03;border:2px solid #fff"></div><span
+                                    style="color:var(--muted)">Robot</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <div class="panel-header">
+                        <div>
+                            <div class="ph-title">DXF Point Monitor</div>
+                            <div class="ph-sub" id="dxf-file-label">Không có file · Highlight follows Axis 1</div>
+                        </div>
+                        <div class="active-badge">Active: <span id="active-data-no">—</span><span class="dot"
+                                id="active-dot"></span></div>
+                    </div>
+                    <div class="panel-body dxf-table-wrap">
+                        <table class="dxf-table">
+                            <thead>
+                                <tr>
+                                    <th>Run</th>
+                                    <th>No.</th>
+                                    <th style="min-width:180px">G-code / Point</th>
+                                    <th>M</th>
+                                    <th>Speed</th>
+                                    <th>End X·Y</th>
+                                </tr>
+                            </thead>
+                            <tbody id="dxf-tbody">
+                                <tr>
+                                    <td colspan="6" style="text-align:center;color:var(--muted);padding:20px;">Chờ dữ
+                                        liệu DXF...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <div class="panel-header">
+                        <div>
+                            <div class="ph-title">Camera Monitor</div>
+                            <div class="ph-sub">Camera streaming</div>
+                        </div>
+                        <div class="active-badge"><span class="dot" id="cam-status-dot"></span><span
+                                id="cam-status-text">Recording stopped</span></div>
+                    </div>
+                    <div class="cam-toolbar">
+                        <span
+                            style="font-size: 11px; color: var(--text-bright); padding: 4px 8px; font-weight: 600;">Nguồn:
+                            WebRTC Video Stream</span>
+                        <div
+                            style="margin-left: auto; display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end;">
+                            <button class="cam-btn start" onclick="dashboard.requestStartCameraStream()">Bat
+                                stream</button>
+                            <button class="cam-btn stop" onclick="dashboard.requestStopCameraStream()">Dung
+                                WebRTC</button>
+                            <button class="cam-btn start"
+                                onclick="dashboard.publishCommand('STARTRECORD', 'camera')">Bắt đầu quay</button>
+                            <button class="cam-btn stop" onclick="dashboard.publishCommand('STOPRECORD', 'camera')">Dừng
+                                quay</button>
+                        </div>
+                    </div>
+                    <div class="cam-view" id="cam-view">
+                        <div class="cam-placeholder" id="cam-placeholder">
+                            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="1.5">
+                                <rect x="2" y="7" width="15" height="10" rx="1" />
+                                <path d="M17 9l5-2v10l-5-2" />
+                            </svg>
+                            <span id="cam-loading-text">Đang chờ camera hoạt động...</span>
+                        </div>
+                        <video id="cam-video" autoplay muted playsinline
+                            style="display:none;width:100%;height:100%;object-fit:contain;"></video>
+                    </div>
+                    <div class="rec-status" id="rec-status">
+                        <span class="dot rec-dot" id="mqtt-cam-dot"></span><span id="rec-label">Chưa nhận được dữ
+                            liệu</span>
                     </div>
                 </div>
             </div>
 
-            <div class="panel">
-                <div class="panel-header">
-                    <div class="panel-title-group"><span class="panel-icon">📋</span><span class="ph-title">Real-time Logs</span></div>
-                    <div class="ph-sub" id="mqtt-status">MQTT Disconnected</div>
+            <!-- ── BOTTOM ROW: PLC & LOGS ── -->
+            <div id="bottom-row">
+                <div class="plc-status-grid">
+                    <div class="panel">
+                        <div class="panel-header">
+                            <div class="panel-title-group"><span class="panel-icon">🔌</span><span class="ph-title">PLC
+                                    Connection</span></div>
+                        </div>
+                        <div class="panel-body plc-info-group">
+                            <div class="info-row"><span class="info-val large" id="plc-status"><span class="dot red"
+                                        id="plc-dot"></span> Disconnected</span></div>
+                            <div class="info-row"><span class="info-lbl">Banner</span><span class="info-val"
+                                    id="plc-banner">-</span></div>
+                            <div class="info-row"><span class="info-lbl">Jog Speed</span><span class="info-val"
+                                    id="jog-speed">0</span></div>
+                        </div>
+                    </div>
+
+                    <div class="panel">
+                        <div class="panel-header">
+                            <div class="panel-title-group"><span class="panel-icon">🛡️</span><span
+                                    class="ph-title">Integrity</span></div>
+                        </div>
+                        <div class="panel-body plc-info-group" style="padding-top: 8px;">
+                            <div id="integrity-banner" class="integrity-banner unknown">
+                                <span>⏳</span><span id="integrity-state">Chờ dữ liệu...</span>
+                            </div>
+                            <div class="info-row"><span class="info-lbl">Chi tiết</span><span class="info-val"
+                                    id="integrity-detail" style="word-break: break-word;">-</span></div>
+                            <div class="info-row"><span class="info-lbl">Tone</span><span class="info-val"
+                                    id="integrity-tone">-</span></div>
+                        </div>
+                    </div>
                 </div>
-                <div class="panel-body" style="padding: 10px;">
-                    <div id="logs-container" class="log-container" style="height: 100%;">
-                        <div class="log-entry info"><span class="log-time">[00:00:00]</span><span class="log-message">Khởi động ứng dụng...</span></div>
+
+                <div class="panel">
+                    <div class="panel-header">
+                        <div class="panel-title-group"><span class="panel-icon">📋</span><span
+                                class="ph-title">Real-time Logs</span></div>
+                        <div class="ph-sub" id="mqtt-status">MQTT Disconnected</div>
+                    </div>
+                    <div class="panel-body" style="padding: 10px;">
+                        <div id="logs-container" class="log-container" style="height: 100%;">
+                            <div class="log-entry info"><span class="log-time">[00:00:00]</span><span
+                                    class="log-message">Khởi động ứng dụng...</span></div>
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
-    </main>
-</div>
+        </main>
+    </div>
 
-<script>
-class GantrySCADADashboard {
-    constructor() {
-        this.client = null;
-        this.isConnected = false;
-        this.msgCount = 0;
-        this.logs = [];
-        this.dxfPoints = [];
-        this.activeDataNo = null;
-        this.mediaStream = null;
-        this.mediaRecorder = null;
-        this.recordedChunks = [];
-        this.isRecording = false;
+    <script>
+        class GantrySCADADashboard {
+            constructor() {
+                this.client = null;
+                this.isConnected = false;
+                this.msgCount = 0;
+                this.logs = [];
+                this.dxfPoints = [];
+                this.activeDataNo = null;
+                this.mediaStream = null;
+                this.mediaRecorder = null;
+                this.recordedChunks = [];
+                this.isRecording = false;
 
-        this.MQTT_BROKER   = 'beb7179d08fa43f79d440a9be9b95f24.s1.eu.hivemq.cloud';
-        this.MQTT_PORT     = 8884;
-        this.MQTT_USERNAME = 'DACDT2026';
-        this.MQTT_PASSWORD = 'trungaN123@';
-        this.MQTT_TOPIC_MACHINE_STATE = 'DACDT/machine/state';
-        this.MQTT_TOPIC_MONITOR_STATE = 'DACDT/monitor/state';
-        this.MQTT_TOPIC_CAMERA_STATUS = 'DACDT/camera/status';
-        this.MQTT_TOPIC_WEBRTC_STATUS = 'DACDT/camera/webrtc/status';
-        this.MQTT_TOPIC_CAD_STATE     = 'DACDT/cad/state';
-        this.webrtcClientId = 'web_' + Math.random().toString(36).substr(2, 9);
-        this.peerConnection = null;
-        this.pendingRemoteCandidates = [];
-        this.appliedRemoteCandidateKeys = new Set();
-        this.isCameraStartRequested = false;
-        this.hasWebRtcTrack = false;
-        this.hasVideoFrame = false;
-        this._cadData = null;
-        this._cadDirty = false;
+                this.MQTT_BROKER = 'beb7179d08fa43f79d440a9be9b95f24.s1.eu.hivemq.cloud';
+                this.MQTT_PORT = 8884;
+                this.MQTT_USERNAME = 'DACDT2026';
+                this.MQTT_PASSWORD = 'trungaN123@';
+                this.MQTT_TOPIC_MACHINE_STATE = 'DACDT/machine/state';
+                this.MQTT_TOPIC_MONITOR_STATE = 'DACDT/monitor/state';
+                this.MQTT_TOPIC_CAMERA_STATUS = 'DACDT/camera/status';
+                this.MQTT_TOPIC_WEBRTC_STATUS = 'DACDT/camera/webrtc/status';
+                this.MQTT_TOPIC_CAD_STATE = 'DACDT/cad/state';
+                this.webrtcClientId = 'web_' + Math.random().toString(36).substr(2, 9);
+                this.peerConnection = null;
+                this.pendingRemoteCandidates = [];
+                this.appliedRemoteCandidateKeys = new Set();
+                this.isCameraStartRequested = false;
+                this.hasWebRtcTrack = false;
+                this.hasVideoFrame = false;
+                this._cadData = null;
+                this._cadDirty = false;
 
-        this.init();
-    }
+                this.init();
+            }
 
-    init() {
-        // init UI
-        document.getElementById('broker-value').textContent = this.MQTT_BROKER;
-        document.getElementById('topic-value').textContent = 'machine, monitor, camera, cad';
-        
-        this.addLog('Dashboard khởi động', 'info');
-        this.connectMQTT();
-    }
+            init() {
+                // init UI
+                document.getElementById('broker-value').textContent = this.MQTT_BROKER;
+                document.getElementById('topic-value').textContent = 'machine, monitor, camera, cad';
 
-    /* ── LOGS ── */
-    addLog(message, type = 'info') {
-        const now = new Date();
-        const timeStrLong = now.toLocaleTimeString('vi-VN');
-        const timeStrShort = timeStrLong.substring(0, 5); // HH:mm
-        this.logs.push({ message, type, time: timeStrLong, timeShort: timeStrShort });
-        if (this.logs.length > 100) this.logs.shift();
-        this.renderLogs();
-    }
+                this.addLog('Dashboard khởi động', 'info');
+                this.connectMQTT();
+            }
 
-    renderLogs() {
-        const mainContainer = document.getElementById('logs-container');
-        const sbContainer = document.getElementById('sidebar-logs');
-        
-        if (mainContainer) {
-            mainContainer.innerHTML = this.logs.slice(-40).map(log => 
-                `<div class="log-entry ${log.type}"><span class="log-time">[${log.time}]</span><span class="log-message">✓ ${log.message}</span></div>`
-            ).join('');
-            mainContainer.scrollTop = mainContainer.scrollHeight;
-        }
-        if (sbContainer) {
-            sbContainer.innerHTML = this.logs.slice(-20).map(log => 
-                `<div class="log-entry ${log.type}"><span class="log-time">[${log.timeShort}]</span><span class="log-message">${log.message}</span></div>`
-            ).join('');
-            sbContainer.scrollTop = sbContainer.scrollHeight;
-        }
-    }
+            /* ── LOGS ── */
+            addLog(message, type = 'info') {
+                const now = new Date();
+                const timeStrLong = now.toLocaleTimeString('vi-VN');
+                const timeStrShort = timeStrLong.substring(0, 5); // HH:mm
+                this.logs.push({ message, type, time: timeStrLong, timeShort: timeStrShort });
+                if (this.logs.length > 100) this.logs.shift();
+                this.renderLogs();
+            }
 
-    /* ── MQTT ── */
-    connectMQTT() {
-        try {
-            const clientId = 'SCADA_' + Math.random().toString(36).substr(2, 8);
-            this.client = new Paho.MQTT.Client(this.MQTT_BROKER, this.MQTT_PORT, clientId);
-            
-            this.client.onConnectionLost = (e) => { 
-                this.isConnected = false; 
-                document.getElementById('mqtt-status').textContent = 'MQTT Disconnected';
-                document.getElementById('mqtt-status').style.color = 'var(--red)';
-                
-                const sbStatus = document.getElementById('mqtt-status-sidebar');
-                if(sbStatus) {
-                    sbStatus.className = 'status-info disconnected';
-                    sbStatus.innerHTML = '<span class="dot red"></span><span style="color:var(--red)">Ngắt kết nối</span>';
+            renderLogs() {
+                const mainContainer = document.getElementById('logs-container');
+                const sbContainer = document.getElementById('sidebar-logs');
+
+                if (mainContainer) {
+                    mainContainer.innerHTML = this.logs.slice(-40).map(log =>
+                        `<div class="log-entry ${log.type}"><span class="log-time">[${log.time}]</span><span class="log-message">✓ ${log.message}</span></div>`
+                    ).join('');
+                    mainContainer.scrollTop = mainContainer.scrollHeight;
                 }
-                this.addLog('Mất kết nối MQTT: ' + e.errorMessage, 'error');
-            };
-            
-            this.client.onMessageArrived = (msg) => this.handleMessage(msg);
-            
-            this.client.connect({
-                userName: this.MQTT_USERNAME,
-                password: this.MQTT_PASSWORD,
-                useSSL: true,
-                onSuccess: () => {
-                    this.isConnected = true;
-                    document.getElementById('mqtt-status').textContent = 'MQTT Connected';
-                    document.getElementById('mqtt-status').style.color = 'var(--green)';
-                    
-                    const sbStatus = document.getElementById('mqtt-status-sidebar');
-                    if(sbStatus) {
-                        sbStatus.className = 'status-info connected';
-                        sbStatus.innerHTML = '<span class="dot" style="background:var(--green)"></span><span style="color:var(--green)">Đã kết nối</span>';
-                    }
-                    this.addLog('Kết nối MQTT thành công', 'info');
-                    
-                    this.client.subscribe(this.MQTT_TOPIC_MACHINE_STATE);
-                    this.client.subscribe(this.MQTT_TOPIC_MONITOR_STATE);
-                    this.client.subscribe(this.MQTT_TOPIC_CAMERA_STATUS);
-                    this.client.subscribe(this.MQTT_TOPIC_WEBRTC_STATUS);
-                    this.client.subscribe('DACDT/camera/webrtc/signaling/' + this.webrtcClientId + '/server');
-                    this.client.subscribe(this.MQTT_TOPIC_CAD_STATE, {
+                if (sbContainer) {
+                    sbContainer.innerHTML = this.logs.slice(-20).map(log =>
+                        `<div class="log-entry ${log.type}"><span class="log-time">[${log.timeShort}]</span><span class="log-message">${log.message}</span></div>`
+                    ).join('');
+                    sbContainer.scrollTop = sbContainer.scrollHeight;
+                }
+            }
+
+            /* ── MQTT ── */
+            connectMQTT() {
+                try {
+                    const clientId = 'SCADA_' + Math.random().toString(36).substr(2, 8);
+                    this.client = new Paho.MQTT.Client(this.MQTT_BROKER, this.MQTT_PORT, clientId);
+
+                    this.client.onConnectionLost = (e) => {
+                        this.isConnected = false;
+                        document.getElementById('mqtt-status').textContent = 'MQTT Disconnected';
+                        document.getElementById('mqtt-status').style.color = 'var(--red)';
+
+                        const sbStatus = document.getElementById('mqtt-status-sidebar');
+                        if (sbStatus) {
+                            sbStatus.className = 'status-info disconnected';
+                            sbStatus.innerHTML = '<span class="dot red"></span><span style="color:var(--red)">Ngắt kết nối</span>';
+                        }
+                        this.addLog('Mất kết nối MQTT: ' + e.errorMessage, 'error');
+                    };
+
+                    this.client.onMessageArrived = (msg) => this.handleMessage(msg);
+
+                    this.client.connect({
+                        userName: this.MQTT_USERNAME,
+                        password: this.MQTT_PASSWORD,
+                        useSSL: true,
                         onSuccess: () => {
-                            this.addLog('Subscribe: machine, monitor, camera, status, signaling', 'info');
-                            this.requestStateSnapshot();
-                        }
+                            this.isConnected = true;
+                            document.getElementById('mqtt-status').textContent = 'MQTT Connected';
+                            document.getElementById('mqtt-status').style.color = 'var(--green)';
+
+                            const sbStatus = document.getElementById('mqtt-status-sidebar');
+                            if (sbStatus) {
+                                sbStatus.className = 'status-info connected';
+                                sbStatus.innerHTML = '<span class="dot" style="background:var(--green)"></span><span style="color:var(--green)">Đã kết nối</span>';
+                            }
+                            this.addLog('Kết nối MQTT thành công', 'info');
+
+                            this.client.subscribe(this.MQTT_TOPIC_MACHINE_STATE);
+                            this.client.subscribe(this.MQTT_TOPIC_MONITOR_STATE);
+                            this.client.subscribe(this.MQTT_TOPIC_CAMERA_STATUS);
+                            this.client.subscribe(this.MQTT_TOPIC_WEBRTC_STATUS);
+                            this.client.subscribe('DACDT/camera/webrtc/signaling/' + this.webrtcClientId + '/server');
+                            this.client.subscribe(this.MQTT_TOPIC_CAD_STATE, {
+                                onSuccess: () => {
+                                    this.addLog('Subscribe: machine, monitor, camera, status, signaling', 'info');
+                                    this.requestStateSnapshot();
+                                }
+                            });
+                        },
+                        onFailure: (e) => this.addLog('Kết nối thất bại: ' + e.errorMessage, 'error')
                     });
-                },
-                onFailure: (e) => this.addLog('Kết nối thất bại: ' + e.errorMessage, 'error')
-            });
-        } catch(e) {
-            this.addLog('Lỗi MQTT: ' + e.message, 'error');
-        }
-    }
-
-    requestStateSnapshot() {
-        if (!this.isConnected || !this.client) {
-            return;
-        }
-
-        try {
-            const payload = JSON.stringify({
-                command: 'GET_STATE',
-                source: 'web',
-                ts: new Date().toISOString()
-            });
-            const msg = new Paho.MQTT.Message(payload);
-            msg.destinationName = 'DACDT/machine/request';
-            msg.qos = 1;
-            msg.retained = false;
-            this.client.send(msg);
-            this.addLog('Gửi yêu cầu cập nhật machine/monitor/cad', 'info');
-        } catch (e) {
-            this.addLog('Không gửi được yêu cầu cập nhật: ' + e.message, 'error');
-        }
-    }
-
-    publishCommand(cmd, target = 'machine') {
-        if (!this.isConnected) {
-            this.addLog('Lỗi: MQTT chưa kết nối!', 'error');
-            return;
-        }
-        
-        // Xác định topic tương ứng
-        const topic = target === 'camera' ? 'DACDT/camera/command' : 'DACDT/machine/command';
-        
-        // Bạn có thể điều chỉnh cấu trúc payload gửi đi (dạng chuỗi hoặc JSON)
-        const payload = cmd; 
-        
-        const msg = new Paho.MQTT.Message(payload);
-        msg.destinationName = topic;
-        this.client.send(msg);
-        
-        this.addLog(`Gửi lệnh [${cmd}] tới ${target}`, 'info');
-    }
-
-    requestStartCameraStream() {
-        this.isCameraStartRequested = true;
-        const placeholder = document.getElementById('cam-placeholder');
-        const loadingText = document.getElementById('cam-loading-text');
-        if (placeholder) placeholder.style.display = 'flex';
-        if (loadingText) loadingText.textContent = 'Dang yeu cau bat camera...';
-        this.setCamStatus(false, 'Waiting for camera start');
-        this.publishCommand('START', 'camera');
-    }
-
-    requestStopCameraStream() {
-        this.isCameraStartRequested = false;
-        this.sendWebRtcBye();
-        this.closeWebRTC();
-        this.setCameraStreamHint('Da dung ket noi WebRTC. Camera tren ung dung dieu khien van giu nguyen.');
-        this.setCamStatus(false, 'WebRTC stopped');
-    }
-
-    sendWebRtcBye() {
-        if (!this.isConnected || !this.client) return;
-        const payload = JSON.stringify({ type: 'bye' });
-        const msg = new Paho.MQTT.Message(payload);
-        msg.destinationName = `DACDT/camera/webrtc/signaling/${this.webrtcClientId}/client`;
-        this.client.send(msg);
-        this.addLog('Da dung phien WebRTC tren web', 'info');
-    }
-
-    handleMessage(message) {
-        try {
-            const topic = message.destinationName;
-            const payload = message.payloadString;
-
-            if (topic === this.MQTT_TOPIC_CAMERA_STATUS) {
-                this.handleCameraStatus(payload);
-                return;
+                } catch (e) {
+                    this.addLog('Lỗi MQTT: ' + e.message, 'error');
+                }
             }
 
-            if (topic === this.MQTT_TOPIC_WEBRTC_STATUS) {
-                this.handleWebRtcStatus(payload);
-                return;
+            requestStateSnapshot() {
+                if (!this.isConnected || !this.client) {
+                    return;
+                }
+
+                try {
+                    const payload = JSON.stringify({
+                        command: 'GET_STATE',
+                        source: 'web',
+                        ts: new Date().toISOString()
+                    });
+                    const msg = new Paho.MQTT.Message(payload);
+                    msg.destinationName = 'DACDT/machine/request';
+                    msg.qos = 1;
+                    msg.retained = false;
+                    this.client.send(msg);
+                    this.addLog('Gửi yêu cầu cập nhật machine/monitor/cad', 'info');
+                } catch (e) {
+                    this.addLog('Không gửi được yêu cầu cập nhật: ' + e.message, 'error');
+                }
             }
 
-            if (topic === `DACDT/camera/webrtc/signaling/${this.webrtcClientId}/server`) {
-                this.handleSignalingMessage(payload);
-                return;
+            publishCommand(cmd, target = 'machine') {
+                if (!this.isConnected) {
+                    this.addLog('Lỗi: MQTT chưa kết nối!', 'error');
+                    return;
+                }
+
+                // Xác định topic tương ứng
+                const topic = target === 'camera' ? 'DACDT/camera/command' : 'DACDT/machine/command';
+
+                // Bạn có thể điều chỉnh cấu trúc payload gửi đi (dạng chuỗi hoặc JSON)
+                const payload = cmd;
+
+                const msg = new Paho.MQTT.Message(payload);
+                msg.destinationName = topic;
+                this.client.send(msg);
+
+                this.addLog(`Gửi lệnh [${cmd}] tới ${target}`, 'info');
             }
 
-            if (topic === this.MQTT_TOPIC_CAD_STATE) {
-                this.msgCount++;
-                document.getElementById('msg-count').textContent = this.msgCount;
-                document.getElementById('last-update').textContent = new Date().toLocaleTimeString('vi-VN');
-                const cadData = JSON.parse(payload);
-                this._cadData = cadData;
-                this.renderCadPreview(cadData);
-                return;
-            }
-            
-            this.msgCount++;
-            document.getElementById('msg-count').textContent = this.msgCount;
-            document.getElementById('last-update').textContent = new Date().toLocaleTimeString('vi-VN');
-
-            let data = null;
-            try { data = JSON.parse(payload); } catch(e) {}
-
-            if (data && (data.fileKind === 'DXF' || data.fileKind === 'GCODE')) {
-                this.updateDxfInfo(data);
-            } else if (topic === this.MQTT_TOPIC_MACHINE_STATE || topic === this.MQTT_TOPIC_MONITOR_STATE) {
-                if (data) this.updateDashboard(data);
-            }
-        } catch(e) {}
-    }
-
-    updateDxfInfo(data) {
-        this._monitorData = data;
-
-        if (data.trackingPoints) {
-            if (!this._cadData) this._cadData = {};
-            this._cadData.trackingPoints = data.trackingPoints;
-        }
-
-        if (data.dxfCompletion) {
-            const pct = data.dxfCompletion.percent != null ? data.dxfCompletion.percent : 0;
-            const txt = data.dxfCompletion.text || `${pct}%`;
-            document.getElementById('dxf-pct').textContent = txt;
-            document.getElementById('dxf-progress-bar').style.width = pct + '%';
-            
-            const panel = document.getElementById('dxf-completion-panel');
-            if (panel) {
-                panel.style.opacity = data.dxfCompletion.visible === false ? '0.4' : '1';
-            }
-        }
-        
-        if (data.fileName || data.filePath) {
-            let labelText = data.fileName || 'Unknown file';
-            if (data.filePath) {
-                labelText += ' · ' + data.filePath;
-            }
-            document.getElementById('dxf-file-label').textContent = labelText;
-        }
-
-        if (data.dxfPoint) {
-            const dp = data.dxfPoint;
-            
-            if (dp.activeText) {
-                this._activeText = dp.activeText;
+            requestStartCameraStream() {
+                this.isCameraStartRequested = true;
+                const placeholder = document.getElementById('cam-placeholder');
+                const loadingText = document.getElementById('cam-loading-text');
+                if (placeholder) placeholder.style.display = 'flex';
+                if (loadingText) loadingText.textContent = 'Dang yeu cau bat camera...';
+                this.setCamStatus(false, 'Waiting for camera start');
+                this.publishCommand('START', 'camera');
             }
 
-            if (dp.activeRow) {
-                const row = dp.activeRow;
-                const pointData = {
-                    no: row.index,
-                    gcode: row.motionType,
-                    m: row.mCode,
-                    speed: row.speed,
-                    xy: row.endCoordinate
-                };
-                
-                const existingIdx = this.dxfPoints.findIndex(p => p.no == row.index);
-                if (existingIdx >= 0) {
-                    this.dxfPoints[existingIdx] = Object.assign(this.dxfPoints[existingIdx], pointData);
-                } else {
-                    this.dxfPoints.push(pointData);
-                    this.dxfPoints.sort((a, b) => parseInt(a.no) - parseInt(b.no));
-                    if (this.dxfPoints.length > 200) {
-                        this.dxfPoints.shift();
+            requestStopCameraStream() {
+                this.isCameraStartRequested = false;
+                this.sendWebRtcBye();
+                this.closeWebRTC();
+                this.setCameraStreamHint('Da dung ket noi WebRTC. Camera tren ung dung dieu khien van giu nguyen.');
+                this.setCamStatus(false, 'WebRTC stopped');
+            }
+
+            sendWebRtcBye() {
+                if (!this.isConnected || !this.client) return;
+                const payload = JSON.stringify({ type: 'bye' });
+                const msg = new Paho.MQTT.Message(payload);
+                msg.destinationName = `DACDT/camera/webrtc/signaling/${this.webrtcClientId}/client`;
+                this.client.send(msg);
+                this.addLog('Da dung phien WebRTC tren web', 'info');
+            }
+
+            handleMessage(message) {
+                try {
+                    const topic = message.destinationName;
+                    const payload = message.payloadString;
+
+                    if (topic === this.MQTT_TOPIC_CAMERA_STATUS) {
+                        this.handleCameraStatus(payload);
+                        return;
+                    }
+
+                    if (topic === this.MQTT_TOPIC_WEBRTC_STATUS) {
+                        this.handleWebRtcStatus(payload);
+                        return;
+                    }
+
+                    if (topic === `DACDT/camera/webrtc/signaling/${this.webrtcClientId}/server`) {
+                        this.handleSignalingMessage(payload);
+                        return;
+                    }
+
+                    if (topic === this.MQTT_TOPIC_CAD_STATE) {
+                        this.msgCount++;
+                        document.getElementById('msg-count').textContent = this.msgCount;
+                        document.getElementById('last-update').textContent = new Date().toLocaleTimeString('vi-VN');
+                        const cadData = JSON.parse(payload);
+                        this._cadData = cadData;
+                        this.renderCadPreview(cadData);
+                        return;
+                    }
+
+                    this.msgCount++;
+                    document.getElementById('msg-count').textContent = this.msgCount;
+                    document.getElementById('last-update').textContent = new Date().toLocaleTimeString('vi-VN');
+
+                    let data = null;
+                    try { data = JSON.parse(payload); } catch (e) { }
+
+                    if (data && (data.fileKind === 'DXF' || data.fileKind === 'GCODE')) {
+                        this.updateDxfInfo(data);
+                    } else if (topic === this.MQTT_TOPIC_MACHINE_STATE || topic === this.MQTT_TOPIC_MONITOR_STATE) {
+                        if (data) this.updateDashboard(data);
+                    }
+                } catch (e) { }
+            }
+
+            updateDxfInfo(data) {
+                this._monitorData = data;
+
+                if (data.trackingPoints) {
+                    if (!this._cadData) this._cadData = {};
+                    this._cadData.trackingPoints = data.trackingPoints;
+                }
+
+                if (data.dxfCompletion) {
+                    const pct = data.dxfCompletion.percent != null ? data.dxfCompletion.percent : 0;
+                    const txt = data.dxfCompletion.text || `${pct}%`;
+                    document.getElementById('dxf-pct').textContent = txt;
+                    document.getElementById('dxf-progress-bar').style.width = pct + '%';
+
+                    const panel = document.getElementById('dxf-completion-panel');
+                    if (panel) {
+                        panel.style.opacity = data.dxfCompletion.visible === false ? '0.4' : '1';
                     }
                 }
-                this.renderDxfTable();
-            } else if (!this.dxfPoints.length) {
-                // render lại để cập nhật activeText nếu bảng đang trống
-                this.renderDxfTable();
-            }
 
-            if (dp.activeDataNo != null) {
-                this.setActiveDataNo(dp.activeDataNo, dp.totalPoints, dp.activeText);
-            }
-        }
-
-        if (this._cadData) {
-            this.renderCadPreview(this._cadData);
-        }
-    }
-
-    updateDashboard(data) {
-        this._lastDashboardData = data;
-        // Adapt old vs new format
-        const connected = data.plc_connected !== undefined ? (data.plc_connected == 1) : (data.connected === true);
-        const mStatus = data.machine_status || data.integrityState || '-';
-        const mCode = data.machine_status_code !== undefined ? data.machine_status_code : (data.integrityDetail || '-');
-        const jogSpeed = data.feed_rate !== undefined ? data.feed_rate : (data.jogSpeed !== undefined ? data.jogSpeed : '-');
-        
-        // PLC connection
-        const plcDot = document.getElementById('plc-dot');
-        const plcStatus = document.getElementById('plc-status');
-        if(plcDot && plcStatus) {
-            plcDot.className = 'dot ' + (connected ? '' : 'red');
-            plcStatus.innerHTML = `<span class="dot ${connected ? '' : 'red'}"></span> ${connected ? 'Connected' : 'Disconnected'}`;
-            plcStatus.style.color = connected ? 'var(--green)' : 'var(--text-bright)';
-        }
-        document.getElementById('plc-banner').textContent = mStatus;
-        document.getElementById('jog-speed').textContent = jogSpeed;
-
-        // Integrity
-        const mStatusLower = mStatus.toLowerCase();
-        const banner = document.getElementById('integrity-banner');
-        if(banner) {
-            banner.className = 'integrity-banner ' + 
-                (mStatusLower.includes('ok') || mStatusLower.includes('good') || mStatusLower.includes('idle') || mStatusLower.includes('running') ? 'ok' : 
-                 mStatusLower.includes('warn') || mStatusLower.includes('paused') ? 'warning' : 
-                 mStatusLower.includes('err') || mStatusLower.includes('fault') ? 'error' : 'unknown');
-        }
-        document.getElementById('integrity-state').textContent = mStatus;
-        document.getElementById('integrity-detail').textContent = 'M-Code/Detail: ' + mCode;
-        document.getElementById('integrity-tone').textContent = data.current_gcode_line || data.integrityTone || '-';
-
-        // Axes (Handle both formats)
-        if (data.position_x !== undefined || data.position_y !== undefined || data.position_z !== undefined) {
-            const newAxes = [
-                { idx: 0, pos: data.position_x, status: data.axis_status_x },
-                { idx: 1, pos: data.position_y, status: data.axis_status_y },
-                { idx: 2, pos: data.position_z, status: data.axis_status_z }
-            ];
-            this.renderAxesList(newAxes);
-        } else if (data.axes && Array.isArray(data.axes)) {
-            this.renderAxesList(data.axes);
-        }
-    }
-
-    findErrorDetails(code) {
-        if (!code || code === 0 || code === '0' || code === '--') return null;
-        if (typeof ERROR_CODES_DB === 'undefined' || !Array.isArray(ERROR_CODES_DB)) return null;
-
-        const codeStr = String(code).trim().toUpperCase();
-        
-        // 1. Try exact match (e.g. "4101", "7101H", "C1009")
-        let match = ERROR_CODES_DB.find(e => e.code.toUpperCase() === codeStr);
-        if (match) return match;
-
-        // 2. Try hex match or clean up common suffixes/prefixes
-        let cleanCodeStr = codeStr;
-        if (cleanCodeStr.endsWith('H')) {
-            cleanCodeStr = cleanCodeStr.substring(0, cleanCodeStr.length - 1);
-        } else if (cleanCodeStr.startsWith('0X')) {
-            cleanCodeStr = cleanCodeStr.substring(2);
-        }
-
-        // 3. Try to parse as integer to check ranges and decimal-to-hex
-        const val = parseInt(cleanCodeStr, 10);
-        const isDecimalVal = !isNaN(val) && /^\d+$/.test(cleanCodeStr);
-
-        if (isDecimalVal) {
-            // Check range match (e.g. "9100 - 9124")
-            match = ERROR_CODES_DB.find(e => {
-                const rMatch = e.code.match(/^(\d+)\s*-\s*(\d+)$/);
-                if (rMatch) {
-                    const min = parseInt(rMatch[1], 10);
-                    const max = parseInt(rMatch[2], 10);
-                    return val >= min && val <= max;
+                if (data.fileName || data.filePath) {
+                    let labelText = data.fileName || 'Unknown file';
+                    if (data.filePath) {
+                        labelText += ' · ' + data.filePath;
+                    }
+                    document.getElementById('dxf-file-label').textContent = labelText;
                 }
-                return false;
-            });
-            if (match) return match;
 
-            // Try decimal-to-hex representations (e.g. 28929 -> 7101H)
-            const hexUpper = val.toString(16).toUpperCase();
-            const hexCandidates = [hexUpper, hexUpper + 'H', '0X' + hexUpper];
-            match = ERROR_CODES_DB.find(e => hexCandidates.includes(e.code.toUpperCase()));
-            if (match) return match;
-        }
+                if (data.dxfPoint) {
+                    const dp = data.dxfPoint;
 
-        return null;
-    }
+                    if (dp.activeText) {
+                        this._activeText = dp.activeText;
+                    }
 
-    renderAxesList(axesList) {
-        const data = this._lastDashboardData || {};
-        axesList.forEach((a, i) => {
-            const idx = a.idx != null ? a.idx : i;
-            if (idx > 3) return;
-            
-            const pos  = document.getElementById(`ax-pos-${idx}`);
-            const spd  = document.getElementById(`ax-spd-${idx}`);
-            const md   = document.getElementById(`ax-md-${idx}`);
-            const mode = document.getElementById(`ax-mode-${idx}`);
-            
-            if (pos)  pos.textContent  = a.pos    != null ? parseFloat(a.pos).toFixed(4)  : '0.0000';
-            if (spd)  spd.textContent  = a.speed  != null ? parseFloat(a.speed).toFixed(2) : '0.00';
-            if (md)   md.textContent   = a.mCode  != null ? a.mCode : '0';
-            if (mode) mode.textContent = a.status || 'Standby';
-            
-            // limit tags
-            const lm = document.getElementById(`ax-lm-${idx}`);
-            const lp = document.getElementById(`ax-lp-${idx}`);
-            const home = document.getElementById(`ax-home-${idx}`);
-            if(lm) lm.className = 'limit-tag ' + (a.limitMinus ? 'active' : '');
-            if(lp) lp.className = 'limit-tag ' + (a.limitPlus ? 'active' : '');
-            if(home) home.className = 'limit-tag ' + (a.homeDog ? 'home' : '');
+                    if (dp.activeRow) {
+                        const row = dp.activeRow;
+                        const pointData = {
+                            no: row.index,
+                            gcode: row.motionType,
+                            m: row.mCode,
+                            speed: row.speed,
+                            xy: row.endCoordinate
+                        };
 
-            // error box
-            const errBox = document.getElementById(`ax-err-box-${idx}`);
-            const errCodeSpan = document.getElementById(`ax-err-code-${idx}`);
-            const errDescDiv = document.getElementById(`ax-err-desc-${idx}`);
-
-            if (errBox && errCodeSpan && errDescDiv) {
-                const errCode = a.error;
-                if (errCode && errCode !== 0 && errCode !== '0' && errCode !== '--') {
-                    errCodeSpan.textContent = errCode;
-                    let desc = a.errorDesc || '';
-                    if (!desc) {
-                        const lookup = this.findErrorDetails(errCode);
-                        if (lookup) {
-                            desc = `${lookup.description} | Nguyên nhân: ${lookup.cause} | Khắc phục: ${lookup.remedy}`;
+                        const existingIdx = this.dxfPoints.findIndex(p => p.no == row.index);
+                        if (existingIdx >= 0) {
+                            this.dxfPoints[existingIdx] = Object.assign(this.dxfPoints[existingIdx], pointData);
                         } else {
-                            desc = 'Lỗi không xác định';
+                            this.dxfPoints.push(pointData);
+                            this.dxfPoints.sort((a, b) => parseInt(a.no) - parseInt(b.no));
+                            if (this.dxfPoints.length > 200) {
+                                this.dxfPoints.shift();
+                            }
+                        }
+                        this.renderDxfTable();
+                    } else if (!this.dxfPoints.length) {
+                        // render lại để cập nhật activeText nếu bảng đang trống
+                        this.renderDxfTable();
+                    }
+
+                    if (dp.activeDataNo != null) {
+                        this.setActiveDataNo(dp.activeDataNo, dp.totalPoints, dp.activeText);
+                    }
+                }
+
+                if (this._cadData) {
+                    this.renderCadPreview(this._cadData);
+                }
+            }
+
+            updateDashboard(data) {
+                this._lastDashboardData = data;
+                // Adapt old vs new format
+                const connected = data.plc_connected !== undefined ? (data.plc_connected == 1) : (data.connected === true);
+                const mStatus = data.machine_status || data.integrityState || '-';
+                const mCode = data.machine_status_code !== undefined ? data.machine_status_code : (data.integrityDetail || '-');
+                const jogSpeed = data.feed_rate !== undefined ? data.feed_rate : (data.jogSpeed !== undefined ? data.jogSpeed : '-');
+
+                // PLC connection
+                const plcDot = document.getElementById('plc-dot');
+                const plcStatus = document.getElementById('plc-status');
+                if (plcDot && plcStatus) {
+                    plcDot.className = 'dot ' + (connected ? '' : 'red');
+                    plcStatus.innerHTML = `<span class="dot ${connected ? '' : 'red'}"></span> ${connected ? 'Connected' : 'Disconnected'}`;
+                    plcStatus.style.color = connected ? 'var(--green)' : 'var(--text-bright)';
+                }
+                document.getElementById('plc-banner').textContent = mStatus;
+                document.getElementById('jog-speed').textContent = jogSpeed;
+
+                // Integrity
+                const mStatusLower = mStatus.toLowerCase();
+                const banner = document.getElementById('integrity-banner');
+                if (banner) {
+                    banner.className = 'integrity-banner ' +
+                        (mStatusLower.includes('ok') || mStatusLower.includes('good') || mStatusLower.includes('idle') || mStatusLower.includes('running') ? 'ok' :
+                            mStatusLower.includes('warn') || mStatusLower.includes('paused') ? 'warning' :
+                                mStatusLower.includes('err') || mStatusLower.includes('fault') ? 'error' : 'unknown');
+                }
+                document.getElementById('integrity-state').textContent = mStatus;
+                document.getElementById('integrity-detail').textContent = 'M-Code/Detail: ' + mCode;
+                document.getElementById('integrity-tone').textContent = data.current_gcode_line || data.integrityTone || '-';
+
+                // Axes (Handle both formats)
+                if (data.position_x !== undefined || data.position_y !== undefined || data.position_z !== undefined) {
+                    const newAxes = [
+                        { idx: 0, pos: data.position_x, status: data.axis_status_x },
+                        { idx: 1, pos: data.position_y, status: data.axis_status_y },
+                        { idx: 2, pos: data.position_z, status: data.axis_status_z }
+                    ];
+                    this.renderAxesList(newAxes);
+                } else if (data.axes && Array.isArray(data.axes)) {
+                    this.renderAxesList(data.axes);
+                }
+            }
+
+            findErrorDetails(code) {
+                if (!code || code === 0 || code === '0' || code === '--') return null;
+                if (typeof ERROR_CODES_DB === 'undefined' || !Array.isArray(ERROR_CODES_DB)) return null;
+
+                const codeStr = String(code).trim().toUpperCase();
+
+                // 1. Try exact match (e.g. "4101", "7101H", "C1009")
+                let match = ERROR_CODES_DB.find(e => e.code.toUpperCase() === codeStr);
+                if (match) return match;
+
+                // 2. Try hex match or clean up common suffixes/prefixes
+                let cleanCodeStr = codeStr;
+                if (cleanCodeStr.endsWith('H')) {
+                    cleanCodeStr = cleanCodeStr.substring(0, cleanCodeStr.length - 1);
+                } else if (cleanCodeStr.startsWith('0X')) {
+                    cleanCodeStr = cleanCodeStr.substring(2);
+                }
+
+                // 3. Try to parse as integer to check ranges and decimal-to-hex
+                const val = parseInt(cleanCodeStr, 10);
+                const isDecimalVal = !isNaN(val) && /^\d+$/.test(cleanCodeStr);
+
+                if (isDecimalVal) {
+                    // Check range match (e.g. "9100 - 9124")
+                    match = ERROR_CODES_DB.find(e => {
+                        const rMatch = e.code.match(/^(\d+)\s*-\s*(\d+)$/);
+                        if (rMatch) {
+                            const min = parseInt(rMatch[1], 10);
+                            const max = parseInt(rMatch[2], 10);
+                            return val >= min && val <= max;
+                        }
+                        return false;
+                    });
+                    if (match) return match;
+
+                    // Try decimal-to-hex representations (e.g. 28929 -> 7101H)
+                    const hexUpper = val.toString(16).toUpperCase();
+                    const hexCandidates = [hexUpper, hexUpper + 'H', '0X' + hexUpper];
+                    match = ERROR_CODES_DB.find(e => hexCandidates.includes(e.code.toUpperCase()));
+                    if (match) return match;
+                }
+
+                return null;
+            }
+
+            renderAxesList(axesList) {
+                const data = this._lastDashboardData || {};
+                axesList.forEach((a, i) => {
+                    const idx = a.idx != null ? a.idx : i;
+                    if (idx > 3) return;
+
+                    const pos = document.getElementById(`ax-pos-${idx}`);
+                    const spd = document.getElementById(`ax-spd-${idx}`);
+                    const md = document.getElementById(`ax-md-${idx}`);
+                    const mode = document.getElementById(`ax-mode-${idx}`);
+
+                    if (pos) pos.textContent = a.pos != null ? parseFloat(a.pos).toFixed(4) : '0.0000';
+                    if (spd) spd.textContent = a.speed != null ? parseFloat(a.speed).toFixed(2) : '0.00';
+                    if (md) md.textContent = a.mCode != null ? a.mCode : '0';
+                    if (mode) mode.textContent = a.status || 'Standby';
+
+                    // limit tags
+                    const lm = document.getElementById(`ax-lm-${idx}`);
+                    const lp = document.getElementById(`ax-lp-${idx}`);
+                    const home = document.getElementById(`ax-home-${idx}`);
+                    if (lm) lm.className = 'limit-tag ' + (a.limitMinus ? 'active' : '');
+                    if (lp) lp.className = 'limit-tag ' + (a.limitPlus ? 'active' : '');
+                    if (home) home.className = 'limit-tag ' + (a.homeDog ? 'home' : '');
+
+                    // error box
+                    const errBox = document.getElementById(`ax-err-box-${idx}`);
+                    const errCodeSpan = document.getElementById(`ax-err-code-${idx}`);
+                    const errDescDiv = document.getElementById(`ax-err-desc-${idx}`);
+
+                    if (errBox && errCodeSpan && errDescDiv) {
+                        const errCode = a.error;
+                        if (errCode && errCode !== 0 && errCode !== '0' && errCode !== '--') {
+                            errCodeSpan.textContent = errCode;
+                            let desc = a.errorDesc || '';
+                            if (!desc) {
+                                const lookup = this.findErrorDetails(errCode);
+                                if (lookup) {
+                                    desc = `${lookup.description} | Nguyên nhân: ${lookup.cause} | Khắc phục: ${lookup.remedy}`;
+                                } else {
+                                    desc = 'Lỗi không xác định';
+                                }
+                            }
+                            errDescDiv.textContent = desc;
+                            errBox.style.display = 'block';
+                            errBox.title = desc;
+                        } else {
+                            errBox.style.display = 'none';
+                            errCodeSpan.textContent = '';
+                            errDescDiv.textContent = '-';
+                            errBox.removeAttribute('title');
                         }
                     }
-                    errDescDiv.textContent = desc;
-                    errBox.style.display = 'block';
-                    errBox.title = desc;
-                } else {
-                    errBox.style.display = 'none';
-                    errCodeSpan.textContent = '';
-                    errDescDiv.textContent = '-';
-                    errBox.removeAttribute('title');
-                }
-            }
 
-            // warning box
-            const warnBox = document.getElementById(`ax-warn-box-${idx}`);
-            const warnCodeSpan = document.getElementById(`ax-warn-code-${idx}`);
-            const warnDescDiv = document.getElementById(`ax-warn-desc-${idx}`);
+                    // warning box
+                    const warnBox = document.getElementById(`ax-warn-box-${idx}`);
+                    const warnCodeSpan = document.getElementById(`ax-warn-code-${idx}`);
+                    const warnDescDiv = document.getElementById(`ax-warn-desc-${idx}`);
 
-            if (warnBox && warnCodeSpan && warnDescDiv) {
-                const warnCode = a.warning;
-                if (warnCode && warnCode !== 0 && warnCode !== '0' && warnCode !== '--') {
-                    warnCodeSpan.textContent = warnCode;
-                    let desc = a.warningDesc || '';
-                    if (!desc) {
-                        const lookup = this.findErrorDetails(warnCode);
-                        if (lookup) {
-                            desc = `${lookup.description} | Nguyên nhân: ${lookup.cause} | Khắc phục: ${lookup.remedy}`;
+                    if (warnBox && warnCodeSpan && warnDescDiv) {
+                        const warnCode = a.warning;
+                        if (warnCode && warnCode !== 0 && warnCode !== '0' && warnCode !== '--') {
+                            warnCodeSpan.textContent = warnCode;
+                            let desc = a.warningDesc || '';
+                            if (!desc) {
+                                const lookup = this.findErrorDetails(warnCode);
+                                if (lookup) {
+                                    desc = `${lookup.description} | Nguyên nhân: ${lookup.cause} | Khắc phục: ${lookup.remedy}`;
+                                } else {
+                                    desc = 'Cảnh báo không xác định';
+                                }
+                            }
+                            warnDescDiv.textContent = desc;
+                            warnBox.style.display = 'block';
+                            warnBox.title = desc;
                         } else {
-                            desc = 'Cảnh báo không xác định';
+                            warnBox.style.display = 'none';
+                            warnCodeSpan.textContent = '';
+                            warnDescDiv.textContent = '-';
+                            warnBox.removeAttribute('title');
                         }
                     }
-                    warnDescDiv.textContent = desc;
-                    warnBox.style.display = 'block';
-                    warnBox.title = desc;
-                } else {
-                    warnBox.style.display = 'none';
-                    warnCodeSpan.textContent = '';
-                    warnDescDiv.textContent = '-';
-                    warnBox.removeAttribute('title');
+
+                    // active data no from axis 0
+                    if (idx === 0 && a.dataNo != null) {
+                        this.setActiveDataNo(a.dataNo);
+                    }
+                });
+
+                // DXF data list
+                if (data.dxfPoints && Array.isArray(data.dxfPoints)) {
+                    this.dxfPoints = data.dxfPoints;
+                    this.renderDxfTable();
+                }
+
+                // Completion
+                if (data.dxfTotal && data.dxfDone != null) {
+                    const pct = data.dxfTotal > 0 ? Math.round(data.dxfDone / data.dxfTotal * 100) : 0;
+                    document.getElementById('dxf-pct').textContent = pct + '%';
+                    document.getElementById('dxf-progress-bar').style.width = pct + '%';
+                }
+                if (data.dxfFile) {
+                    document.getElementById('dxf-file-label').textContent = data.dxfFile + ' · Highlight follows Axis 1 data no.';
                 }
             }
 
-            // active data no from axis 0
-            if (idx === 0 && a.dataNo != null) {
-                this.setActiveDataNo(a.dataNo);
+            setActiveDataNo(no, total = null, text = null) {
+                this.activeDataNo = no;
+                document.getElementById('active-data-no').textContent = no;
+
+                let labelText = 'Active no: ' + no + (total != null ? ' / ' + total : '');
+                document.getElementById('dxf-active-label').textContent = labelText;
+
+                // highlight row
+                document.querySelectorAll('#dxf-tbody tr').forEach(tr => {
+                    const isActive = parseInt(tr.dataset.no) === parseInt(no);
+                    tr.classList.toggle('active-row', isActive);
+                    const runCell = tr.querySelector('.td-run');
+                    if (runCell) runCell.textContent = isActive ? 'RUN' : '';
+                    // scroll into view
+                    if (isActive) {
+                        const wrap = document.querySelector('.dxf-table-wrap');
+                        const offset = tr.offsetTop - wrap.offsetTop - 40;
+                        wrap.scrollTo({ top: offset, behavior: 'smooth' });
+                    }
+                });
             }
-        });
 
-        // DXF data list
-        if (data.dxfPoints && Array.isArray(data.dxfPoints)) {
-            this.dxfPoints = data.dxfPoints;
-            this.renderDxfTable();
-        }
-
-        // Completion
-        if (data.dxfTotal && data.dxfDone != null) {
-            const pct = data.dxfTotal > 0 ? Math.round(data.dxfDone / data.dxfTotal * 100) : 0;
-            document.getElementById('dxf-pct').textContent = pct + '%';
-            document.getElementById('dxf-progress-bar').style.width = pct + '%';
-        }
-        if (data.dxfFile) {
-            document.getElementById('dxf-file-label').textContent = data.dxfFile + ' · Highlight follows Axis 1 data no.';
-        }
-    }
-
-    setActiveDataNo(no, total = null, text = null) {
-        this.activeDataNo = no;
-        document.getElementById('active-data-no').textContent = no;
-        
-        let labelText = 'Active no: ' + no + (total != null ? ' / ' + total : '');
-        document.getElementById('dxf-active-label').textContent = labelText;
-
-        // highlight row
-        document.querySelectorAll('#dxf-tbody tr').forEach(tr => {
-            const isActive = parseInt(tr.dataset.no) === parseInt(no);
-            tr.classList.toggle('active-row', isActive);
-            const runCell = tr.querySelector('.td-run');
-            if (runCell) runCell.textContent = isActive ? 'RUN' : '';
-            // scroll into view
-            if (isActive) {
-                const wrap = document.querySelector('.dxf-table-wrap');
-                const offset = tr.offsetTop - wrap.offsetTop - 40;
-                wrap.scrollTo({top: offset, behavior: 'smooth'});
-            }
-        });
-    }
-
-    renderDxfTable() {
-        if (!this.dxfPoints.length) {
-            const tbody = document.getElementById('dxf-tbody');
-            if (tbody) {
-                const msg = this._activeText || 'Chờ dữ liệu DXF...';
-                tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:20px;">${msg}</td></tr>`;
-            }
-            return;
-        }
-        const tbody = document.getElementById('dxf-tbody');
-        tbody.innerHTML = this.dxfPoints.map(p => {
-            const isActive = parseInt(p.no) === parseInt(this.activeDataNo);
-            return `<tr data-no="${p.no}" class="${isActive ? 'active-row' : ''}">
+            renderDxfTable() {
+                if (!this.dxfPoints.length) {
+                    const tbody = document.getElementById('dxf-tbody');
+                    if (tbody) {
+                        const msg = this._activeText || 'Chờ dữ liệu DXF...';
+                        tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:20px;">${msg}</td></tr>`;
+                    }
+                    return;
+                }
+                const tbody = document.getElementById('dxf-tbody');
+                tbody.innerHTML = this.dxfPoints.map(p => {
+                    const isActive = parseInt(p.no) === parseInt(this.activeDataNo);
+                    return `<tr data-no="${p.no}" class="${isActive ? 'active-row' : ''}">
                 <td class="td-run">${isActive ? 'RUN' : ''}</td>
                 <td>${p.no}</td>
                 <td class="td-gcode">${p.gcode || ''}</td>
@@ -1306,472 +2045,472 @@ class GantrySCADADashboard {
                 <td class="td-speed">${p.speed || ''}</td>
                 <td class="td-xy">${p.xy != null ? p.xy : (p.x != null ? p.x + ';' + p.y : '')}</td>
             </tr>`;
-        }).join('');
-    }
+                }).join('');
+            }
 
-    /* ── CAD PREVIEW ── */
-    renderCadPreview(data) {
-        const wrap = document.getElementById('cad-wrap');
-        const canvas = document.getElementById('cad-canvas');
-        if (!wrap || !canvas) return;
+            /* ── CAD PREVIEW ── */
+            renderCadPreview(data) {
+                const wrap = document.getElementById('cad-wrap');
+                const canvas = document.getElementById('cad-canvas');
+                if (!wrap || !canvas) return;
 
-        const ctx = canvas.getContext('2d');
-        const W = wrap.clientWidth || 320;
-        const H = wrap.clientHeight || 260;
-        canvas.width = W;
-        canvas.height = H;
-        ctx.clearRect(0, 0, W, H);
+                const ctx = canvas.getContext('2d');
+                const W = wrap.clientWidth || 320;
+                const H = wrap.clientHeight || 260;
+                canvas.width = W;
+                canvas.height = H;
+                ctx.clearRect(0, 0, W, H);
 
-        const primitives = Array.isArray(data.cadPrimitives) ? data.cadPrimitives : [];
-        const tracking = Array.isArray(data.trackingPoints) ? data.trackingPoints : [];
-        const activeMarker = this.getActiveCadMarkerFromMonitor();
-        const hasPrims = primitives.length > 0;
+                const primitives = Array.isArray(data.cadPrimitives) ? data.cadPrimitives : [];
+                const tracking = Array.isArray(data.trackingPoints) ? data.trackingPoints : [];
+                const activeMarker = this.getActiveCadMarkerFromMonitor();
+                const hasPrims = primitives.length > 0;
 
-        const noData = document.getElementById('cad-no-data');
-        const legend = document.getElementById('cad-legend');
-        const liveDot = document.getElementById('cad-live-dot');
-        const count = document.getElementById('cad-prims-count');
-        const sub = document.getElementById('cad-file-sub');
-        const info = document.getElementById('cad-info');
+                const noData = document.getElementById('cad-no-data');
+                const legend = document.getElementById('cad-legend');
+                const liveDot = document.getElementById('cad-live-dot');
+                const count = document.getElementById('cad-prims-count');
+                const sub = document.getElementById('cad-file-sub');
+                const info = document.getElementById('cad-info');
 
-        if (noData) noData.style.display = hasPrims ? 'none' : 'flex';
-        if (legend) legend.style.display = hasPrims ? 'flex' : 'none';
-        if (liveDot) liveDot.style.background = hasPrims ? 'var(--green)' : 'var(--muted)';
-        if (count) count.textContent = primitives.length + ' prims';
-        if (sub) sub.textContent = (data.fileKind || 'CAD') + (data.fileName ? ' · ' + data.fileName : '');
-        if (info && data.bounds) {
-            info.innerHTML = `<span>W: ${(data.bounds.width || 0).toFixed(1)} mm</span><span>H: ${(data.bounds.height || 0).toFixed(1)} mm</span>`;
-        }
+                if (noData) noData.style.display = hasPrims ? 'none' : 'flex';
+                if (legend) legend.style.display = hasPrims ? 'flex' : 'none';
+                if (liveDot) liveDot.style.background = hasPrims ? 'var(--green)' : 'var(--muted)';
+                if (count) count.textContent = primitives.length + ' prims';
+                if (sub) sub.textContent = (data.fileKind || 'CAD') + (data.fileName ? ' · ' + data.fileName : '');
+                if (info && data.bounds) {
+                    info.innerHTML = `<span>W: ${(data.bounds.width || 0).toFixed(1)} mm</span><span>H: ${(data.bounds.height || 0).toFixed(1)} mm</span>`;
+                }
 
-        if (!hasPrims) return;
+                if (!hasPrims) return;
 
-        const viewBounds = data.viewBounds || data.bounds;
-        let minX = viewBounds && isFinite(viewBounds.left) ? viewBounds.left : Infinity;
-        let maxX = viewBounds && isFinite(viewBounds.right) ? viewBounds.right : -Infinity;
-        let minY = viewBounds && isFinite(viewBounds.top) ? viewBounds.top : Infinity;
-        let maxY = viewBounds && isFinite(viewBounds.bottom) ? viewBounds.bottom : -Infinity;
+                const viewBounds = data.viewBounds || data.bounds;
+                let minX = viewBounds && isFinite(viewBounds.left) ? viewBounds.left : Infinity;
+                let maxX = viewBounds && isFinite(viewBounds.right) ? viewBounds.right : -Infinity;
+                let minY = viewBounds && isFinite(viewBounds.top) ? viewBounds.top : Infinity;
+                let maxY = viewBounds && isFinite(viewBounds.bottom) ? viewBounds.bottom : -Infinity;
 
-        if (!data.viewBounds) {
-            for (const prim of primitives) {
-                for (const p of (prim.points || [])) {
-                    minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x);
-                    minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y);
+                if (!data.viewBounds) {
+                    for (const prim of primitives) {
+                        for (const p of (prim.points || [])) {
+                            minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x);
+                            minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y);
+                        }
+                    }
+                    minX = Math.min(minX, 0);
+                    minY = Math.min(minY, 0);
+                    if (data.workspaceWidth > 0) maxX = Math.max(maxX, data.workspaceWidth);
+                    if (data.workspaceHeight > 0) maxY = Math.max(maxY, data.workspaceHeight);
+                }
+                if (!isFinite(minX) || maxX <= minX) { minX = 0; maxX = 100; }
+                if (!isFinite(minY) || maxY <= minY) { minY = 0; maxY = 100; }
+
+                const pad = 20;
+                const scale = Math.min((W - pad * 2) / (maxX - minX), (H - pad * 2) / (maxY - minY));
+                const ox = pad + ((W - pad * 2) - (maxX - minX) * scale) / 2;
+                const oy = pad + ((H - pad * 2) - (maxY - minY) * scale) / 2;
+                const cx = x => ox + (x - minX) * scale;
+                const cy = y => oy + (maxY - y) * scale;
+
+                if (data.workspaceWidth > 0 && data.workspaceHeight > 0) {
+                    ctx.save();
+                    ctx.strokeStyle = '#1f6feb';
+                    ctx.fillStyle = 'rgba(31,111,235,0.04)';
+                    ctx.setLineDash([5, 4]);
+                    const x1 = cx(0), y1 = cy(data.workspaceHeight);
+                    const x2 = cx(data.workspaceWidth), y2 = cy(0);
+                    ctx.fillRect(x1, y1, x2 - x1, y2 - y1);
+                    ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
+                    ctx.restore();
+                }
+
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+                for (const prim of primitives) {
+                    const pts = prim.points || [];
+                    if (pts.length < 2) continue;
+                    const source = String(prim.sourceType || '').toLowerCase();
+                    const rapid = source.includes('g0') || source.includes('rapid');
+                    ctx.save();
+                    ctx.strokeStyle = rapid ? 'rgba(248,81,73,.55)' : '#29b6f6';
+                    ctx.lineWidth = rapid ? 0.8 : 1.1;
+                    if (rapid) ctx.setLineDash([4, 3]);
+                    ctx.beginPath();
+                    ctx.moveTo(cx(pts[0].x), cy(pts[0].y));
+                    for (let i = 1; i < pts.length; i++) ctx.lineTo(cx(pts[i].x), cy(pts[i].y));
+                    ctx.stroke();
+                    ctx.restore();
+                }
+
+                if (activeMarker) {
+                    const x = cx(activeMarker.x), y = cy(activeMarker.y);
+                    ctx.save();
+                    ctx.beginPath();
+                    ctx.arc(x, y, 7, 0, Math.PI * 2);
+                    ctx.fillStyle = '#ffeb3b';
+                    ctx.strokeStyle = '#111';
+                    ctx.lineWidth = 2;
+                    ctx.fill();
+                    ctx.stroke();
+
+                    ctx.beginPath();
+                    ctx.arc(x, y, 13, 0, Math.PI * 2);
+                    ctx.strokeStyle = 'rgba(255,235,59,.75)';
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+
+                    ctx.fillStyle = '#ffeb3b';
+                    ctx.font = 'bold 11px Segoe UI';
+                    ctx.fillText(activeMarker.label, x + 10, y - 10);
+                    ctx.restore();
+                }
+
+                for (const tp of tracking) {
+                    const x = cx(tp.x || 0), y = cy(tp.y || 0);
+                    ctx.save();
+                    ctx.beginPath();
+                    ctx.arc(x, y, Math.max(4, (tp.size || 12) / 2), 0, Math.PI * 2);
+                    ctx.fillStyle = '#76ff03';
+                    ctx.strokeStyle = '#fff';
+                    ctx.lineWidth = 1.5;
+                    ctx.fill();
+                    ctx.stroke();
+                    if (tp.label) {
+                        ctx.fillStyle = '#fff';
+                        ctx.font = '10px Segoe UI';
+                        ctx.fillText(tp.label, x + 8, y + 3);
+                    }
+                    ctx.restore();
                 }
             }
-            minX = Math.min(minX, 0);
-            minY = Math.min(minY, 0);
-            if (data.workspaceWidth > 0) maxX = Math.max(maxX, data.workspaceWidth);
-            if (data.workspaceHeight > 0) maxY = Math.max(maxY, data.workspaceHeight);
-        }
-        if (!isFinite(minX) || maxX <= minX) { minX = 0; maxX = 100; }
-        if (!isFinite(minY) || maxY <= minY) { minY = 0; maxY = 100; }
 
-        const pad = 20;
-        const scale = Math.min((W - pad * 2) / (maxX - minX), (H - pad * 2) / (maxY - minY));
-        const ox = pad + ((W - pad * 2) - (maxX - minX) * scale) / 2;
-        const oy = pad + ((H - pad * 2) - (maxY - minY) * scale) / 2;
-        const cx = x => ox + (x - minX) * scale;
-        const cy = y => oy + (maxY - y) * scale;
+            getActiveCadMarkerFromMonitor() {
+                const monitor = this._monitorData;
+                const row = monitor && monitor.dxfPoint ? monitor.dxfPoint.activeRow : null;
+                if (!row || !row.endCoordinate) return null;
 
-        if (data.workspaceWidth > 0 && data.workspaceHeight > 0) {
-            ctx.save();
-            ctx.strokeStyle = '#1f6feb';
-            ctx.fillStyle = 'rgba(31,111,235,0.04)';
-            ctx.setLineDash([5, 4]);
-            const x1 = cx(0), y1 = cy(data.workspaceHeight);
-            const x2 = cx(data.workspaceWidth), y2 = cy(0);
-            ctx.fillRect(x1, y1, x2 - x1, y2 - y1);
-            ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
-            ctx.restore();
-        }
+                const parts = String(row.endCoordinate).split(';');
+                if (parts.length < 2) return null;
 
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
-        for (const prim of primitives) {
-            const pts = prim.points || [];
-            if (pts.length < 2) continue;
-            const source = String(prim.sourceType || '').toLowerCase();
-            const rapid = source.includes('g0') || source.includes('rapid');
-            ctx.save();
-            ctx.strokeStyle = rapid ? 'rgba(248,81,73,.55)' : '#29b6f6';
-            ctx.lineWidth = rapid ? 0.8 : 1.1;
-            if (rapid) ctx.setLineDash([4, 3]);
-            ctx.beginPath();
-            ctx.moveTo(cx(pts[0].x), cy(pts[0].y));
-            for (let i = 1; i < pts.length; i++) ctx.lineTo(cx(pts[i].x), cy(pts[i].y));
-            ctx.stroke();
-            ctx.restore();
-        }
+                const x = parseFloat(parts[0].trim());
+                const y = parseFloat(parts[1].trim());
+                if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
 
-        if (activeMarker) {
-            const x = cx(activeMarker.x), y = cy(activeMarker.y);
-            ctx.save();
-            ctx.beginPath();
-            ctx.arc(x, y, 7, 0, Math.PI * 2);
-            ctx.fillStyle = '#ffeb3b';
-            ctx.strokeStyle = '#111';
-            ctx.lineWidth = 2;
-            ctx.fill();
-            ctx.stroke();
-
-            ctx.beginPath();
-            ctx.arc(x, y, 13, 0, Math.PI * 2);
-            ctx.strokeStyle = 'rgba(255,235,59,.75)';
-            ctx.lineWidth = 2;
-            ctx.stroke();
-
-            ctx.fillStyle = '#ffeb3b';
-            ctx.font = 'bold 11px Segoe UI';
-            ctx.fillText(activeMarker.label, x + 10, y - 10);
-            ctx.restore();
-        }
-
-        for (const tp of tracking) {
-            const x = cx(tp.x || 0), y = cy(tp.y || 0);
-            ctx.save();
-            ctx.beginPath();
-            ctx.arc(x, y, Math.max(4, (tp.size || 12) / 2), 0, Math.PI * 2);
-            ctx.fillStyle = '#76ff03';
-            ctx.strokeStyle = '#fff';
-            ctx.lineWidth = 1.5;
-            ctx.fill();
-            ctx.stroke();
-            if (tp.label) {
-                ctx.fillStyle = '#fff';
-                ctx.font = '10px Segoe UI';
-                ctx.fillText(tp.label, x + 8, y + 3);
+                const idx = row.index != null ? row.index : this.activeDataNo;
+                return {
+                    x,
+                    y,
+                    label: idx != null ? 'P' + idx : 'Active'
+                };
             }
-            ctx.restore();
-        }
-    }
 
-    getActiveCadMarkerFromMonitor() {
-        const monitor = this._monitorData;
-        const row = monitor && monitor.dxfPoint ? monitor.dxfPoint.activeRow : null;
-        if (!row || !row.endCoordinate) return null;
-
-        const parts = String(row.endCoordinate).split(';');
-        if (parts.length < 2) return null;
-
-        const x = parseFloat(parts[0].trim());
-        const y = parseFloat(parts[1].trim());
-        if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
-
-        const idx = row.index != null ? row.index : this.activeDataNo;
-        return {
-            x,
-            y,
-            label: idx != null ? 'P' + idx : 'Active'
-        };
-    }
-
-    setCameraStreamHint(text) {
-        const placeholder = document.getElementById('cam-placeholder');
-        const loadingText = document.getElementById('cam-loading-text');
-        if (placeholder) placeholder.style.display = 'flex';
-        if (loadingText) loadingText.textContent = text;
-    }
-
-    markVideoFrameReceived(video, placeholder) {
-        this.hasVideoFrame = true;
-        if (placeholder) placeholder.style.display = 'none';
-        if (video) video.style.display = 'block';
-        this.setCamStatus(true, 'WebRTC video active');
-
-        const dot = document.getElementById('mqtt-cam-dot');
-        if (dot) dot.style.background = 'var(--green)';
-        const lbl = document.getElementById('rec-label');
-        if (lbl) lbl.textContent = 'WebRTC Video Active';
-    }
-
-    closeWebRTC() {
-        this.pendingRemoteCandidates = [];
-        this.appliedRemoteCandidateKeys.clear();
-        this.hasWebRtcTrack = false;
-        this.hasVideoFrame = false;
-        if (this.peerConnection) {
-            try { this.peerConnection.onicecandidate = null; } catch (e) {}
-            try { this.peerConnection.ontrack = null; } catch (e) {}
-            try { this.peerConnection.onconnectionstatechange = null; } catch (e) {}
-            try { this.peerConnection.close(); } catch (e) {}
-            this.peerConnection = null;
-        }
-
-        const video = document.getElementById('cam-video');
-        if (video) {
-            video.onloadeddata = null;
-            video.onplaying = null;
-            try { video.srcObject = null; } catch (e) {}
-            video.style.display = 'none';
-        }
-
-        const placeholder = document.getElementById('cam-placeholder');
-        if (placeholder) placeholder.style.display = 'flex';
-        if (this.isCameraStartRequested) {
-            this.setCameraStreamHint('Dang cho camera va WebRTC...');
-        } else {
-            this.setCameraStreamHint('Dang cho camera hoat dong...');
-        }
-        this.setCamStatus(false, 'Waiting');
-    }
-
-    flushPendingRemoteCandidates() {
-        if (!this.peerConnection || !this.peerConnection.remoteDescription || !this.pendingRemoteCandidates.length) {
-            return;
-        }
-
-        const queue = this.pendingRemoteCandidates.slice();
-        this.pendingRemoteCandidates.length = 0;
-        for (const candidate of queue) {
-            this.addRemoteIceCandidate(candidate, true);
-        }
-    }
-
-    addRemoteIceCandidate(candidateInit, buffered = false) {
-        if (!this.peerConnection) return;
-        if (!candidateInit || !candidateInit.candidate) return;
-
-        const candidateKey = [
-            candidateInit.candidate,
-            candidateInit.sdpMid == null ? '' : candidateInit.sdpMid,
-            candidateInit.sdpMLineIndex == null ? '' : candidateInit.sdpMLineIndex
-        ].join('|');
-        if (this.appliedRemoteCandidateKeys.has(candidateKey)) {
-            return;
-        }
-
-        if (!this.peerConnection.remoteDescription) {
-            const alreadyPending = this.pendingRemoteCandidates.some(candidate => {
-                return [
-                    candidate.candidate,
-                    candidate.sdpMid == null ? '' : candidate.sdpMid,
-                    candidate.sdpMLineIndex == null ? '' : candidate.sdpMLineIndex
-                ].join('|') === candidateKey;
-            });
-            if (alreadyPending) return;
-
-            this.pendingRemoteCandidates.push(candidateInit);
-            this.addLog('ICE candidate dang cho SDP answer', 'info');
-            return;
-        }
-
-        this.appliedRemoteCandidateKeys.add(candidateKey);
-        this.peerConnection.addIceCandidate(new RTCIceCandidate(candidateInit)).catch(err => {
-            const state = this.peerConnection ? this.peerConnection.connectionState : 'closed';
-            const label = buffered ? 'buffered' : 'live';
-            const level = state === 'failed' ? 'warning' : 'info';
-            this.addLog('Bo qua ICE candidate ' + label + ': ' + err.message, level);
-        });
-    }
-
-    /* ── CAMERA ── */
-    initWebRTC() {
-        this.addLog('Khởi tạo WebRTC...', 'info');
-        
-        this.closeWebRTC();
-
-        const video = document.getElementById('cam-video');
-        const placeholder = document.getElementById('cam-placeholder');
-        const loadingText = document.getElementById('cam-loading-text');
-
-        if (video) video.style.display = 'none';
-        if (placeholder) {
-            placeholder.style.display = 'flex';
-            if (loadingText) loadingText.textContent = 'Đang kết nối WebRTC...';
-        }
-        this.setCamStatus(false, 'Waiting for SDP offer / answer');
-
-        this.peerConnection = new RTCPeerConnection({
-            iceServers: [
-                { urls: 'stun:stun.l.google.com:19302' },
-                { urls: 'stun:global.stun.twilio.com:3478' }
-            ]
-        });
-
-        this.peerConnection.onicecandidate = (event) => {
-            if (event.candidate) {
-                const payload = JSON.stringify({
-                    type: 'candidate',
-                    candidate: event.candidate.candidate,
-                    sdpMid: event.candidate.sdpMid,
-                    sdpMLineIndex: event.candidate.sdpMLineIndex
-                });
-                const msg = new Paho.MQTT.Message(payload);
-                msg.destinationName = `DACDT/camera/webrtc/signaling/${this.webrtcClientId}/client`;
-                this.client.send(msg);
+            setCameraStreamHint(text) {
+                const placeholder = document.getElementById('cam-placeholder');
+                const loadingText = document.getElementById('cam-loading-text');
+                if (placeholder) placeholder.style.display = 'flex';
+                if (loadingText) loadingText.textContent = text;
             }
-        };
 
-        this.peerConnection.ontrack = (event) => {
-            this.addLog('Nhan duong video WebRTC', 'info');
-            this.hasWebRtcTrack = true;
-            this.hasVideoFrame = false;
-            if (video) {
-                video.muted = true;
-                video.autoplay = true;
-                video.playsInline = true;
-                video.onloadeddata = () => this.markVideoFrameReceived(video, placeholder);
-                video.onplaying = () => this.markVideoFrameReceived(video, placeholder);
-                video.srcObject = event.streams[0] || new MediaStream([event.track]);
-                video.style.display = 'block';
-                video.play().catch(err => {
-                    this.addLog('Khong the tu dong phat video: ' + err.message, 'warning');
-                });
-            }
-            this.setCameraStreamHint('Da nhan duong video. Dang cho frame dau tien tu encoder...');
-            this.setCamStatus(false, 'Waiting for first video frame');
+            markVideoFrameReceived(video, placeholder) {
+                this.hasVideoFrame = true;
+                if (placeholder) placeholder.style.display = 'none';
+                if (video) video.style.display = 'block';
+                this.setCamStatus(true, 'WebRTC video active');
 
-            const dot = document.getElementById('mqtt-cam-dot');
-            if (dot) dot.style.background = 'var(--orange)';
-            const lbl = document.getElementById('rec-label');
-            if (lbl) lbl.textContent = 'WebRTC connected, waiting frame';
-        };
-
-        this.peerConnection.onconnectionstatechange = () => {
-            const state = this.peerConnection.connectionState;
-            this.addLog(`Trạng thái kết nối WebRTC: ${state}`, 'info');
-            if (state === 'failed' || state === 'disconnected' || state === 'closed') {
-                this.setCamStatus(false, 'Disconnected');
                 const dot = document.getElementById('mqtt-cam-dot');
-                if (dot) dot.style.background = 'var(--muted)';
+                if (dot) dot.style.background = 'var(--green)';
                 const lbl = document.getElementById('rec-label');
-                if (lbl) lbl.textContent = 'WebRTC Mất kết nối';
+                if (lbl) lbl.textContent = 'WebRTC Video Active';
             }
-        };
 
-        this.peerConnection.addTransceiver('video', { direction: 'recvonly' });
-
-        this.peerConnection.createOffer().then(offer => {
-            return this.peerConnection.setLocalDescription(offer).then(() => {
-                const payload = JSON.stringify({
-                    type: 'offer',
-                    sdp: offer.sdp
-                });
-                const msg = new Paho.MQTT.Message(payload);
-                msg.destinationName = `DACDT/camera/webrtc/signaling/${this.webrtcClientId}/client`;
-                this.client.send(msg);
-                this.addLog('Đã gửi SDP Offer qua MQTT', 'info');
-            });
-        }).catch(err => {
-            this.addLog('Lỗi tạo SDP Offer: ' + err.message, 'error');
-        });
-    }
-
-    handleCameraStatus(payload) {
-        try {
-            const status = JSON.parse(payload);
-            const isRunning = status && status.running === true;
-            const state = status && status.state ? String(status.state) : '';
-            const detail = status && status.message ? String(status.message) : '';
-            const statusText = detail || state || (isRunning ? 'Camera running' : 'Camera stopped');
-            this.setCamStatus(isRunning, statusText);
-            
-            const placeholder = document.getElementById('cam-placeholder');
-            const placeholderText = document.getElementById('cam-loading-text');
-            const video = document.getElementById('cam-video');
-            const dot = document.getElementById('cam-status-dot');
-
-            if (!isRunning) {
-                if (video) {
-                    video.style.display = 'none';
-                    try { video.srcObject = null; } catch(e) {}
+            closeWebRTC() {
+                this.pendingRemoteCandidates = [];
+                this.appliedRemoteCandidateKeys.clear();
+                this.hasWebRtcTrack = false;
+                this.hasVideoFrame = false;
+                if (this.peerConnection) {
+                    try { this.peerConnection.onicecandidate = null; } catch (e) { }
+                    try { this.peerConnection.ontrack = null; } catch (e) { }
+                    try { this.peerConnection.onconnectionstatechange = null; } catch (e) { }
+                    try { this.peerConnection.close(); } catch (e) { }
+                    this.peerConnection = null;
                 }
+
+                const video = document.getElementById('cam-video');
+                if (video) {
+                    video.onloadeddata = null;
+                    video.onplaying = null;
+                    try { video.srcObject = null; } catch (e) { }
+                    video.style.display = 'none';
+                }
+
+                const placeholder = document.getElementById('cam-placeholder');
+                if (placeholder) placeholder.style.display = 'flex';
+                if (this.isCameraStartRequested) {
+                    this.setCameraStreamHint('Dang cho camera va WebRTC...');
+                } else {
+                    this.setCameraStreamHint('Dang cho camera hoat dong...');
+                }
+                this.setCamStatus(false, 'Waiting');
+            }
+
+            flushPendingRemoteCandidates() {
+                if (!this.peerConnection || !this.peerConnection.remoteDescription || !this.pendingRemoteCandidates.length) {
+                    return;
+                }
+
+                const queue = this.pendingRemoteCandidates.slice();
+                this.pendingRemoteCandidates.length = 0;
+                for (const candidate of queue) {
+                    this.addRemoteIceCandidate(candidate, true);
+                }
+            }
+
+            addRemoteIceCandidate(candidateInit, buffered = false) {
+                if (!this.peerConnection) return;
+                if (!candidateInit || !candidateInit.candidate) return;
+
+                const candidateKey = [
+                    candidateInit.candidate,
+                    candidateInit.sdpMid == null ? '' : candidateInit.sdpMid,
+                    candidateInit.sdpMLineIndex == null ? '' : candidateInit.sdpMLineIndex
+                ].join('|');
+                if (this.appliedRemoteCandidateKeys.has(candidateKey)) {
+                    return;
+                }
+
+                if (!this.peerConnection.remoteDescription) {
+                    const alreadyPending = this.pendingRemoteCandidates.some(candidate => {
+                        return [
+                            candidate.candidate,
+                            candidate.sdpMid == null ? '' : candidate.sdpMid,
+                            candidate.sdpMLineIndex == null ? '' : candidate.sdpMLineIndex
+                        ].join('|') === candidateKey;
+                    });
+                    if (alreadyPending) return;
+
+                    this.pendingRemoteCandidates.push(candidateInit);
+                    this.addLog('ICE candidate dang cho SDP answer', 'info');
+                    return;
+                }
+
+                this.appliedRemoteCandidateKeys.add(candidateKey);
+                this.peerConnection.addIceCandidate(new RTCIceCandidate(candidateInit)).catch(err => {
+                    const state = this.peerConnection ? this.peerConnection.connectionState : 'closed';
+                    const label = buffered ? 'buffered' : 'live';
+                    const level = state === 'failed' ? 'warning' : 'info';
+                    this.addLog('Bo qua ICE candidate ' + label + ': ' + err.message, level);
+                });
+            }
+
+            /* ── CAMERA ── */
+            initWebRTC() {
+                this.addLog('Khởi tạo WebRTC...', 'info');
+
+                this.closeWebRTC();
+
+                const video = document.getElementById('cam-video');
+                const placeholder = document.getElementById('cam-placeholder');
+                const loadingText = document.getElementById('cam-loading-text');
+
+                if (video) video.style.display = 'none';
                 if (placeholder) {
                     placeholder.style.display = 'flex';
-                    if (placeholderText) placeholderText.textContent = 'Camera is stopped. Waiting for control app.';
+                    if (loadingText) loadingText.textContent = 'Đang kết nối WebRTC...';
                 }
-                if (dot) dot.style.background = 'var(--muted)';
-                this.closeWebRTC();
-            } else {
-                if (!this.peerConnection || this.peerConnection.connectionState === 'failed' || this.peerConnection.connectionState === 'disconnected' || this.peerConnection.connectionState === 'closed') {
-                    this.initWebRTC();
-                } else if (placeholderText) {
-                    placeholderText.textContent = 'Camera is running. Waiting for WebRTC stream...';
-                }
-            }
-        } catch(e) {
-            this.addLog('Lỗi xử lý camera status: ' + e.message, 'error');
-        }
-    }
+                this.setCamStatus(false, 'Waiting for SDP offer / answer');
 
-    handleWebRtcStatus(payload) {
-        try {
-            const status = JSON.parse(payload);
-            const state = status && status.state ? String(status.state) : 'unknown';
-            const message = status && status.message ? String(status.message) : state;
-            const sentFrames = status && status.sentFrames != null ? Number(status.sentFrames) : 0;
-            const running = status && status.running === true;
-            const encoderReady = status && status.encoderReady === true;
-
-            if (state === 'encoder_error' || (running && encoderReady === false)) {
-                this.setCameraStreamHint('WebRTC encoder loi: ' + message + '. Hay chay ban x64 cua control app.');
-                this.setCamStatus(false, 'Encoder error');
-                const dot = document.getElementById('mqtt-cam-dot');
-                if (dot) dot.style.background = 'var(--red)';
-                const lbl = document.getElementById('rec-label');
-                if (lbl) lbl.textContent = 'WebRTC encoder error';
-                return;
-            }
-
-            if (state === 'streaming' && sentFrames > 0 && !this.hasVideoFrame) {
-                this.setCameraStreamHint('Control app da gui frame WebRTC. Dang cho trinh duyet render video...');
-                this.setCamStatus(false, 'Rendering video');
-                return;
-            }
-
-            if (!this.hasVideoFrame && this.hasWebRtcTrack) {
-                this.setCameraStreamHint(message || 'Da nhan track. Dang cho frame video...');
-            }
-        } catch (e) {
-            this.addLog('Loi xu ly WebRTC status: ' + e.message, 'error');
-        }
-    }
-
-    handleSignalingMessage(payload) {
-        try {
-            const msg = JSON.parse(payload);
-            if (!this.peerConnection) return;
-
-            if (msg.type === 'answer') {
-                this.addLog('Nhận SDP Answer từ server', 'info');
-                if (this.peerConnection.signalingState !== 'have-local-offer') {
-                    this.addLog('Bo qua SDP Answer lap/cu vi WebRTC dang o trang thai ' + this.peerConnection.signalingState, 'info');
-                    return;
-                }
-                this.peerConnection.setRemoteDescription(new RTCSessionDescription({
-                    type: 'answer',
-                    sdp: msg.sdp
-                })).then(() => {
-                    this.flushPendingRemoteCandidates();
-                }).catch(err => {
-                    this.addLog('Lỗi setRemoteDescription: ' + err.message, 'error');
+                this.peerConnection = new RTCPeerConnection({
+                    iceServers: [
+                        { urls: 'stun:stun.l.google.com:19302' },
+                        { urls: 'stun:global.stun.twilio.com:3478' }
+                    ]
                 });
-            } else if (msg.type === 'candidate') {
-                if (msg.candidate) {
-                    const candidateInit = {
-                        candidate: msg.candidate,
-                        sdpMid: msg.sdpMid,
-                        sdpMLineIndex: msg.sdpMLineIndex
-                    };
-                    this.addRemoteIceCandidate(candidateInit);
-                    return;
+
+                this.peerConnection.onicecandidate = (event) => {
+                    if (event.candidate) {
+                        const payload = JSON.stringify({
+                            type: 'candidate',
+                            candidate: event.candidate.candidate,
+                            sdpMid: event.candidate.sdpMid,
+                            sdpMLineIndex: event.candidate.sdpMLineIndex
+                        });
+                        const msg = new Paho.MQTT.Message(payload);
+                        msg.destinationName = `DACDT/camera/webrtc/signaling/${this.webrtcClientId}/client`;
+                        this.client.send(msg);
+                    }
+                };
+
+                this.peerConnection.ontrack = (event) => {
+                    this.addLog('Nhan duong video WebRTC', 'info');
+                    this.hasWebRtcTrack = true;
+                    this.hasVideoFrame = false;
+                    if (video) {
+                        video.muted = true;
+                        video.autoplay = true;
+                        video.playsInline = true;
+                        video.onloadeddata = () => this.markVideoFrameReceived(video, placeholder);
+                        video.onplaying = () => this.markVideoFrameReceived(video, placeholder);
+                        video.srcObject = event.streams[0] || new MediaStream([event.track]);
+                        video.style.display = 'block';
+                        video.play().catch(err => {
+                            this.addLog('Khong the tu dong phat video: ' + err.message, 'warning');
+                        });
+                    }
+                    this.setCameraStreamHint('Da nhan duong video. Dang cho frame dau tien tu encoder...');
+                    this.setCamStatus(false, 'Waiting for first video frame');
+
+                    const dot = document.getElementById('mqtt-cam-dot');
+                    if (dot) dot.style.background = 'var(--orange)';
+                    const lbl = document.getElementById('rec-label');
+                    if (lbl) lbl.textContent = 'WebRTC connected, waiting frame';
+                };
+
+                this.peerConnection.onconnectionstatechange = () => {
+                    const state = this.peerConnection.connectionState;
+                    this.addLog(`Trạng thái kết nối WebRTC: ${state}`, 'info');
+                    if (state === 'failed' || state === 'disconnected' || state === 'closed') {
+                        this.setCamStatus(false, 'Disconnected');
+                        const dot = document.getElementById('mqtt-cam-dot');
+                        if (dot) dot.style.background = 'var(--muted)';
+                        const lbl = document.getElementById('rec-label');
+                        if (lbl) lbl.textContent = 'WebRTC Mất kết nối';
+                    }
+                };
+
+                this.peerConnection.addTransceiver('video', { direction: 'recvonly' });
+
+                this.peerConnection.createOffer().then(offer => {
+                    return this.peerConnection.setLocalDescription(offer).then(() => {
+                        const payload = JSON.stringify({
+                            type: 'offer',
+                            sdp: offer.sdp
+                        });
+                        const msg = new Paho.MQTT.Message(payload);
+                        msg.destinationName = `DACDT/camera/webrtc/signaling/${this.webrtcClientId}/client`;
+                        this.client.send(msg);
+                        this.addLog('Đã gửi SDP Offer qua MQTT', 'info');
+                    });
+                }).catch(err => {
+                    this.addLog('Lỗi tạo SDP Offer: ' + err.message, 'error');
+                });
+            }
+
+            handleCameraStatus(payload) {
+                try {
+                    const status = JSON.parse(payload);
+                    const isRunning = status && status.running === true;
+                    const state = status && status.state ? String(status.state) : '';
+                    const detail = status && status.message ? String(status.message) : '';
+                    const statusText = detail || state || (isRunning ? 'Camera running' : 'Camera stopped');
+                    this.setCamStatus(isRunning, statusText);
+
+                    const placeholder = document.getElementById('cam-placeholder');
+                    const placeholderText = document.getElementById('cam-loading-text');
+                    const video = document.getElementById('cam-video');
+                    const dot = document.getElementById('cam-status-dot');
+
+                    if (!isRunning) {
+                        if (video) {
+                            video.style.display = 'none';
+                            try { video.srcObject = null; } catch (e) { }
+                        }
+                        if (placeholder) {
+                            placeholder.style.display = 'flex';
+                            if (placeholderText) placeholderText.textContent = 'Camera is stopped. Waiting for control app.';
+                        }
+                        if (dot) dot.style.background = 'var(--muted)';
+                        this.closeWebRTC();
+                    } else {
+                        if (!this.peerConnection || this.peerConnection.connectionState === 'failed' || this.peerConnection.connectionState === 'disconnected' || this.peerConnection.connectionState === 'closed') {
+                            this.initWebRTC();
+                        } else if (placeholderText) {
+                            placeholderText.textContent = 'Camera is running. Waiting for WebRTC stream...';
+                        }
+                    }
+                } catch (e) {
+                    this.addLog('Lỗi xử lý camera status: ' + e.message, 'error');
                 }
             }
-        } catch(e) {
-            this.addLog('Lỗi xử lý signaling message: ' + e.message, 'error');
+
+            handleWebRtcStatus(payload) {
+                try {
+                    const status = JSON.parse(payload);
+                    const state = status && status.state ? String(status.state) : 'unknown';
+                    const message = status && status.message ? String(status.message) : state;
+                    const sentFrames = status && status.sentFrames != null ? Number(status.sentFrames) : 0;
+                    const running = status && status.running === true;
+                    const encoderReady = status && status.encoderReady === true;
+
+                    if (state === 'encoder_error' || (running && encoderReady === false)) {
+                        this.setCameraStreamHint('WebRTC encoder loi: ' + message + '. Hay chay ban x64 cua control app.');
+                        this.setCamStatus(false, 'Encoder error');
+                        const dot = document.getElementById('mqtt-cam-dot');
+                        if (dot) dot.style.background = 'var(--red)';
+                        const lbl = document.getElementById('rec-label');
+                        if (lbl) lbl.textContent = 'WebRTC encoder error';
+                        return;
+                    }
+
+                    if (state === 'streaming' && sentFrames > 0 && !this.hasVideoFrame) {
+                        this.setCameraStreamHint('Control app da gui frame WebRTC. Dang cho trinh duyet render video...');
+                        this.setCamStatus(false, 'Rendering video');
+                        return;
+                    }
+
+                    if (!this.hasVideoFrame && this.hasWebRtcTrack) {
+                        this.setCameraStreamHint(message || 'Da nhan track. Dang cho frame video...');
+                    }
+                } catch (e) {
+                    this.addLog('Loi xu ly WebRTC status: ' + e.message, 'error');
+                }
+            }
+
+            handleSignalingMessage(payload) {
+                try {
+                    const msg = JSON.parse(payload);
+                    if (!this.peerConnection) return;
+
+                    if (msg.type === 'answer') {
+                        this.addLog('Nhận SDP Answer từ server', 'info');
+                        if (this.peerConnection.signalingState !== 'have-local-offer') {
+                            this.addLog('Bo qua SDP Answer lap/cu vi WebRTC dang o trang thai ' + this.peerConnection.signalingState, 'info');
+                            return;
+                        }
+                        this.peerConnection.setRemoteDescription(new RTCSessionDescription({
+                            type: 'answer',
+                            sdp: msg.sdp
+                        })).then(() => {
+                            this.flushPendingRemoteCandidates();
+                        }).catch(err => {
+                            this.addLog('Lỗi setRemoteDescription: ' + err.message, 'error');
+                        });
+                    } else if (msg.type === 'candidate') {
+                        if (msg.candidate) {
+                            const candidateInit = {
+                                candidate: msg.candidate,
+                                sdpMid: msg.sdpMid,
+                                sdpMLineIndex: msg.sdpMLineIndex
+                            };
+                            this.addRemoteIceCandidate(candidateInit);
+                            return;
+                        }
+                    }
+                } catch (e) {
+                    this.addLog('Lỗi xử lý signaling message: ' + e.message, 'error');
+                }
+            }
+
+            setCamStatus(active, text) {
+                const dot = document.getElementById('cam-status-dot');
+                const txt = document.getElementById('cam-status-text');
+                if (dot) dot.style.background = active ? 'var(--green)' : 'var(--muted)';
+                if (txt) txt.textContent = text;
+            }
         }
-    }
 
-    setCamStatus(active, text) {
-        const dot = document.getElementById('cam-status-dot');
-        const txt = document.getElementById('cam-status-text');
-        if (dot) dot.style.background = active ? 'var(--green)' : 'var(--muted)';
-        if (txt) txt.textContent = text;
-    }
-}
-
-document.addEventListener('DOMContentLoaded', () => { window.dashboard = new GantrySCADADashboard(); });
-</script>
+        document.addEventListener('DOMContentLoaded', () => { window.dashboard = new GantrySCADADashboard(); });
+    </script>
 </body>
-</html>
 
+</html>
