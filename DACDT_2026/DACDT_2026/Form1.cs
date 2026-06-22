@@ -856,6 +856,13 @@ namespace DACDT_2026
         {
             try
             {
+                // Force kill any orphaned background service processes to ensure we run the latest code
+                if (System.Diagnostics.Process.GetProcessesByName(System.Diagnostics.Process.GetCurrentProcess().ProcessName).Length <= 1)
+                {
+                    LogLifecycle("Stopping existing WebRTC background service processes...");
+                    StopBackgroundVideoServiceProcessForce();
+                }
+
                 if (IsWebRtcBridgeListening())
                 {
                     LogLifecycle("Reusing existing WebRTC background service.");
@@ -1004,6 +1011,26 @@ namespace DACDT_2026
                     backgroundServiceProcess = null;
                     System.IO.File.AppendAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "crash_log.txt"), 
                         "[" + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff") + "] [Lifecycle] Stopped background service.\r\n");
+                }
+
+                // Also force stop to clean up any orphaned or reused instances
+                StopBackgroundVideoServiceProcessForce();
+            }
+            catch { }
+        }
+
+        private static void StopBackgroundVideoServiceProcessForce()
+        {
+            try
+            {
+                foreach (var p in System.Diagnostics.Process.GetProcessesByName("WebRtcCameraService"))
+                {
+                    try
+                    {
+                        p.Kill();
+                        p.WaitForExit(1000);
+                    }
+                    catch { }
                 }
             }
             catch { }
