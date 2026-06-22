@@ -147,7 +147,26 @@ namespace DACDT_2026
                     {
                         iceServers = new List<RTCIceServer>
                         {
-                            new RTCIceServer { urls = "stun:stun.l.google.com:19302" }
+                            new RTCIceServer { urls = "stun:stun.l.google.com:19302" },
+                            new RTCIceServer { urls = "stun:stun.cloudflare.com:3478" },
+                            new RTCIceServer
+                            {
+                                urls = "turn:openrelay.metered.ca:80",
+                                username = "openrelayproject",
+                                credential = "openrelayproject"
+                            },
+                            new RTCIceServer
+                            {
+                                urls = "turn:openrelay.metered.ca:443",
+                                username = "openrelayproject",
+                                credential = "openrelayproject"
+                            },
+                            new RTCIceServer
+                            {
+                                urls = "turn:openrelay.metered.ca:443?transport=tcp",
+                                username = "openrelayproject",
+                                credential = "openrelayproject"
+                            }
                         }
                     };
 
