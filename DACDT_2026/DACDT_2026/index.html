@@ -2290,7 +2290,7 @@
                     return;
                 }
 
-                if (!this.peerConnection.remoteDescription) {
+                if (!this.peerConnection.remoteDescription || this.peerConnection.signalingState !== 'stable') {
                     const alreadyPending = this.pendingRemoteCandidates.some(candidate => {
                         return [
                             candidate.candidate,
