@@ -15,6 +15,7 @@ namespace DACDT_2026
         private IMqttClient _mqttClient;
         private MqttClientOptions _options;
         private bool _isConnected;
+        private bool _isConnecting;
         private readonly object _subscriptionLock = new object();
         private readonly List<string> _subscriptions = new List<string>();
         private static readonly MqttFactory MqttFactory = new MqttFactory();
@@ -59,6 +60,11 @@ namespace DACDT_2026
         private async Task TryConnectAsync()
         {
             if (_isConnected) return;
+            lock (_subscriptionLock)
+            {
+                if (_isConnecting) return;
+                _isConnecting = true;
+            }
             try
             {
                 await _mqttClient.ConnectAsync(_options, CancellationToken.None);
@@ -70,6 +76,13 @@ namespace DACDT_2026
                 Disconnected?.Invoke();
                 // Schedule a reconnect attempt
                 _ = Task.Delay(TimeSpan.FromSeconds(5)).ContinueWith(t => TryConnectAsync());
+            }
+            finally
+            {
+                lock (_subscriptionLock)
+                {
+                    _isConnecting = false;
+                }
             }
         }
 
@@ -210,6 +223,18 @@ namespace DACDT_2026
             catch (MqttCommunicationException ex)
             {
                 Console.WriteLine($"Error subscribing MQTT topics: {ex.Message}");
+            }
+        }
+
+        public async Task DisconnectAsync()
+        {
+            if (_mqttClient != null)
+            {
+                try
+                {
+                    await _mqttClient.DisconnectAsync();
+                }
+                catch { }
             }
         }
 

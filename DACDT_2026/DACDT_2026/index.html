@@ -472,6 +472,9 @@
         }
 
         .cad-canvas {
+            position: absolute;
+            left: 0;
+            top: 0;
             width: 100%;
             height: 100%;
             display: block;
@@ -1341,7 +1344,8 @@
                         </div>
                     </div>
                     <div class="cad-wrap" id="cad-wrap">
-                        <canvas class="cad-canvas" id="cad-canvas"></canvas>
+                        <canvas class="cad-canvas" id="cad-canvas-bg"></canvas>
+                        <canvas class="cad-canvas" id="cad-canvas-fg" style="pointer-events: none;"></canvas>
                         <div class="cad-overlay-info" id="cad-info"></div>
                         <div class="cad-no-data" id="cad-no-data">
                             <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -1568,7 +1572,6 @@
                 }
             }
 
-            /* ── MQTT ── */
             connectMQTT() {
                 try {
                     const clientId = 'SCADA_' + Math.random().toString(36).substr(2, 8);
@@ -1589,34 +1592,37 @@
 
                     this.client.onMessageArrived = (msg) => this.handleMessage(msg);
 
+                    this.client.onConnected = (reconnected, uri) => {
+                        this.isConnected = true;
+                        document.getElementById('mqtt-status').textContent = 'MQTT Connected';
+                        document.getElementById('mqtt-status').style.color = 'var(--green)';
+
+                        const sbStatus = document.getElementById('mqtt-status-sidebar');
+                        if (sbStatus) {
+                            sbStatus.className = 'status-info connected';
+                            sbStatus.innerHTML = '<span class="dot" style="background:var(--green)"></span><span style="color:var(--green)">Đã kết nối</span>';
+                        }
+                        this.addLog(reconnected ? 'Tự động kết nối lại MQTT thành công' : 'Kết nối MQTT thành công', 'info');
+
+                        this.client.subscribe(this.MQTT_TOPIC_MACHINE_STATE);
+                        this.client.subscribe(this.MQTT_TOPIC_MONITOR_STATE);
+                        this.client.subscribe(this.MQTT_TOPIC_CAMERA_STATUS);
+                        this.client.subscribe(this.MQTT_TOPIC_WEBRTC_STATUS);
+                        this.client.subscribe('DACDT/camera/webrtc/signaling/' + this.webrtcClientId + '/server');
+                        this.client.subscribe(this.MQTT_TOPIC_CAD_STATE, {
+                            onSuccess: () => {
+                                this.addLog('Subscribe: machine, monitor, camera, status, signaling', 'info');
+                                this.requestStateSnapshot();
+                            }
+                        });
+                    };
+
                     this.client.connect({
                         userName: this.MQTT_USERNAME,
                         password: this.MQTT_PASSWORD,
                         useSSL: true,
-                        onSuccess: () => {
-                            this.isConnected = true;
-                            document.getElementById('mqtt-status').textContent = 'MQTT Connected';
-                            document.getElementById('mqtt-status').style.color = 'var(--green)';
-
-                            const sbStatus = document.getElementById('mqtt-status-sidebar');
-                            if (sbStatus) {
-                                sbStatus.className = 'status-info connected';
-                                sbStatus.innerHTML = '<span class="dot" style="background:var(--green)"></span><span style="color:var(--green)">Đã kết nối</span>';
-                            }
-                            this.addLog('Kết nối MQTT thành công', 'info');
-
-                            this.client.subscribe(this.MQTT_TOPIC_MACHINE_STATE);
-                            this.client.subscribe(this.MQTT_TOPIC_MONITOR_STATE);
-                            this.client.subscribe(this.MQTT_TOPIC_CAMERA_STATUS);
-                            this.client.subscribe(this.MQTT_TOPIC_WEBRTC_STATUS);
-                            this.client.subscribe('DACDT/camera/webrtc/signaling/' + this.webrtcClientId + '/server');
-                            this.client.subscribe(this.MQTT_TOPIC_CAD_STATE, {
-                                onSuccess: () => {
-                                    this.addLog('Subscribe: machine, monitor, camera, status, signaling', 'info');
-                                    this.requestStateSnapshot();
-                                }
-                            });
-                        },
+                        reconnect: true,
+                        keepAliveInterval: 30,
                         onFailure: (e) => this.addLog('Kết nối thất bại: ' + e.errorMessage, 'error')
                     });
                 } catch (e) {
@@ -1783,18 +1789,26 @@
                         };
 
                         const existingIdx = this.dxfPoints.findIndex(p => p.no == row.index);
+                        let changed = false;
                         if (existingIdx >= 0) {
-                            this.dxfPoints[existingIdx] = Object.assign(this.dxfPoints[existingIdx], pointData);
+                            const prev = this.dxfPoints[existingIdx];
+                            if (prev.gcode !== pointData.gcode || prev.m !== pointData.m || prev.speed !== pointData.speed || prev.xy !== pointData.xy) {
+                                this.dxfPoints[existingIdx] = Object.assign(this.dxfPoints[existingIdx], pointData);
+                                changed = true;
+                            }
                         } else {
                             this.dxfPoints.push(pointData);
                             this.dxfPoints.sort((a, b) => parseInt(a.no) - parseInt(b.no));
                             if (this.dxfPoints.length > 200) {
                                 this.dxfPoints.shift();
                             }
+                            changed = true;
                         }
-                        this.renderDxfTable();
+
+                        if (changed) {
+                            this.renderDxfTable();
+                        }
                     } else if (!this.dxfPoints.length) {
-                        // render lại để cập nhật activeText nếu bảng đang trống
                         this.renderDxfTable();
                     }
 
@@ -1804,7 +1818,7 @@
                 }
 
                 if (this._cadData) {
-                    this.renderCadPreview(this._cadData);
+                    this.renderCadForeground();
                 }
             }
 
@@ -2004,11 +2018,18 @@
             }
 
             setActiveDataNo(no, total = null, text = null) {
+                if (parseInt(this.activeDataNo) === parseInt(no) && this._lastActiveDataTotal === total) {
+                    return;
+                }
                 this.activeDataNo = no;
-                document.getElementById('active-data-no').textContent = no;
+                this._lastActiveDataTotal = total;
+
+                const activeDataNoEl = document.getElementById('active-data-no');
+                if (activeDataNoEl) activeDataNoEl.textContent = no;
 
                 let labelText = 'Active no: ' + no + (total != null ? ' / ' + total : '');
-                document.getElementById('dxf-active-label').textContent = labelText;
+                const activeLabelEl = document.getElementById('dxf-active-label');
+                if (activeLabelEl) activeLabelEl.textContent = labelText;
 
                 // highlight row
                 document.querySelectorAll('#dxf-tbody tr').forEach(tr => {
@@ -2019,8 +2040,10 @@
                     // scroll into view
                     if (isActive) {
                         const wrap = document.querySelector('.dxf-table-wrap');
-                        const offset = tr.offsetTop - wrap.offsetTop - 40;
-                        wrap.scrollTo({ top: offset, behavior: 'smooth' });
+                        if (wrap) {
+                            const offset = tr.offsetTop - wrap.offsetTop - 40;
+                            wrap.scrollTo({ top: offset, behavior: 'smooth' });
+                        }
                     }
                 });
             }
@@ -2050,20 +2073,23 @@
 
             /* ── CAD PREVIEW ── */
             renderCadPreview(data) {
-                const wrap = document.getElementById('cad-wrap');
-                const canvas = document.getElementById('cad-canvas');
-                if (!wrap || !canvas) return;
+                this.renderCadBackground(data);
+                this.renderCadForeground();
+            }
 
-                const ctx = canvas.getContext('2d');
+            renderCadBackground(data) {
+                const wrap = document.getElementById('cad-wrap');
+                const canvasBg = document.getElementById('cad-canvas-bg');
+                if (!wrap || !canvasBg) return;
+
+                const ctx = canvasBg.getContext('2d');
                 const W = wrap.clientWidth || 320;
                 const H = wrap.clientHeight || 260;
-                canvas.width = W;
-                canvas.height = H;
+                canvasBg.width = W;
+                canvasBg.height = H;
                 ctx.clearRect(0, 0, W, H);
 
                 const primitives = Array.isArray(data.cadPrimitives) ? data.cadPrimitives : [];
-                const tracking = Array.isArray(data.trackingPoints) ? data.trackingPoints : [];
-                const activeMarker = this.getActiveCadMarkerFromMonitor();
                 const hasPrims = primitives.length > 0;
 
                 const noData = document.getElementById('cad-no-data');
@@ -2082,7 +2108,10 @@
                     info.innerHTML = `<span>W: ${(data.bounds.width || 0).toFixed(1)} mm</span><span>H: ${(data.bounds.height || 0).toFixed(1)} mm</span>`;
                 }
 
-                if (!hasPrims) return;
+                if (!hasPrims) {
+                    this._cadMapping = null;
+                    return;
+                }
 
                 const viewBounds = data.viewBounds || data.bounds;
                 let minX = viewBounds && isFinite(viewBounds.left) ? viewBounds.left : Infinity;
@@ -2109,6 +2138,9 @@
                 const scale = Math.min((W - pad * 2) / (maxX - minX), (H - pad * 2) / (maxY - minY));
                 const ox = pad + ((W - pad * 2) - (maxX - minX) * scale) / 2;
                 const oy = pad + ((H - pad * 2) - (maxY - minY) * scale) / 2;
+
+                this._cadMapping = { minX, maxX, minY, maxY, scale, ox, oy };
+
                 const cx = x => ox + (x - minX) * scale;
                 const cy = y => oy + (maxY - y) * scale;
 
@@ -2141,6 +2173,32 @@
                     ctx.stroke();
                     ctx.restore();
                 }
+            }
+
+            renderCadForeground() {
+                const wrap = document.getElementById('cad-wrap');
+                const canvasFg = document.getElementById('cad-canvas-fg');
+                if (!wrap || !canvasFg || !this._cadMapping) {
+                    if (canvasFg) {
+                        const ctx = canvasFg.getContext('2d');
+                        ctx.clearRect(0, 0, canvasFg.width, canvasFg.height);
+                    }
+                    return;
+                }
+
+                const ctx = canvasFg.getContext('2d');
+                const W = wrap.clientWidth || 320;
+                const H = wrap.clientHeight || 260;
+                canvasFg.width = W;
+                canvasFg.height = H;
+                ctx.clearRect(0, 0, W, H);
+
+                const mapping = this._cadMapping;
+                const cx = x => mapping.ox + (x - mapping.minX) * mapping.scale;
+                const cy = y => mapping.oy + (mapping.maxY - y) * mapping.scale;
+
+                const activeMarker = this.getActiveCadMarkerFromMonitor();
+                const tracking = Array.isArray(this._cadData && this._cadData.trackingPoints) ? this._cadData.trackingPoints : [];
 
                 if (activeMarker) {
                     const x = cx(activeMarker.x), y = cy(activeMarker.y);

@@ -860,6 +860,11 @@ namespace DACDT_2026
             try { webRtcBridgeClient.Dispose(); } catch { }
             StopBackgroundVideoService();
 
+            if (mqttService != null)
+            {
+                try { _ = mqttService.DisconnectAsync(); } catch { }
+            }
+
             if (plcComm != null)
             {
                 try { plcComm.Dispose(); } catch { }
