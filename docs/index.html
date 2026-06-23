@@ -194,27 +194,17 @@
         /* ── GRID ROWS ── */
         #top-row {
             display: grid;
-            grid-template-columns: repeat(4, 1fr) 200px;
+            grid-template-columns: repeat(3, 1fr) 200px;
             gap: var(--panel-gap);
             flex-shrink: 0;
         }
 
         #middle-row {
             display: grid;
-            grid-template-columns: minmax(0, 1.2fr) 320px minmax(0, 0.8fr);
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr);
             gap: var(--panel-gap);
             flex: 1;
             min-height: 0;
-        }
-
-        @media (max-width: 1200px) {
-            #middle-row {
-                grid-template-columns: 1fr 1fr;
-            }
-
-            #cad-panel {
-                display: none;
-            }
         }
 
         #bottom-row {
@@ -472,6 +462,9 @@
         }
 
         .cad-canvas {
+            position: absolute;
+            left: 0;
+            top: 0;
             width: 100%;
             height: 100%;
             display: block;
@@ -778,12 +771,7 @@
             color: var(--red);
         }
 
-        .plc-status-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: var(--panel-gap);
-            height: 100%;
-        }
+
 
         /* ── RESPONSIVE (MOBILE & TABLET) ── */
         @media (max-width: 1024px) {
@@ -867,9 +855,7 @@
                 height: auto;
             }
 
-            .plc-status-grid {
-                height: auto;
-            }
+
 
             #bottom-row .panel:last-child .panel-body {
                 min-height: 250px;
@@ -1036,9 +1022,7 @@
                 max-height: 320px;
             }
 
-            .plc-status-grid {
-                grid-template-columns: 1fr;
-            }
+
 
             .log-container {
                 font-size: 10px;
@@ -1181,13 +1165,7 @@
                         id="msg-count">0</span></div>
             </div>
 
-            <div style="flex: 1; display: flex; flex-direction: column;">
-                <div class="sidebar-title">Thông tin hệ thống</div>
-                <div id="sidebar-logs" class="log-container" style="flex: 1;">
-                    <div class="log-entry info"><span class="log-time">[00:00]</span><span class="log-message">Chờ dữ
-                            liệu...</span></div>
-                </div>
-            </div>
+
         </aside>
 
         <!-- ── MAIN CONTENT (RIGHT) ── -->
@@ -1284,36 +1262,7 @@
                         <div id="ax-warn-desc-2" style="line-height:1.2;">-</div>
                     </div>
                 </div>
-                <div class="panel axis-panel" id="axis-panel-3">
-                    <div class="axis-panel-title">
-                        <span class="ax-name">Axis 4</span>
-                        <span class="ax-mode" id="ax-mode-3">Standby</span>
-                    </div>
-                    <div class="ax-metric"><span class="lbl">Position</span><span class="val"
-                            id="ax-pos-3">0.0000</span></div>
-                    <div class="ax-metric"><span class="lbl">Speed</span><span class="val" id="ax-spd-3">0.00</span>
-                    </div>
-                    <div class="ax-metric"><span class="lbl">MD.44</span><span class="val small" id="ax-md-3">0</span>
-                    </div>
-                    <div class="limit-indicators">
-                        <span class="limit-tag" id="ax-lm-3">LIM-</span><span class="limit-tag"
-                            id="ax-lp-3">LIM+</span><span class="limit-tag" id="ax-home-3">HOME</span>
-                    </div>
-                    <div class="ax-error-box" id="ax-err-box-3"
-                        style="display:none; margin-top:8px; padding:6px; border-radius:3px; background:rgba(248,81,73,0.1); border:1px solid rgba(248,81,73,0.3); font-size:10px; color:#ff8080; white-space:normal; cursor:help;">
-                        <div
-                            style="font-weight:bold; text-transform:uppercase; font-size:9px; color:var(--red); margin-bottom:2px;">
-                            Lỗi <span id="ax-err-code-3"></span></div>
-                        <div id="ax-err-desc-3" style="line-height:1.2;">-</div>
-                    </div>
-                    <div class="ax-warning-box" id="ax-warn-box-3"
-                        style="display:none; margin-top:4px; padding:6px; border-radius:3px; background:rgba(251,133,0,0.1); border:1px solid rgba(251,133,0,0.3); font-size:10px; color:#ffb060; white-space:normal; cursor:help;">
-                        <div
-                            style="font-weight:bold; text-transform:uppercase; font-size:9px; color:var(--orange); margin-bottom:2px;">
-                            Cảnh báo <span id="ax-warn-code-3"></span></div>
-                        <div id="ax-warn-desc-3" style="line-height:1.2;">-</div>
-                    </div>
-                </div>
+
 
                 <div class="panel" id="dxf-completion-panel">
                     <div class="dc-title">DXF Completion</div>
@@ -1341,7 +1290,8 @@
                         </div>
                     </div>
                     <div class="cad-wrap" id="cad-wrap">
-                        <canvas class="cad-canvas" id="cad-canvas"></canvas>
+                        <canvas class="cad-canvas" id="cad-canvas-bg"></canvas>
+                        <canvas class="cad-canvas" id="cad-canvas-fg" style="pointer-events: none;"></canvas>
                         <div class="cad-overlay-info" id="cad-info"></div>
                         <div class="cad-no-data" id="cad-no-data">
                             <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -1368,36 +1318,7 @@
                     </div>
                 </div>
 
-                <div class="panel">
-                    <div class="panel-header">
-                        <div>
-                            <div class="ph-title">DXF Point Monitor</div>
-                            <div class="ph-sub" id="dxf-file-label">Không có file · Highlight follows Axis 1</div>
-                        </div>
-                        <div class="active-badge">Active: <span id="active-data-no">—</span><span class="dot"
-                                id="active-dot"></span></div>
-                    </div>
-                    <div class="panel-body dxf-table-wrap">
-                        <table class="dxf-table">
-                            <thead>
-                                <tr>
-                                    <th>Run</th>
-                                    <th>No.</th>
-                                    <th style="min-width:180px">G-code / Point</th>
-                                    <th>M</th>
-                                    <th>Speed</th>
-                                    <th>End X·Y</th>
-                                </tr>
-                            </thead>
-                            <tbody id="dxf-tbody">
-                                <tr>
-                                    <td colspan="6" style="text-align:center;color:var(--muted);padding:20px;">Chờ dữ
-                                        liệu DXF...</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
+
 
                 <div class="panel">
                     <div class="panel-header">
@@ -1445,36 +1366,18 @@
 
             <!-- ── BOTTOM ROW: PLC & LOGS ── -->
             <div id="bottom-row">
-                <div class="plc-status-grid">
-                    <div class="panel">
-                        <div class="panel-header">
-                            <div class="panel-title-group"><span class="panel-icon">🔌</span><span class="ph-title">PLC
-                                    Connection</span></div>
-                        </div>
-                        <div class="panel-body plc-info-group">
-                            <div class="info-row"><span class="info-val large" id="plc-status"><span class="dot red"
-                                        id="plc-dot"></span> Disconnected</span></div>
-                            <div class="info-row"><span class="info-lbl">Banner</span><span class="info-val"
-                                    id="plc-banner">-</span></div>
-                            <div class="info-row"><span class="info-lbl">Jog Speed</span><span class="info-val"
-                                    id="jog-speed">0</span></div>
-                        </div>
+                <div class="panel">
+                    <div class="panel-header">
+                        <div class="panel-title-group"><span class="panel-icon">🔌</span><span class="ph-title">PLC
+                                Connection</span></div>
                     </div>
-
-                    <div class="panel">
-                        <div class="panel-header">
-                            <div class="panel-title-group"><span class="panel-icon">🛡️</span><span
-                                    class="ph-title">Integrity</span></div>
-                        </div>
-                        <div class="panel-body plc-info-group" style="padding-top: 8px;">
-                            <div id="integrity-banner" class="integrity-banner unknown">
-                                <span>⏳</span><span id="integrity-state">Chờ dữ liệu...</span>
-                            </div>
-                            <div class="info-row"><span class="info-lbl">Chi tiết</span><span class="info-val"
-                                    id="integrity-detail" style="word-break: break-word;">-</span></div>
-                            <div class="info-row"><span class="info-lbl">Tone</span><span class="info-val"
-                                    id="integrity-tone">-</span></div>
-                        </div>
+                    <div class="panel-body plc-info-group">
+                        <div class="info-row"><span class="info-val large" id="plc-status"><span class="dot red"
+                                    id="plc-dot"></span> Disconnected</span></div>
+                        <div class="info-row"><span class="info-lbl">Banner</span><span class="info-val"
+                                id="plc-banner">-</span></div>
+                        <div class="info-row"><span class="info-lbl">Jog Speed</span><span class="info-val"
+                                id="jog-speed">0</span></div>
                     </div>
                 </div>
 
@@ -1568,7 +1471,6 @@
                 }
             }
 
-            /* ── MQTT ── */
             connectMQTT() {
                 try {
                     const clientId = 'SCADA_' + Math.random().toString(36).substr(2, 8);
@@ -1589,34 +1491,37 @@
 
                     this.client.onMessageArrived = (msg) => this.handleMessage(msg);
 
+                    this.client.onConnected = (reconnected, uri) => {
+                        this.isConnected = true;
+                        document.getElementById('mqtt-status').textContent = 'MQTT Connected';
+                        document.getElementById('mqtt-status').style.color = 'var(--green)';
+
+                        const sbStatus = document.getElementById('mqtt-status-sidebar');
+                        if (sbStatus) {
+                            sbStatus.className = 'status-info connected';
+                            sbStatus.innerHTML = '<span class="dot" style="background:var(--green)"></span><span style="color:var(--green)">Đã kết nối</span>';
+                        }
+                        this.addLog(reconnected ? 'Tự động kết nối lại MQTT thành công' : 'Kết nối MQTT thành công', 'info');
+
+                        this.client.subscribe(this.MQTT_TOPIC_MACHINE_STATE);
+                        this.client.subscribe(this.MQTT_TOPIC_MONITOR_STATE);
+                        this.client.subscribe(this.MQTT_TOPIC_CAMERA_STATUS);
+                        this.client.subscribe(this.MQTT_TOPIC_WEBRTC_STATUS);
+                        this.client.subscribe('DACDT/camera/webrtc/signaling/' + this.webrtcClientId + '/server');
+                        this.client.subscribe(this.MQTT_TOPIC_CAD_STATE, {
+                            onSuccess: () => {
+                                this.addLog('Subscribe: machine, monitor, camera, status, signaling', 'info');
+                                this.requestStateSnapshot();
+                            }
+                        });
+                    };
+
                     this.client.connect({
                         userName: this.MQTT_USERNAME,
                         password: this.MQTT_PASSWORD,
                         useSSL: true,
-                        onSuccess: () => {
-                            this.isConnected = true;
-                            document.getElementById('mqtt-status').textContent = 'MQTT Connected';
-                            document.getElementById('mqtt-status').style.color = 'var(--green)';
-
-                            const sbStatus = document.getElementById('mqtt-status-sidebar');
-                            if (sbStatus) {
-                                sbStatus.className = 'status-info connected';
-                                sbStatus.innerHTML = '<span class="dot" style="background:var(--green)"></span><span style="color:var(--green)">Đã kết nối</span>';
-                            }
-                            this.addLog('Kết nối MQTT thành công', 'info');
-
-                            this.client.subscribe(this.MQTT_TOPIC_MACHINE_STATE);
-                            this.client.subscribe(this.MQTT_TOPIC_MONITOR_STATE);
-                            this.client.subscribe(this.MQTT_TOPIC_CAMERA_STATUS);
-                            this.client.subscribe(this.MQTT_TOPIC_WEBRTC_STATUS);
-                            this.client.subscribe('DACDT/camera/webrtc/signaling/' + this.webrtcClientId + '/server');
-                            this.client.subscribe(this.MQTT_TOPIC_CAD_STATE, {
-                                onSuccess: () => {
-                                    this.addLog('Subscribe: machine, monitor, camera, status, signaling', 'info');
-                                    this.requestStateSnapshot();
-                                }
-                            });
-                        },
+                        reconnect: true,
+                        keepAliveInterval: 30,
                         onFailure: (e) => this.addLog('Kết nối thất bại: ' + e.errorMessage, 'error')
                     });
                 } catch (e) {
@@ -1748,8 +1653,10 @@
                 if (data.dxfCompletion) {
                     const pct = data.dxfCompletion.percent != null ? data.dxfCompletion.percent : 0;
                     const txt = data.dxfCompletion.text || `${pct}%`;
-                    document.getElementById('dxf-pct').textContent = txt;
-                    document.getElementById('dxf-progress-bar').style.width = pct + '%';
+                    const pctEl = document.getElementById('dxf-pct');
+                    if (pctEl) pctEl.textContent = txt;
+                    const barEl = document.getElementById('dxf-progress-bar');
+                    if (barEl) barEl.style.width = pct + '%';
 
                     const panel = document.getElementById('dxf-completion-panel');
                     if (panel) {
@@ -1762,7 +1669,8 @@
                     if (data.filePath) {
                         labelText += ' · ' + data.filePath;
                     }
-                    document.getElementById('dxf-file-label').textContent = labelText;
+                    const fileLabel = document.getElementById('dxf-file-label');
+                    if (fileLabel) fileLabel.textContent = labelText;
                 }
 
                 if (data.dxfPoint) {
@@ -1783,18 +1691,26 @@
                         };
 
                         const existingIdx = this.dxfPoints.findIndex(p => p.no == row.index);
+                        let changed = false;
                         if (existingIdx >= 0) {
-                            this.dxfPoints[existingIdx] = Object.assign(this.dxfPoints[existingIdx], pointData);
+                            const prev = this.dxfPoints[existingIdx];
+                            if (prev.gcode !== pointData.gcode || prev.m !== pointData.m || prev.speed !== pointData.speed || prev.xy !== pointData.xy) {
+                                this.dxfPoints[existingIdx] = Object.assign(this.dxfPoints[existingIdx], pointData);
+                                changed = true;
+                            }
                         } else {
                             this.dxfPoints.push(pointData);
                             this.dxfPoints.sort((a, b) => parseInt(a.no) - parseInt(b.no));
                             if (this.dxfPoints.length > 200) {
                                 this.dxfPoints.shift();
                             }
+                            changed = true;
                         }
-                        this.renderDxfTable();
+
+                        if (changed) {
+                            this.renderDxfTable();
+                        }
                     } else if (!this.dxfPoints.length) {
-                        // render lại để cập nhật activeText nếu bảng đang trống
                         this.renderDxfTable();
                     }
 
@@ -1804,7 +1720,7 @@
                 }
 
                 if (this._cadData) {
-                    this.renderCadPreview(this._cadData);
+                    this.renderCadForeground();
                 }
             }
 
@@ -1836,9 +1752,12 @@
                             mStatusLower.includes('warn') || mStatusLower.includes('paused') ? 'warning' :
                                 mStatusLower.includes('err') || mStatusLower.includes('fault') ? 'error' : 'unknown');
                 }
-                document.getElementById('integrity-state').textContent = mStatus;
-                document.getElementById('integrity-detail').textContent = 'M-Code/Detail: ' + mCode;
-                document.getElementById('integrity-tone').textContent = data.current_gcode_line || data.integrityTone || '-';
+                const integrityState = document.getElementById('integrity-state');
+                if (integrityState) integrityState.textContent = mStatus;
+                const integrityDetail = document.getElementById('integrity-detail');
+                if (integrityDetail) integrityDetail.textContent = 'M-Code/Detail: ' + mCode;
+                const integrityTone = document.getElementById('integrity-tone');
+                if (integrityTone) integrityTone.textContent = data.current_gcode_line || data.integrityTone || '-';
 
                 // Axes (Handle both formats)
                 if (data.position_x !== undefined || data.position_y !== undefined || data.position_z !== undefined) {
@@ -1902,7 +1821,7 @@
                 const data = this._lastDashboardData || {};
                 axesList.forEach((a, i) => {
                     const idx = a.idx != null ? a.idx : i;
-                    if (idx > 3) return;
+                    if (idx > 2) return;
 
                     const pos = document.getElementById(`ax-pos-${idx}`);
                     const spd = document.getElementById(`ax-spd-${idx}`);
@@ -1995,20 +1914,30 @@
                 // Completion
                 if (data.dxfTotal && data.dxfDone != null) {
                     const pct = data.dxfTotal > 0 ? Math.round(data.dxfDone / data.dxfTotal * 100) : 0;
-                    document.getElementById('dxf-pct').textContent = pct + '%';
-                    document.getElementById('dxf-progress-bar').style.width = pct + '%';
+                    const pctEl = document.getElementById('dxf-pct');
+                    if (pctEl) pctEl.textContent = pct + '%';
+                    const barEl = document.getElementById('dxf-progress-bar');
+                    if (barEl) barEl.style.width = pct + '%';
                 }
                 if (data.dxfFile) {
-                    document.getElementById('dxf-file-label').textContent = data.dxfFile + ' · Highlight follows Axis 1 data no.';
+                    const fileLabel = document.getElementById('dxf-file-label');
+                    if (fileLabel) fileLabel.textContent = data.dxfFile + ' · Highlight follows Axis 1 data no.';
                 }
             }
 
             setActiveDataNo(no, total = null, text = null) {
+                if (parseInt(this.activeDataNo) === parseInt(no) && this._lastActiveDataTotal === total) {
+                    return;
+                }
                 this.activeDataNo = no;
-                document.getElementById('active-data-no').textContent = no;
+                this._lastActiveDataTotal = total;
+
+                const activeDataNoEl = document.getElementById('active-data-no');
+                if (activeDataNoEl) activeDataNoEl.textContent = no;
 
                 let labelText = 'Active no: ' + no + (total != null ? ' / ' + total : '');
-                document.getElementById('dxf-active-label').textContent = labelText;
+                const activeLabelEl = document.getElementById('dxf-active-label');
+                if (activeLabelEl) activeLabelEl.textContent = labelText;
 
                 // highlight row
                 document.querySelectorAll('#dxf-tbody tr').forEach(tr => {
@@ -2019,22 +1948,22 @@
                     // scroll into view
                     if (isActive) {
                         const wrap = document.querySelector('.dxf-table-wrap');
-                        const offset = tr.offsetTop - wrap.offsetTop - 40;
-                        wrap.scrollTo({ top: offset, behavior: 'smooth' });
+                        if (wrap) {
+                            const offset = tr.offsetTop - wrap.offsetTop - 40;
+                            wrap.scrollTo({ top: offset, behavior: 'smooth' });
+                        }
                     }
                 });
             }
 
             renderDxfTable() {
+                const tbody = document.getElementById('dxf-tbody');
+                if (!tbody) return;
                 if (!this.dxfPoints.length) {
-                    const tbody = document.getElementById('dxf-tbody');
-                    if (tbody) {
-                        const msg = this._activeText || 'Chờ dữ liệu DXF...';
-                        tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:20px;">${msg}</td></tr>`;
-                    }
+                    const msg = this._activeText || 'Chờ dữ liệu DXF...';
+                    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:20px;">${msg}</td></tr>`;
                     return;
                 }
-                const tbody = document.getElementById('dxf-tbody');
                 tbody.innerHTML = this.dxfPoints.map(p => {
                     const isActive = parseInt(p.no) === parseInt(this.activeDataNo);
                     return `<tr data-no="${p.no}" class="${isActive ? 'active-row' : ''}">
@@ -2050,20 +1979,23 @@
 
             /* ── CAD PREVIEW ── */
             renderCadPreview(data) {
-                const wrap = document.getElementById('cad-wrap');
-                const canvas = document.getElementById('cad-canvas');
-                if (!wrap || !canvas) return;
+                this.renderCadBackground(data);
+                this.renderCadForeground();
+            }
 
-                const ctx = canvas.getContext('2d');
+            renderCadBackground(data) {
+                const wrap = document.getElementById('cad-wrap');
+                const canvasBg = document.getElementById('cad-canvas-bg');
+                if (!wrap || !canvasBg) return;
+
+                const ctx = canvasBg.getContext('2d');
                 const W = wrap.clientWidth || 320;
                 const H = wrap.clientHeight || 260;
-                canvas.width = W;
-                canvas.height = H;
+                canvasBg.width = W;
+                canvasBg.height = H;
                 ctx.clearRect(0, 0, W, H);
 
                 const primitives = Array.isArray(data.cadPrimitives) ? data.cadPrimitives : [];
-                const tracking = Array.isArray(data.trackingPoints) ? data.trackingPoints : [];
-                const activeMarker = this.getActiveCadMarkerFromMonitor();
                 const hasPrims = primitives.length > 0;
 
                 const noData = document.getElementById('cad-no-data');
@@ -2082,7 +2014,10 @@
                     info.innerHTML = `<span>W: ${(data.bounds.width || 0).toFixed(1)} mm</span><span>H: ${(data.bounds.height || 0).toFixed(1)} mm</span>`;
                 }
 
-                if (!hasPrims) return;
+                if (!hasPrims) {
+                    this._cadMapping = null;
+                    return;
+                }
 
                 const viewBounds = data.viewBounds || data.bounds;
                 let minX = viewBounds && isFinite(viewBounds.left) ? viewBounds.left : Infinity;
@@ -2109,6 +2044,9 @@
                 const scale = Math.min((W - pad * 2) / (maxX - minX), (H - pad * 2) / (maxY - minY));
                 const ox = pad + ((W - pad * 2) - (maxX - minX) * scale) / 2;
                 const oy = pad + ((H - pad * 2) - (maxY - minY) * scale) / 2;
+
+                this._cadMapping = { minX, maxX, minY, maxY, scale, ox, oy };
+
                 const cx = x => ox + (x - minX) * scale;
                 const cy = y => oy + (maxY - y) * scale;
 
@@ -2141,6 +2079,32 @@
                     ctx.stroke();
                     ctx.restore();
                 }
+            }
+
+            renderCadForeground() {
+                const wrap = document.getElementById('cad-wrap');
+                const canvasFg = document.getElementById('cad-canvas-fg');
+                if (!wrap || !canvasFg || !this._cadMapping) {
+                    if (canvasFg) {
+                        const ctx = canvasFg.getContext('2d');
+                        ctx.clearRect(0, 0, canvasFg.width, canvasFg.height);
+                    }
+                    return;
+                }
+
+                const ctx = canvasFg.getContext('2d');
+                const W = wrap.clientWidth || 320;
+                const H = wrap.clientHeight || 260;
+                canvasFg.width = W;
+                canvasFg.height = H;
+                ctx.clearRect(0, 0, W, H);
+
+                const mapping = this._cadMapping;
+                const cx = x => mapping.ox + (x - mapping.minX) * mapping.scale;
+                const cy = y => mapping.oy + (mapping.maxY - y) * mapping.scale;
+
+                const activeMarker = this.getActiveCadMarkerFromMonitor();
+                const tracking = Array.isArray(this._cadData && this._cadData.trackingPoints) ? this._cadData.trackingPoints : [];
 
                 if (activeMarker) {
                     const x = cx(activeMarker.x), y = cy(activeMarker.y);
