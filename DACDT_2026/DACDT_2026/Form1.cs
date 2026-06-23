@@ -121,6 +121,7 @@ namespace DACDT_2026
         private string integrityTone = "idle";
         private float currentJogSpeedD406 = 1000f;
         private bool allowClose;
+        private bool isShutdownInitiated;
 
         public Form1()
         {
@@ -174,7 +175,6 @@ namespace DACDT_2026
             ui.StopRunCommand = new RelayCommand(HandleStopRunAsync);
             ui.ExitCommand = new RelayCommand(() =>
             {
-                allowClose = true;
                 Close();
             });
             ui.JogStartCommand = new RelayCommand(p => HandleJogWriteAsync(ToInt(p, -1), true));
@@ -833,6 +833,23 @@ namespace DACDT_2026
             if (!allowClose)
             {
                 e.Cancel = true;
+
+                if (isShutdownInitiated)
+                {
+                    return;
+                }
+
+                var result = MessageBox.Show(
+                    "Are you sure you want to close the application?",
+                    "Confirm Exit",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Question);
+
+                if (result == MessageBoxResult.Yes)
+                {
+                    isShutdownInitiated = true;
+                    _ = ShutdownSequenceAsync();
+                }
                 return;
             }
 
@@ -850,6 +867,60 @@ namespace DACDT_2026
             }
 
             base.OnClosing(e);
+        }
+
+        private async Task ShutdownSequenceAsync()
+        {
+            try
+            {
+                if (plcComm != null && plcComm.IsConnected)
+                {
+                    Dispatcher.Invoke(() =>
+                    {
+                        ui.CameraStatus = "Stopping system and returning all axes to home position. Please wait...";
+                    });
+
+                    // 1. Stop current run
+                    await HandleStopRunAsync();
+                    await Task.Delay(500);
+
+                    // 2. Pulse Home All command (M502)
+                    await PulsePlcCommandAsync(HandleHomeAllWriteAsync);
+                    await Task.Delay(1000); // Wait for homing to start
+
+                    // 3. Wait for all axes to complete homing (speed == 0, status <= 1)
+                    int timeoutCount = 0;
+                    while (timeoutCount < 75) // 15 seconds max
+                    {
+                        await Task.Delay(200);
+                        bool allDone = true;
+                        for (int i = 0; i < 4; i++)
+                        {
+                            if (axAxisStatus[i] > 1 || axCurrentSpeed[i] > 0)
+                            {
+                                allDone = false;
+                                break;
+                            }
+                        }
+                        if (allDone)
+                            break;
+
+                        timeoutCount++;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                LogLifecycle("Error in shutdown sequence: " + ex.Message);
+            }
+            finally
+            {
+                Dispatcher.Invoke(() =>
+                {
+                    allowClose = true;
+                    Close();
+                });
+            }
         }
 
         private void StartBackgroundVideoService()
