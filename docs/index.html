@@ -1487,6 +1487,14 @@
                             sbStatus.innerHTML = '<span class="dot red"></span><span style="color:var(--red)">Ngắt kết nối</span>';
                         }
                         this.addLog('Mất kết nối MQTT: ' + e.errorMessage, 'error');
+
+                        // Tự động kết nối lại sau 5 giây
+                        setTimeout(() => {
+                            if (!this.isConnected) {
+                                this.addLog('Đang kết nối lại MQTT...', 'info');
+                                this.connectMQTT();
+                            }
+                        }, 5000);
                     };
 
                     this.client.onMessageArrived = (msg) => this.handleMessage(msg);
@@ -1520,9 +1528,17 @@
                         userName: this.MQTT_USERNAME,
                         password: this.MQTT_PASSWORD,
                         useSSL: true,
-                        reconnect: true,
                         keepAliveInterval: 30,
-                        onFailure: (e) => this.addLog('Kết nối thất bại: ' + e.errorMessage, 'error')
+                        onFailure: (e) => {
+                            this.addLog('Kết nối thất bại: ' + e.errorMessage, 'error');
+                            // Tự động kết nối lại sau 5 giây khi kết nối lỗi
+                            setTimeout(() => {
+                                if (!this.isConnected) {
+                                    this.addLog('Đang thử kết nối lại MQTT...', 'info');
+                                    this.connectMQTT();
+                                }
+                            }, 5000);
+                        }
                     });
                 } catch (e) {
                     this.addLog('Lỗi MQTT: ' + e.message, 'error');
