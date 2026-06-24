@@ -158,6 +158,7 @@ namespace DACDT_2026
                 await HandleScanLimitsAsync();
                 await SendProgressAsync(true, 85);
                 await PushDxfStateAsync();
+                await PublishAllMqttAsync();
             }
             catch (Exception ex)
             {
@@ -231,6 +232,7 @@ namespace DACDT_2026
                 await HandleScanLimitsAsync();
                 await SendProgressAsync(true, 85);
                 await PushDxfStateAsync();
+                await PublishAllMqttAsync();
             }
             catch (Exception ex)
             {
@@ -256,6 +258,7 @@ namespace DACDT_2026
             });
 
             await PushDxfStateAsync();
+            await PublishAllMqttAsync();
             await HandleImportCadToProcessAsync();
             await NotifyAsync("info", "G-code", "Đã tạo phiên bản G-code trống.");
         }
@@ -467,6 +470,7 @@ namespace DACDT_2026
 
             UpdateGcodeFromProcessTable();
             await PushDxfStateAsync();
+            await PublishAllMqttAsync();
             SaveSettingsToFile();
             await NotifyAsync("success", "Configuration", $"Updated {key} = {value}");
         }
