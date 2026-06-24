@@ -1448,6 +1448,17 @@
                 this.addLog('Dashboard khởi động', 'info');
                 this.startGuiUpdateLoop();
                 this.connectMQTT();
+
+                // WebRTC connection watchdog (every 5 seconds)
+                setInterval(() => {
+                    if (this.isCameraStartRequested && this.isConnected) {
+                        const pcState = this.peerConnection ? this.peerConnection.connectionState : 'closed';
+                        if (pcState === 'failed' || pcState === 'disconnected' || pcState === 'closed') {
+                            this.addLog(`Watchdog: WebRTC is ${pcState} but camera is requested. Re-connecting...`, 'info');
+                            this.initWebRTC();
+                        }
+                    }
+                }, 5000);
             }
 
             startGuiUpdateLoop() {
@@ -2283,14 +2294,10 @@
                 if (!this.peerConnection) return;
                 if (!candidateInit || !candidateInit.candidate) return;
 
-                // Filter out mDNS (.local) and host candidates that won't work on external networks
+                // Filter out mDNS (.local) candidates that won't work on external networks
                 const candStr = candidateInit.candidate;
                 if (candStr.indexOf('.local') !== -1) {
                     // mDNS candidates are only resolvable on the same LAN - skip silently
-                    return;
-                }
-                // Filter host candidates (typ host) - they use local IPs unreachable from outside
-                if (/\styp\s+host\s/.test(candStr)) {
                     return;
                 }
 

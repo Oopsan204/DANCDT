@@ -11,7 +11,8 @@
         MinHeight="760"
         WindowStartupLocation="CenterScreen"
         WindowState="Maximized"
-        Background="#0B1120">
+        Background="#0B1120"
+        Icon="app_icon.png">
     <Window.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>

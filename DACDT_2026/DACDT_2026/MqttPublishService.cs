@@ -16,6 +16,7 @@ namespace DACDT_2026
         private MqttClientOptions _options;
         private bool _isConnected;
         private bool _isConnecting;
+        private bool _shouldBeConnected;
         private readonly object _subscriptionLock = new object();
         private readonly List<string> _subscriptions = new List<string>();
         private static readonly MqttFactory MqttFactory = new MqttFactory();
@@ -53,6 +54,7 @@ namespace DACDT_2026
             }
 
             _options = builder.Build();
+            _shouldBeConnected = true;
 
             await TryConnectAsync();
         }
@@ -100,8 +102,7 @@ namespace DACDT_2026
             Console.WriteLine("Disconnected from MQTT broker.");
             Disconnected?.Invoke();
 
-            // Only attempt to reconnect if the disconnection was unexpected
-            if (arg.ClientWasConnected)
+            if (_shouldBeConnected)
             {
                 _ = Task.Delay(TimeSpan.FromSeconds(5)).ContinueWith(t => TryConnectAsync());
             }
@@ -228,6 +229,7 @@ namespace DACDT_2026
 
         public async Task DisconnectAsync()
         {
+            _shouldBeConnected = false;
             if (_mqttClient != null)
             {
                 try

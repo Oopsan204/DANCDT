@@ -137,8 +137,10 @@ namespace DACDT_2026
                             return;
                         }
 
-                        cameraSource = new VideoCaptureDevice(ui.SelectedCameraMoniker);
-                        cameraSource.NewFrame += CameraSource_NewFrame;
+                        var videoDevice = new VideoCaptureDevice(ui.SelectedCameraMoniker);
+                        videoDevice.NewFrame += CameraSource_NewFrame;
+                        videoDevice.VideoSourceError += CameraSource_VideoSourceError;
+                        cameraSource = videoDevice;
                         cameraSource.Start();
                         webRtcBridgeClient.Connect();
                         _ = PublishCameraStatusAsync(true, "running", "camera started");
@@ -177,6 +179,7 @@ namespace DACDT_2026
                     {
                         if (cameraSource != null && cameraSource.IsRunning)
                         {
+                            try { cameraSource.VideoSourceError -= CameraSource_VideoSourceError; } catch { }
                             cameraSource.SignalToStop();
                             cameraSource.WaitForStop();
                             cameraSource.NewFrame -= CameraSource_NewFrame;
@@ -218,6 +221,7 @@ namespace DACDT_2026
 
                     if (cameraSource != null && cameraSource.IsRunning)
                     {
+                        try { cameraSource.VideoSourceError -= CameraSource_VideoSourceError; } catch { }
                         try
                         {
                             cameraSource.SignalToStop();
@@ -541,6 +545,41 @@ namespace DACDT_2026
             {
                 parameters.Param[0] = new EncoderParameter(System.Drawing.Imaging.Encoder.Quality, quality);
                 bitmap.Save(stream, jpegCodec, parameters);
+            }
+        }
+        private void CameraSource_VideoSourceError(object sender, VideoSourceErrorEventArgs eventArgs)
+        {
+            try
+            {
+                string errMsg = eventArgs.Description;
+                try { System.IO.File.AppendAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "crash_log.txt"), 
+                    "[" + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff") + "] [Camera] Source error: " + errMsg + "\r\n"); } catch { }
+
+                Dispatcher?.BeginInvoke(new Action(() =>
+                {
+                    ui.CameraStatus = $"Camera error: {errMsg}";
+                }));
+
+                _ = PublishCameraStatusAsync(false, "error", errMsg);
+
+                if (ui.IsCameraRunning && !isClosing)
+                {
+                    try { System.IO.File.AppendAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "crash_log.txt"), 
+                        "[" + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff") + "] [Camera] Attempting auto-restart in 2 seconds...\r\n"); } catch { }
+
+                    _ = Task.Delay(2000).ContinueWith(async _ =>
+                    {
+                        if (ui.IsCameraRunning && !isClosing)
+                        {
+                            await StartCameraAsync();
+                        }
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                try { System.IO.File.AppendAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "crash_log.txt"), 
+                    "[" + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff") + "] [Camera] Error handling source error callback: " + ex.Message + "\r\n"); } catch { }
             }
         }
     }
