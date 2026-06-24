@@ -756,6 +756,7 @@ namespace DACDT_2026
                     };
                     ringRunner.OnComplete += async () =>
                     {
+                        isProgramRunning = false;
                         await NotifyAsync("success", "PLC", $"Ring buffer loaded — all {dataRows.Count} points have been streamed.");
                         _ = SendProgressAsync(false, 0);
 
@@ -766,6 +767,7 @@ namespace DACDT_2026
                     };
                     ringRunner.OnError += async (err) =>
                     {
+                        isProgramRunning = false;
                         await NotifyAsync("error", "Ring Buffer", err);
                         _ = SendProgressAsync(false, 0);
                     };
@@ -1037,6 +1039,7 @@ namespace DACDT_2026
                 // Trigger execution immediately
                 await LogUIAsync("Test", "Starting test area execution...");
                 await WriteDeviceValueAsync("M2000", 1);
+                isProgramRunning = true;
                 UpdateIntegrityState(true);
                 AddLogEntry("M2000", "1", "Write", "OK", "Start Test Area");
                 await Task.Delay(100);

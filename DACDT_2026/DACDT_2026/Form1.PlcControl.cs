@@ -85,6 +85,7 @@ namespace DACDT_2026
 
         private async Task DisconnectPlcAsync(bool updateUi = true)
         {
+            isProgramRunning = false;
             await StopPlcPollingAsync();
 
             var comm = plcComm;
@@ -357,6 +358,7 @@ namespace DACDT_2026
                 }
 
                 await WriteDeviceValueAsync("M2000", 1);
+                isProgramRunning = true;
                 UpdateIntegrityState(true);
                 AddLogEntry("M2000", "1", "Write", "OK", "Start");
                 await Task.Delay(100);
@@ -459,6 +461,7 @@ namespace DACDT_2026
 
         private async Task HandleStopRunAsync()
         {
+            isProgramRunning = false;
             if (plcComm == null || !plcComm.IsConnected)
             {
                 await NotifyAsync("error", "Stop", "PLC is not connected.");
@@ -487,6 +490,43 @@ namespace DACDT_2026
                 AddLogEntry(StopRunRegister, "1", "Write", "OK", "Stop");
 
                 await Task.Delay(100);
+
+                // Wait for all axes to stop (speed == 0 and status <= 1) before clearing buffers
+                int stopTimeout = 0;
+                while (stopTimeout < 50) // Max 5 seconds (50 * 100ms)
+                {
+                    bool allStopped = true;
+                    for (int i = 0; i < 4; i++)
+                    {
+                        try
+                        {
+                            int[] speedData = plcComm.ReadDeviceRange($"D{i * 10 + 4}", 2);
+                            int speed = (speedData[1] << 16) | (speedData[0] & 0xFFFF);
+                            
+                            int[] mon = plcComm.ReadBuffer(0, MonitorBaseG[i], 38);
+                            int status = mon[OffAxisStatus];
+                            if (status > 32767) status -= 65536;
+
+                            // Update local arrays for consistency
+                            axCurrentSpeed[i] = speed;
+                            axAxisStatus[i] = status;
+
+                            if (status > 1 || speed > 0)
+                            {
+                                allStopped = false;
+                            }
+                        }
+                        catch
+                        {
+                            allStopped = false;
+                        }
+                    }
+                    if (allStopped)
+                        break;
+
+                    await Task.Delay(100);
+                    stopTimeout++;
+                }
 
                 // Step 2: Clear positioning buffers
                 var clearResult = await Task.Run(() => QD75BufferWriter.ClearAllBuffers(plcComm, maxPoints: 600));
@@ -767,6 +807,28 @@ namespace DACDT_2026
                     }
                     catch
                     {
+                    }
+                }
+
+                // Check if program run has completed
+                if (isProgramRunning)
+                {
+                    int activeDataNo = GetActiveProgramIndex();
+                    if (processRows.Count > 0 && activeDataNo >= processRows.Count)
+                    {
+                        bool allAxesStopped = true;
+                        for (int i = 0; i < 4; i++)
+                        {
+                            if (axAxisStatus[i] > 1 || axCurrentSpeed[i] > 0)
+                            {
+                                allAxesStopped = false;
+                                break;
+                            }
+                        }
+                        if (allAxesStopped)
+                        {
+                            isProgramRunning = false;
+                        }
                     }
                 }
 

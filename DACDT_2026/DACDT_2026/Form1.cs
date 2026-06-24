@@ -105,6 +105,12 @@ namespace DACDT_2026
             return (runner != null) ? runner.GetContinuousIndex(raw) : raw;
         }
 
+        private bool IsProgramRunning()
+        {
+            return isProgramRunning;
+        }
+
+        private volatile bool isProgramRunning;
         private volatile bool webReady;
         private volatile bool isClosing;
         private volatile bool isPolling;
@@ -878,7 +884,7 @@ namespace DACDT_2026
         {
             try
             {
-                if (plcComm != null && plcComm.IsConnected)
+                if (plcComm != null && plcComm.IsConnected && IsProgramRunning())
                 {
                     Dispatcher.Invoke(() =>
                     {
