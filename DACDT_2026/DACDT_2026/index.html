@@ -1499,36 +1499,35 @@
 
                     this.client.onMessageArrived = (msg) => this.handleMessage(msg);
 
-                    this.client.onConnected = (reconnected, uri) => {
-                        this.isConnected = true;
-                        document.getElementById('mqtt-status').textContent = 'MQTT Connected';
-                        document.getElementById('mqtt-status').style.color = 'var(--green)';
-
-                        const sbStatus = document.getElementById('mqtt-status-sidebar');
-                        if (sbStatus) {
-                            sbStatus.className = 'status-info connected';
-                            sbStatus.innerHTML = '<span class="dot" style="background:var(--green)"></span><span style="color:var(--green)">Đã kết nối</span>';
-                        }
-                        this.addLog(reconnected ? 'Tự động kết nối lại MQTT thành công' : 'Kết nối MQTT thành công', 'info');
-
-                        this.client.subscribe(this.MQTT_TOPIC_MACHINE_STATE);
-                        this.client.subscribe(this.MQTT_TOPIC_MONITOR_STATE);
-                        this.client.subscribe(this.MQTT_TOPIC_CAMERA_STATUS);
-                        this.client.subscribe(this.MQTT_TOPIC_WEBRTC_STATUS);
-                        this.client.subscribe('DACDT/camera/webrtc/signaling/' + this.webrtcClientId + '/server');
-                        this.client.subscribe(this.MQTT_TOPIC_CAD_STATE, {
-                            onSuccess: () => {
-                                this.addLog('Subscribe: machine, monitor, camera, status, signaling', 'info');
-                                this.requestStateSnapshot();
-                            }
-                        });
-                    };
-
                     this.client.connect({
                         userName: this.MQTT_USERNAME,
                         password: this.MQTT_PASSWORD,
                         useSSL: true,
                         keepAliveInterval: 30,
+                        onSuccess: () => {
+                            this.isConnected = true;
+                            document.getElementById('mqtt-status').textContent = 'MQTT Connected';
+                            document.getElementById('mqtt-status').style.color = 'var(--green)';
+
+                            const sbStatus = document.getElementById('mqtt-status-sidebar');
+                            if (sbStatus) {
+                                sbStatus.className = 'status-info connected';
+                                sbStatus.innerHTML = '<span class="dot" style="background:var(--green)"></span><span style="color:var(--green)">Đã kết nối</span>';
+                            }
+                            this.addLog('Kết nối MQTT thành công', 'info');
+
+                            this.client.subscribe(this.MQTT_TOPIC_MACHINE_STATE);
+                            this.client.subscribe(this.MQTT_TOPIC_MONITOR_STATE);
+                            this.client.subscribe(this.MQTT_TOPIC_CAMERA_STATUS);
+                            this.client.subscribe(this.MQTT_TOPIC_WEBRTC_STATUS);
+                            this.client.subscribe('DACDT/camera/webrtc/signaling/' + this.webrtcClientId + '/server');
+                            this.client.subscribe(this.MQTT_TOPIC_CAD_STATE, {
+                                onSuccess: () => {
+                                    this.addLog('Subscribe: machine, monitor, camera, status, signaling', 'info');
+                                    this.requestStateSnapshot();
+                                }
+                            });
+                        },
                         onFailure: (e) => {
                             this.addLog('Kết nối thất bại: ' + e.errorMessage, 'error');
                             // Tự động kết nối lại sau 5 giây khi kết nối lỗi
