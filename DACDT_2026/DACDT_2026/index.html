@@ -1430,6 +1430,12 @@
                 this.hasVideoFrame = false;
                 this._cadData = null;
                 this._cadDirty = false;
+                this._pendingDashboardData = null;
+                this._dashboardDirty = false;
+                this._pendingDxfData = null;
+                this._dxfDirty = false;
+                this._msgCountDirty = false;
+                this._animationFrameId = null;
 
                 this.init();
             }
@@ -1440,7 +1446,30 @@
                 document.getElementById('topic-value').textContent = 'machine, monitor, camera, cad';
 
                 this.addLog('Dashboard khởi động', 'info');
+                this.startGuiUpdateLoop();
                 this.connectMQTT();
+            }
+
+            startGuiUpdateLoop() {
+                const tick = () => {
+                    if (this._dashboardDirty && this._pendingDashboardData) {
+                        this.updateDashboardDom(this._pendingDashboardData);
+                        this._dashboardDirty = false;
+                    }
+                    if (this._dxfDirty && this._pendingDxfData) {
+                        this.updateDxfInfoDom(this._pendingDxfData);
+                        this._dxfDirty = false;
+                    }
+                    if (this._msgCountDirty) {
+                        const msgCountEl = document.getElementById('msg-count');
+                        if (msgCountEl) msgCountEl.textContent = this.msgCount;
+                        const lastUpdateEl = document.getElementById('last-update');
+                        if (lastUpdateEl) lastUpdateEl.textContent = new Date().toLocaleTimeString('vi-VN');
+                        this._msgCountDirty = false;
+                    }
+                    this._animationFrameId = requestAnimationFrame(tick);
+                };
+                this._animationFrameId = requestAnimationFrame(tick);
             }
 
             /* ── LOGS ── */
@@ -1504,6 +1533,9 @@
                         password: this.MQTT_PASSWORD,
                         useSSL: true,
                         keepAliveInterval: 30,
+                        cleanSession: true,
+                        mqttVersion: 4,
+                        timeout: 10,
                         onSuccess: () => {
                             this.isConnected = true;
                             document.getElementById('mqtt-status').textContent = 'MQTT Connected';
@@ -1634,8 +1666,7 @@
 
                     if (topic === this.MQTT_TOPIC_CAD_STATE) {
                         this.msgCount++;
-                        document.getElementById('msg-count').textContent = this.msgCount;
-                        document.getElementById('last-update').textContent = new Date().toLocaleTimeString('vi-VN');
+                        this._msgCountDirty = true;
                         const cadData = JSON.parse(payload);
                         this._cadData = cadData;
                         this.renderCadPreview(cadData);
@@ -1643,21 +1674,24 @@
                     }
 
                     this.msgCount++;
-                    document.getElementById('msg-count').textContent = this.msgCount;
-                    document.getElementById('last-update').textContent = new Date().toLocaleTimeString('vi-VN');
+                    this._msgCountDirty = true;
 
                     let data = null;
                     try { data = JSON.parse(payload); } catch (e) { }
 
                     if (data && (data.fileKind === 'DXF' || data.fileKind === 'GCODE')) {
-                        this.updateDxfInfo(data);
+                        this._pendingDxfData = Object.assign(this._pendingDxfData || {}, data);
+                        this._dxfDirty = true;
                     } else if (topic === this.MQTT_TOPIC_MACHINE_STATE || topic === this.MQTT_TOPIC_MONITOR_STATE) {
-                        if (data) this.updateDashboard(data);
+                        if (data) {
+                            this._pendingDashboardData = Object.assign(this._pendingDashboardData || {}, data);
+                            this._dashboardDirty = true;
+                        }
                     }
                 } catch (e) { }
             }
 
-            updateDxfInfo(data) {
+            updateDxfInfoDom(data) {
                 this._monitorData = data;
 
                 if (data.trackingPoints) {
@@ -1739,7 +1773,7 @@
                 }
             }
 
-            updateDashboard(data) {
+            updateDashboardDom(data) {
                 this._lastDashboardData = data;
                 // Adapt old vs new format
                 const connected = data.plc_connected !== undefined ? (data.plc_connected == 1) : (data.connected === true);
