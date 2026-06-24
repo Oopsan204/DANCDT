@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Text;
 using System.Threading;
@@ -10,18 +11,30 @@ using MQTTnet.Protocol;
 
 namespace DACDT_2026
 {
-    public class MqttPublishService
+    public class MqttPublishService : IDisposable
     {
-        private IMqttClient _mqttClient;
+        private readonly IMqttClient _mqttClient;
         private MqttClientOptions _options;
-        private bool _isConnected;
-        private bool _isConnecting;
         private bool _shouldBeConnected;
-        private readonly object _subscriptionLock = new object();
-        private readonly List<string> _subscriptions = new List<string>();
         private static readonly MqttFactory MqttFactory = new MqttFactory();
 
-        public bool IsConnected => _isConnected;
+        // Connection Synchronization
+        private readonly SemaphoreSlim _connectionSemaphore = new SemaphoreSlim(1, 1);
+        private int _reconnectScheduled = 0;
+
+        // Background Message Queue
+        private const int MaxQueueSize = 200;
+        private readonly ConcurrentQueue<MqttApplicationMessage> _publishQueue = new ConcurrentQueue<MqttApplicationMessage>();
+        private readonly SemaphoreSlim _queueSemaphore = new SemaphoreSlim(0);
+        private readonly object _queueLock = new object();
+        private Task _queueProcessorTask;
+        private CancellationTokenSource _queueCts;
+
+        // Subscription tracking (locked by _subscriptionLock)
+        private readonly object _subscriptionLock = new object();
+        private readonly List<string> _subscriptions = new List<string>();
+
+        public bool IsConnected => _mqttClient?.IsConnected ?? false;
 
         public event Action Connected;
         public event Action Disconnected;
@@ -41,10 +54,10 @@ namespace DACDT_2026
             
             var builder = new MqttClientOptionsBuilder()
                 .WithTcpServer(broker, 8883)
-                .WithTls()
+                .WithTlsOptions(o => o.UseTls())
                 .WithClientId("DACDT_2026_" + Guid.NewGuid().ToString().Substring(0, 8))
                 .WithCleanSession(true)
-                .WithKeepAlivePeriod(TimeSpan.FromSeconds(60))
+                .WithKeepAlivePeriod(TimeSpan.FromSeconds(30)) // Optimized keep-alive interval
                 .WithTimeout(TimeSpan.FromSeconds(10))
                 .WithProtocolVersion(MQTTnet.Formatter.MqttProtocolVersion.V311);
 
@@ -56,41 +69,60 @@ namespace DACDT_2026
             _options = builder.Build();
             _shouldBeConnected = true;
 
+            // Start queue processor
+            StartQueueProcessor();
+
             await TryConnectAsync();
         }
 
         private async Task TryConnectAsync()
         {
-            if (_isConnected) return;
-            lock (_subscriptionLock)
+            if (IsConnected) return;
+
+            // Prevent concurrent connection attempts
+            if (!await _connectionSemaphore.WaitAsync(0))
             {
-                if (_isConnecting) return;
-                _isConnecting = true;
+                return;
             }
+
             try
             {
-                await _mqttClient.ConnectAsync(_options, CancellationToken.None);
+                if (IsConnected) return;
+                Console.WriteLine("[MQTT] Attempting to connect to broker...");
+                
+                using (var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(15)))
+                {
+                    await _mqttClient.ConnectAsync(_options, timeoutCts.Token);
+                }
             }
-            catch (MqttCommunicationException ex)
+            catch (Exception ex)
             {
                 Console.WriteLine($"MQTT Connection Error: {ex.Message}");
-                _isConnected = false;
-                Disconnected?.Invoke();
-                // Schedule a reconnect attempt
-                _ = Task.Delay(TimeSpan.FromSeconds(5)).ContinueWith(t => TryConnectAsync());
+                ScheduleReconnect();
             }
             finally
             {
-                lock (_subscriptionLock)
+                _connectionSemaphore.Release();
+            }
+        }
+
+        private void ScheduleReconnect()
+        {
+            if (!_shouldBeConnected) return;
+
+            if (Interlocked.CompareExchange(ref _reconnectScheduled, 1, 0) == 0)
+            {
+                Console.WriteLine("[MQTT] Scheduling reconnect attempt in 5 seconds...");
+                _ = Task.Delay(TimeSpan.FromSeconds(5)).ContinueWith(async t =>
                 {
-                    _isConnecting = false;
-                }
+                    Interlocked.Exchange(ref _reconnectScheduled, 0);
+                    await TryConnectAsync();
+                });
             }
         }
 
         private async Task OnConnected(MqttClientConnectedEventArgs arg)
         {
-            _isConnected = true;
             Console.WriteLine("Successfully connected to MQTT broker.");
             Connected?.Invoke();
             await ResubscribeAsync();
@@ -98,65 +130,154 @@ namespace DACDT_2026
 
         private Task OnDisconnected(MqttClientDisconnectedEventArgs arg)
         {
-            _isConnected = false;
             Console.WriteLine("Disconnected from MQTT broker.");
             Disconnected?.Invoke();
 
             if (_shouldBeConnected)
             {
-                _ = Task.Delay(TimeSpan.FromSeconds(5)).ContinueWith(t => TryConnectAsync());
+                ScheduleReconnect();
             }
 
             return Task.CompletedTask;
         }
 
-        public async Task PublishAsync(string topic, string payload, bool retain = false)
+        public Task PublishAsync(string topic, string payload, bool retain = false)
         {
-            if (!_isConnected)
-            {
-                Console.WriteLine("Cannot publish message, MQTT client is not connected.");
-                return;
-            }
+            EnqueuePublish(topic, payload != null ? Encoding.UTF8.GetBytes(payload) : Array.Empty<byte>(), retain);
+            return Task.CompletedTask;
+        }
 
+        public Task PublishAsync(string topic, byte[] payload, bool retain = false)
+        {
+            EnqueuePublish(topic, payload, retain);
+            return Task.CompletedTask;
+        }
+
+        private void EnqueuePublish(string topic, byte[] payload, bool retain)
+        {
             var message = new MqttApplicationMessageBuilder()
                 .WithTopic(topic)
                 .WithPayload(payload)
                 .WithRetainFlag(retain)
                 .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtMostOnce)
                 .Build();
-            
-            try
+
+            lock (_queueLock)
             {
-                await _mqttClient.PublishAsync(message, CancellationToken.None);
-            }
-            catch (MqttCommunicationException ex)
-            {
-                 Console.WriteLine($"Error publishing MQTT message: {ex.Message}");
+                _publishQueue.Enqueue(message);
+                if (_publishQueue.Count > MaxQueueSize)
+                {
+                    // Drop the oldest message to control queue size
+                    if (_publishQueue.TryDequeue(out _))
+                    {
+                        return; // Do not increment semaphore as we just replaced an item
+                    }
+                }
+                _queueSemaphore.Release();
             }
         }
 
-        public async Task PublishAsync(string topic, byte[] payload, bool retain = false)
+        private void StartQueueProcessor()
         {
-            if (!_isConnected)
+            lock (_queueLock)
             {
-                Console.WriteLine("Cannot publish message, MQTT client is not connected.");
-                return;
+                if (_queueProcessorTask != null) return;
+                _queueCts = new CancellationTokenSource();
+                _queueProcessorTask = Task.Run(() => ProcessQueueAsync(_queueCts.Token));
+                Console.WriteLine("[MQTT] Background queue processor started.");
+            }
+        }
+
+        private void StopQueueProcessor()
+        {
+            CancellationTokenSource cts = null;
+            Task task = null;
+
+            lock (_queueLock)
+            {
+                cts = _queueCts;
+                task = _queueProcessorTask;
+                _queueCts = null;
+                _queueProcessorTask = null;
             }
 
-            var message = new MqttApplicationMessageBuilder()
-                .WithTopic(topic)
-                .WithPayload(payload)
-                .WithRetainFlag(retain)
-                .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtMostOnce)
-                .Build();
-            
-            try
+            if (cts != null)
             {
-                await _mqttClient.PublishAsync(message, CancellationToken.None);
+                try
+                {
+                    cts.Cancel();
+                    cts.Dispose();
+                }
+                catch { }
             }
-            catch (MqttCommunicationException ex)
+
+            // Clear the queue
+            lock (_queueLock)
             {
-                 Console.WriteLine($"Error publishing MQTT message: {ex.Message}");
+                while (_publishQueue.TryDequeue(out _)) { }
+                try
+                {
+                    while (_queueSemaphore.CurrentCount > 0)
+                    {
+                        _queueSemaphore.Wait(0);
+                    }
+                }
+                catch { }
+            }
+        }
+
+        private async Task ProcessQueueAsync(CancellationToken cancellationToken)
+        {
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                try
+                {
+                    await _queueSemaphore.WaitAsync(cancellationToken);
+
+                    MqttApplicationMessage message = null;
+                    lock (_queueLock)
+                    {
+                        _publishQueue.TryDequeue(out message);
+                    }
+
+                    if (message != null)
+                    {
+                        // Wait until connected
+                        while (!cancellationToken.IsCancellationRequested && !IsConnected)
+                        {
+                            await Task.Delay(100, cancellationToken);
+                        }
+
+                        if (cancellationToken.IsCancellationRequested) break;
+
+                        // Publish with a timeout (5 seconds) to prevent hanging
+                        using (var publishTimeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
+                        {
+                            publishTimeoutCts.CancelAfter(TimeSpan.FromSeconds(5));
+                            try
+                            {
+                                await _mqttClient.PublishAsync(message, publishTimeoutCts.Token);
+                            }
+                            catch (Exception ex)
+                            {
+                                Console.WriteLine($"[MQTT] Background publish error: {ex.Message}");
+                            }
+                        }
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[MQTT] Background processor error: {ex.Message}");
+                    try
+                    {
+                        await Task.Delay(1000, cancellationToken);
+                    }
+                    catch (OperationCanceledException) { break; }
+                }
             }
         }
 
@@ -177,7 +298,7 @@ namespace DACDT_2026
                 }
             }
 
-            if (!_isConnected || topicsToSubscribe.Count == 0)
+            if (!IsConnected || topicsToSubscribe.Count == 0)
                 return;
 
             await SubscribeTopicsAsync(topicsToSubscribe);
@@ -219,9 +340,12 @@ namespace DACDT_2026
 
             try
             {
-                await _mqttClient.SubscribeAsync(builder.Build(), CancellationToken.None);
+                using (var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(10)))
+                {
+                    await _mqttClient.SubscribeAsync(builder.Build(), timeoutCts.Token);
+                }
             }
-            catch (MqttCommunicationException ex)
+            catch (Exception ex)
             {
                 Console.WriteLine($"Error subscribing MQTT topics: {ex.Message}");
             }
@@ -230,13 +354,21 @@ namespace DACDT_2026
         public async Task DisconnectAsync()
         {
             _shouldBeConnected = false;
+            
+            StopQueueProcessor();
+
             if (_mqttClient != null)
             {
+                await _connectionSemaphore.WaitAsync();
                 try
                 {
                     await _mqttClient.DisconnectAsync();
                 }
                 catch { }
+                finally
+                {
+                    _connectionSemaphore.Release();
+                }
             }
         }
 
@@ -258,6 +390,30 @@ namespace DACDT_2026
             }
 
             return Task.CompletedTask;
+        }
+
+        public void Dispose()
+        {
+            _shouldBeConnected = false;
+            StopQueueProcessor();
+            
+            try
+            {
+                _mqttClient?.Dispose();
+            }
+            catch { }
+
+            try
+            {
+                _connectionSemaphore?.Dispose();
+            }
+            catch { }
+
+            try
+            {
+                _queueSemaphore?.Dispose();
+            }
+            catch { }
         }
     }
 }
