@@ -69,6 +69,7 @@ namespace DACDT_2026
 
             if (plcComm != null)
             {
+                try { plcComm.WriteDeviceValue(HeartbeatRegister, 0); } catch { }
                 try { plcComm.Dispose(); } catch { }
                 plcComm = null;
             }
@@ -92,6 +93,7 @@ namespace DACDT_2026
             plcComm = null;
             if (comm != null)
             {
+                try { await Task.Run(() => comm.WriteDeviceValue(HeartbeatRegister, 0)); } catch { }
                 try { await Task.Run(() => comm.Dispose()); } catch { }
             }
 
@@ -769,6 +771,8 @@ namespace DACDT_2026
             try
             {
                 token.ThrowIfCancellationRequested();
+
+                try { comm.WriteDeviceValue(HeartbeatRegister, 1); } catch { }
 
                 for (int i = 0; i < 4; i++)
                 {

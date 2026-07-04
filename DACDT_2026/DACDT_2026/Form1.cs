@@ -31,6 +31,7 @@ namespace DACDT_2026
 
         private const string JogBaseRegister = "M3000";
         private const string EmergencyStopRegister = "M3100";
+        private const string HeartbeatRegister = "M4000";
         private const string StopRunRegister = "M212";
         private const string ContinueRegister = "M211";
         private const string PauseRegister = "M210";
