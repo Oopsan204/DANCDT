@@ -1,5 +1,30 @@
-/CAD_Test
-/GantrySCADA/bin
-/GantrySCADA/obj
-/GantrySCADA/.vs
-/GantrySCADA/.vscode
+# Visual Studio / user-local state
+.vs/
+.vscode/
+*.suo
+*.user
+*.rsuser
+
+# Build outputs
+artifacts/
+bin/
+obj/
+**/bin/
+**/obj/
+
+# Local indexes and dependency caches
+.codegraph/
+packages/
+**/packages/
+
+# Logs and temporary files
+*.log
+crash_log.txt
+stdout.txt
+stderr.txt
+~$*
+*.tmp
+
+# Release / installer outputs
+*_Release.zip
+Installer_Output/

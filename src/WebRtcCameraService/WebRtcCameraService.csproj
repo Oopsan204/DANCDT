@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">x64</Platform>
+    <ProjectGuid>{A8A7A6E4-D151-4043-BD6F-CE9F39783D9E}</ProjectGuid>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>WebRtcCameraService</RootNamespace>
+    <AssemblyName>WebRtcCameraService</AssemblyName>
+    <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
+    <FileAlignment>512</FileAlignment>
+    <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
+    <Deterministic>true</Deterministic>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'">
+    <DebugSymbols>true</DebugSymbols>
+    <OutputPath>bin\Debug\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <DebugType>full</DebugType>
+    <PlatformTarget>x64</PlatformTarget>
+    <LangVersion>7.3</LangVersion>
+    <ErrorReport>prompt</ErrorReport>
+    <Prefer32Bit>false</Prefer32Bit>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x64'">
+    <OutputPath>bin\Release\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <Optimize>true</Optimize>
+    <DebugType>pdbonly</DebugType>
+    <PlatformTarget>x64</PlatformTarget>
+    <LangVersion>7.3</LangVersion>
+    <ErrorReport>prompt</ErrorReport>
+    <Prefer32Bit>false</Prefer32Bit>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="System" />
+    <Reference Include="System.Core" />
+    <Reference Include="System.Drawing" />
+    <Reference Include="System.Web.Extensions" />
+    <Reference Include="System.Xml.Linq" />
+    <Reference Include="System.Data.DataSetExtensions" />
+    <Reference Include="Microsoft.CSharp" />
+    <Reference Include="System.Data" />
+    <Reference Include="System.Net.Http" />
+    <Reference Include="System.Xml" />
+    <Reference Include="MQTTnet">
+      <HintPath>..\..\packages\MQTTnet.4.3.3.952\lib\net48\MQTTnet.dll</HintPath>
+    </Reference>
+    <Reference Include="SIPSorcery">
+      <HintPath>..\..\packages\SIPSorcery.10.0.8\lib\net462\SIPSorcery.dll</HintPath>
+    </Reference>
+    <Reference Include="SIPSorceryMedia.Abstractions">
+      <HintPath>..\..\packages\SIPSorceryMedia.Abstractions.10.0.8\lib\netstandard2.0\SIPSorceryMedia.Abstractions.dll</HintPath>
+    </Reference>
+    <Reference Include="SIPSorceryMedia.Encoders">
+      <HintPath>..\..\packages\SIPSorceryMedia.Encoders.10.0.4\lib\net461\SIPSorceryMedia.Encoders.dll</HintPath>
+    </Reference>
+    <Reference Include="Microsoft.Extensions.Logging.Abstractions">
+      <HintPath>..\..\packages\Microsoft.Extensions.Logging.Abstractions.10.0.7\lib\net462\Microsoft.Extensions.Logging.Abstractions.dll</HintPath>
+    </Reference>
+    <Reference Include="BouncyCastle.Cryptography">
+      <HintPath>..\..\packages\BouncyCastle.Cryptography.2.6.2\lib\net461\BouncyCastle.Cryptography.dll</HintPath>
+    </Reference>
+    <Reference Include="Concentus">
+      <HintPath>..\..\packages\Concentus.2.2.2\lib\net452\Concentus.dll</HintPath>
+    </Reference>
+    <Reference Include="DnsClient">
+      <HintPath>..\..\packages\DnsClient.1.8.0\lib\net472\DnsClient.dll</HintPath>
+    </Reference>
+    <Reference Include="Makaretu.Dns">
+      <HintPath>..\..\packages\Makaretu.Dns.2.0.1\lib\net45\Makaretu.Dns.dll</HintPath>
+    </Reference>
+    <Reference Include="Makaretu.Dns.Multicast">
+      <HintPath>..\..\packages\Makaretu.Dns.Multicast.0.27.0\lib\net461\Makaretu.Dns.Multicast.dll</HintPath>
+    </Reference>
+    <Reference Include="Microsoft.Bcl.HashCode">
+      <HintPath>..\..\packages\Microsoft.Bcl.HashCode.6.0.0\lib\net462\Microsoft.Bcl.HashCode.dll</HintPath>
+    </Reference>
+    <Reference Include="websocket-sharp">
+      <HintPath>..\..\packages\SIPSorcery.WebSocketSharp.0.0.1\lib\net452\websocket-sharp.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="Program.cs" />
+    <Compile Include="..\DACDT_2026.App\MqttPublishService.cs" Link="MqttPublishService.cs" />
+    <Compile Include="..\DACDT_2026.App\WebRtcCameraServer.cs" Link="WebRtcCameraServer.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="packages.config" />
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <Import Project="..\..\packages\SIPSorceryMedia.Encoders.10.0.4\build\SIPSorceryMedia.Encoders.targets" Condition="Exists('..\..\packages\SIPSorceryMedia.Encoders.10.0.4\build\SIPSorceryMedia.Encoders.targets')" />
+</Project>
