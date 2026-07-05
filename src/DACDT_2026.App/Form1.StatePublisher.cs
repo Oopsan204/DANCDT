@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Media;
 
@@ -29,9 +30,58 @@ namespace DACDT_2026
         private static string FormatSpeedMm(int rawValue) => QD75BufferWriter.FormatSpeedMm(rawValue);
         private static string FormatAxisStatus(int status) => QD75BufferWriter.FormatAxisStatus(status);
 
-        private async Task PushControlStateAsync()
+        private async Task PushFastControlStateAsync(bool includeTracking = false)
         {
-            bool connected = plcComm != null && plcComm.IsConnected;
+            bool connected = PlcConnectionGuard.CanUsePlc(plcComm != null, plcComm != null && plcComm.IsConnected);
+            string dash = "--";
+
+            await RunOnUiAsync(() =>
+            {
+                ui.IsConnected = connected;
+                ui.ConnectionBanner = connectionBanner;
+                ui.ConnectionButtonText = connected ? "DISCONNECT PLC Q" : "CONNECT PLC Q";
+
+                for (int i = 0; i < ui.Axes.Count && i < 4; i++)
+                {
+                    int mb = MonitorBaseG[i];
+                    int rawStatus = axAxisStatus[i];
+                    if (rawStatus > 32767) rawStatus -= 65536;
+
+                    AxisStatusViewModel axis = ui.Axes[i];
+                    axis.CurrentPos = connected ? FormatPositionMm(axCurrentPos[i]) : dash;
+                    axis.CurrentSpeed = connected ? FormatSpeedMm(axCurrentSpeed[i]) : dash;
+                    axis.MCode = connected ? axMCode[i].ToString(CultureInfo.InvariantCulture) : dash;
+                    axis.ErrorCode = connected ? axErrorCode[i].ToString(CultureInfo.InvariantCulture) : dash;
+                    axis.ErrorCodeAddr = $"U0\\G{mb + OffErrorCode}";
+                    axis.WarningCode = connected ? axWarningCode[i].ToString(CultureInfo.InvariantCulture) : dash;
+                    axis.WarningCodeAddr = $"U0\\G{mb + OffWarningCode}";
+                    axis.AxisStatus = connected ? FormatAxisStatus(rawStatus) : dash;
+                    axis.CurrentDataNo = connected ? axCurrentDataNo[i].ToString(CultureInfo.InvariantCulture) : dash;
+                    axis.LastDataNo = connected ? axLastDataNo[i].ToString(CultureInfo.InvariantCulture) : dash;
+                    axis.LimitMinus = connected && (axSignals[i] & 0x01) != 0;
+                    axis.LimitPlus = connected && (axSignals[i] & 0x02) != 0;
+                    axis.HomeDog = connected && (axSignals[i] & 0x40) != 0;
+                    axis.IsComplete = connected && rawStatus == 0;
+                }
+
+                ui.ApplyActiveProgramIndex(GetActiveProgramIndex(), ensureProcessVisible: false);
+
+                if (includeTracking)
+                {
+                    ReplaceCollection(ui.CadTrackingPoints, BuildRobotTrackingPoints(
+                        activeCadDocument,
+                        workspaceWidth,
+                        workspaceHeight,
+                        connected,
+                        axCurrentPos[0],
+                        axCurrentPos[1]));
+                }
+            });
+        }
+
+        private async Task PushControlStateAsync(bool includeTracking = true)
+        {
+            bool connected = PlcConnectionGuard.CanUsePlc(plcComm != null, plcComm != null && plcComm.IsConnected);
             string dash = "--";
 
             await RunOnUiAsync(() =>
@@ -43,6 +93,7 @@ namespace DACDT_2026
                 ui.ConnectionMeta = $"MX Component logical station: {logicalStation}";
                 ui.ConnectionButtonText = connected ? "DISCONNECT PLC Q" : "CONNECT PLC Q";
                 ui.JogSpeedD406 = currentJogSpeedD406;
+                ui.SetJogSpeedInputFromPlc(currentJogSpeedD406);
 
                 for (int i = 0; i < ui.Axes.Count && i < 4; i++)
                 {
@@ -89,13 +140,16 @@ namespace DACDT_2026
 
                 UpdateActiveProgramHighlight(ui, GetActiveProgramIndex());
 
-                ReplaceCollection(ui.CadTrackingPoints, BuildRobotTrackingPoints(
-                    activeCadDocument,
-                    workspaceWidth,
-                    workspaceHeight,
-                    connected,
-                    axCurrentPos[0],
-                    axCurrentPos[1]));
+                if (includeTracking)
+                {
+                    ReplaceCollection(ui.CadTrackingPoints, BuildRobotTrackingPoints(
+                        activeCadDocument,
+                        workspaceWidth,
+                        workspaceHeight,
+                        connected,
+                        axCurrentPos[0],
+                        axCurrentPos[1]));
+                }
             });
 
         }
@@ -106,7 +160,7 @@ namespace DACDT_2026
         /// </summary>
         private async Task PublishAllMqttAsync()
         {
-            bool connected = plcComm != null && plcComm.IsConnected;
+            bool connected = PlcConnectionGuard.CanUsePlc(plcComm != null, plcComm != null && plcComm.IsConnected);
             await PublishCadStateToMqttAsync(connected);
         }
 
@@ -455,7 +509,7 @@ namespace DACDT_2026
             var snapWorkspaceHeight = workspaceHeight;
             var snapWcsOffsetX = wcsOffsetX.ToArray();
             var snapWcsOffsetY = wcsOffsetY.ToArray();
-            var snapConnected = plcComm != null && plcComm.IsConnected;
+            var snapConnected = PlcConnectionGuard.CanUsePlc(plcComm != null, plcComm != null && plcComm.IsConnected);
             var snapRobotRawX = axCurrentPos[0];
             var snapRobotRawY = axCurrentPos[1];
             var snapActiveProgramIndex = GetActiveProgramIndex();
@@ -468,6 +522,21 @@ namespace DACDT_2026
             var snapGlobalDwellM3 = globalDwellM3;
             var snapGlobalDwellM4 = globalDwellM4;
             var snapActiveWcs = activeWcs;
+
+            if (!string.Equals(snapCurrentView, "dxf", StringComparison.OrdinalIgnoreCase))
+            {
+                await RunOnUiAsync(() =>
+                {
+                    ui.CurrentView = snapCurrentView;
+                    ui.CurrentTheme = snapCurrentTheme;
+                    ui.FileKind = snapKind ?? string.Empty;
+                    ui.FilePath = snapDocSource?.FilePath ?? string.Empty;
+                    ui.FileName = snapDocSource?.FileName ?? string.Empty;
+                    ui.ActiveWcs = snapActiveWcs;
+                    ReplaceCollection(ui.Profiles, snapProfiles);
+                });
+                return;
+            }
 
             var model = await Task.Run(() =>
             {
@@ -1043,6 +1112,8 @@ namespace DACDT_2026
                 {
                     if (primitive?.Points == null || primitive.Points.Count < 2)
                         continue;
+                    if (IsRapidPrimitive(primitive))
+                        continue;
 
                     var start = projection.Project(primitive.Points[0].X, primitive.Points[0].Y);
                     var points = new List<System.Windows.Point>(primitive.Points.Count - 1);
@@ -1071,6 +1142,8 @@ namespace DACDT_2026
                 foreach (var primitive in doc.Primitives)
                 {
                     if (primitive?.Points == null || primitive.Points.Count < 2)
+                        continue;
+                    if (IsRapidPrimitive(primitive))
                         continue;
 
                     var start = projection.Project(primitive.Points[0].X, primitive.Points[0].Y);
@@ -1116,6 +1189,8 @@ namespace DACDT_2026
             {
                 if (primitive.Points == null || primitive.Points.Count < 2)
                     continue;
+                if (IsRapidPrimitive(primitive))
+                    continue;
 
                 var pointCollection = new PointCollection();
                 foreach (var pt in primitive.Points)
@@ -1133,6 +1208,13 @@ namespace DACDT_2026
             }
 
             return lines;
+        }
+
+        private static bool IsRapidPrimitive(CadDocumentService.CadPrimitiveData primitive)
+        {
+            string sourceType = primitive?.SourceType ?? string.Empty;
+            return sourceType.IndexOf("G0", StringComparison.OrdinalIgnoreCase) >= 0
+                || sourceType.IndexOf("Rapid", StringComparison.OrdinalIgnoreCase) >= 0;
         }
 
         private static List<CadLimitAreaViewModel> BuildCadLimitAreas(
@@ -1492,19 +1574,27 @@ namespace DACDT_2026
             });
         }
 
-        private Task PushLogsStateAsync()
+        private async Task PushLogsStateAsync()
         {
-            var outLogs = logs.Select(l => new LogRowViewModel
-            {
-                Timestamp = l.Timestamp.ToLocalTime().ToString("HH:mm:ss.fff", CultureInfo.InvariantCulture),
-                Direction = l.Direction,
-                Address = l.Address,
-                Value = l.Value,
-                Status = l.Status,
-                Message = l.Message
-            }).ToList();
+            List<LogRowViewModel> outLogs;
+            int snapVersion;
 
-            return RunOnUiAsync(() => ReplaceCollection(ui.Logs, outLogs));
+            lock (logsLock)
+            {
+                snapVersion = logVersion;
+                outLogs = logs.Select(l => new LogRowViewModel
+                {
+                    Timestamp = l.Timestamp.ToLocalTime().ToString("HH:mm:ss.fff", CultureInfo.InvariantCulture),
+                    Direction = l.Direction,
+                    Address = l.Address,
+                    Value = l.Value,
+                    Status = l.Status,
+                    Message = l.Message
+                }).ToList();
+            }
+
+            await RunOnUiAsync(() => ReplaceCollection(ui.Logs, outLogs));
+            Volatile.Write(ref logPushedVersion, snapVersion);
         }
 
         protected Task NotifyAsync(string kind, string title, string message)
@@ -1521,26 +1611,71 @@ namespace DACDT_2026
         {
             try
             {
-                logs.Insert(0, new LogEntry
+                lock (logsLock)
                 {
-                    Timestamp = DateTime.UtcNow,
-                    Direction = direction,
-                    Address = address,
-                    Value = value,
-                    Status = status,
-                    Message = message
-                });
+                    logs.Insert(0, new LogEntry
+                    {
+                        Timestamp = DateTime.UtcNow,
+                        Direction = direction,
+                        Address = address,
+                        Value = value,
+                        Status = status,
+                        Message = message
+                    });
 
-                if (logs.Count > 500) logs.RemoveRange(500, logs.Count - 500);
-                _ = PushLogsStateAsync();
+                    if (logs.Count > 500) logs.RemoveRange(500, logs.Count - 500);
+                    Interlocked.Increment(ref logVersion);
+                }
+
+                ScheduleLogUiRefresh();
             }
             catch { }
         }
 
         private Task HandleClearLogsAsync()
         {
-            logs.Clear();
+            lock (logsLock)
+            {
+                logs.Clear();
+                Interlocked.Increment(ref logVersion);
+            }
+
             return PushLogsStateAsync();
+        }
+
+        private void ScheduleLogUiRefresh()
+        {
+            if (isClosing || !webReady)
+                return;
+
+            if (Interlocked.CompareExchange(ref logUiRefreshPending, 1, 0) != 0)
+                return;
+
+            _ = DebouncedPushLogsStateAsync();
+        }
+
+        private async Task DebouncedPushLogsStateAsync()
+        {
+            try
+            {
+                while (!isClosing)
+                {
+                    await Task.Delay(PerformanceTuning.LogUiDebounceMs);
+                    await PushLogsStateAsync();
+
+                    if (Volatile.Read(ref logPushedVersion) == Volatile.Read(ref logVersion))
+                        break;
+                }
+            }
+            catch
+            {
+            }
+            finally
+            {
+                Interlocked.Exchange(ref logUiRefreshPending, 0);
+                if (!isClosing && Volatile.Read(ref logPushedVersion) != Volatile.Read(ref logVersion))
+                    ScheduleLogUiRefresh();
+            }
         }
 
         private Task PostToUiAsync(string type, object payload)
@@ -1553,7 +1688,7 @@ namespace DACDT_2026
                 {
                     ui.ProgressVisible = GetPayloadBool(payload, "visible");
                     ui.ProgressPercent = GetPayloadInt(payload, "percent", 0);
-                    _ = PublishMonitorStateToMqttAsync(plcComm != null && plcComm.IsConnected);
+                    _ = PublishMonitorStateToMqttAsync(PlcConnectionGuard.CanUsePlc(plcComm != null, plcComm != null && plcComm.IsConnected));
                     return;
                 }
 

@@ -641,9 +641,10 @@ namespace DACDT_2026
                 activeRingRunner = null;
             }
 
-            if (plcComm == null || !plcComm.IsConnected)
+            PLCCommunication comm;
+            if (!TryGetConnectedPlc(out comm))
             {
-                await NotifyAsync("error", "Telemetry", "PLC is not connected.");
+                await NotifyAsync("error", "Telemetry", PlcConnectionGuard.NotConnectedMessage);
                 return false;
             }
 
@@ -744,7 +745,7 @@ namespace DACDT_2026
 
                 // ── BƯỚC 0: Xóa toàn bộ buffer về 0 trước khi ghi dữ liệu mới ──────────
                 await LogUIAsync("PLC", "Đang xóa buffer cũ...");
-                var clearTask = Task.Run(() => QD75BufferWriter.ClearAllBuffers(plcComm, maxPoints: 600));
+                var clearTask = Task.Run(() => QD75BufferWriter.ClearAllBuffers(comm, maxPoints: 600));
                 var clearResult = await clearTask;
 
                 foreach (var wr in clearResult.WriteResults)
@@ -771,7 +772,7 @@ namespace DACDT_2026
                     _ = SendProgressAsync(true, 10);
 
                     // Tạo ring buffer runner
-                    var ringRunner = new QD75RingBufferRunner(plcComm, dataRows);
+                    var ringRunner = new QD75RingBufferRunner(comm, dataRows);
                     activeRingRunner = ringRunner;
                     ringRunner.OnLog += async (msg) => await LogUIAsync("Ring", msg);
                     ringRunner.OnProgress += async (loaded, total) =>
@@ -810,7 +811,7 @@ namespace DACDT_2026
                 {
                     // ── ≤600 điểm: gửi bình thường ──────────────────────────────────
                     var axisXTask = Task.Run(() =>
-                        QD75BufferWriter.WritePositioningDataBulk(plcComm, 0, dataRows, writeStartNo: false));
+                        QD75BufferWriter.WritePositioningDataBulk(comm, 0, dataRows, writeStartNo: false));
 
                     await AnimateProgressAsync(from: 0, to: 45, durationMs: 800, completionTask: axisXTask);
                     var sendResult = await axisXTask;
@@ -831,7 +832,7 @@ namespace DACDT_2026
                     }
 
                     var axisYTask = Task.Run(() =>
-                        QD75BufferWriter.WriteSlaveAxisDataBulk(plcComm, dataRows, slaveBaseG: 8000));
+                        QD75BufferWriter.WriteSlaveAxisDataBulk(comm, dataRows, slaveBaseG: 8000));
 
                     await AnimateProgressAsync(from: 50, to: 95, durationMs: 600, completionTask: axisYTask);
                     var slaveResult = await axisYTask;
@@ -874,9 +875,10 @@ namespace DACDT_2026
         // ── Test Area (Engrave Boundary Test) ────────────────────────────────────
         private async Task HandleTestEngraveAreaAsync()
         {
-            if (plcComm == null || !plcComm.IsConnected)
+            PLCCommunication comm;
+            if (!TryGetConnectedPlc(out comm))
             {
-                await NotifyAsync("error", "Test Area", "PLC is not connected.");
+                await NotifyAsync("error", "Test Area", PlcConnectionGuard.NotConnectedMessage);
                 return;
             }
 
@@ -1010,17 +1012,17 @@ namespace DACDT_2026
             try
             {
                 await LogUIAsync("Test", "Clearing buffer...");
-                await Task.Run(() => QD75BufferWriter.ClearAllBuffers(plcComm, maxPoints: 600));
+                await Task.Run(() => QD75BufferWriter.ClearAllBuffers(comm, maxPoints: 600));
 
                 await LogUIAsync("Test", "Sending boundary path to PLC...");
-                var sendResult = await Task.Run(() => QD75BufferWriter.WritePositioningDataBulk(plcComm, 0, dataRows, writeStartNo: false));
+                var sendResult = await Task.Run(() => QD75BufferWriter.WritePositioningDataBulk(comm, 0, dataRows, writeStartNo: false));
                 if (!sendResult.Success)
                 {
                     await NotifyAsync("error", "Test Area", "Failed to send Master Axis data.");
                     return;
                 }
 
-                var slaveResult = await Task.Run(() => QD75BufferWriter.WriteSlaveAxisDataBulk(plcComm, dataRows, slaveBaseG: 8000));
+                var slaveResult = await Task.Run(() => QD75BufferWriter.WriteSlaveAxisDataBulk(comm, dataRows, slaveBaseG: 8000));
                 if (!slaveResult.Success)
                 {
                     await NotifyAsync("error", "Test Area", "Failed to send Slave Axis data.");
@@ -1288,9 +1290,10 @@ namespace DACDT_2026
         // ── Clear PLC Buffer ──────────────────────────────────────────────────────
         private async Task HandleClearBufferAsync()
         {
-            if (plcComm == null || !plcComm.IsConnected)
+            PLCCommunication comm;
+            if (!TryGetConnectedPlc(out comm))
             {
-                await NotifyAsync("error", "Clear Buffer", "PLC is not connected.");
+                await NotifyAsync("error", "Clear Buffer", PlcConnectionGuard.NotConnectedMessage);
                 return;
             }
 
@@ -1301,7 +1304,7 @@ namespace DACDT_2026
             {
                 await LogUIAsync("Clear Buffer", "Đang xóa toàn bộ buffer PLC...");
 
-                var clearTask = Task.Run(() => QD75BufferWriter.ClearAllBuffers(plcComm, maxPoints: 600));
+                var clearTask = Task.Run(() => QD75BufferWriter.ClearAllBuffers(comm, maxPoints: 600));
                 var clearResult = await clearTask;
 
                 foreach (var wr in clearResult.WriteResults)
@@ -2092,7 +2095,13 @@ namespace DACDT_2026
 
         private async Task HandleWriteBufferRequestAsync(string path, int value)
         {
-            var comm = plcComm;
+            PLCCommunication comm;
+            if (!TryGetConnectedPlc(out comm))
+            {
+                await NotifyAsync("error", "Telemetry", PlcConnectionGuard.NotConnectedMessage);
+                return;
+            }
+
             var wr = await Task.Run(() => QD75BufferWriter.WriteBufferValue(comm, path, value));
             AddLogEntry(wr.Address, wr.Value, "Write", wr.Status, wr.Message);
             if (wr.Status.StartsWith("OK"))

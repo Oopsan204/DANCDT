@@ -31,6 +31,24 @@
     <Compile Include="..\..\src\DACDT_2026.App\CameraDeviceSelection.cs">
       <Link>CameraDeviceSelection.cs</Link>
     </Compile>
+    <Compile Include="..\..\src\DACDT_2026.App\PerformanceTuning.cs">
+      <Link>PerformanceTuning.cs</Link>
+    </Compile>
+    <Compile Include="..\..\src\DACDT_2026.App\ExitShutdownPolicy.cs">
+      <Link>ExitShutdownPolicy.cs</Link>
+    </Compile>
+    <Compile Include="..\..\src\DACDT_2026.App\PlcFloatWordCodec.cs">
+      <Link>PlcFloatWordCodec.cs</Link>
+    </Compile>
+    <Compile Include="..\..\src\DACDT_2026.App\PlcConnectionGuard.cs">
+      <Link>PlcConnectionGuard.cs</Link>
+    </Compile>
+    <Compile Include="..\..\src\DACDT_2026.App\DecimalInputParser.cs">
+      <Link>DecimalInputParser.cs</Link>
+    </Compile>
+    <Compile Include="..\..\src\DACDT_2026.App\GcodeLineSanitizer.cs">
+      <Link>GcodeLineSanitizer.cs</Link>
+    </Compile>
     <Compile Include="..\..\src\DACDT_2026.App\NcGcodeCleaner.cs">
       <Link>NcGcodeCleaner.cs</Link>
     </Compile>

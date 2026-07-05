@@ -24,17 +24,20 @@ namespace DACDT_2026
         private FilterInfoCollection cameraDevices;
         private string activeCameraMoniker = string.Empty;
         private string cameraRecordingDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "camera_recordings");
-        private List<Bitmap> recordedFrames;
         private int recordedFrameCount;
+        private volatile bool cameraRecordingActive;
+        private string activeCameraRecordingPath = string.Empty;
+        private readonly IntervalGate cameraRecordingGate = new IntervalGate(PerformanceTuning.CameraRecordingFrameIntervalMs);
+        private readonly SingleFlightGate cameraRecordingSaveGate = new SingleFlightGate();
         private object cameraLock = new object();
         private DateTime lastCameraMqttPublishUtc = DateTime.MinValue;
         private bool cameraMqttPublishInFlight;
         private int webRtcFrameInFlight;
-        private DateTime lastWebRtcFrameUtc = DateTime.MinValue;
+        private readonly IntervalGate cameraPreviewGate = new IntervalGate(PerformanceTuning.CameraPreviewIntervalMs);
+        private readonly IntervalGate webRtcFrameGate = new IntervalGate(PerformanceTuning.WebRtcFrameIntervalMs);
         private static readonly bool EnableMqttCameraFrameFallback = false;
         private const int CameraMqttPublishIntervalMs = 200;
         private const long CameraMqttJpegQuality = 25L;
-        private const int WebRtcFrameIntervalMs = 66;
         private readonly JavaScriptSerializer cameraStatusSerializer = new JavaScriptSerializer();
 
         private Task PublishCameraStatusAsync(bool running, string state, string message = null)
@@ -169,7 +172,8 @@ namespace DACDT_2026
 
                         recordedFrameCount = 0;
                         lastCameraMqttPublishUtc = DateTime.MinValue;
-                        lastWebRtcFrameUtc = DateTime.MinValue;
+                        cameraPreviewGate.Reset();
+                        webRtcFrameGate.Reset();
                         cameraMqttPublishInFlight = false;
                         Interlocked.Exchange(ref webRtcFrameInFlight, 0);
                         SetCameraRunningUiState(true, "Camera started: " + selectedName, clearFrame: true);
@@ -200,7 +204,11 @@ namespace DACDT_2026
                         webRtcBridgeClient.Disconnect();
                         _ = PublishCameraStatusAsync(false, "stopped", "camera stopped");
 
+                        cameraRecordingActive = false;
+                        activeCameraRecordingPath = string.Empty;
                         Interlocked.Exchange(ref webRtcFrameInFlight, 0);
+                        cameraPreviewGate.Reset();
+                        webRtcFrameGate.Reset();
                         SetCameraRunningUiState(false, "Camera stopped.", clearFrame: true);
                     }
                 }
@@ -220,25 +228,18 @@ namespace DACDT_2026
             {
                 lock (cameraLock)
                 {
-                    if (recordedFrames != null)
-                    {
-                        foreach (var frame in recordedFrames)
-                        {
-                            try { frame?.Dispose(); } catch { }
-                        }
-                        recordedFrames.Clear();
-                        recordedFrames = null;
-                    }
-
                     StopCameraSourceLocked();
                     try { webRtcBridgeClient.Disconnect(); } catch { }
                     _ = PublishCameraStatusAsync(false, "stopped", "camera stopped");
 
+                    cameraRecordingActive = false;
+                    activeCameraRecordingPath = string.Empty;
                     ui.IsCameraRunning = false;
                     recordedFrameCount = 0;
                     ui.CameraRecordedFrames = 0;
                     lastCameraMqttPublishUtc = DateTime.MinValue;
-                    lastWebRtcFrameUtc = DateTime.MinValue;
+                    cameraPreviewGate.Reset();
+                    webRtcFrameGate.Reset();
                     cameraMqttPublishInFlight = false;
                     Interlocked.Exchange(ref webRtcFrameInFlight, 0);
                 }
@@ -336,8 +337,8 @@ namespace DACDT_2026
         }
 
         /// <summary>
-        /// Start recording camera frames to memory (in-memory frame buffer).
-        /// Frames are stored as Bitmap objects and can be exported to image files.
+        /// Start recording camera frames to disk. Frames are throttled and saved by a
+        /// background worker to avoid keeping large Bitmap lists in memory.
         /// </summary>
         private async Task StartCameraRecordingAsync()
         {
@@ -363,7 +364,9 @@ namespace DACDT_2026
                         string timestamp = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss", CultureInfo.InvariantCulture);
                         string recordingPath = Path.Combine(cameraRecordingDir, $"camera_{timestamp}");
 
-                        recordedFrames = new List<Bitmap>();
+                        activeCameraRecordingPath = recordingPath;
+                        cameraRecordingActive = true;
+                        cameraRecordingGate.Reset();
                         ui.CameraRecordingPath = recordingPath;
                         ui.IsCameraRecording = true;
                         recordedFrameCount = 0;
@@ -374,13 +377,14 @@ namespace DACDT_2026
                 catch (Exception ex)
                 {
                     ui.IsCameraRecording = false;
+                    cameraRecordingActive = false;
                     ui.CameraStatus = $"Error starting recording: {ex.Message}";
                 }
             });
         }
 
         /// <summary>
-        /// Stop recording camera frames and save them as individual image files.
+        /// Stop recording camera frames. Frames are already being saved incrementally.
         /// </summary>
         private async Task StopCameraRecordingAsync()
         {
@@ -388,35 +392,25 @@ namespace DACDT_2026
             {
                 try
                 {
+                    int framesRecorded;
                     lock (cameraLock)
                     {
-                        if (recordedFrames != null && recordedFrames.Count > 0)
-                        {
-                            Directory.CreateDirectory(ui.CameraRecordingPath);
-                            for (int i = 0; i < recordedFrames.Count; i++)
-                            {
-                                try
-                                {
-                                    string framePath = Path.Combine(ui.CameraRecordingPath, $"frame_{i:D6}.bmp");
-                                    recordedFrames[i].Save(framePath);
-                                    recordedFrames[i].Dispose();
-                                }
-                                catch { }
-                            }
-                        }
-
-                        recordedFrames?.Clear();
-                        recordedFrames = null;
+                        cameraRecordingActive = false;
                         ui.IsCameraRecording = false;
-                        int framesRecorded = recordedFrameCount;
+                        framesRecorded = recordedFrameCount;
+                        activeCameraRecordingPath = string.Empty;
                         recordedFrameCount = 0;
+                    }
+
+                    Dispatcher?.BeginInvoke(new Action(() =>
+                    {
                         ui.CameraRecordedFrames = 0;
                         ui.CameraStatus = $"Recording stopped. Frames saved: {framesRecorded}";
-                    }
+                    }));
                 }
                 catch (Exception ex)
                 {
-                    ui.CameraStatus = $"Error stopping recording: {ex.Message}";
+                    SetCameraStatusOnUiThread($"Error stopping recording: {ex.Message}");
                 }
             });
         }
@@ -427,77 +421,62 @@ namespace DACDT_2026
         /// </summary>
         private void CameraSource_NewFrame(object sender, NewFrameEventArgs eventArgs)
         {
+            Bitmap bitmap = null;
             try
             {
                 if (isClosing || !webReady)
                     return;
 
-                lock (cameraLock)
+                bitmap = (Bitmap)eventArgs.Frame.Clone();
+                var nowUtc = DateTime.UtcNow;
+
+                if (ShouldSaveRecordingFrame(nowUtc))
                 {
-                    using (var bitmap = (Bitmap)eventArgs.Frame.Clone())
+                    var recordingBitmap = (Bitmap)bitmap.Clone();
+                    _ = Task.Run(() => SaveCameraRecordingFrame(recordingBitmap));
+                }
+
+                Bitmap mqttBitmap = null;
+                if (ShouldPublishCameraFrameToMqtt(nowUtc))
+                {
+                    mqttBitmap = (Bitmap)bitmap.Clone();
+                }
+
+                if (mqttBitmap != null)
+                {
+                    _ = Task.Run(() => PublishCameraBitmapToMqttAsync(mqttBitmap));
+                }
+
+                // Feed frame to WebRTC server for browser streaming.
+                if (ShouldSendFrameToWebRtc(nowUtc))
+                {
+                    var webRtcBitmap = (Bitmap)bitmap.Clone();
+                    _ = Task.Run(() =>
                     {
-                        // Store frame to memory if recording
-                        if (ui.IsCameraRecording && recordedFrames != null)
+                        try
                         {
-                            try
+                            using (var ms = new MemoryStream())
                             {
-                                recordedFrames.Add((Bitmap)bitmap.Clone());
-                                recordedFrameCount++;
-                                ui.CameraRecordedFrames = recordedFrameCount;
+                                SaveJpeg(webRtcBitmap, ms, 50L);
+                                byte[] jpegBytes = ms.ToArray();
+                                webRtcBridgeClient.SendFrame(jpegBytes);
                             }
-                            catch { }
                         }
-
-                        Bitmap mqttBitmap = null;
-                        if (ShouldPublishCameraFrameToMqtt(DateTime.UtcNow))
+                        finally
                         {
-                            mqttBitmap = (Bitmap)bitmap.Clone();
+                            webRtcBitmap.Dispose();
+                            Interlocked.Exchange(ref webRtcFrameInFlight, 0);
                         }
+                    });
+                }
 
-                        if (mqttBitmap != null)
-                        {
-                            _ = Task.Run(() => PublishCameraBitmapToMqttAsync(mqttBitmap));
-                        }
-
-                        // Feed frame to WebRTC server for browser streaming
-                        if (ShouldSendFrameToWebRtc(DateTime.UtcNow))
-                        {
-                            var webRtcBitmap = (Bitmap)bitmap.Clone();
-                            _ = Task.Run(() =>
-                            {
-                                try
-                                {
-                                    using (var ms = new MemoryStream())
-                                    {
-                                        SaveJpeg(webRtcBitmap, ms, 50L); // 50% quality to reduce bandwidth
-                                        byte[] jpegBytes = ms.ToArray();
-                                        webRtcBridgeClient.SendFrame(jpegBytes);
-                                    }
-                                }
-                                finally
-                                {
-                                    webRtcBitmap.Dispose();
-                                    Interlocked.Exchange(ref webRtcFrameInFlight, 0);
-                                }
-                            });
-                        }
-
-                        // Convert bitmap to BitmapImage for UI display
-                        var bitmapImage = new BitmapImage();
-                        bitmapImage.BeginInit();
-                        bitmapImage.StreamSource = new MemoryStream();
-                        bitmap.Save(bitmapImage.StreamSource, System.Drawing.Imaging.ImageFormat.Bmp);
-                        bitmapImage.StreamSource.Position = 0;
-                        bitmapImage.CacheOption = BitmapCacheOption.OnLoad;
-                        bitmapImage.EndInit();
-                        bitmapImage.Freeze();
-
-                        // Update UI on the main thread
-                        Dispatcher?.BeginInvoke(new Action(() =>
-                        {
-                            ui.CameraFrame = bitmapImage;
-                        }));
-                    }
+                if (ShouldUpdateCameraPreview(nowUtc))
+                {
+                    var bitmapImage = CreateBitmapImage(bitmap);
+                    Dispatcher?.BeginInvoke(new Action(() =>
+                    {
+                        ui.CameraFrame = bitmapImage;
+                    }));
                 }
             }
             catch (Exception ex)
@@ -514,6 +493,10 @@ namespace DACDT_2026
                     }
                     catch { }
                 }
+            }
+            finally
+            {
+                bitmap?.Dispose();
             }
         }
 
@@ -538,14 +521,80 @@ namespace DACDT_2026
             if (!ui.IsCameraRunning)
                 return false;
 
-            if ((nowUtc - lastWebRtcFrameUtc).TotalMilliseconds < WebRtcFrameIntervalMs)
-                return false;
-
             if (Interlocked.CompareExchange(ref webRtcFrameInFlight, 1, 0) != 0)
                 return false;
 
-            lastWebRtcFrameUtc = nowUtc;
+            if (!webRtcFrameGate.TryEnter(nowUtc))
+            {
+                Interlocked.Exchange(ref webRtcFrameInFlight, 0);
+                return false;
+            }
+
             return true;
+        }
+
+        private bool ShouldUpdateCameraPreview(DateTime nowUtc)
+        {
+            return ui.IsCameraRunning && cameraPreviewGate.TryEnter(nowUtc);
+        }
+
+        private bool ShouldSaveRecordingFrame(DateTime nowUtc)
+        {
+            return cameraRecordingActive
+                   && !string.IsNullOrWhiteSpace(activeCameraRecordingPath)
+                   && cameraRecordingGate.TryEnter(nowUtc)
+                   && cameraRecordingSaveGate.TryEnter();
+        }
+
+        private void SaveCameraRecordingFrame(Bitmap bitmap)
+        {
+            int frameNo = 0;
+            string folder = activeCameraRecordingPath;
+
+            try
+            {
+                if (string.IsNullOrWhiteSpace(folder))
+                    return;
+
+                Directory.CreateDirectory(folder);
+                frameNo = Interlocked.Increment(ref recordedFrameCount);
+                string framePath = Path.Combine(folder, $"frame_{frameNo:D6}.jpg");
+                using (var stream = File.Create(framePath))
+                {
+                    SaveJpeg(bitmap, stream, 80L);
+                }
+
+                Dispatcher?.BeginInvoke(new Action(() =>
+                {
+                    ui.CameraRecordedFrames = frameNo;
+                }));
+            }
+            catch (Exception ex)
+            {
+                SetCameraStatusOnUiThread("Recording frame save error: " + ex.Message);
+            }
+            finally
+            {
+                try { bitmap?.Dispose(); } catch { }
+                cameraRecordingSaveGate.Exit();
+            }
+        }
+
+        private static BitmapImage CreateBitmapImage(Bitmap bitmap)
+        {
+            var bitmapImage = new BitmapImage();
+            using (var stream = new MemoryStream())
+            {
+                bitmap.Save(stream, ImageFormat.Bmp);
+                stream.Position = 0;
+                bitmapImage.BeginInit();
+                bitmapImage.StreamSource = stream;
+                bitmapImage.CacheOption = BitmapCacheOption.OnLoad;
+                bitmapImage.EndInit();
+                bitmapImage.Freeze();
+            }
+
+            return bitmapImage;
         }
 
         private static Bitmap ResizeBitmap(Bitmap source, int targetWidth, int targetHeight)

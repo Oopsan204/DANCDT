@@ -87,7 +87,9 @@ namespace DACDT_2026
         private string plcIpAddressInput = "192.168.3.39";
         private int plcPortInput = 3000;
         private float jogSpeedD406 = 1000f;
-        private double jogSpeedInput = 1000.0;
+        private string jogSpeedInput = "1000";
+        private bool suppressJogSpeedInputDirty;
+        private bool jogSpeedInputDirty;
         private string laserPowerInput = "100";
         private string progressText = "0%";
         private bool progressVisible;
@@ -300,10 +302,36 @@ namespace DACDT_2026
             set => SetProperty(ref jogSpeedD406, value);
         }
 
-        public double JogSpeedInput
+        public string JogSpeedInput
         {
             get => jogSpeedInput;
-            set => SetProperty(ref jogSpeedInput, value);
+            set
+            {
+                if (SetProperty(ref jogSpeedInput, value ?? string.Empty) && !suppressJogSpeedInputDirty)
+                    jogSpeedInputDirty = true;
+            }
+        }
+
+        public void SetJogSpeedInputFromPlc(float value)
+        {
+            if (jogSpeedInputDirty)
+                return;
+
+            suppressJogSpeedInputDirty = true;
+            try
+            {
+                JogSpeedInput = DecimalInputParser.FormatFloat(value);
+            }
+            finally
+            {
+                suppressJogSpeedInputDirty = false;
+            }
+        }
+
+        public void AcceptJogSpeedInputAsSynced()
+        {
+            jogSpeedInputDirty = false;
+            SetJogSpeedInputFromPlc(jogSpeedD406);
         }
 
         public string LaserPowerInput

@@ -33,10 +33,10 @@ namespace DACDT_2026
         private const string EmergencyStopRegister = "M3100";
         private const string HeartbeatRegister = "M4000";
         private const string StopRunRegister = "M212";
-        private const string ExitStopRegister = "M213";
+        private const string ExitStopRegister = "M210";
         private const string ContinueRegister = "M211";
         private const string PauseRegister = "M210";
-        private const int PlcPollIntervalMs = 100;
+        private const int PlcPollIntervalMs = PerformanceTuning.PlcPollIntervalMs;
 
         private readonly WpfUiState ui = new WpfUiState();
         private readonly SemaphoreSlim cadLoadGate = new SemaphoreSlim(1, 1);
@@ -71,6 +71,10 @@ namespace DACDT_2026
         private int logicalStation = 0;
 
         private readonly List<LogEntry> logs = new List<LogEntry>();
+        private readonly object logsLock = new object();
+        private int logVersion;
+        private int logPushedVersion;
+        private int logUiRefreshPending;
         private PLCCommunication plcComm;
 
         private CadDocumentService.CadLoadResult activeCadDocument;
@@ -98,7 +102,14 @@ namespace DACDT_2026
         private string rawGcodeText = string.Empty;
         private QD75RingBufferRunner activeRingRunner;
         private DateTime lastMachineMqttPublishUtc = DateTime.MinValue;
-        private const int MachineMqttPublishIntervalMs = 500;
+        private readonly IntervalGate controlUiPushGate = new IntervalGate(PerformanceTuning.ControlUiPushIntervalMs);
+        private readonly IntervalGate controlTrackingUiPushGate = new IntervalGate(PerformanceTuning.ControlTrackingUiPushIntervalMs);
+        private readonly IntervalGate slowPlcMonitorPollGate = new IntervalGate(PerformanceTuning.SlowPlcMonitorPollIntervalMs);
+        private readonly IntervalGate plcHeartbeatGate = new IntervalGate(PerformanceTuning.PlcHeartbeatIntervalMs);
+        private int machineMqttPublishInFlight;
+        private int controlUiPushInFlight;
+        private int plcWriteInFlight;
+        private int nextFastMonitorAxis = -1;
 
         private int GetActiveProgramIndex()
         {
@@ -320,6 +331,10 @@ namespace DACDT_2026
                     if (ui.Cameras.Count == 0)
                         await RefreshCamerasAsync();
                 }
+                else if (string.Equals(viewName, "dxf", StringComparison.OrdinalIgnoreCase))
+                {
+                    await PushDxfStateAsync();
+                }
             }
             catch
             {
@@ -423,7 +438,7 @@ namespace DACDT_2026
             ui.LogicalStationInput = logicalStation;
             ui.PlcIpAddressInput = plcIpAddress;
             ui.PlcPortInput = plcPort;
-            ui.JogSpeedInput = currentJogSpeedD406;
+            ui.SetJogSpeedInputFromPlc(currentJogSpeedD406);
             ui.GlobalSpeedInput = globalSpeed;
             ui.GlobalSpeedM3Input = globalSpeedM3;
             ui.GcodeSpeedM3Input = gcodeSpeedM3;
@@ -854,16 +869,15 @@ namespace DACDT_2026
                     return;
                 }
 
-                bool robotRunning = plcComm != null && plcComm.IsConnected && IsProgramRunning();
-                string message = robotRunning
-                    ? "Robot is running. Exit will activate M213, wait 500 ms, then close the application. Continue?"
-                    : "Exit application?";
+                bool plcConnected = plcComm != null && plcComm.IsConnected;
+                bool shouldSendExitStop = ExitShutdownPolicy.ShouldSendExitStop(plcConnected);
+                string message = ExitShutdownPolicy.GetConfirmationMessage(plcConnected);
 
                 var result = MessageBox.Show(
                     message,
                     "Exit App",
                     MessageBoxButton.YesNo,
-                    robotRunning ? MessageBoxImage.Warning : MessageBoxImage.Question);
+                    shouldSendExitStop ? MessageBoxImage.Warning : MessageBoxImage.Question);
 
                 if (result != MessageBoxResult.Yes)
                 {
@@ -900,15 +914,14 @@ namespace DACDT_2026
         {
             try
             {
-                if (plcComm != null && plcComm.IsConnected && IsProgramRunning())
+                if (ExitShutdownPolicy.ShouldSendExitStop(plcComm != null && plcComm.IsConnected))
                 {
                     Dispatcher.Invoke(() =>
                     {
-                        ui.CameraStatus = "Robot is running. Sending STOP before exit...";
+                        ui.CameraStatus = "Sending M210, HOME ALL, then clearing buffers before exit...";
                     });
 
                     await SendStopForExitAsync();
-                    await Task.Delay(500);
                 }
             }
             catch (Exception ex)
@@ -920,8 +933,18 @@ namespace DACDT_2026
                 LogLifecycle("Exit shutdown sequence completed. Closing application.");
                 _ = Dispatcher.BeginInvoke(new Action(() =>
                 {
+                    if (isClosing)
+                        return;
+
                     allowClose = true;
-                    Close();
+                    try
+                    {
+                        Close();
+                    }
+                    catch (InvalidOperationException ex)
+                    {
+                        LogLifecycle("Close skipped because window is already closing: " + ex.Message);
+                    }
                 }));
             }
         }
@@ -931,11 +954,34 @@ namespace DACDT_2026
             isProgramRunning = false;
             activeRingRunner?.Stop();
 
-            if (plcComm == null || !plcComm.IsConnected)
+            PLCCommunication comm;
+            if (!TryGetConnectedPlc(out comm))
                 return;
 
             await WriteDeviceValueAsync(ExitStopRegister, 1);
             AddLogEntry(ExitStopRegister, "1", "Write", "OK", "Exit stop");
+            await Task.Delay(PerformanceTuning.ExitStopPulseMs);
+            await WriteDeviceValueAsync(ExitStopRegister, 0);
+            AddLogEntry(ExitStopRegister, "0", "Write", "OK", "Exit stop reset");
+            await Task.Delay(PerformanceTuning.ExitStopDelayMs);
+
+            await WriteDeviceValueAsync("M502", 1);
+            AddLogEntry("M502", "1", "Write", "OK", "Exit home all");
+            await Task.Delay(PerformanceTuning.ExitHomePulseMs);
+            await WriteDeviceValueAsync("M502", 0);
+            AddLogEntry("M502", "0", "Write", "OK", "Exit home all reset");
+            await Task.Delay(PerformanceTuning.ExitHomeDelayMs);
+
+            var clearResult = await Task.Run(() => QD75BufferWriter.ClearAllBuffers(comm, maxPoints: 600));
+            foreach (var wr in clearResult.WriteResults)
+            {
+                AddLogEntry(wr.Address, wr.Value, "Clear", wr.Status, wr.Message);
+            }
+
+            if (!clearResult.Success)
+            {
+                LogLifecycle("Exit buffer clear warning: " + clearResult.ErrorMessage);
+            }
         }
 
         private void StartBackgroundVideoService()
