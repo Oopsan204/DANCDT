@@ -13,7 +13,7 @@ namespace DACDT_2026
         public const int CameraRecordingFrameIntervalMs = 100;
         public const int WebRtcFrameIntervalMs = 66;
         public const int ControlUiPushIntervalMs = 16;
-        public const int ControlTrackingUiPushIntervalMs = 250;
+        public const int ControlTrackingUiPushIntervalMs = 16;
         public const int MachineMqttPublishIntervalMs = 1000;
         public const int ExitStopPulseMs = 150;
         public const int ExitStopDelayMs = 500;

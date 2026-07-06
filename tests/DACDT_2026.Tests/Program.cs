@@ -28,6 +28,8 @@ namespace DACDT_2026.Tests
                 PlcConnectionGuardBlocksMissingOrDisconnectedPlc();
                 D406JogSpeedUsesFloatWordEncoding();
                 DecimalJogSpeedInputAcceptsDotAndComma();
+                WebCadUploadReassemblesChunks();
+                WebCadUploadRejectsUnsupportedFiles();
                 Console.WriteLine("All tests passed.");
                 return 0;
             }
@@ -282,7 +284,7 @@ namespace DACDT_2026.Tests
             AssertEqual("10", PerformanceTuning.PlcPollIntervalMs.ToString(), "PLC axis poll should be the fastest path in the application.");
             AssertEqual("1", PerformanceTuning.PlcPollMinimumDelayMs.ToString(), "PLC polling should not add a large artificial delay when the PLC call is already fast.");
             AssertEqual("16", PerformanceTuning.ControlUiPushIntervalMs.ToString(), "Axis monitor UI should target smooth local display cadence without waiting for MQTT.");
-            AssertEqual("250", PerformanceTuning.ControlTrackingUiPushIntervalMs.ToString(), "CAD tracking should stay throttled separately from numeric axis data.");
+            AssertEqual("16", PerformanceTuning.ControlTrackingUiPushIntervalMs.ToString(), "CAD tracking marker should update at the smooth local display cadence.");
             AssertEqual("1000", PerformanceTuning.SlowPlcMonitorPollIntervalMs.ToString(), "Non-axis PLC monitor rows should not block the fast axis path.");
             AssertEqual("1000", PerformanceTuning.MachineMqttPublishIntervalMs.ToString(), "MQTT/web publish must stay secondary to the local PLC monitor path.");
             AssertTrue(PerformanceTuning.MachineMqttPublishIntervalMs >= PerformanceTuning.PlcPollIntervalMs * 100, "MQTT cadence should be at least 100x slower than PLC polling.");
@@ -326,6 +328,26 @@ namespace DACDT_2026.Tests
             AssertTrue(Math.Abs(comma - 12.345) < 0.000001, "Decimal comma input should keep fractional value.");
 
             AssertEqual("12.5", DecimalInputParser.FormatFloat(12.5f), "PLC jog speed should format back to editable decimal text.");
+        }
+
+        private static void WebCadUploadReassemblesChunks()
+        {
+            var upload = new WebCadUploadSession();
+            upload.Begin("job-1", "part.nc", totalChunks: 2, totalBytes: 10);
+
+            bool complete1 = upload.AddChunk("job-1", 1, Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes("Y10")));
+            bool complete2 = upload.AddChunk("job-1", 0, Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes("G1 X10 ")));
+
+            AssertTrue(!complete1, "Upload should not complete before all chunks arrive.");
+            AssertTrue(complete2, "Upload should complete when the last missing chunk arrives.");
+            AssertEqual("G1 X10 Y10", System.Text.Encoding.UTF8.GetString(upload.Assemble()), "Upload chunks should reassemble in index order.");
+        }
+
+        private static void WebCadUploadRejectsUnsupportedFiles()
+        {
+            AssertTrue(WebCadUploadSession.IsAllowedFileName("shape.dxf"), "DXF upload should be accepted.");
+            AssertTrue(WebCadUploadSession.IsAllowedFileName("laser.nc"), "NC/G-code upload should be accepted.");
+            AssertTrue(!WebCadUploadSession.IsAllowedFileName("notes.pdf"), "Non-CAD upload should be rejected.");
         }
 
         private static void AssertEqual(string expected, string actual, string message)

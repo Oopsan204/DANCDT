@@ -52,6 +52,9 @@
     <Compile Include="..\..\src\DACDT_2026.App\NcGcodeCleaner.cs">
       <Link>NcGcodeCleaner.cs</Link>
     </Compile>
+    <Compile Include="..\..\src\DACDT_2026.App\WebCadUploadSession.cs">
+      <Link>WebCadUploadSession.cs</Link>
+    </Compile>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

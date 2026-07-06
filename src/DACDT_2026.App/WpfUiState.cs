@@ -768,6 +768,25 @@ namespace DACDT_2026
             return true;
         }
 
+        public void UpdateCadTrackingPoint(CadTrackingPointViewModel point)
+        {
+            if (point == null)
+            {
+                CadTrackingPoints.Clear();
+                return;
+            }
+
+            if (CadTrackingPoints.Count == 0)
+            {
+                CadTrackingPoints.Add(point);
+                return;
+            }
+
+            CadTrackingPoints[0].UpdateFrom(point);
+            while (CadTrackingPoints.Count > 1)
+                CadTrackingPoints.RemoveAt(CadTrackingPoints.Count - 1);
+        }
+
         public void ApplyActiveProgramIndex(int activeIndex, bool ensureProcessVisible)
         {
             ActiveProgramIndex = activeIndex;
@@ -1157,15 +1176,37 @@ namespace DACDT_2026
         public Brush Foreground { get; set; }
     }
 
-    public sealed class CadTrackingPointViewModel
+    public sealed class CadTrackingPointViewModel : ObservableState
     {
-        public double X { get; set; }
-        public double Y { get; set; }
-        public double Size { get; set; }
-        public Brush Fill { get; set; }
-        public Brush Stroke { get; set; }
-        public string Label { get; set; }
-        public string ToolTip { get; set; }
+        private double x;
+        private double y;
+        private double size;
+        private Brush fill;
+        private Brush stroke;
+        private string label;
+        private string toolTip;
+
+        public double X { get => x; set => SetProperty(ref x, value); }
+        public double Y { get => y; set => SetProperty(ref y, value); }
+        public double Size { get => size; set => SetProperty(ref size, value); }
+        public Brush Fill { get => fill; set => SetProperty(ref fill, value); }
+        public Brush Stroke { get => stroke; set => SetProperty(ref stroke, value); }
+        public string Label { get => label; set => SetProperty(ref label, value); }
+        public string ToolTip { get => toolTip; set => SetProperty(ref toolTip, value); }
+
+        public void UpdateFrom(CadTrackingPointViewModel source)
+        {
+            if (source == null)
+                return;
+
+            X = source.X;
+            Y = source.Y;
+            Size = source.Size;
+            Fill = source.Fill;
+            Stroke = source.Stroke;
+            Label = source.Label;
+            ToolTip = source.ToolTip;
+        }
     }
 
     public sealed class CadLimitAreaViewModel

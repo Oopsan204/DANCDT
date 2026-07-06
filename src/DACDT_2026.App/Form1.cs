@@ -45,6 +45,7 @@ namespace DACDT_2026
         private readonly CadDocumentService cadService = new CadDocumentService();
         private readonly GcodeCoordinateService gcodeCoordinateService = new GcodeCoordinateService();
         private readonly MqttPublishService mqttService = new MqttPublishService();
+        private readonly WebCadUploadSession webCadUploadSession = new WebCadUploadSession();
         private readonly WebRtcBridgeClient webRtcBridgeClient = new WebRtcBridgeClient();
         private System.Diagnostics.Process backgroundServiceProcess;
 
@@ -642,7 +643,11 @@ namespace DACDT_2026
                     "DACDT/machine/coment",
                     "DACDT/machine/request",
                     "DACDT/web/connected",
-                    "DACDT/camera/command");
+                    "DACDT/camera/command",
+                    "DACDT/cad/upload/start",
+                    "DACDT/cad/upload/chunk",
+                    "DACDT/cad/upload/finish",
+                    "DACDT/cad/upload/cancel");
                 Console.WriteLine($"[DEBUG] MQTT connection completed. IsConnected={mqttService.IsConnected}");
             }
             catch (Exception ex)
@@ -659,8 +664,11 @@ namespace DACDT_2026
 
             try
             {
+                string payloadForLog = string.Equals(topic, "DACDT/cad/upload/chunk", StringComparison.OrdinalIgnoreCase)
+                    ? "[CAD upload chunk omitted; bytes=" + (payload?.Length ?? 0).ToString(CultureInfo.InvariantCulture) + "]"
+                    : payload;
                 File.AppendAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "crash_log.txt"), 
-                    "[" + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff") + "] [MQTT] Topic: " + topic + ", Payload: " + payload + "\r\n");
+                    "[" + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff") + "] [MQTT] Topic: " + topic + ", Payload: " + payloadForLog + "\r\n");
             }
             catch { }
 
@@ -671,6 +679,12 @@ namespace DACDT_2026
 
         private async Task HandleMqttCommandAsync(string topic, string payload)
         {
+            if (IsWebCadUploadTopic(topic))
+            {
+                await HandleWebCadUploadMessageAsync(topic, payload);
+                return;
+            }
+
             string command = ExtractMqttCommand(payload);
             if (string.IsNullOrWhiteSpace(command))
                 return;

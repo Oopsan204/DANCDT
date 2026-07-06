@@ -1,0 +1,447 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DACDT 2026 — Architecture Diagram</title>
+<script>
+  (function () {
+    const saved = localStorage.getItem('dacdt-architecture-theme');
+    const dark = saved ? saved === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+    document.documentElement.classList.toggle('dark', dark);
+  })();
+</script>
+<style>
+  :root {
+    --bg: #f7f3ea;
+    --panel: #fffdf7;
+    --panel-2: #ede6d8;
+    --ink: #171716;
+    --text: #3f3c37;
+    --muted: #817b70;
+    --line: #cfc6b6;
+    --line-soft: #e4dccd;
+    --plc: #d66b43;
+    --plc-soft: rgba(214,107,67,.13);
+    --cad: #3f8f78;
+    --cad-soft: rgba(63,143,120,.13);
+    --web: #5b7fa6;
+    --web-soft: rgba(91,127,166,.14);
+    --cam: #ad7a2f;
+    --cam-soft: rgba(173,122,47,.14);
+    --safe: #758b56;
+    --danger: #b94c46;
+    --shadow: rgba(20,20,19,.10);
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    --serif: ui-serif, Georgia, "Times New Roman", serif;
+  }
+  html.dark {
+    --bg: #0d1117;
+    --panel: #141b24;
+    --panel-2: #1d2632;
+    --ink: #f4f7fb;
+    --text: #cbd5e1;
+    --muted: #8291a5;
+    --line: #344156;
+    --line-soft: #233044;
+    --plc: #ff8f68;
+    --plc-soft: rgba(255,143,104,.16);
+    --cad: #5bd5b4;
+    --cad-soft: rgba(91,213,180,.15);
+    --web: #84b7ef;
+    --web-soft: rgba(132,183,239,.15);
+    --cam: #e5b15f;
+    --cam-soft: rgba(229,177,95,.15);
+    --safe: #a8c77b;
+    --danger: #ef6c65;
+    --shadow: rgba(0,0,0,.35);
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: radial-gradient(circle at 20% 5%, var(--panel-2), transparent 36%), var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    overflow: hidden;
+  }
+  .bar {
+    height: 68px;
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    padding: 12px 20px;
+    border-bottom: 1px solid var(--line-soft);
+    background: color-mix(in srgb, var(--bg) 78%, transparent);
+    backdrop-filter: blur(12px);
+  }
+  h1 {
+    margin: 0;
+    color: var(--ink);
+    font-family: var(--serif);
+    font-size: 21px;
+    font-weight: 600;
+    letter-spacing: -.01em;
+  }
+  .sub {
+    margin-top: 2px;
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .05em;
+    text-transform: uppercase;
+  }
+  .spacer { flex: 1; }
+  .chips { display: flex; gap: 7px; flex-wrap: wrap; justify-content: flex-end; }
+  button {
+    font: 11px var(--mono);
+    letter-spacing: .04em;
+    color: var(--muted);
+    background: transparent;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 7px 11px;
+    cursor: pointer;
+  }
+  button:hover { color: var(--ink); border-color: var(--muted); }
+  button.on { color: var(--bg); background: var(--ink); border-color: var(--ink); }
+  #themeToggle { border-radius: 8px; text-transform: uppercase; }
+  .stage {
+    position: relative;
+    height: calc(100% - 68px);
+    min-height: 0;
+  }
+  svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+  .zone rect {
+    fill: color-mix(in srgb, var(--panel) 45%, transparent);
+    stroke: var(--line-soft);
+    stroke-width: 1.2;
+    stroke-dasharray: 7 5;
+    rx: 18;
+  }
+  .zone text {
+    fill: var(--muted);
+    font: 12px var(--mono);
+    letter-spacing: .09em;
+    text-transform: uppercase;
+  }
+  .node { cursor: pointer; transition: opacity .18s ease; }
+  .node rect {
+    fill: var(--panel);
+    stroke: var(--line);
+    stroke-width: 1.6;
+    rx: 14;
+    filter: drop-shadow(0 8px 18px var(--shadow));
+  }
+  .node .title {
+    fill: var(--ink);
+    font: 700 15px var(--sans);
+  }
+  .node .meta {
+    fill: var(--muted);
+    font: 11px var(--mono);
+  }
+  .node .kind {
+    fill: var(--muted);
+    font: 10px var(--mono);
+    letter-spacing: .1em;
+    text-transform: uppercase;
+  }
+  .node.plc rect { fill: var(--plc-soft); stroke: var(--plc); }
+  .node.cad rect { fill: var(--cad-soft); stroke: var(--cad); }
+  .node.web rect { fill: var(--web-soft); stroke: var(--web); }
+  .node.cam rect { fill: var(--cam-soft); stroke: var(--cam); }
+  .node.safe rect { stroke: var(--safe); }
+  .node.sel rect { stroke-width: 2.8; }
+  .edge {
+    fill: none;
+    stroke: var(--muted);
+    stroke-width: 1.8;
+    marker-end: url(#arrow-muted);
+    opacity: .72;
+    transition: opacity .2s ease, stroke .2s ease;
+  }
+  .edge.plc { stroke: var(--plc); marker-end: url(#arrow-plc); }
+  .edge.cad { stroke: var(--cad); marker-end: url(#arrow-cad); }
+  .edge.web { stroke: var(--web); marker-end: url(#arrow-web); }
+  .edge.cam { stroke: var(--cam); marker-end: url(#arrow-cam); }
+  .edge.safe { stroke: var(--safe); marker-end: url(#arrow-muted); }
+  .edge.dash { stroke-dasharray: 7 5; }
+  .lbl {
+    fill: var(--muted);
+    font: 10.5px var(--mono);
+  }
+  .stage.flowing .edge,
+  .stage.flowing .lbl,
+  .stage.flowing .node,
+  .stage.flowing .zone { opacity: .24; }
+  .stage.flowing .edge.lit {
+    opacity: 1;
+    stroke-width: 3;
+    stroke-dasharray: 10 7;
+    animation: march .8s linear infinite;
+  }
+  .stage.flowing .node.lit,
+  .stage.flowing .zone.lit,
+  .stage.flowing .lbl.lit { opacity: 1; }
+  @keyframes march { to { stroke-dashoffset: -17; } }
+  @media (prefers-reduced-motion: reduce) { .stage.flowing .edge.lit { animation: none; } }
+  .card {
+    position: absolute;
+    right: 18px;
+    bottom: 18px;
+    width: min(390px, calc(100vw - 36px));
+    padding: 16px 17px;
+    background: color-mix(in srgb, var(--panel) 92%, transparent);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    box-shadow: 0 12px 34px var(--shadow);
+    backdrop-filter: blur(14px);
+  }
+  .card h2 {
+    margin: 0 0 3px;
+    color: var(--ink);
+    font: 600 18px var(--serif);
+  }
+  .card .meta {
+    margin-bottom: 10px;
+    color: var(--muted);
+    font: 11px var(--mono);
+  }
+  .card p {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.55;
+  }
+  .legend {
+    position: absolute;
+    left: 18px;
+    bottom: 18px;
+    display: grid;
+    grid-template-columns: repeat(2, max-content);
+    gap: 8px 16px;
+    padding: 12px 14px;
+    background: color-mix(in srgb, var(--panel) 88%, transparent);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    box-shadow: 0 8px 24px var(--shadow);
+    font: 11px var(--mono);
+    color: var(--muted);
+  }
+  .sw { display: inline-block; width: 18px; height: 3px; border-radius: 99px; vertical-align: middle; margin-right: 7px; }
+  .sw.plc { background: var(--plc); }
+  .sw.cad { background: var(--cad); }
+  .sw.web { background: var(--web); }
+  .sw.cam { background: var(--cam); }
+  .note {
+    position: absolute;
+    top: 12px;
+    right: 18px;
+    color: var(--muted);
+    font: 10.5px var(--mono);
+  }
+  @media (max-width: 900px) {
+    body { overflow: auto; }
+    .bar { height: auto; align-items: flex-start; flex-wrap: wrap; }
+    .stage { height: 820px; }
+    .card, .legend, .note { position: static; margin: 12px 18px; }
+  }
+</style>
+</head>
+<body>
+<div class="bar">
+  <div>
+    <h1>DACDT 2026 — kiến trúc tổng thể</h1>
+    <div class="sub">WPF control app · PLC/QD75 fast lane · DXF/G-code · MQTT/Web · WebRTC camera</div>
+  </div>
+  <div class="spacer"></div>
+  <div class="chips" id="chips">
+    <button class="on" data-flow="all">Tổng thể</button>
+    <button data-flow="plc">PLC realtime</button>
+    <button data-flow="cad">DXF/G-code</button>
+    <button data-flow="cam">Camera</button>
+    <button data-flow="web">MQTT/Web</button>
+    <button data-flow="safe">An toàn</button>
+  </div>
+  <button id="themeToggle">Theme</button>
+</div>
+
+<div class="stage" id="stage">
+<svg viewBox="0 0 1600 920" role="img" aria-label="DACDT 2026 application architecture diagram">
+  <defs>
+    <marker id="arrow-muted" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" style="fill:var(--muted)"/>
+    </marker>
+    <marker id="arrow-plc" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" style="fill:var(--plc)"/>
+    </marker>
+    <marker id="arrow-cad" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" style="fill:var(--cad)"/>
+    </marker>
+    <marker id="arrow-web" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" style="fill:var(--web)"/>
+    </marker>
+    <marker id="arrow-cam" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" style="fill:var(--cam)"/>
+    </marker>
+  </defs>
+
+  <g class="zone" id="zone-input"><rect x="45" y="105" width="300" height="670"/><text x="70" y="138">Input / Operator</text></g>
+  <g class="zone" id="zone-app"><rect x="395" y="92" width="560" height="705"/><text x="420" y="125">DACDT_2026.App — WPF</text></g>
+  <g class="zone" id="zone-machine"><rect x="1005" y="100" width="250" height="690"/><text x="1030" y="133">Machine side</text></g>
+  <g class="zone" id="zone-network"><rect x="1295" y="105" width="260" height="670"/><text x="1320" y="138">Network / Web</text></g>
+
+  <path class="edge cad" id="e-file-load" d="M310,236 C365,236 370,235 430,235"/>
+  <path class="edge cad" id="e-cad-clean" d="M610,235 C650,235 665,270 705,300"/>
+  <path class="edge cad" id="e-qwriter" d="M845,342 C900,350 930,370 1008,412"/>
+  <path class="edge plc" id="e-qplc" d="M1188,414 C1248,405 1245,335 1190,285"/>
+  <path class="edge plc" id="e-plc-fast" d="M1060,266 C960,235 925,245 850,255"/>
+  <path class="edge plc" id="e-fast-ui" d="M730,255 C670,255 625,478 610,545"/>
+  <path class="edge plc" id="e-ui-write" d="M610,545 C765,575 905,535 1010,485"/>
+  <path class="edge web dash" id="e-state-mqtt" d="M780,572 C980,662 1160,662 1324,552"/>
+  <path class="edge web" id="e-web-dashboard" d="M1430,555 C1450,495 1420,430 1370,380"/>
+  <path class="edge cam" id="e-camera" d="M300,633 C395,625 405,670 475,672"/>
+  <path class="edge cam" id="e-bridge" d="M690,672 C818,683 910,690 1010,660"/>
+  <path class="edge cam" id="e-webrtc" d="M1192,660 C1260,654 1290,635 1330,612"/>
+  <path class="edge web dash" id="e-signal" d="M1190,690 C1265,710 1305,685 1355,632"/>
+  <path class="edge safe" id="e-exit" d="M300,720 C385,718 420,580 505,565"/>
+
+  <text class="lbl" data-e="e-file-load" x="330" y="220">open/import</text>
+  <text class="lbl" data-e="e-cad-clean" x="635" y="268">normalize</text>
+  <text class="lbl" data-e="e-qwriter" x="880" y="382">positioning rows</text>
+  <text class="lbl" data-e="e-plc-fast" x="895" y="235">10 ms poll target</text>
+  <text class="lbl" data-e="e-state-mqtt" x="1040" y="642">1 s publish</text>
+  <text class="lbl" data-e="e-webrtc" x="1245" y="640">video stream</text>
+
+  <g class="node" id="n-operator" data-title="Người vận hành" data-meta="WPF UI" data-info="Người vận hành dùng các màn hình Dashboard, DXF/G-code, Monitor, Telemetry, Settings, Camera và Logs. Các nút RUN/STOP/JOG/HOME đi vào PLC path, còn web/MQTT chỉ là phụ trợ giám sát.">
+    <rect x="85" y="160" width="220" height="86"/>
+    <text class="kind" x="105" y="185">Human</text><text class="title" x="105" y="211">Người vận hành</text><text class="meta" x="105" y="232">RUN · STOP · JOG · HOME</text>
+  </g>
+  <g class="node cad" id="n-files" data-title="File DXF / NC / G-code" data-meta="assets/samples, Downloads" data-info="Nguồn dữ liệu gia công: DXF, NC, G-code. File được parse, làm sạch Z/lead-in/lead-out, chuyển thành danh sách điểm chạy cho QD75.">
+    <rect x="85" y="270" width="220" height="92"/>
+    <text class="kind" x="105" y="296">Input files</text><text class="title" x="105" y="322">DXF / NC / G-code</text><text class="meta" x="105" y="344">Corel · LightBurn · Mastercam</text>
+  </g>
+  <g class="node cam" id="n-camera-device" data-title="USB Camera" data-meta="AForge DirectShow" data-info="Camera thật được chọn từ danh sách thiết bị. App preview/record local, đồng thời gửi frame sang WebRTC service khi stream web đang chạy.">
+    <rect x="85" y="590" width="220" height="92"/>
+    <text class="kind" x="105" y="616">Video input</text><text class="title" x="105" y="642">USB Camera</text><text class="meta" x="105" y="664">Preview · Record · Stream</text>
+  </g>
+  <g class="node safe" id="n-exit" data-title="Exit / Safety" data-meta="M210 · Home All · Clear Buffer" data-info="Khi thoát app và PLC còn kết nối: pulse M210, chờ 500 ms, HOME ALL, chờ 500 ms, clear buffer rồi đóng app. Các lệnh PLC bị chặn khi chưa connected.">
+    <rect x="85" y="704" width="220" height="92"/>
+    <text class="kind" x="105" y="730">Safety</text><text class="title" x="105" y="756">Exit App</text><text class="meta" x="105" y="778">Stop · Home · Clear</text>
+  </g>
+
+  <g class="node cad" id="n-cad-service" data-title="CAD/G-code Services" data-meta="CadDocumentService · NcGcodeCleaner" data-info="CadDocumentService dùng netDxf và fallback SimpleDxfParser. G-code/NC đi qua GcodeLineSanitizer, NcGcodeCleaner và GcodeCoordinateService để tạo đường chạy 2D laser phù hợp.">
+    <rect x="430" y="190" width="190" height="92"/>
+    <text class="kind" x="450" y="216">Parse / clean</text><text class="title" x="450" y="242">CAD/G-code Services</text><text class="meta" x="450" y="264">netDxf · cleaner · WCS</text>
+  </g>
+  <g class="node cad" id="n-qwriter" data-title="QD75 Data Builder" data-meta="QD75BufferWriter · QD75RingBufferRunner" data-info="Chuyển điểm gia công thành buffer memory QD75: move code, M-code, dwell, speed, tọa độ X/Y, center arc. File lớn dùng ring buffer để nạp theo cửa sổ.">
+    <rect x="705" y="295" width="210" height="100"/>
+    <text class="kind" x="725" y="321">Motion data</text><text class="title" x="725" y="347">QD75 Data Builder</text><text class="meta" x="725" y="369">Bulk write · Ring buffer</text>
+  </g>
+  <g class="node plc" id="n-plc-control" data-title="PLC Control Fast Lane" data-meta="Form1.PlcControl · PLCCommunication" data-info="Đây là đường ưu tiên nhất: đọc D registers, đọc monitor QD75 xoay vòng, ghi M/D/G xuống PLC. Poll target 10 ms; MQTT/web/camera/log không được chặn đường này.">
+    <rect x="515" y="500" width="255" height="112"/>
+    <text class="kind" x="535" y="526">Priority path</text><text class="title" x="535" y="552">PLC Control Fast Lane</text><text class="meta" x="535" y="574">Poll · Write · Guard · Snapshot</text>
+  </g>
+  <g class="node web" id="n-state" data-title="State Publisher" data-meta="Form1.StatePublisher · WpfUiState" data-info="Tách state local UI và MQTT. Numeric axis/marker dùng fast UI path; telemetry/log/MQTT chạy chậm hơn để tránh làm khựng PLC.">
+    <rect x="520" y="635" width="245" height="95"/>
+    <text class="kind" x="540" y="661">State layer</text><text class="title" x="540" y="687">State Publisher</text><text class="meta" x="540" y="709">UI · Logs · MQTT payload</text>
+  </g>
+  <g class="node cam" id="n-camera-app" data-title="Camera Module" data-meta="Form1.Camera · WebRtcBridgeClient" data-info="Module camera trong app chọn thiết bị, preview, record, throttle frame và bridge sang service nền qua TCP localhost 5080.">
+    <rect x="475" y="705" width="220" height="92"/>
+    <text class="kind" x="495" y="731">Camera local</text><text class="title" x="495" y="757">Camera Module</text><text class="meta" x="495" y="779">AForge · TCP bridge</text>
+  </g>
+
+  <g class="node plc" id="n-plc" data-title="PLC Mitsubishi Q" data-meta="MX Component / ActUtlTypeLib" data-info="PLC là lõi điều khiển thật. App chỉ đọc/ghi khi connected; các lệnh gửi xuống như M210/RUN/JOG/HOME và D406 speed đi qua guard để tránh gọi khi mất kết nối.">
+    <rect x="1038" y="210" width="185" height="92"/>
+    <text class="kind" x="1058" y="236">Controller</text><text class="title" x="1058" y="262">PLC Q Series</text><text class="meta" x="1058" y="284">MX Component</text>
+  </g>
+  <g class="node plc" id="n-qd75" data-title="QD75 Positioning Module" data-meta="U0\\G buffer memory" data-info="QD75 nhận chương trình positioning qua buffer memory: master/slave axis, speed, m-code, arc center. Monitor buffer trả về status, error, current data no.">
+    <rect x="1038" y="385" width="185" height="104"/>
+    <text class="kind" x="1058" y="411">Motion module</text><text class="title" x="1058" y="437">QD75</text><text class="meta" x="1058" y="459">U0\\G buffer memory</text>
+  </g>
+  <g class="node plc" id="n-robot" data-title="Gantry / Laser Robot" data-meta="Axis 1..4 · laser" data-info="Máy thật chạy theo dữ liệu QD75: Axis 1/2 tọa độ, Axis 4/laser power/speed, limit/home/error signals quay về app qua fast monitor.">
+    <rect x="1038" y="520" width="185" height="92"/>
+    <text class="kind" x="1058" y="546">Machine</text><text class="title" x="1058" y="572">Gantry / Laser</text><text class="meta" x="1058" y="594">Axes · limits · laser</text>
+  </g>
+  <g class="node cam" id="n-cam-service" data-title="WebRTC Camera Service" data-meta="src/WebRtcCameraService" data-info="Service nền x64 giữ WebRTC peer connections, encode VPX và dùng MQTT làm signaling. App chính giao tiếp service qua TCP bridge.">
+    <rect x="1030" y="646" width="205" height="100"/>
+    <text class="kind" x="1050" y="672">Background x64</text><text class="title" x="1050" y="698">WebRTC Camera Service</text><text class="meta" x="1050" y="720">SIPSorcery · VPX · MQTT</text>
+  </g>
+
+  <g class="node web" id="n-mqtt" data-title="MQTT Broker" data-meta="MQTTnet / HiveMQ topic bus" data-info="MQTT là kênh phụ: publish machine/camera/status, nhận command từ web, signaling WebRTC. Không phải đường realtime chính cho PLC.">
+    <rect x="1340" y="300" width="175" height="92"/>
+    <text class="kind" x="1360" y="326">Topic bus</text><text class="title" x="1360" y="352">MQTT Broker</text><text class="meta" x="1360" y="374">state · command · SDP</text>
+  </g>
+  <g class="node web" id="n-web" data-title="Web Dashboard" data-meta="index.html" data-info="Dashboard web đọc state từ MQTT và gửi command/signaling. Nó hữu ích để giám sát từ xa nhưng không được ưu tiên hơn đường local PLC.">
+    <rect x="1340" y="445" width="175" height="92"/>
+    <text class="kind" x="1360" y="471">Browser</text><text class="title" x="1360" y="497">Web Dashboard</text><text class="meta" x="1360" y="519">Monitor · Camera · Control</text>
+  </g>
+  <g class="node cam" id="n-webcam" data-title="WebRTC Viewer" data-meta="Browser peer" data-info="Người xem web nhận video stream qua WebRTC, còn offer/answer/ICE đi qua MQTT signaling.">
+    <rect x="1340" y="590" width="175" height="92"/>
+    <text class="kind" x="1360" y="616">Remote view</text><text class="title" x="1360" y="642">WebRTC Viewer</text><text class="meta" x="1360" y="664">Offer · Answer · ICE</text>
+  </g>
+</svg>
+
+<div class="note">Click node để xem chi tiết · chọn chip để highlight luồng</div>
+<div class="legend">
+  <span><i class="sw plc"></i>PLC realtime / machine</span>
+  <span><i class="sw cad"></i>DXF/G-code processing</span>
+  <span><i class="sw web"></i>MQTT/Web secondary</span>
+  <span><i class="sw cam"></i>Camera/WebRTC</span>
+</div>
+<div class="card" id="detail">
+  <h2>Kiến trúc tổng thể</h2>
+  <div class="meta">DACDT_2026.App + WebRtcCameraService</div>
+  <p>Trung tâm là app WPF. Đường PLC/QD75 là đường ưu tiên realtime; DXF/G-code tạo dữ liệu chuyển động; MQTT/web/camera là các đường phụ để giám sát và stream.</p>
+</div>
+</div>
+
+<script>
+const detail = document.getElementById('detail');
+const stage = document.getElementById('stage');
+const flowMap = {
+  all: [],
+  plc: ['n-operator','n-plc-control','n-plc','n-qd75','n-robot','e-ui-write','e-plc-fast','e-fast-ui','e-qplc','zone-app','zone-machine'],
+  cad: ['n-files','n-cad-service','n-qwriter','n-qd75','n-robot','e-file-load','e-cad-clean','e-qwriter','zone-input','zone-app','zone-machine'],
+  cam: ['n-camera-device','n-camera-app','n-cam-service','n-webcam','n-mqtt','e-camera','e-bridge','e-webrtc','e-signal','zone-input','zone-app','zone-machine','zone-network'],
+  web: ['n-state','n-mqtt','n-web','n-webcam','e-state-mqtt','e-web-dashboard','e-signal','zone-app','zone-network'],
+  safe: ['n-exit','n-plc-control','n-plc','n-qd75','e-exit','e-ui-write','zone-input','zone-app','zone-machine']
+};
+function selectNode(node) {
+  document.querySelectorAll('.node').forEach(n => n.classList.remove('sel'));
+  node.classList.add('sel');
+  detail.innerHTML = `<h2>${node.dataset.title}</h2><div class="meta">${node.dataset.meta || ''}</div><p>${node.dataset.info || ''}</p>`;
+}
+document.querySelectorAll('.node').forEach(node => node.addEventListener('click', () => selectNode(node)));
+function setFlow(name) {
+  document.querySelectorAll('#chips button').forEach(b => b.classList.toggle('on', b.dataset.flow === name));
+  document.querySelectorAll('.lit').forEach(el => el.classList.remove('lit'));
+  if (name === 'all') {
+    stage.classList.remove('flowing');
+    return;
+  }
+  stage.classList.add('flowing');
+  for (const id of flowMap[name] || []) {
+    const el = document.getElementById(id);
+    if (el) el.classList.add('lit');
+    document.querySelectorAll(`[data-e="${id}"]`).forEach(label => label.classList.add('lit'));
+  }
+}
+document.getElementById('chips').addEventListener('click', e => {
+  const btn = e.target.closest('button[data-flow]');
+  if (btn) setFlow(btn.dataset.flow);
+});
+document.getElementById('themeToggle').addEventListener('click', () => {
+  const next = !document.documentElement.classList.contains('dark');
+  document.documentElement.classList.toggle('dark', next);
+  localStorage.setItem('dacdt-architecture-theme', next ? 'dark' : 'light');
+});
+</script>
+</body>
+</html>

@@ -68,13 +68,14 @@ namespace DACDT_2026
 
                 if (includeTracking)
                 {
-                    ReplaceCollection(ui.CadTrackingPoints, BuildRobotTrackingPoints(
+                    var trackingPoints = BuildRobotTrackingPoints(
                         activeCadDocument,
                         workspaceWidth,
                         workspaceHeight,
                         connected,
                         axCurrentPos[0],
-                        axCurrentPos[1]));
+                        axCurrentPos[1]);
+                    ui.UpdateCadTrackingPoint(trackingPoints.FirstOrDefault());
                 }
             });
         }
