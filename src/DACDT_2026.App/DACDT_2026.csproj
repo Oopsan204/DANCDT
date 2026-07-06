@@ -261,5 +261,14 @@
   </Target>
   <ItemGroup>
     <Resource Include="app_icon.png" />
+    <Resource Include="Assets\aml-logo.png" />
   </ItemGroup>
+  <Target Name="CopyWebDashboardAssets" AfterTargets="Build" Condition="Exists('..\..\docs\assets')">
+    <ItemGroup>
+      <WebDashboardAssetFiles Include="..\..\docs\assets\**\*.*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(WebDashboardAssetFiles)"
+          DestinationFiles="@(WebDashboardAssetFiles->'$(TargetDir)assets\%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
+  </Target>
 </Project>

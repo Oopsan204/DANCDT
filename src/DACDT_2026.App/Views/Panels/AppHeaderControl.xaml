@@ -10,16 +10,17 @@
             </Grid.ColumnDefinitions>
 
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                <Border Width="34"
-                        Height="34"
+                <Border Width="168"
+                        Height="54"
                         CornerRadius="8"
-                        Background="{StaticResource AccentBrush}"
+                        Background="White"
+                        BorderBrush="{StaticResource BorderBrush}"
+                        BorderThickness="1"
+                        Padding="8,5"
                         Margin="0,0,10,0">
-                    <TextBlock Text="DC"
-                               HorizontalAlignment="Center"
-                               VerticalAlignment="Center"
-                               FontWeight="Bold"
-                               Foreground="White"/>
+                    <Image Source="/Assets/aml-logo.png"
+                           Stretch="Uniform"
+                           RenderOptions.BitmapScalingMode="HighQuality"/>
                 </Border>
                 <StackPanel>
                     <TextBlock Text="DACDT 2026" FontSize="18" FontWeight="Bold"/>

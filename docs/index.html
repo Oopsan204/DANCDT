@@ -88,6 +88,28 @@
             letter-spacing: 0.5px;
         }
 
+        .brand-block {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .brand-logo {
+            width: 100%;
+            max-width: 210px;
+            height: auto;
+            background: #fff;
+            border-radius: 6px;
+            padding: 6px 8px;
+            border: 1px solid var(--border);
+        }
+
+        .brand-title {
+            font-size: 15px;
+            margin-bottom: 4px;
+            color: var(--text-bright);
+        }
+
         .status-info {
             display: flex;
             align-items: center;
@@ -1167,8 +1189,9 @@
     <div class="layout-wrapper">
         <!-- ── SIDEBAR (LEFT) ── -->
         <aside class="sidebar">
-            <div>
-                <h2 style="font-size: 15px; margin-bottom: 4px; color: var(--text-bright);">📊 DACDT 2026</h2>
+            <div class="brand-block">
+                <img class="brand-logo" src="assets/aml-logo.png" alt="AML Phenikaa University logo">
+                <h2 class="brand-title">DACDT 2026</h2>
                 <p style="font-size: 10px; color: var(--muted);">MQTT Real-time Dashboard</p>
             </div>
 
