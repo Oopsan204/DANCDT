@@ -209,7 +209,7 @@
 
         #bottom-row {
             display: grid;
-            grid-template-columns: 1fr 2fr;
+            grid-template-columns: 1fr;
             gap: var(--panel-gap);
             height: 200px;
             flex-shrink: 0;
@@ -1179,6 +1179,12 @@
                         id="last-update">-</span></div>
                 <div class="info-item"><span class="info-label">Msg count:</span><span class="info-value"
                         id="msg-count">0</span></div>
+                <div class="info-item"><span class="info-label">PLC:</span><span class="info-value"
+                        id="plc-status"><span class="dot red" id="plc-dot"></span> Disconnected</span></div>
+                <div class="info-item"><span class="info-label">Banner:</span><span class="info-value"
+                        id="plc-banner">-</span></div>
+                <div class="info-item"><span class="info-label">Jog speed:</span><span class="info-value"
+                        id="jog-speed">0</span></div>
             </div>
 
 
@@ -1387,23 +1393,8 @@
                 </div>
             </div>
 
-            <!-- ── BOTTOM ROW: PLC & LOGS ── -->
+            <!-- ── BOTTOM ROW: LOGS ── -->
             <div id="bottom-row">
-                <div class="panel">
-                    <div class="panel-header">
-                        <div class="panel-title-group"><span class="panel-icon">🔌</span><span class="ph-title">PLC
-                                Connection</span></div>
-                    </div>
-                    <div class="panel-body plc-info-group">
-                        <div class="info-row"><span class="info-val large" id="plc-status"><span class="dot red"
-                                    id="plc-dot"></span> Disconnected</span></div>
-                        <div class="info-row"><span class="info-lbl">Banner</span><span class="info-val"
-                                id="plc-banner">-</span></div>
-                        <div class="info-row"><span class="info-lbl">Jog Speed</span><span class="info-val"
-                                id="jog-speed">0</span></div>
-                    </div>
-                </div>
-
                 <div class="panel">
                     <div class="panel-header">
                         <div class="panel-title-group"><span class="panel-icon">📋</span><span
