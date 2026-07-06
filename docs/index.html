@@ -536,6 +536,39 @@
             margin-top: 3px;
         }
 
+        .cad-header-left {
+            min-width: 0;
+            flex: 1;
+        }
+
+        .cad-file-name {
+            font-size: 11px;
+            color: var(--text-bright);
+            margin-top: 3px;
+            max-width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .cad-file-path {
+            font-size: 10px;
+            color: var(--muted);
+            margin-top: 2px;
+            max-width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .cad-header-right {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 5px;
+            flex-shrink: 0;
+        }
+
         /* ── CAMERA ── */
         .cam-toolbar {
             background: var(--bg3);
@@ -1302,13 +1335,17 @@
             <div id="middle-row">
                 <div class="panel" id="cad-panel">
                     <div class="panel-header">
-                        <div>
+                        <div class="cad-header-left">
                             <div class="ph-title">CAD Preview</div>
                             <div class="ph-sub" id="cad-file-sub">Chờ dữ liệu DACDT/cad/state…</div>
+                            <div class="cad-file-name" id="cad-file-name">Chưa có file CAD/G-code</div>
+                            <div class="cad-file-path" id="cad-file-path">-</div>
                         </div>
-                        <div class="active-badge">
-                            <span class="dot" id="cad-live-dot" style="background:var(--muted)"></span>
-                            <span id="cad-prims-count">0 prims</span>
+                        <div class="cad-header-right">
+                            <div class="active-badge">
+                                <span class="dot" id="cad-live-dot" style="background:var(--muted)"></span>
+                                <span id="cad-prims-count">0 prims</span>
+                            </div>
                             <div class="cad-upload-actions">
                                 <input type="file" id="cad-upload-input" accept=".dxf,.gcode,.g,.gc,.nc,.ngc,.cnc,.tap"
                                     style="display:none" onchange="dashboard.handleCadFileSelected(this.files)">
@@ -1739,6 +1776,14 @@
                     binary += String.fromCharCode(bytes[i]);
                 }
                 return btoa(binary);
+            }
+
+            compactPath(path, maxLength = 86) {
+                if (!path || path.length <= maxLength) return path || '';
+                const slash = Math.max(path.lastIndexOf('\\'), path.lastIndexOf('/'));
+                const file = slash >= 0 ? path.slice(slash + 1) : path;
+                const headLength = Math.max(12, maxLength - file.length - 5);
+                return path.slice(0, headLength) + '...' + file;
             }
 
             handleCadUploadStatus(payload) {
@@ -2196,13 +2241,21 @@
                 const liveDot = document.getElementById('cad-live-dot');
                 const count = document.getElementById('cad-prims-count');
                 const sub = document.getElementById('cad-file-sub');
+                const fileNameEl = document.getElementById('cad-file-name');
+                const filePathEl = document.getElementById('cad-file-path');
                 const info = document.getElementById('cad-info');
 
                 if (noData) noData.style.display = hasPrims ? 'none' : 'flex';
                 if (legend) legend.style.display = hasPrims ? 'flex' : 'none';
                 if (liveDot) liveDot.style.background = hasPrims ? 'var(--green)' : 'var(--muted)';
                 if (count) count.textContent = primitives.length + ' prims';
-                if (sub) sub.textContent = (data.fileKind || 'CAD') + (data.fileName ? ' · ' + data.fileName : '');
+                if (sub) sub.textContent = data.fileKind || 'CAD';
+                if (fileNameEl) fileNameEl.textContent = data.fileName || 'Chưa có file CAD/G-code';
+                if (filePathEl) {
+                    const pathText = data.filePath || '';
+                    filePathEl.textContent = pathText ? this.compactPath(pathText, 86) : '-';
+                    filePathEl.title = pathText;
+                }
                 if (info && data.bounds) {
                     info.innerHTML = `<span>W: ${(data.bounds.width || 0).toFixed(1)} mm</span><span>H: ${(data.bounds.height || 0).toFixed(1)} mm</span>`;
                 }
