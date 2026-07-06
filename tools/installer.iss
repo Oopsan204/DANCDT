@@ -44,7 +44,7 @@ Source: "{#BuildDir}\{#MyAppExeName}.config"; DestDir: "{app}"; Flags: ignorever
 Source: "{#BuildDir}\*.dll"; DestDir: "{app}"; Flags: ignoreversion
 
 ; UI web assets (Web SCADA)
-Source: "{#RepoRoot}\src\DACDT_2026.App\index.html"; DestDir: "{app}\ui"; Flags: ignoreversion
+Source: "{#RepoRoot}\docs\index.html"; DestDir: "{app}\ui"; Flags: ignoreversion
 Source: "{#RepoRoot}\src\DACDT_2026.App\error_codes.js"; DestDir: "{app}\ui"; Flags: ignoreversion
 Source: "{#RepoRoot}\src\DACDT_2026.App\error_codes.json"; DestDir: "{app}\ui"; Flags: ignoreversion
 

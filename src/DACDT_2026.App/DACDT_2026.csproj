@@ -243,6 +243,11 @@
   <ItemGroup>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <Target Name="CopyCanonicalWebDashboard" AfterTargets="Build" Condition="Exists('..\..\docs\index.html')">
+    <Copy SourceFiles="..\..\docs\index.html"
+          DestinationFiles="$(TargetDir)index.html"
+          SkipUnchangedFiles="true" />
+  </Target>
   <Target Name="BuildAndCopyWebRtcCameraService" AfterTargets="Build" Condition="Exists('..\WebRtcCameraService\WebRtcCameraService.csproj')">
     <MSBuild Projects="..\WebRtcCameraService\WebRtcCameraService.csproj"
              Targets="Build"
