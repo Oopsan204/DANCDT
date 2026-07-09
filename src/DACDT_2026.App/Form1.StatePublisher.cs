@@ -317,6 +317,7 @@ namespace DACDT_2026
                 sb.AppendFormat(",\"integrityDetail\":\"{0}\"", EscapeJson(integrityDetail));
                 sb.AppendFormat(",\"integrityTone\":\"{0}\"", EscapeJson(integrityTone));
                 sb.AppendFormat(",\"jogSpeed\":{0}", currentJogSpeedD406.ToString(CultureInfo.InvariantCulture));
+                sb.AppendFormat(",\"laserPower\":{0}", FormatJsonNumber(laserPower, "0"));
                 sb.Append(",\"axes\":[");
                 for (int i = 0; i < 4; i++)
                 {
@@ -487,6 +488,14 @@ namespace DACDT_2026
         {
             if (string.IsNullOrEmpty(s)) return "";
             return s.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\n", "\\n").Replace("\r", "\\r");
+        }
+
+        private static string FormatJsonNumber(string text, string fallback)
+        {
+            double value;
+            return double.TryParse(text, NumberStyles.Any, CultureInfo.InvariantCulture, out value)
+                ? value.ToString("0.###", CultureInfo.InvariantCulture)
+                : fallback;
         }
 
         /// <summary>

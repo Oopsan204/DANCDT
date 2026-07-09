@@ -34,7 +34,7 @@
                     <TextBox Grid.Column="1" Text="{Binding FileName}" IsReadOnly="True" Margin="0,0,12,0" FontSize="13" FontWeight="Bold"/>
 
                     <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                        <TextBlock Text="Laser (%):" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center" Margin="0,0,6,0" FontWeight="SemiBold"/>
+                        <TextBlock Text="Laser (%):" Foreground="{DynamicResource MutedBrush}" VerticalAlignment="Center" Margin="0,0,6,0" FontWeight="SemiBold"/>
                         <TextBox Text="{Binding LaserPowerInput, UpdateSourceTrigger=PropertyChanged}" Width="60" VerticalAlignment="Center" Margin="0,0,6,0" HorizontalContentAlignment="Center"/>
                         <Button Content="SET POWER" Command="{Binding SetLaserPowerCommand}" Style="{StaticResource PrimaryButtonStyle}" Height="30" Padding="12,0" VerticalAlignment="Center"/>
                     </StackPanel>
@@ -43,7 +43,7 @@
                 <!-- Row 1: Action Buttons Toolbar -->
                 <WrapPanel Grid.Row="1" Orientation="Horizontal" VerticalAlignment="Center">
                     <!-- Group: File -->
-                    <Border BorderBrush="{StaticResource BorderSoftBrush}" BorderThickness="0,0,1,0" Padding="0,0,10,0" Margin="0,0,10,0">
+                    <Border BorderBrush="{DynamicResource BorderSoftBrush}" BorderThickness="0,0,1,0" Padding="0,0,10,0" Margin="0,0,10,0">
                         <StackPanel Orientation="Horizontal">
                             <Button Content="New Gcode" Command="{Binding NewGcodeCommand}" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,6,0" Width="100"/>
                             <Button Content="Open DXF" Command="{Binding OpenDxfCommand}" Style="{StaticResource PrimaryButtonStyle}" Width="100"/>
@@ -51,7 +51,7 @@
                     </Border>
 
                     <!-- Group: PLC Transfer & Setup -->
-                    <Border BorderBrush="{StaticResource BorderSoftBrush}" BorderThickness="0,0,1,0" Padding="0,0,10,0" Margin="0,0,10,0">
+                    <Border BorderBrush="{DynamicResource BorderSoftBrush}" BorderThickness="0,0,1,0" Padding="0,0,10,0" Margin="0,0,10,0">
                         <StackPanel Orientation="Horizontal">
                             <Button Content="HOME" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,6,0" Width="80" Tag="home" PreviewMouseDown="HoldButton_PreviewMouseDown" PreviewMouseUp="HoldButton_PreviewMouseUp" MouseLeave="HoldButton_MouseLeave"/>
                             <Button Content="RESET" Style="{StaticResource SecondaryButtonStyle}" Width="80" Tag="reset" PreviewMouseDown="HoldButton_PreviewMouseDown" PreviewMouseUp="HoldButton_PreviewMouseUp" MouseLeave="HoldButton_MouseLeave"/>
@@ -59,7 +59,7 @@
                     </Border>
 
                     <!-- Group: Execution -->
-                    <Border BorderBrush="{StaticResource BorderSoftBrush}" BorderThickness="0,0,1,0" Padding="0,0,10,0" Margin="0,0,10,0">
+                    <Border BorderBrush="{DynamicResource BorderSoftBrush}" BorderThickness="0,0,1,0" Padding="0,0,10,0" Margin="0,0,10,0">
                         <StackPanel Orientation="Horizontal">
                             <Button Content="RUN" IsEnabled="{Binding IsStartActionEnabled}" Style="{StaticResource PrimaryButtonStyle}" Margin="0,0,6,0" Width="80" Tag="start" PreviewMouseDown="HoldButton_PreviewMouseDown" PreviewMouseUp="HoldButton_PreviewMouseUp" MouseLeave="HoldButton_MouseLeave"/>
                             <Button Content="PAUSE" IsEnabled="{Binding IsPauseContinueEnabled}" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,6,0" Width="80" Tag="pause" PreviewMouseDown="HoldButton_PreviewMouseDown" PreviewMouseUp="HoldButton_PreviewMouseUp" MouseLeave="HoldButton_MouseLeave"/>
@@ -96,12 +96,12 @@
                     </Grid.RowDefinitions>
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="CAD Preview" Style="{StaticResource PanelTitleStyle}"/>
-                        <TextBlock Text="{Binding FileKind}" Foreground="{StaticResource MutedBrush}" Margin="12,2,0,0"/>
+                        <TextBlock Text="{Binding FileKind}" Foreground="{DynamicResource MutedBrush}" Margin="12,2,0,0"/>
                     </StackPanel>
                     <Border x:Name="CadViewport"
                             Grid.Row="1"
                             Background="#050A14"
-                            BorderBrush="{StaticResource BorderBrush}"
+                            BorderBrush="{DynamicResource BorderBrush}"
                             BorderThickness="1"
                             CornerRadius="6"
                             Margin="0,8,0,0"
@@ -301,12 +301,12 @@
                         </Grid.ColumnDefinitions>
                         <StackPanel>
                             <TextBlock Text="Process Table" Style="{StaticResource PanelTitleStyle}"/>
-                            <TextBlock Text="{Binding RunProgressText}" Foreground="{StaticResource MutedBrush}" Margin="0,2,0,0"/>
+                            <TextBlock Text="{Binding RunProgressText}" Foreground="{DynamicResource MutedBrush}" Margin="0,2,0,0"/>
                             <ProgressBar Height="8" Maximum="100" Value="{Binding RunProgressPercent, Mode=OneWay}" Margin="0,5,0,0"/>
                         </StackPanel>
                         <StackPanel Grid.Column="1" Orientation="Horizontal">
                             <ProgressBar Width="150" Height="10" Value="{Binding ProgressPercent}" Maximum="100" Visibility="{Binding ProgressVisible, Converter={StaticResource BoolToVisibilityConverter}}" Margin="0,0,8,0"/>
-                            <TextBlock Text="{Binding ProgressText}" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center"/>
+                            <TextBlock Text="{Binding ProgressText}" Foreground="{DynamicResource MutedBrush}" VerticalAlignment="Center"/>
                         </StackPanel>
                     </Grid>
 

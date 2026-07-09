@@ -26,8 +26,8 @@
                     </ItemsControl.ItemsPanel>
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
-                            <Border Background="{StaticResource PanelAltBrush}"
-                                    BorderBrush="{StaticResource BorderBrush}"
+                            <Border Background="{DynamicResource PanelAltBrush}"
+                                    BorderBrush="{DynamicResource BorderBrush}"
                                     BorderThickness="1"
                                     CornerRadius="8"
                                     Padding="10"
@@ -62,8 +62,8 @@
                 </ItemsControl>
 
                 <Border Grid.Column="1"
-                        Background="{StaticResource PanelAltBrush}"
-                        BorderBrush="{StaticResource BorderBrush}"
+                        Background="{DynamicResource PanelAltBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
                         BorderThickness="1"
                         CornerRadius="8"
                         Padding="10">
@@ -85,13 +85,13 @@
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
                             <TextBlock Text="{Binding ActiveProgramText}"
-                                       Foreground="{StaticResource MutedBrush}"
+                                       Foreground="{DynamicResource MutedBrush}"
                                        TextTrimming="CharacterEllipsis"/>
                             <TextBlock Grid.Column="1"
                                        Text="{Binding ProgressText}"
                                        FontSize="22"
                                        FontWeight="SemiBold"
-                                       Foreground="{StaticResource AccentBrush}"/>
+                                       Foreground="{DynamicResource AccentBrush}"/>
                         </Grid>
                     </Grid>
                 </Border>
@@ -116,7 +116,7 @@
                         <TextBlock Text="{Binding ProgramMonitorSubtitle}" Style="{StaticResource PanelSubtitleStyle}" TextTrimming="CharacterEllipsis"/>
                     </StackPanel>
                     <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                        <TextBlock Text="{Binding ActiveProgramText}" Foreground="{StaticResource MutedBrush}" Margin="0,0,8,0"/>
+                        <TextBlock Text="{Binding ActiveProgramText}" Foreground="{DynamicResource MutedBrush}" Margin="0,0,8,0"/>
                         <Ellipse Width="12" Height="12" Fill="{Binding IsConnected, Converter={StaticResource BoolToStatusBrushConverter}}"/>
                     </StackPanel>
                 </Grid>
@@ -127,8 +127,8 @@
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
-                        <TextBlock Text="{Binding RunProgressText}" Foreground="{StaticResource MutedBrush}"/>
-                        <TextBlock Grid.Column="1" Text="{Binding ProgressText}" Foreground="{StaticResource MutedBrush}"
+                        <TextBlock Text="{Binding RunProgressText}" Foreground="{DynamicResource MutedBrush}"/>
+                        <TextBlock Grid.Column="1" Text="{Binding ProgressText}" Foreground="{DynamicResource MutedBrush}"
                                    Visibility="{Binding ProgressVisible, Converter={StaticResource BoolToVisibilityConverter}}"/>
                     </Grid>
                     <ProgressBar Height="8"
@@ -153,11 +153,11 @@
                           ScrollViewer.ScrollChanged="ProgramGrid_ScrollChanged"
                           HorizontalScrollBarVisibility="Auto"
                           Margin="0,8,0,0"
-                          Background="{StaticResource PanelAltBrush}">
+                          Background="{DynamicResource PanelAltBrush}">
                     <DataGrid.RowStyle>
                         <Style TargetType="{x:Type DataGridRow}">
                             <Setter Property="MinHeight" Value="28"/>
-                            <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+                            <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding IsActive}" Value="True">
                                     <Setter Property="Background" Value="#1E4E3A"/>
@@ -199,7 +199,7 @@
                     </StackPanel>
                     <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                         <Ellipse Width="12" Height="12" Fill="{Binding IsCameraRunning, Converter={StaticResource BoolToStatusBrushConverter}}" Margin="0,0,6,0"/>
-                        <TextBlock Text="{Binding CameraRecordingText}" Foreground="{StaticResource MutedBrush}"/>
+                        <TextBlock Text="{Binding CameraRecordingText}" Foreground="{DynamicResource MutedBrush}"/>
                     </StackPanel>
                 </Grid>
 
@@ -225,7 +225,7 @@
 
                 <Border Grid.Row="2"
                         Background="#050A13"
-                        BorderBrush="{StaticResource BorderBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
                         BorderThickness="1"
                         CornerRadius="8"
                         ClipToBounds="True">
@@ -234,7 +234,7 @@
                                Stretch="Uniform"
                                RenderOptions.BitmapScalingMode="HighQuality"/>
                         <TextBlock Text="Camera preview"
-                                   Foreground="{StaticResource MutedBrush}"
+                                   Foreground="{DynamicResource MutedBrush}"
                                    HorizontalAlignment="Center"
                                    VerticalAlignment="Center">
                             <TextBlock.Style>
@@ -253,7 +253,7 @@
 
                 <TextBlock Grid.Row="3"
                            Text="{Binding CameraRecordingPath}"
-                           Foreground="{StaticResource MutedBrush}"
+                           Foreground="{DynamicResource MutedBrush}"
                            TextTrimming="CharacterEllipsis"
                            Margin="0,8,0,0"/>
             </Grid>

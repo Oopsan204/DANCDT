@@ -26,8 +26,8 @@
             </StackPanel>
 
             <Border Grid.Row="2"
-                    Background="{StaticResource PanelAltBrush}"
-                    BorderBrush="{StaticResource BorderBrush}"
+                    Background="{DynamicResource PanelAltBrush}"
+                    BorderBrush="{DynamicResource BorderBrush}"
                     BorderThickness="1"
                     CornerRadius="8"
                     Padding="8"
@@ -50,8 +50,8 @@
                         </Grid.ColumnDefinitions>
                         <Button Grid.Row="0" Grid.Column="1" Content="Up" Tag="2" Style="{StaticResource PrimaryButtonStyle}" PreviewMouseDown="JogButton_PreviewMouseDown" PreviewMouseUp="JogButton_PreviewMouseUp" MouseLeave="JogButton_MouseLeave"/>
                         <Button Grid.Row="1" Grid.Column="0" Content="Left" Tag="1" Style="{StaticResource PrimaryButtonStyle}" PreviewMouseDown="JogButton_PreviewMouseDown" PreviewMouseUp="JogButton_PreviewMouseUp" MouseLeave="JogButton_MouseLeave"/>
-                        <Border Grid.Row="1" Grid.Column="1" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="6" Margin="3">
-                            <TextBlock Text="XY" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{StaticResource MutedBrush}" FontWeight="Bold"/>
+                        <Border Grid.Row="1" Grid.Column="1" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6" Margin="3">
+                            <TextBlock Text="XY" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{DynamicResource MutedBrush}" FontWeight="Bold"/>
                         </Border>
                         <Button Grid.Row="1" Grid.Column="2" Content="Right" Tag="0" Style="{StaticResource PrimaryButtonStyle}" PreviewMouseDown="JogButton_PreviewMouseDown" PreviewMouseUp="JogButton_PreviewMouseUp" MouseLeave="JogButton_MouseLeave"/>
                         <Button Grid.Row="2" Grid.Column="1" Content="Down" Tag="3" Style="{StaticResource PrimaryButtonStyle}" PreviewMouseDown="JogButton_PreviewMouseDown" PreviewMouseUp="JogButton_PreviewMouseUp" MouseLeave="JogButton_MouseLeave"/>
@@ -66,7 +66,7 @@
                         <Button Grid.Column="1" Content="Z-" Tag="5" Style="{StaticResource PrimaryButtonStyle}" Margin="4,0,0,0" PreviewMouseDown="JogButton_PreviewMouseDown" PreviewMouseUp="JogButton_PreviewMouseUp" MouseLeave="JogButton_MouseLeave"/>
                     </Grid>
 
-                    <TextBlock Text="Jog speed D406 (mm/min)" Foreground="{StaticResource MutedBrush}" Margin="0,8,0,3" FontSize="11"/>
+                    <TextBlock Text="Jog speed D406 (mm/min)" Foreground="{DynamicResource MutedBrush}" Margin="0,8,0,3" FontSize="11"/>
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
@@ -76,7 +76,7 @@
                         <Button Grid.Column="1" Content="SET" Command="{Binding SetJogSpeedCommand}" Style="{StaticResource PrimaryButtonStyle}"/>
                     </Grid>
                     <TextBlock Text="{Binding JogSpeedD406, StringFormat=Live: {0:F3} mm/min}"
-                               Foreground="{StaticResource MutedBrush}"
+                               Foreground="{DynamicResource MutedBrush}"
                                Margin="0,6,0,0"
                                FontSize="11"/>
                 </StackPanel>

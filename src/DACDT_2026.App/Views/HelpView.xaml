@@ -15,8 +15,8 @@
                            Style="{StaticResource PanelSubtitleStyle}"
                            Margin="0,4,0,14"/>
 
-                <Border Background="#111827" BorderBrush="#334155" BorderThickness="1" CornerRadius="10" Padding="14" Margin="0,0,0,16">
-                    <TextBlock TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" LineHeight="20">
+                <Border Background="{DynamicResource HelpCalloutBrush}" BorderBrush="{DynamicResource HelpCalloutBorderBrush}" BorderThickness="1" CornerRadius="10" Padding="14" Margin="0,0,0,16">
+                    <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" LineHeight="20">
                         Tài liệu này hướng dẫn vận hành phần mềm điều khiển robot gantry DACDT 2026. 
                         Hãy đọc theo thứ tự từ trên xuống khi mới sử dụng. Khi vận hành thực tế, luôn kiểm tra vùng làm việc,
                         tọa độ, tốc độ, trạng thái PLC và nút dừng khẩn cấp trước khi cho robot chạy.
@@ -28,7 +28,7 @@
                            FontWeight="Bold"
                            Foreground="White"
                            Margin="0,4,0,8"/>
-                <TextBlock TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" LineHeight="22" Margin="0,0,0,18">
+                <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" LineHeight="22" Margin="0,0,0,18">
                     1. Tổng quan màn hình&#x0a;
                     2. Quy trình khởi động an toàn&#x0a;
                     3. Kết nối PLC và trạng thái hệ thống&#x0a;
@@ -47,12 +47,12 @@
                            FontWeight="Bold"
                            Foreground="White"
                            Margin="0,12,0,6"/>
-                <TextBlock TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" LineHeight="21">
+                <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" LineHeight="21">
                     Ứng dụng gồm thanh điều hướng bên trái và vùng làm việc chính bên phải. Các tab chính gồm Dashboard,
                     DXF/G-code Run, Monitor, Telemetry, Logs, Settings và Help. App được cấu hình chạy toàn màn hình,
                     không có nút X/thu nhỏ/phóng to của Windows. Muốn thoát app phải dùng nút EXIT APP trong giao diện.
                 </TextBlock>
-                <TextBlock TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" LineHeight="21" Margin="0,8,0,0">
+                <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" LineHeight="21" Margin="0,8,0,0">
                     Dashboard dùng để theo dõi nhanh vị trí, tốc độ, mã M, lỗi và trạng thái từng trục. DXF/G-code Run
                     dùng để mở file, xem CAD preview, kiểm tra bảng lệnh và gửi dữ liệu xuống PLC. Monitor dùng cho camera.
                     Telemetry và Logs dùng để kiểm tra sâu khi cần debug PLC hoặc quá trình truyền dữ liệu.
@@ -63,7 +63,7 @@
                            FontWeight="Bold"
                            Foreground="White"
                            Margin="0,18,0,6"/>
-                <TextBlock TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" LineHeight="22">
+                <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" LineHeight="22">
                     Bước 1: Mở app và kiểm tra màn hình ở trạng thái bình thường, không có cảnh báo lỗi lớn.&#x0a;
                     Bước 2: Kiểm tra PLC đã bật, dây mạng/kết nối MX Component ổn định.&#x0a;
                     Bước 3: Vào phần kết nối PLC, nhập đúng logical station hoặc thông số kết nối đang dùng.&#x0a;
@@ -78,12 +78,12 @@
                            FontWeight="Bold"
                            Foreground="White"
                            Margin="0,18,0,6"/>
-                <TextBlock TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" LineHeight="21">
+                <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" LineHeight="21">
                     Khi PLC đã kết nối, app sẽ đọc dữ liệu vị trí, tốc độ, trạng thái trục, mã lỗi và các vùng buffer.
                     Nếu PLC mất kết nối, các nút điều khiển quan trọng có thể báo lỗi hoặc không thực hiện được. Khi gặp lỗi
                     kết nối, hãy kiểm tra nguồn PLC, cáp, địa chỉ logical station, quyền MX Component và trạng thái mạng.
                 </TextBlock>
-                <TextBlock TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" LineHeight="21" Margin="0,8,0,0">
+                <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" LineHeight="21" Margin="0,8,0,0">
                     Ý nghĩa nhanh: Connected là đã kết nối PLC. READY là app sẵn sàng thao tác. RUN là đang chạy hoặc có
                     chương trình hoạt động. ERROR/WARNING là cần đọc log hoặc mã lỗi trước khi tiếp tục.
                 </TextBlock>
@@ -93,7 +93,7 @@
                            FontWeight="Bold"
                            Foreground="White"
                            Margin="0,18,0,6"/>
-                <TextBlock TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" LineHeight="22">
+                <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" LineHeight="22">
                     Các nút RUN, PAUSE, CONTINUE và STOP là dạng nhấn một lần rồi tự nhả, không phải công tắc giữ trạng thái.&#x0a;
                     RUN: ghi M2000 = 1, chờ 100 ms, sau đó ghi M2000 = 0. Trước khi chạy, app sẽ chuẩn bị/gửi dữ liệu cần thiết.&#x0a;
                     PAUSE: ghi M210 = 1, chờ 100 ms, sau đó ghi M210 = 0. Dùng để tạm dừng theo logic PLC.&#x0a;
@@ -112,11 +112,11 @@
                            FontWeight="Bold"
                            Foreground="White"
                            Margin="0,18,0,6"/>
-                <TextBlock TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" LineHeight="21">
+                <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" LineHeight="21">
                     Jog tay dùng để di chuyển từng trục khi căn chỉnh máy. Giữ nút jog để chạy, nhả nút để dừng. 
                     Tốc độ jog được ghi bằng D406, đơn vị mm/min. Trước khi jog, nên đặt tốc độ thấp để tránh va chạm.
                 </TextBlock>
-                <TextBlock TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" LineHeight="21" Margin="0,8,0,0">
+                <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" LineHeight="21" Margin="0,8,0,0">
                     HOME dùng để đưa trục hoặc toàn bộ hệ về vị trí gốc theo logic PLC. RESET dùng để reset lỗi hoặc trạng thái
                     lỗi đã được xử lý. Không nhấn HOME khi đang có vật cản hoặc chưa kiểm tra hành trình máy.
                 </TextBlock>
@@ -126,12 +126,12 @@
                            FontWeight="Bold"
                            Foreground="White"
                            Margin="0,18,0,6"/>
-                <TextBlock TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" LineHeight="22">
+                <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" LineHeight="22">
                     Vào tab DXF/G-code Run để mở file. App hỗ trợ các file DXF và một số file NC/G-code thông dụng. Sau khi mở,
                     kiểm tra CAD Preview trước. Dùng con lăn chuột để zoom, kéo chuột để pan và double-click để reset view nếu có hỗ trợ.
                     Bảng Process Table hiển thị thứ tự điểm/lệnh sẽ dùng để chạy. Geometry Data hiển thị dữ liệu hình học chi tiết.
                 </TextBlock>
-                <TextBlock TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" LineHeight="22" Margin="0,8,0,0">
+                <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" LineHeight="22" Margin="0,8,0,0">
                     Trước khi gửi xuống PLC, hãy kiểm tra: hình vẽ có đúng chiều không, điểm bắt đầu có hợp lý không, vùng làm việc
                     có vượt giới hạn không, tốc độ có phù hợp không, WCS G54-G59 có offset đúng không, và Z/speed/dwell có đúng với
                     đầu công tác đang dùng không.
@@ -142,7 +142,7 @@
                            FontWeight="Bold"
                            Foreground="White"
                            Margin="0,18,0,6"/>
-                <TextBlock TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" LineHeight="22">
+                <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" LineHeight="22">
                     Quy trình khuyến nghị:&#x0a;
                     1) Kết nối PLC thành công.&#x0a;
                     2) Mở file DXF/G-code.&#x0a;
@@ -152,7 +152,7 @@
                     6) Nhấn RUN để chạy.&#x0a;
                     7) Khi cần tạm dừng dùng PAUSE, chạy tiếp dùng CONTINUE, dừng quy trình dùng STOP.
                 </TextBlock>
-                <TextBlock TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" LineHeight="21" Margin="0,8,0,0">
+                <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" LineHeight="21" Margin="0,8,0,0">
                     Không nên nhấn RUN liên tục. Sau mỗi lần gửi dữ liệu hoặc nhấn RUN, hãy quan sát trạng thái trục và log để chắc
                     PLC đã nhận đúng lệnh. Nếu bảng Process Table rỗng hoặc sai thứ tự điểm, không chạy máy.
                 </TextBlock>
@@ -162,12 +162,12 @@
                            FontWeight="Bold"
                            Foreground="White"
                            Margin="0,18,0,6"/>
-                <TextBlock TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" LineHeight="21">
+                <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" LineHeight="21">
                     Tab Monitor dùng để chọn camera, xem hình trực tiếp và ghi hình nếu cần. START bật camera, STOP tắt camera.
                     REC bắt đầu ghi, STOP REC dừng ghi. Nếu web dashboard đang xem camera qua WebRTC, app sẽ truyền hình qua
                     WebRtcCameraService nền.
                 </TextBlock>
-                <TextBlock TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" LineHeight="21" Margin="0,8,0,0">
+                <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" LineHeight="21" Margin="0,8,0,0">
                     Nếu camera không hiện trên web, kiểm tra app điều khiển có đang bật camera không, MQTT có Connected không,
                     WebRtcCameraService có chạy không, và log có báo lỗi WebRTC/candidate/connection không. Nếu camera trong app có hình
                     nhưng web đen, thử dừng WebRTC rồi bật lại stream.
@@ -178,12 +178,12 @@
                            FontWeight="Bold"
                            Foreground="White"
                            Margin="0,18,0,6"/>
-                <TextBlock TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" LineHeight="22">
+                <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" LineHeight="22">
                     Settings dùng để cấu hình tham số vận hành. DXF Offset X/Y dịch hình chạy theo mm. Workspace giới hạn vùng làm việc
                     để dễ quan sát và tránh chạy ngoài vùng. Rapid speed/G00 speed dùng cho di chuyển nhanh. M03/M04 speed và dwell dùng
                     cho các lệnh xử lý tương ứng.
                 </TextBlock>
-                <TextBlock TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" LineHeight="21" Margin="0,8,0,0">
+                <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" LineHeight="21" Margin="0,8,0,0">
                     WCS G54-G59 là offset hệ tọa độ làm việc. Nếu file G-code dùng G54/G55/... thì app sẽ áp offset tương ứng vào dữ liệu.
                     Sau khi sửa thông số, nhấn Apply/Save nếu giao diện có nút lưu để đảm bảo thông số được cập nhật.
                 </TextBlock>
@@ -193,12 +193,12 @@
                            FontWeight="Bold"
                            Foreground="White"
                            Margin="0,18,0,6"/>
-                <TextBlock TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" LineHeight="21">
+                <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" LineHeight="21">
                     Telemetry dùng để đọc thanh ghi hoặc buffer PLC khi cần kiểm tra sâu. Logs ghi lại thao tác đọc/ghi PLC, kết nối MQTT,
                     WebRTC, camera, gửi dữ liệu và lỗi phát sinh. Khi robot không chạy đúng, hãy đọc log theo thứ tự thời gian để biết
                     lệnh nào đã được gửi, địa chỉ nào bị lỗi và PLC trả trạng thái gì.
                 </TextBlock>
-                <TextBlock TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" LineHeight="21" Margin="0,8,0,0">
+                <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" LineHeight="21" Margin="0,8,0,0">
                     Khi báo lỗi, nên ghi lại: thời điểm lỗi, file đang chạy, trục nào lỗi, mã lỗi PLC, trạng thái MQTT, trạng thái camera
                     và vài dòng log gần nhất. Các thông tin này giúp truy nguyên nhanh hơn nhiều so với chỉ nói “không chạy”.
                 </TextBlock>
@@ -208,7 +208,7 @@
                            FontWeight="Bold"
                            Foreground="White"
                            Margin="0,18,0,6"/>
-                <TextBlock TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" LineHeight="22">
+                <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" LineHeight="22">
                     App không dùng nút X của Windows. Muốn thoát, dùng EXIT APP trên giao diện. Khi nhấn EXIT APP, app hiển thị hộp thoại
                     xác nhận để tránh thoát nhầm. Nếu robot không chạy, chọn Yes sẽ đóng app ngay. Nếu robot đang chạy, chọn Yes sẽ ghi
                     M213 = 1, chờ 500 ms, sau đó tự đóng app. Không cần nhấn EXIT APP lần thứ hai.
@@ -225,7 +225,7 @@
                            FontWeight="Bold"
                            Foreground="White"
                            Margin="0,18,0,6"/>
-                <TextBlock TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" LineHeight="22">
+                <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" LineHeight="22">
                     PLC không kết nối: kiểm tra PLC bật chưa, logical station đúng chưa, MX Component có lỗi không, dây mạng/USB ổn không.&#x0a;
                     RUN không chạy: kiểm tra đã gửi dữ liệu xuống PLC chưa, bảng Process Table có dữ liệu chưa, PLC có lỗi hoặc warning không.&#x0a;
                     STOP không dừng như mong muốn: kiểm tra ladder PLC đang xử lý M210 đúng chưa, buffer đã được clear chưa, log có ghi lỗi clear không.&#x0a;
@@ -239,7 +239,7 @@
                            FontWeight="Bold"
                            Foreground="White"
                            Margin="0,18,0,6"/>
-                <TextBlock TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" LineHeight="22" Margin="0,0,0,10">
+                <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" LineHeight="22" Margin="0,0,0,10">
                     □ PLC Connected.&#x0a;
                     □ Không có lỗi/warning nguy hiểm trên PLC.&#x0a;
                     □ Vùng chạy không có vật cản.&#x0a;

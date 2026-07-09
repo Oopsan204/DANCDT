@@ -30,6 +30,7 @@ namespace DACDT_2026.Tests
                 DecimalJogSpeedInputAcceptsDotAndComma();
                 WebCadUploadReassemblesChunks();
                 WebCadUploadRejectsUnsupportedFiles();
+                WpfThemeManagerAppliesLightAndDarkPalettes();
                 Console.WriteLine("All tests passed.");
                 return 0;
             }
@@ -348,6 +349,31 @@ namespace DACDT_2026.Tests
             AssertTrue(WebCadUploadSession.IsAllowedFileName("shape.dxf"), "DXF upload should be accepted.");
             AssertTrue(WebCadUploadSession.IsAllowedFileName("laser.nc"), "NC/G-code upload should be accepted.");
             AssertTrue(!WebCadUploadSession.IsAllowedFileName("notes.pdf"), "Non-CAD upload should be rejected.");
+        }
+
+        private static void WpfThemeManagerAppliesLightAndDarkPalettes()
+        {
+            var resources = new System.Windows.ResourceDictionary
+            {
+                ["BgBrush"] = new System.Windows.Media.SolidColorBrush(),
+                ["TextBrush"] = new System.Windows.Media.SolidColorBrush(),
+                ["PanelBrush"] = new System.Windows.Media.SolidColorBrush(),
+                ["CardHeaderBrush"] = new System.Windows.Media.SolidColorBrush(),
+                ["CardHeaderTextBrush"] = new System.Windows.Media.SolidColorBrush()
+            };
+
+            AssertEqual("light", WpfThemeManager.Apply("light", resources), "Theme manager should accept light theme.");
+            AssertEqual("#FFE9EEF5", ((System.Windows.Media.SolidColorBrush)resources["BgBrush"]).Color.ToString(), "Light theme should apply a soft slate background.");
+            AssertEqual("#FF102033", ((System.Windows.Media.SolidColorBrush)resources["TextBrush"]).Color.ToString(), "Light theme should keep readable dark text.");
+            AssertEqual("#FFDCEAFE", ((System.Windows.Media.SolidColorBrush)resources["CardHeaderBrush"]).Color.ToString(), "Light axis card header should use a calm blue header.");
+            AssertEqual("#FF0C2540", ((System.Windows.Media.SolidColorBrush)resources["CardHeaderTextBrush"]).Color.ToString(), "Light axis card header text should be readable.");
+
+            AssertEqual("dark", WpfThemeManager.Apply("bad-value", resources), "Unknown theme should fall back to dark.");
+            AssertEqual("#FF0B1120", ((System.Windows.Media.SolidColorBrush)resources["BgBrush"]).Color.ToString(), "Dark theme should restore the dark app background.");
+            AssertEqual("#FF18233A", ((System.Windows.Media.SolidColorBrush)resources["CardHeaderBrush"]).Color.ToString(), "Dark axis card header should keep the dark dashboard style.");
+            AssertEqual("#FFE5E7EB", ((System.Windows.Media.SolidColorBrush)resources["CardHeaderTextBrush"]).Color.ToString(), "Dark axis card header text should stay light.");
+            AssertEqual("light", WpfThemeManager.Toggle("dark"), "Dark should toggle to light.");
+            AssertEqual("dark", WpfThemeManager.Toggle("light"), "Light should toggle to dark.");
         }
 
         private static void AssertEqual(string expected, string actual, string message)

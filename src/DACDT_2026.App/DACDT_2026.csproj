@@ -143,6 +143,7 @@
     <Compile Include="PlcConnectionGuard.cs" />
     <Compile Include="PlcFloatWordCodec.cs" />
     <Compile Include="WebCadUploadSession.cs" />
+    <Compile Include="WpfThemeManager.cs" />
     <Compile Include="Form1.cs">
       <SubType>Code</SubType>
     </Compile>

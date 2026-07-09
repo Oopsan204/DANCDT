@@ -235,7 +235,10 @@ namespace DACDT_2026
             set
             {
                 if (SetProperty(ref currentTheme, value))
+                {
                     OnPropertyChanged(nameof(IsDarkTheme));
+                    OnPropertyChanged(nameof(ThemeToggleText));
+                }
             }
         }
 
@@ -247,6 +250,7 @@ namespace DACDT_2026
         public bool IsSettingsView => CurrentView == "settings";
         public bool IsHelpView => CurrentView == "help";
         public bool IsDarkTheme => CurrentTheme == "dark";
+        public string ThemeToggleText => IsDarkTheme ? "☀ Sáng" : "🌙 Tối";
 
         public bool IsConnected
         {

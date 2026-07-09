@@ -31,8 +31,8 @@
                     </ItemsControl.ItemsPanel>
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
-                            <Border Background="{StaticResource PanelAltBrush}"
-                                    BorderBrush="{StaticResource BorderBrush}"
+                            <Border Background="{DynamicResource PanelAltBrush}"
+                                    BorderBrush="{DynamicResource BorderBrush}"
                                     BorderThickness="1"
                                     CornerRadius="8"
                                     Padding="10"
@@ -46,11 +46,12 @@
                                         <RowDefinition Height="Auto"/>
                                     </Grid.RowDefinitions>
 
-                                    <Border Background="#18233A"
+                                    <Border Background="{DynamicResource CardHeaderBrush}"
                                             CornerRadius="6,6,0,0"
                                             Padding="0,0,0,8"
                                             Margin="-10,-10,-10,10">
                                         <TextBlock Text="{Binding Name}"
+                                                   Foreground="{DynamicResource CardHeaderTextBrush}"
                                                    FontSize="15"
                                                    FontWeight="Bold"
                                                    Margin="10,8,10,0"/>
@@ -151,19 +152,19 @@
                                     </StackPanel>
 
                                     <Border Grid.Row="2"
-                                            BorderBrush="{StaticResource BorderBrush}"
+                                            BorderBrush="{DynamicResource BorderBrush}"
                                             BorderThickness="0,1,0,0"
                                             Padding="0,7,0,0"
                                             Margin="0,8,0,0">
                                         <WrapPanel>
                                             <Ellipse Width="7" Height="7" Fill="{Binding LimitMinus, Converter={StaticResource BoolToStatusBrushConverter}}" Margin="0,0,4,0"/>
-                                            <TextBlock Text="LIM-" Foreground="{StaticResource MutedBrush}" FontSize="10" Margin="0,0,8,0"/>
+                                            <TextBlock Text="LIM-" Foreground="{DynamicResource MutedBrush}" FontSize="10" Margin="0,0,8,0"/>
                                             <Ellipse Width="7" Height="7" Fill="{Binding LimitPlus, Converter={StaticResource BoolToStatusBrushConverter}}" Margin="0,0,4,0"/>
-                                            <TextBlock Text="LIM+" Foreground="{StaticResource MutedBrush}" FontSize="10" Margin="0,0,8,0"/>
+                                            <TextBlock Text="LIM+" Foreground="{DynamicResource MutedBrush}" FontSize="10" Margin="0,0,8,0"/>
                                             <Ellipse Width="7" Height="7" Fill="{Binding HomeDog, Converter={StaticResource BoolToStatusBrushConverter}}" Margin="0,0,4,0"/>
-                                            <TextBlock Text="HOME" Foreground="{StaticResource MutedBrush}" FontSize="10" Margin="0,0,8,0"/>
+                                            <TextBlock Text="HOME" Foreground="{DynamicResource MutedBrush}" FontSize="10" Margin="0,0,8,0"/>
                                             <Ellipse Width="7" Height="7" Fill="{Binding IsComplete, Converter={StaticResource BoolToStatusBrushConverter}}" Margin="0,0,4,0"/>
-                                            <TextBlock Text="DONE" Foreground="{StaticResource MutedBrush}" FontSize="10"/>
+                                            <TextBlock Text="DONE" Foreground="{DynamicResource MutedBrush}" FontSize="10"/>
                                         </WrapPanel>
                                     </Border>
                                 </Grid>
@@ -192,7 +193,7 @@
                         <TextBlock Text="{Binding ProgramMonitorSubtitle}" Style="{StaticResource PanelSubtitleStyle}" TextTrimming="CharacterEllipsis"/>
                     </StackPanel>
                     <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                        <TextBlock Text="{Binding ActiveProgramText}" Foreground="{StaticResource MutedBrush}" Margin="0,0,8,0"/>
+                        <TextBlock Text="{Binding ActiveProgramText}" Foreground="{DynamicResource MutedBrush}" Margin="0,0,8,0"/>
                         <Ellipse Width="12" Height="12" Fill="{Binding IsConnected, Converter={StaticResource BoolToStatusBrushConverter}}"/>
                     </StackPanel>
                 </Grid>
@@ -203,8 +204,8 @@
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
-                        <TextBlock Text="{Binding RunProgressText}" Foreground="{StaticResource MutedBrush}"/>
-                        <TextBlock Grid.Column="1" Text="{Binding ProgressText}" Foreground="{StaticResource MutedBrush}"
+                        <TextBlock Text="{Binding RunProgressText}" Foreground="{DynamicResource MutedBrush}"/>
+                        <TextBlock Grid.Column="1" Text="{Binding ProgressText}" Foreground="{DynamicResource MutedBrush}"
                                    Visibility="{Binding ProgressVisible, Converter={StaticResource BoolToVisibilityConverter}}"/>
                     </Grid>
                     <ProgressBar Height="8"
@@ -229,11 +230,11 @@
                           ScrollViewer.ScrollChanged="ProgramGrid_ScrollChanged"
                           HorizontalScrollBarVisibility="Auto"
                           Margin="0,8,0,0"
-                          Background="{StaticResource PanelAltBrush}">
+                          Background="{DynamicResource PanelAltBrush}">
                     <DataGrid.RowStyle>
                         <Style TargetType="{x:Type DataGridRow}">
                             <Setter Property="MinHeight" Value="28"/>
-                            <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+                            <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding IsActive}" Value="True">
                                     <Setter Property="Background" Value="#1E4E3A"/>
@@ -259,7 +260,7 @@
             <StackPanel>
                 <TextBlock Text="System Connectivity" Style="{StaticResource PanelTitleStyle}"/>
                 <TextBlock Text="Mitsubishi PLC Network Interface" Style="{StaticResource PanelSubtitleStyle}"/>
-                <TextBlock Text="Logical station no." Foreground="{StaticResource MutedBrush}" FontSize="11" Margin="0,8,0,3"/>
+                <TextBlock Text="Logical station no." Foreground="{DynamicResource MutedBrush}" FontSize="11" Margin="0,8,0,3"/>
                 <TextBox Text="{Binding LogicalStationInput, UpdateSourceTrigger=PropertyChanged}"/>
                 <Button Content="{Binding ConnectionButtonText}" Command="{Binding ConnectToggleCommand}" Style="{StaticResource PrimaryButtonStyle}" Margin="0,8,0,0"/>
 
@@ -284,7 +285,7 @@
                     <Button Grid.Column="1" Content="STOP" Command="{Binding StopRunCommand}" Style="{StaticResource DangerButtonStyle}" Margin="4,0,4,0"/>
                     <Button Grid.Column="2" Content="PAUSE" IsEnabled="{Binding IsPauseContinueEnabled}" Style="{StaticResource SecondaryButtonStyle}" Margin="4,0,0,0" Tag="pause" PreviewMouseDown="HoldButton_PreviewMouseDown" PreviewMouseUp="HoldButton_PreviewMouseUp" MouseLeave="HoldButton_MouseLeave"/>
                 </Grid>
-                <TextBlock Text="{Binding ConnectionMeta}" Foreground="{StaticResource MutedBrush}" Margin="0,8,0,0" TextWrapping="Wrap"/>
+                <TextBlock Text="{Binding ConnectionMeta}" Foreground="{DynamicResource MutedBrush}" Margin="0,8,0,0" TextWrapping="Wrap"/>
             </StackPanel>
         </Border>
 
@@ -301,8 +302,8 @@
                 <ListBox Grid.Row="1"
                          ItemsSource="{Binding Events}"
                          Margin="0,8,0,0"
-                         Background="{StaticResource PanelAltBrush}"
-                         BorderBrush="{StaticResource BorderBrush}">
+                         Background="{DynamicResource PanelAltBrush}"
+                         BorderBrush="{DynamicResource BorderBrush}">
                     <ListBox.ItemTemplate>
                         <DataTemplate>
                             <StackPanel Margin="2">
@@ -311,7 +312,7 @@
                                     <Run Text="  "/>
                                     <Run Text="{Binding Title}" FontWeight="Bold"/>
                                 </TextBlock>
-                                <TextBlock Text="{Binding Message}" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap"/>
+                                <TextBlock Text="{Binding Message}" Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap"/>
                             </StackPanel>
                         </DataTemplate>
                     </ListBox.ItemTemplate>

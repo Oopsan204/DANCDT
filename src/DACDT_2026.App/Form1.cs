@@ -155,6 +155,8 @@ namespace DACDT_2026
             LoadSettingsFromFile();
             ConfigureCommands();
             SyncSettingsToUi();
+            currentTheme = WpfThemeManager.Apply(currentTheme, Resources);
+            ui.CurrentTheme = currentTheme;
             mqttService.MessageReceived += MqttService_MessageReceived;
             StartBackgroundVideoService();
 
@@ -194,7 +196,9 @@ namespace DACDT_2026
             });
             ui.ToggleThemeCommand = new RelayCommand(async () =>
             {
-                currentTheme = currentTheme == "dark" ? "light" : "dark";
+                currentTheme = WpfThemeManager.Apply(WpfThemeManager.Toggle(currentTheme), Resources);
+                ui.CurrentTheme = currentTheme;
+                SaveSettingsToFile();
                 await PushNavigationStateAsync();
             });
             ui.ConnectToggleCommand = new RelayCommand(() => HandleConnectToggleAsync(Payload("station", ui.LogicalStationInput)));
@@ -453,6 +457,7 @@ namespace DACDT_2026
             ui.WorkspaceHeightInput = workspaceHeight;
             ui.ActiveWcs = activeWcs;
             ui.LaserPowerInput = laserPower;
+            ui.CurrentTheme = currentTheme;
             SyncWcsOffsetsToUi();
         }
 
@@ -515,6 +520,7 @@ namespace DACDT_2026
                         case "memberPassword": memberPassword = val; break;
                         case "activeWcs": activeWcs = val; break;
                         case "laserPower": laserPower = val; break;
+                        case "theme": currentTheme = WpfThemeManager.Normalize(val); break;
                         default:
                             for (int i = 0; i < 6; i++)
                             {
@@ -559,6 +565,7 @@ namespace DACDT_2026
                     $"memberPassword={memberPassword}",
                     $"activeWcs={activeWcs}",
                     $"laserPower={laserPower}",
+                    $"theme={currentTheme}",
                 };
                 for (int i = 0; i < 6; i++)
                 {

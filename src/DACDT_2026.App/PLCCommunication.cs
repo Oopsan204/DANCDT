@@ -357,13 +357,13 @@ namespace DACDT_2026
                     int resRead = Dev.GetDevice($"U{startIO:X}\\G{address}", out val);
                     if (resRead != 0) return resRead;
 
-                    short current = (short)val;
+                    ushort currentWord = unchecked((ushort)val);
 
                     // Bước 2: Xóa 2 bit b0, b1 về 0 (AND với 0xFFFC ~ -4)
-                    current = (short)(current & ~0x0003);
+                    currentWord = (ushort)(currentWord & 0xFFFC);
 
                     // Bước 3: Ghi giá trị mới (00, 01, 11)
-                    current = (short)(current | (da1Value & 0x0003));
+                    short current = unchecked((short)(currentWord | ((ushort)da1Value & 0x0003)));
 
                     // Bước 4: Ghi xuống PLC
                     try
@@ -402,11 +402,11 @@ namespace DACDT_2026
                     int resRead = Dev.GetDevice($"U{startIO:X}\\G{address}", out val);
                     if (resRead != 0) return resRead;
 
-                    short current = (short)val;
+                    ushort currentWord = unchecked((ushort)val);
 
                     // Keep upper bits, replace only Positioning Identifier field (b0..b4).
-                    current = (short)(current & ~0x001F);
-                    current = (short)(current | (identifierValue & 0x001F));
+                    currentWord = (ushort)(currentWord & 0xFFE0);
+                    short current = unchecked((short)(currentWord | ((ushort)identifierValue & 0x001F)));
 
                     try
                     {
