@@ -1,0 +1,10 @@
+{
+  "name": "dacdt-2026-docs",
+  "private": true,
+  "scripts": {
+    "mermaid:render": "npx --yes @mermaid-js/mermaid-cli@11.16.0 -i docs/architecture/dacdt-2026-architecture.mmd -o docs/architecture/dacdt-2026-architecture.svg"
+  },
+  "devDependencies": {
+    "mermaid": "^11.16.0"
+  }
+}

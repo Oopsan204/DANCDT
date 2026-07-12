@@ -18,6 +18,12 @@ tools/                   Simulator and installer scripts
 docs/                    Notes, handoff, plans, and project documentation
 ```
 
+## Architecture diagram
+
+Mermaid source lives in `docs/architecture/dacdt-2026-architecture.mmd`.
+The rendered Markdown version is `docs/architecture/dacdt-2026-mermaid.md`.
+The generated SVG is `docs/architecture/dacdt-2026-architecture.svg`.
+
 Standalone DXF library experiments were moved outside this do-an repository to:
 
 ```text
