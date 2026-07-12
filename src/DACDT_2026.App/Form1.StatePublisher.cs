@@ -165,8 +165,8 @@ namespace DACDT_2026
             await PublishCadStateToMqttAsync(connected);
         }
 
-        private const int MaxWebCadPrimitives = 2000;
-        private const int MaxWebCadPointsPerPrimitive = 256;
+        private const int MaxWebCadPrimitives = 500;
+        private const int MaxWebCadPointsPerPrimitive = 64;
 
         private async Task PublishCadStateToMqttAsync(bool connected)
         {
@@ -293,7 +293,14 @@ namespace DACDT_2026
                 sb.AppendFormat(",\"timestamp\":\"{0}\"", DateTime.UtcNow.ToString("o"));
                 sb.Append("}");
 
-                await mqttService.PublishAsync("DACDT/cad/state", sb.ToString());
+                string cadPayload = sb.ToString();
+                int cadPayloadBytes = Encoding.UTF8.GetByteCount(cadPayload);
+                Console.WriteLine(
+                    $"[CAD] Publishing preview: {cadPayloadBytes:N0} bytes, " +
+                    $"{publishedPrimitiveCount}/{sourcePrimitiveCount} primitives, " +
+                    $"truncated={previewTruncated}");
+
+                await mqttService.PublishAsync("DACDT/cad/state", cadPayload);
             }
             catch (Exception ex)
             {

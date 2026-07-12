@@ -1895,9 +1895,24 @@
                     if (topic === this.MQTT_TOPIC_CAD_STATE) {
                         this.msgCount++;
                         this._msgCountDirty = true;
-                        const cadData = JSON.parse(payload);
-                        this._cadData = cadData;
-                        this.renderCadPreview(cadData);
+
+                        try {
+                            const cadData = JSON.parse(payload);
+                            this._cadData = cadData;
+                            this.renderCadPreview(cadData);
+                        } catch (e) {
+                            const payloadBytes = new TextEncoder().encode(payload || '').length;
+                            this.addLog(`CAD state lỗi: ${e.message} · payload ${payloadBytes} bytes`, 'error');
+
+                            const sub = document.getElementById('cad-file-sub');
+                            if (sub) sub.textContent = `CAD state lỗi: ${e.message} · ${payloadBytes} bytes`;
+
+                            const info = document.getElementById('cad-info');
+                            if (info) {
+                                info.innerHTML = `<span style="color:#f85149">Không đọc được CAD state từ MQTT. Payload có thể quá lớn hoặc bị cắt giữa chừng.</span>`;
+                            }
+                        }
+
                         return;
                     }
 
@@ -1916,7 +1931,9 @@
                             this._dashboardDirty = true;
                         }
                     }
-                } catch (e) { }
+                } catch (e) {
+                    this.addLog('MQTT message xử lý lỗi: ' + e.message, 'error');
+                }
             }
 
             updateDxfInfoDom(data) {
