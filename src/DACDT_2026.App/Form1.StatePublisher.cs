@@ -165,8 +165,11 @@ namespace DACDT_2026
             await PublishCadStateToMqttAsync(connected);
         }
 
-        private const int MaxWebCadPrimitives = 100000;
-        private const int MaxWebCadPointsPerPrimitive = 10000;
+        private const int MaxWebCadPointsPerPrimitive = 512;
+        /// <summary>Primitives per MQTT chunk when streaming large CAD files.</summary>
+        private const int CadStreamChunkSize = 200;
+        /// <summary>Small files (<= this) still go as a single DACDT/cad/state message.</summary>
+        private const int CadStreamThreshold = 500;
 
         private async Task PublishCadStateToMqttAsync(bool connected)
         {
@@ -175,8 +178,6 @@ namespace DACDT_2026
 
             try
             {
-                var sb = new StringBuilder(2048);
-                sb.Append("{");
                 bool isGcodeKind = string.Equals(activeDocumentKind, "GCODE", StringComparison.OrdinalIgnoreCase);
                 var rawDoc = CloneCadDocumentForUi(activeCadDocument);
                 var displayDoc = CreateDisplayCadDocument(
@@ -187,86 +188,9 @@ namespace DACDT_2026
                     wcsOffsetX.ToArray(),
                     wcsOffsetY.ToArray());
                 var viewBounds = BuildCadViewBounds(rawDoc, workspaceWidth, workspaceHeight);
-
-                sb.AppendFormat("\"fileKind\":\"{0}\"", EscapeJson(activeDocumentKind ?? string.Empty));
-                sb.AppendFormat(",\"fileName\":\"{0}\"", EscapeJson(displayDoc?.FileName ?? string.Empty));
-                sb.AppendFormat(",\"filePath\":\"{0}\"", EscapeJson(displayDoc?.FilePath ?? string.Empty));
-                sb.AppendFormat(",\"workspaceWidth\":{0}", workspaceWidth.ToString("0.###", CultureInfo.InvariantCulture));
-                sb.AppendFormat(",\"workspaceHeight\":{0}", workspaceHeight.ToString("0.###", CultureInfo.InvariantCulture));
-                sb.Append(",\"bounds\":");
-                AppendCadBoundsJson(sb, displayDoc?.Bounds);
-                sb.Append(",\"viewBounds\":");
-                AppendCadBoundsJson(sb, viewBounds);
-
                 var sourcePrimitives = displayDoc?.Primitives;
                 int sourcePrimitiveCount = sourcePrimitives?.Count ?? 0;
-                int primitiveStep = sourcePrimitiveCount > MaxWebCadPrimitives
-                    ? (int)Math.Ceiling(sourcePrimitiveCount / (double)MaxWebCadPrimitives)
-                    : 1;
-                bool previewTruncated = sourcePrimitiveCount > MaxWebCadPrimitives;
-                int publishedPrimitiveCount = 0;
 
-                sb.AppendFormat(",\"sourcePrimitiveCount\":{0}", sourcePrimitiveCount);
-                sb.AppendFormat(",\"previewTruncated\":{0}", previewTruncated ? "true" : "false");
-                sb.Append(",\"cadPrimitives\":[");
-                if (sourcePrimitives != null)
-                {
-                    bool first = true;
-                    for (int primitiveIndex = 0;
-                         primitiveIndex < sourcePrimitiveCount && publishedPrimitiveCount < MaxWebCadPrimitives;
-                         primitiveIndex += primitiveStep)
-                    {
-                        var prim = sourcePrimitives[primitiveIndex];
-                        if (prim == null)
-                            continue;
-
-                        if (!first) sb.Append(",");
-                        first = false;
-                        publishedPrimitiveCount++;
-
-                        sb.Append("{");
-                        sb.AppendFormat("\"sourceType\":\"{0}\"", EscapeJson(prim.SourceType ?? string.Empty));
-                        sb.AppendFormat(",\"isCw\":{0}", prim.IsCw ? "true" : "false");
-                        sb.AppendFormat(",\"isCircle\":{0}", prim.IsCircle ? "true" : "false");
-                        sb.AppendFormat(",\"wcsIndex\":{0}", prim.WcsIndex);
-                        sb.AppendFormat(",\"mCode\":\"{0}\"", EscapeJson(prim.MCodeValue ?? string.Empty));
-                        sb.AppendFormat(",\"speed\":\"{0}\"", EscapeJson(prim.Speed ?? string.Empty));
-                        sb.AppendFormat(",\"dwell\":\"{0}\"", EscapeJson(prim.Dwell ?? string.Empty));
-                        sb.Append(",\"center\":");
-                        AppendCadCoordinateJson(sb, prim.Center);
-                        sb.Append(",\"points\":[");
-                        if (prim.Points != null && prim.Points.Count > 0)
-                        {
-                            int pointStep = prim.Points.Count > MaxWebCadPointsPerPrimitive
-                                ? (int)Math.Ceiling(prim.Points.Count / (double)MaxWebCadPointsPerPrimitive)
-                                : 1;
-                            int publishedPointCount = 0;
-                            bool firstPoint = true;
-                            for (int pointIndex = 0;
-                                 pointIndex < prim.Points.Count && publishedPointCount < MaxWebCadPointsPerPrimitive;
-                                 pointIndex += pointStep)
-                            {
-                                if (!firstPoint) sb.Append(",");
-                                firstPoint = false;
-                                AppendCadCoordinateJson(sb, prim.Points[pointIndex]);
-                                publishedPointCount++;
-                            }
-
-                            int lastPointIndex = prim.Points.Count - 1;
-                            if (lastPointIndex > 0 && (lastPointIndex % pointStep) != 0 &&
-                                publishedPointCount < MaxWebCadPointsPerPrimitive)
-                            {
-                                if (!firstPoint) sb.Append(",");
-                                AppendCadCoordinateJson(sb, prim.Points[lastPointIndex]);
-                            }
-                        }
-                        sb.Append("]}");
-                    }
-                }
-                sb.Append("]");
-                sb.AppendFormat(",\"publishedPrimitiveCount\":{0}", publishedPrimitiveCount);
-
-                sb.Append(",\"trackingPoints\":[");
                 var trackingPoints = BuildRobotTrackingPoints(
                     activeCadDocument,
                     workspaceWidth,
@@ -275,37 +199,198 @@ namespace DACDT_2026
                     axCurrentPos[0],
                     axCurrentPos[1]);
 
-                bool firstTp = true;
-                foreach(var tp in trackingPoints)
+                if (sourcePrimitiveCount <= CadStreamThreshold)
                 {
-                    if (!firstTp) sb.Append(",");
-                    firstTp = false;
-                    sb.Append("{");
-                    sb.AppendFormat("\"x\":{0}", tp.X.ToString(CultureInfo.InvariantCulture));
-                    sb.AppendFormat(",\"y\":{0}", tp.Y.ToString(CultureInfo.InvariantCulture));
-                    sb.AppendFormat(",\"size\":{0}", tp.Size.ToString(CultureInfo.InvariantCulture));
-                    sb.AppendFormat(",\"label\":\"{0}\"", EscapeJson(tp.Label ?? string.Empty));
-                    sb.AppendFormat(",\"tooltip\":\"{0}\"", EscapeJson(tp.ToolTip ?? string.Empty));
-                    sb.Append("}");
+                    // Small file: single message (backward compatible)
+                    await PublishCadStateSingleAsync(displayDoc, viewBounds, sourcePrimitives, sourcePrimitiveCount, trackingPoints);
                 }
-                sb.Append("]");
-
-                sb.AppendFormat(",\"timestamp\":\"{0}\"", DateTime.UtcNow.ToString("o"));
-                sb.Append("}");
-
-                string cadPayload = sb.ToString();
-                int cadPayloadBytes = Encoding.UTF8.GetByteCount(cadPayload);
-                Console.WriteLine(
-                    $"[CAD] Publishing preview: {cadPayloadBytes:N0} bytes, " +
-                    $"{publishedPrimitiveCount}/{sourcePrimitiveCount} primitives, " +
-                    $"truncated={previewTruncated}");
-
-                await mqttService.PublishAsync("DACDT/cad/state", cadPayload);
+                else
+                {
+                    // Large file: chunked stream
+                    await PublishCadStateChunkedAsync(displayDoc, viewBounds, sourcePrimitives, sourcePrimitiveCount, trackingPoints);
+                }
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"MQTT cad publish error: {ex.Message}");
             }
+        }
+
+        /// <summary>Publish small CAD as a single DACDT/cad/state message.</summary>
+        private async Task PublishCadStateSingleAsync(
+            CadDocumentService.CadLoadResult displayDoc,
+            CadDocumentService.CadBounds viewBounds,
+            List<CadDocumentService.CadPrimitiveData> primitives,
+            int sourcePrimitiveCount,
+            IEnumerable<CadTrackingPointViewModel> trackingPoints)
+        {
+            var sb = new StringBuilder(2048);
+            sb.Append("{");
+            AppendCadMetadataJson(sb, displayDoc, viewBounds, sourcePrimitiveCount, false);
+
+            sb.Append(",\"cadPrimitives\":[");
+            if (primitives != null)
+            {
+                bool first = true;
+                foreach (var prim in primitives)
+                {
+                    if (prim == null) continue;
+                    if (!first) sb.Append(",");
+                    first = false;
+                    AppendCadPrimitiveJson(sb, prim);
+                }
+            }
+            sb.Append("]");
+            sb.AppendFormat(",\"publishedPrimitiveCount\":{0}", sourcePrimitiveCount);
+            AppendTrackingPointsJson(sb, trackingPoints);
+            sb.AppendFormat(",\"timestamp\":\"{0}\"", DateTime.UtcNow.ToString("o"));
+            sb.Append("}");
+
+            string payload = sb.ToString();
+            Console.WriteLine($"[CAD] Single publish: {Encoding.UTF8.GetByteCount(payload):N0} bytes, {sourcePrimitiveCount} primitives");
+            await mqttService.PublishAsync("DACDT/cad/state", payload);
+        }
+
+        /// <summary>Publish large CAD as chunked stream on DACDT/cad/stream/*.</summary>
+        private async Task PublishCadStateChunkedAsync(
+            CadDocumentService.CadLoadResult displayDoc,
+            CadDocumentService.CadBounds viewBounds,
+            List<CadDocumentService.CadPrimitiveData> primitives,
+            int sourcePrimitiveCount,
+            IEnumerable<CadTrackingPointViewModel> trackingPoints)
+        {
+            string jobId = "cad_" + DateTime.UtcNow.Ticks.ToString("x");
+            int totalChunks = (int)Math.Ceiling(sourcePrimitiveCount / (double)CadStreamChunkSize);
+
+            // 1. Start message — metadata, no primitives
+            {
+                var sb = new StringBuilder(1024);
+                sb.Append("{");
+                sb.AppendFormat("\"jobId\":\"{0}\"", jobId);
+                sb.AppendFormat(",\"totalChunks\":{0}", totalChunks);
+                sb.AppendFormat(",\"totalPrimitives\":{0}", sourcePrimitiveCount);
+                sb.Append(",");
+                AppendCadMetadataJson(sb, displayDoc, viewBounds, sourcePrimitiveCount, true);
+                AppendTrackingPointsJson(sb, trackingPoints);
+                sb.AppendFormat(",\"timestamp\":\"{0}\"", DateTime.UtcNow.ToString("o"));
+                sb.Append("}");
+                await mqttService.PublishAsync("DACDT/cad/stream/start", sb.ToString());
+            }
+
+            Console.WriteLine($"[CAD] Streaming {sourcePrimitiveCount} primitives in {totalChunks} chunks (jobId={jobId})");
+
+            // 2. Chunk messages
+            for (int chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++)
+            {
+                int start = chunkIndex * CadStreamChunkSize;
+                int end = Math.Min(start + CadStreamChunkSize, sourcePrimitiveCount);
+
+                var sb = new StringBuilder(4096);
+                sb.Append("{");
+                sb.AppendFormat("\"jobId\":\"{0}\"", jobId);
+                sb.AppendFormat(",\"index\":{0}", chunkIndex);
+                sb.Append(",\"primitives\":[");
+                bool first = true;
+                for (int i = start; i < end; i++)
+                {
+                    var prim = primitives[i];
+                    if (prim == null) continue;
+                    if (!first) sb.Append(",");
+                    first = false;
+                    AppendCadPrimitiveJson(sb, prim);
+                }
+                sb.Append("]}");
+                await mqttService.PublishAsync("DACDT/cad/stream/chunk", sb.ToString());
+
+                // Small delay every 4 chunks to avoid flooding broker
+                if (chunkIndex % 4 == 3)
+                    await Task.Delay(10);
+            }
+
+            // 3. End message
+            {
+                var sb = new StringBuilder(128);
+                sb.AppendFormat("{{\"jobId\":\"{0}\",\"totalPrimitives\":{1}}}", jobId, sourcePrimitiveCount);
+                await mqttService.PublishAsync("DACDT/cad/stream/end", sb.ToString());
+            }
+
+            Console.WriteLine($"[CAD] Stream complete: jobId={jobId}");
+        }
+
+        private void AppendCadMetadataJson(
+            StringBuilder sb,
+            CadDocumentService.CadLoadResult displayDoc,
+            CadDocumentService.CadBounds viewBounds,
+            int sourcePrimitiveCount,
+            bool previewTruncated)
+        {
+            sb.AppendFormat("\"fileKind\":\"{0}\"", EscapeJson(activeDocumentKind ?? string.Empty));
+            sb.AppendFormat(",\"fileName\":\"{0}\"", EscapeJson(displayDoc?.FileName ?? string.Empty));
+            sb.AppendFormat(",\"filePath\":\"{0}\"", EscapeJson(displayDoc?.FilePath ?? string.Empty));
+            sb.AppendFormat(",\"workspaceWidth\":{0}", workspaceWidth.ToString("0.###", CultureInfo.InvariantCulture));
+            sb.AppendFormat(",\"workspaceHeight\":{0}", workspaceHeight.ToString("0.###", CultureInfo.InvariantCulture));
+            sb.Append(",\"bounds\":");
+            AppendCadBoundsJson(sb, displayDoc?.Bounds);
+            sb.Append(",\"viewBounds\":");
+            AppendCadBoundsJson(sb, viewBounds);
+            sb.AppendFormat(",\"sourcePrimitiveCount\":{0}", sourcePrimitiveCount);
+            sb.AppendFormat(",\"previewTruncated\":{0}", previewTruncated ? "true" : "false");
+        }
+
+        private void AppendCadPrimitiveJson(StringBuilder sb, CadDocumentService.CadPrimitiveData prim)
+        {
+            sb.Append("{");
+            sb.AppendFormat("\"sourceType\":\"{0}\"", EscapeJson(prim.SourceType ?? string.Empty));
+            sb.AppendFormat(",\"isCw\":{0}", prim.IsCw ? "true" : "false");
+            sb.AppendFormat(",\"isCircle\":{0}", prim.IsCircle ? "true" : "false");
+            sb.AppendFormat(",\"wcsIndex\":{0}", prim.WcsIndex);
+            sb.Append(",\"center\":");
+            AppendCadCoordinateJson(sb, prim.Center);
+            sb.Append(",\"points\":[");
+            if (prim.Points != null && prim.Points.Count > 0)
+            {
+                int pointStep = prim.Points.Count > MaxWebCadPointsPerPrimitive
+                    ? (int)Math.Ceiling(prim.Points.Count / (double)MaxWebCadPointsPerPrimitive)
+                    : 1;
+                int publishedPointCount = 0;
+                bool firstPoint = true;
+                for (int pointIndex = 0;
+                     pointIndex < prim.Points.Count && publishedPointCount < MaxWebCadPointsPerPrimitive;
+                     pointIndex += pointStep)
+                {
+                    if (!firstPoint) sb.Append(",");
+                    firstPoint = false;
+                    AppendCadCoordinateJson(sb, prim.Points[pointIndex]);
+                    publishedPointCount++;
+                }
+                int lastPointIndex = prim.Points.Count - 1;
+                if (lastPointIndex > 0 && (lastPointIndex % pointStep) != 0 &&
+                    publishedPointCount < MaxWebCadPointsPerPrimitive)
+                {
+                    if (!firstPoint) sb.Append(",");
+                    AppendCadCoordinateJson(sb, prim.Points[lastPointIndex]);
+                }
+            }
+            sb.Append("]}");
+        }
+
+        private static void AppendTrackingPointsJson(StringBuilder sb, IEnumerable<CadTrackingPointViewModel> trackingPoints)
+        {
+            sb.Append(",\"trackingPoints\":[");
+            bool firstTp = true;
+            foreach (var tp in trackingPoints)
+            {
+                if (!firstTp) sb.Append(",");
+                firstTp = false;
+                sb.Append("{");
+                sb.AppendFormat("\"x\":{0}", tp.X.ToString(CultureInfo.InvariantCulture));
+                sb.AppendFormat(",\"y\":{0}", tp.Y.ToString(CultureInfo.InvariantCulture));
+                sb.AppendFormat(",\"size\":{0}", tp.Size.ToString(CultureInfo.InvariantCulture));
+                sb.AppendFormat(",\"label\":\"{0}\"", EscapeJson(tp.Label ?? string.Empty));
+                sb.AppendFormat(",\"tooltip\":\"{0}\"", EscapeJson(tp.ToolTip ?? string.Empty));
+                sb.Append("}");
+            }
+            sb.Append("]");
         }
 
         private static void AppendCadBoundsJson(StringBuilder sb, CadDocumentService.CadBounds bounds)

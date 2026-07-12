@@ -1528,6 +1528,7 @@
                 this._animationFrameId = null;
                 this._selectedCadFile = null;
                 this._cadUploadBusy = false;
+                this._cadStream = null;
 
                 this.init();
             }
@@ -1656,6 +1657,9 @@
                             this.client.subscribe(this.MQTT_TOPIC_CAMERA_STATUS);
                             this.client.subscribe(this.MQTT_TOPIC_WEBRTC_STATUS);
                             this.client.subscribe(this.MQTT_TOPIC_CAD_UPLOAD_STATUS);
+                            this.client.subscribe('DACDT/cad/stream/start');
+                            this.client.subscribe('DACDT/cad/stream/chunk');
+                            this.client.subscribe('DACDT/cad/stream/end');
                             this.client.subscribe('DACDT/camera/webrtc/signaling/' + this.webrtcClientId + '/server');
                             this.client.subscribe(this.MQTT_TOPIC_CAD_STATE, {
                                 onSuccess: () => {
@@ -1840,6 +1844,81 @@
                 }
             }
 
+            handleCadStreamMessage(topic, payload) {
+                let data = null;
+                try {
+                    data = JSON.parse(payload);
+                } catch (e) {
+                    this.addLog('CAD stream JSON lỗi: ' + e.message, 'error');
+                    return;
+                }
+
+                if (topic === 'DACDT/cad/stream/start') {
+                    this._cadStream = {
+                        jobId: data.jobId,
+                        totalChunks: Number(data.totalChunks) || 0,
+                        totalPrimitives: Number(data.totalPrimitives) || 0,
+                        metadata: Object.assign({}, data),
+                        chunks: new Map(),
+                        received: 0
+                    };
+                    delete this._cadStream.metadata.jobId;
+                    delete this._cadStream.metadata.totalChunks;
+                    if (Array.isArray(data.trackingPoints)) {
+                        this._cadStream.metadata.trackingPoints = data.trackingPoints;
+                    }
+                    const count = document.getElementById('cad-prims-count');
+                    if (count) count.textContent = `0/${this._cadStream.totalPrimitives} prims · loading`;
+                    const sub = document.getElementById('cad-file-sub');
+                    if (sub) sub.textContent = `${data.fileKind || 'CAD'} · streaming ${this._cadStream.totalChunks} chunks`;
+                    return;
+                }
+
+                if (!this._cadStream || data.jobId !== this._cadStream.jobId) {
+                    return;
+                }
+
+                if (topic === 'DACDT/cad/stream/chunk') {
+                    const index = Number(data.index);
+                    if (!Number.isInteger(index) || this._cadStream.chunks.has(index)) {
+                        return;
+                    }
+                    const primitives = Array.isArray(data.primitives) ? data.primitives : [];
+                    this._cadStream.chunks.set(index, primitives);
+                    this._cadStream.received++;
+
+                    const count = document.getElementById('cad-prims-count');
+                    if (count) {
+                        count.textContent = `${this._cadStream.received}/${this._cadStream.totalChunks} chunks · loading`;
+                    }
+                    return;
+                }
+
+                if (topic === 'DACDT/cad/stream/end') {
+                    if (this._cadStream.received < this._cadStream.totalChunks) {
+                        this.addLog(`CAD stream thiếu chunk: ${this._cadStream.received}/${this._cadStream.totalChunks}`, 'error');
+                        return;
+                    }
+
+                    const cadPrimitives = [];
+                    for (let i = 0; i < this._cadStream.totalChunks; i++) {
+                        cadPrimitives.push(...(this._cadStream.chunks.get(i) || []));
+                    }
+
+                    const cadData = Object.assign({}, this._cadStream.metadata, {
+                        cadPrimitives,
+                        publishedPrimitiveCount: cadPrimitives.length,
+                        sourcePrimitiveCount: this._cadStream.totalPrimitives || cadPrimitives.length,
+                        previewTruncated: false
+                    });
+
+                    this._cadData = cadData;
+                    this.renderCadPreview(cadData);
+                    this.addLog(`CAD stream complete: ${cadPrimitives.length} primitives`, 'info');
+                    this._cadStream = null;
+                }
+            }
+
             requestStartCameraStream() {
                 this.isCameraStartRequested = true;
                 const placeholder = document.getElementById('cam-placeholder');
@@ -1884,6 +1963,11 @@
 
                     if (topic === this.MQTT_TOPIC_CAD_UPLOAD_STATUS) {
                         this.handleCadUploadStatus(payload);
+                        return;
+                    }
+
+                    if (topic === 'DACDT/cad/stream/start' || topic === 'DACDT/cad/stream/chunk' || topic === 'DACDT/cad/stream/end') {
+                        this.handleCadStreamMessage(topic, payload);
                         return;
                     }
 
