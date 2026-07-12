@@ -165,8 +165,8 @@ namespace DACDT_2026
             await PublishCadStateToMqttAsync(connected);
         }
 
-        private const int MaxWebCadPrimitives = 500;
-        private const int MaxWebCadPointsPerPrimitive = 64;
+        private const int MaxWebCadPrimitives = 100000;
+        private const int MaxWebCadPointsPerPrimitive = 10000;
 
         private async Task PublishCadStateToMqttAsync(bool connected)
         {
