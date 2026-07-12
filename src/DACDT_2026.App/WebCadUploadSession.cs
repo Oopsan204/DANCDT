@@ -6,8 +6,8 @@ namespace DACDT_2026
 {
     public sealed class WebCadUploadSession
     {
-        public const int MaxUploadBytes = 8 * 1024 * 1024;
-        public const int MaxChunks = 512;
+        public const int MaxUploadBytes = 32 * 1024 * 1024;
+        public const int MaxChunks = 2048;
 
         private readonly Dictionary<int, byte[]> chunks = new Dictionary<int, byte[]>();
         private int expectedChunks;

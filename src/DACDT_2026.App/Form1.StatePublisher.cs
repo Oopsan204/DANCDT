@@ -165,6 +165,9 @@ namespace DACDT_2026
             await PublishCadStateToMqttAsync(connected);
         }
 
+        private const int MaxWebCadPrimitives = 2000;
+        private const int MaxWebCadPointsPerPrimitive = 256;
+
         private async Task PublishCadStateToMqttAsync(bool connected)
         {
             if (!mqttService.IsConnected)
@@ -195,14 +198,31 @@ namespace DACDT_2026
                 sb.Append(",\"viewBounds\":");
                 AppendCadBoundsJson(sb, viewBounds);
 
+                var sourcePrimitives = displayDoc?.Primitives;
+                int sourcePrimitiveCount = sourcePrimitives?.Count ?? 0;
+                int primitiveStep = sourcePrimitiveCount > MaxWebCadPrimitives
+                    ? (int)Math.Ceiling(sourcePrimitiveCount / (double)MaxWebCadPrimitives)
+                    : 1;
+                bool previewTruncated = sourcePrimitiveCount > MaxWebCadPrimitives;
+                int publishedPrimitiveCount = 0;
+
+                sb.AppendFormat(",\"sourcePrimitiveCount\":{0}", sourcePrimitiveCount);
+                sb.AppendFormat(",\"previewTruncated\":{0}", previewTruncated ? "true" : "false");
                 sb.Append(",\"cadPrimitives\":[");
-                if (displayDoc != null && displayDoc.Primitives != null)
+                if (sourcePrimitives != null)
                 {
                     bool first = true;
-                    foreach (var prim in displayDoc.Primitives.Take(50000))
+                    for (int primitiveIndex = 0;
+                         primitiveIndex < sourcePrimitiveCount && publishedPrimitiveCount < MaxWebCadPrimitives;
+                         primitiveIndex += primitiveStep)
                     {
+                        var prim = sourcePrimitives[primitiveIndex];
+                        if (prim == null)
+                            continue;
+
                         if (!first) sb.Append(",");
                         first = false;
+                        publishedPrimitiveCount++;
 
                         sb.Append("{");
                         sb.AppendFormat("\"sourceType\":\"{0}\"", EscapeJson(prim.SourceType ?? string.Empty));
@@ -215,18 +235,36 @@ namespace DACDT_2026
                         sb.Append(",\"center\":");
                         AppendCadCoordinateJson(sb, prim.Center);
                         sb.Append(",\"points\":[");
-                        if (prim.Points != null)
+                        if (prim.Points != null && prim.Points.Count > 0)
                         {
-                            for (int i = 0; i < prim.Points.Count; i++)
+                            int pointStep = prim.Points.Count > MaxWebCadPointsPerPrimitive
+                                ? (int)Math.Ceiling(prim.Points.Count / (double)MaxWebCadPointsPerPrimitive)
+                                : 1;
+                            int publishedPointCount = 0;
+                            bool firstPoint = true;
+                            for (int pointIndex = 0;
+                                 pointIndex < prim.Points.Count && publishedPointCount < MaxWebCadPointsPerPrimitive;
+                                 pointIndex += pointStep)
                             {
-                                if (i > 0) sb.Append(",");
-                                AppendCadCoordinateJson(sb, prim.Points[i]);
+                                if (!firstPoint) sb.Append(",");
+                                firstPoint = false;
+                                AppendCadCoordinateJson(sb, prim.Points[pointIndex]);
+                                publishedPointCount++;
+                            }
+
+                            int lastPointIndex = prim.Points.Count - 1;
+                            if (lastPointIndex > 0 && (lastPointIndex % pointStep) != 0 &&
+                                publishedPointCount < MaxWebCadPointsPerPrimitive)
+                            {
+                                if (!firstPoint) sb.Append(",");
+                                AppendCadCoordinateJson(sb, prim.Points[lastPointIndex]);
                             }
                         }
                         sb.Append("]}");
                     }
                 }
                 sb.Append("]");
+                sb.AppendFormat(",\"publishedPrimitiveCount\":{0}", publishedPrimitiveCount);
 
                 sb.Append(",\"trackingPoints\":[");
                 var trackingPoints = BuildRobotTrackingPoints(
