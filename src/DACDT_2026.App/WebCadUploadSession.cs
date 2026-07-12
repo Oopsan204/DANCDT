@@ -19,6 +19,17 @@ namespace DACDT_2026
         public int ReceivedChunks => chunks.Count;
         public int ExpectedChunks => expectedChunks;
 
+        public int[] GetMissingChunkIndexes()
+        {
+            var missing = new List<int>();
+            for (int i = 0; i < expectedChunks; i++)
+            {
+                if (!chunks.ContainsKey(i))
+                    missing.Add(i);
+            }
+            return missing.ToArray();
+        }
+
         public void Reset()
         {
             chunks.Clear();

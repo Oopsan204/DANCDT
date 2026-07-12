@@ -24,7 +24,7 @@ namespace DACDT_2026
 
         // Background Message Queue
         private const int MaxQueueSize = 200;
-        private readonly ConcurrentQueue<MqttApplicationMessage> _publishQueue = new ConcurrentQueue<MqttApplicationMessage>();
+        private readonly ConcurrentQueue<PendingPublish> _publishQueue = new ConcurrentQueue<PendingPublish>();
         private readonly SemaphoreSlim _queueSemaphore = new SemaphoreSlim(0);
         private readonly object _queueLock = new object();
         private Task _queueProcessorTask;
@@ -143,38 +143,39 @@ namespace DACDT_2026
 
         public Task PublishAsync(string topic, string payload, bool retain = false)
         {
-            EnqueuePublish(topic, payload != null ? Encoding.UTF8.GetBytes(payload) : Array.Empty<byte>(), retain);
-            return Task.CompletedTask;
+            return EnqueuePublish(topic, payload != null ? Encoding.UTF8.GetBytes(payload) : Array.Empty<byte>(), retain);
         }
 
         public Task PublishAsync(string topic, byte[] payload, bool retain = false)
         {
-            EnqueuePublish(topic, payload, retain);
-            return Task.CompletedTask;
+            return EnqueuePublish(topic, payload, retain);
         }
 
-        private void EnqueuePublish(string topic, byte[] payload, bool retain)
+        private Task EnqueuePublish(string topic, byte[] payload, bool retain)
         {
             var message = new MqttApplicationMessageBuilder()
                 .WithTopic(topic)
                 .WithPayload(payload)
                 .WithRetainFlag(retain)
-                .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtMostOnce)
+                .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtLeastOnce)
                 .Build();
+            var pending = new PendingPublish(message);
 
             lock (_queueLock)
             {
-                _publishQueue.Enqueue(message);
+                _publishQueue.Enqueue(pending);
                 if (_publishQueue.Count > MaxQueueSize)
                 {
-                    // Drop the oldest message to control queue size
-                    if (_publishQueue.TryDequeue(out _))
+                    // Drop the oldest message to control queue size.
+                    if (_publishQueue.TryDequeue(out var dropped))
                     {
-                        return; // Do not increment semaphore as we just replaced an item
+                        dropped.TrySetException(new InvalidOperationException("MQTT publish queue overflow."));
                     }
                 }
                 _queueSemaphore.Release();
             }
+
+            return pending.Task;
         }
 
         private void StartQueueProcessor()
@@ -234,13 +235,13 @@ namespace DACDT_2026
                 {
                     await _queueSemaphore.WaitAsync(cancellationToken);
 
-                    MqttApplicationMessage message = null;
+                    PendingPublish pending = null;
                     lock (_queueLock)
                     {
-                        _publishQueue.TryDequeue(out message);
+                        _publishQueue.TryDequeue(out pending);
                     }
 
-                    if (message != null)
+                    if (pending != null)
                     {
                         // Wait until connected
                         while (!cancellationToken.IsCancellationRequested && !IsConnected)
@@ -256,11 +257,13 @@ namespace DACDT_2026
                             publishTimeoutCts.CancelAfter(TimeSpan.FromSeconds(5));
                             try
                             {
-                                await _mqttClient.PublishAsync(message, publishTimeoutCts.Token);
+                                await _mqttClient.PublishAsync(pending.Message, publishTimeoutCts.Token);
+                                pending.TrySetResult();
                             }
                             catch (Exception ex)
                             {
                                 Console.WriteLine($"[MQTT] Background publish error: {ex.Message}");
+                                pending.TrySetException(ex);
                             }
                         }
                     }
@@ -279,6 +282,25 @@ namespace DACDT_2026
                     catch (OperationCanceledException) { break; }
                 }
             }
+        }
+
+        private sealed class PendingPublish
+        {
+            private readonly TaskCompletionSource<bool> completion =
+                new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+            public PendingPublish(MqttApplicationMessage message)
+            {
+                Message = message;
+            }
+
+            public MqttApplicationMessage Message { get; }
+
+            public Task Task => completion.Task;
+
+            public void TrySetResult() => completion.TrySetResult(true);
+
+            public void TrySetException(Exception ex) => completion.TrySetException(ex);
         }
 
         public async Task SubscribeAsync(params string[] topics)

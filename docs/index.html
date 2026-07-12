@@ -1774,6 +1774,9 @@
                 const statusEl = document.getElementById('cad-upload-status');
 
                 this._cadUploadBusy = true;
+                this._cadUploadJobId = jobId;
+                this._cadUploadBuffer = null;
+                
                 try {
                     this.publishJson('DACDT/cad/upload/start', {
                         jobId,
@@ -1784,15 +1787,9 @@
                     });
 
                     const buffer = await file.arrayBuffer();
-                    const bytes = new Uint8Array(buffer);
-                    for (let index = 0; index < totalChunks; index++) {
-                        const start = index * chunkSize;
-                        const end = Math.min(start + chunkSize, bytes.length);
-                        const base64 = this.bytesToBase64(bytes.subarray(start, end));
-                        this.publishJson('DACDT/cad/upload/chunk', { jobId, index, data: base64 });
-                        if (statusEl) statusEl.textContent = `Uploading ${index + 1}/${totalChunks}: ${file.name}`;
-                        if (index % 4 === 0) await new Promise(resolve => setTimeout(resolve, 8));
-                    }
+                    this._cadUploadBuffer = new Uint8Array(buffer);
+                    
+                    await this._sendCadChunks(this._cadUploadBuffer, chunkSize, jobId, totalChunks, statusEl);
 
                     this.publishJson('DACDT/cad/upload/finish', { jobId });
                     if (statusEl) statusEl.textContent = 'Upload sent; waiting for app preview...';
@@ -1800,8 +1797,24 @@
                 } catch (e) {
                     this.addLog('CAD upload error: ' + e.message, 'error');
                     if (statusEl) statusEl.textContent = 'Upload error: ' + e.message;
-                } finally {
                     this._cadUploadBusy = false;
+                }
+            }
+
+            async _sendCadChunks(bytes, chunkSize, jobId, totalChunks, statusEl, missingIndexes = null) {
+                const indexes = missingIndexes || Array.from({ length: totalChunks }, (_, i) => i);
+                let sent = 0;
+                for (const index of indexes) {
+                    const start = index * chunkSize;
+                    const end = Math.min(start + chunkSize, bytes.length);
+                    const base64 = this.bytesToBase64(bytes.subarray(start, end));
+                    this.publishJson('DACDT/cad/upload/chunk', { jobId, index, data: base64 });
+                    if (statusEl) {
+                        const progressStr = missingIndexes ? `Retrying missing chunks` : `Uploading ${index + 1}/${totalChunks}`;
+                        statusEl.textContent = `${progressStr}: ${this._selectedCadFile.name}`;
+                    }
+                    sent++;
+                    if (sent % 4 === 0) await new Promise(resolve => setTimeout(resolve, 8));
                 }
             }
 
@@ -1839,6 +1852,23 @@
                     const text = `${data.status || 'upload'}${progress}: ${data.message || ''}`;
                     if (statusEl) statusEl.textContent = text;
                     this.addLog('CAD upload: ' + text, data.status === 'error' ? 'error' : 'info');
+                    
+                    if (data.status === 'error' && data.missingChunks && data.missingChunks.length > 0 && data.jobId === this._cadUploadJobId && this._cadUploadBusy) {
+                        this.addLog(`Upload error, retrying ${data.missingChunks.length} missing chunks...`, 'info');
+                        const chunkSize = 16 * 1024;
+                        this._sendCadChunks(this._cadUploadBuffer, chunkSize, data.jobId, total, statusEl, data.missingChunks)
+                            .then(() => {
+                                this.publishJson('DACDT/cad/upload/finish', { jobId: data.jobId });
+                            })
+                            .catch(err => {
+                                this.addLog('Retry failed: ' + err.message, 'error');
+                                this._cadUploadBusy = false;
+                            });
+                    } else if (data.status === 'loaded' || data.status === 'cancelled' || (data.status === 'error' && (!data.missingChunks || data.missingChunks.length === 0))) {
+                        this._cadUploadBusy = false;
+                        this._cadUploadBuffer = null;
+                        this._cadUploadJobId = null;
+                    }
                 } catch (e) {
                     this.addLog('Cannot read CAD upload status', 'error');
                 }

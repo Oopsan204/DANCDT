@@ -195,6 +195,7 @@ namespace DACDT_2026
             if (mqttService == null || !mqttService.IsConnected)
                 return;
 
+            var missing = webCadUploadSession.GetMissingChunkIndexes();
             var serializer = new JavaScriptSerializer();
             string payload = serializer.Serialize(new Dictionary<string, object>
             {
@@ -203,6 +204,8 @@ namespace DACDT_2026
                 { "fileName", webCadUploadSession.FileName ?? "" },
                 { "receivedChunks", receivedChunks },
                 { "totalChunks", totalChunks },
+                { "missingChunks", missing },
+                { "jobId", webCadUploadSession.JobId ?? "" },
                 { "ts", DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture) }
             });
             await mqttService.PublishAsync("DACDT/cad/upload/status", payload);
