@@ -359,12 +359,14 @@ namespace DACDT_2026
                 activeEngraveCadDocument,
                 EngraveCutProcessComposer.EngraveKind,
                 engraveSpeed,
-                engravePower);
+                engravePower,
+                globalSpeedM3);
             var cutRows = BuildDxfRowsForProcessDocument(
                 activeCutCadDocument,
                 EngraveCutProcessComposer.CutKind,
                 cutSpeed,
-                cutPower);
+                cutPower,
+                globalSpeedM3);
 
             DropEngraveHomeRowBeforeCut(engraveRows, cutRows.Count > 0);
 
@@ -422,7 +424,8 @@ namespace DACDT_2026
             CadDocumentService.CadLoadResult document,
             string processKind,
             string speed,
-            string power)
+            string power,
+            string nonCutSpeed)
         {
             var rows = new List<ProcessRow>();
             if (document?.Primitives == null || document.Primitives.Count == 0)
@@ -442,7 +445,7 @@ namespace DACDT_2026
                 activeDocumentKind = originalKind;
             }
 
-            ApplyProcessParameters(rows, processKind, speed, power);
+            ApplyProcessParameters(rows, processKind, speed, power, nonCutSpeed);
             return rows;
         }
 
@@ -450,7 +453,8 @@ namespace DACDT_2026
             List<ProcessRow> rows,
             string processKind,
             string speed,
-            string power)
+            string power,
+            string nonCutSpeed)
         {
             if (rows == null || rows.Count == 0)
                 return;
@@ -469,7 +473,11 @@ namespace DACDT_2026
             for (int i = 0; i < rows.Count && i < composed.Count; i++)
             {
                 rows[i].ProcessKind = composed[i].ProcessKind;
-                rows[i].Speed = composed[i].Speed;
+                rows[i].Speed = EngraveCutProcessComposer.ResolveMixedRowSpeed(
+                    rows[i].MCodeValue,
+                    rows[i].EndCoordinate,
+                    composed[i].Speed,
+                    nonCutSpeed);
                 rows[i].LaserPower = IsHomeRow(rows[i]) ? string.Empty : composed[i].LaserPower;
             }
         }
@@ -1045,6 +1053,8 @@ namespace DACDT_2026
                     {
                         if (isMixedEngraveCutProgram && !string.IsNullOrWhiteSpace(row.Speed))
                             sendSpeed = row.Speed;
+                        else if (isMixedEngraveCutProgram)
+                            sendSpeed = globalSpeedM3;
                         else if (row.MCodeValue == "3" || (row.MCodeValue == "0" && string.Equals(row.EndCoordinate, "0;0")))
                             sendSpeed = globalSpeedM3;
                         else
@@ -1514,9 +1524,11 @@ namespace DACDT_2026
                         }
                         else
                         {
-                            // DXF: chỉ dòng có M03 và điểm home (toạ độ 0;0, Mcode = 0) chạy tốc độ M03 (globalSpeedM3), còn lại chạy tốc độ M04 (globalSpeed)
+                            // Mixed Khac + Cat uses each row's prepared speed; single DXF keeps the legacy M03/M04 fallback.
                             if (isMixedEngraveCutProgram && !string.IsNullOrWhiteSpace(row.Speed))
                                 sendSpeed = row.Speed;
+                            else if (isMixedEngraveCutProgram)
+                                sendSpeed = globalSpeedM3;
                             else if (row.MCodeValue == "3" || (row.MCodeValue == "0" && string.Equals(row.EndCoordinate, "0;0")))
                                 sendSpeed = globalSpeedM3;
                             else

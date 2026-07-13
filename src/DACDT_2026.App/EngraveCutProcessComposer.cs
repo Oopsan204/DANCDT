@@ -107,6 +107,18 @@ namespace DACDT_2026
                 && string.Equals(endCoordinate, "0;0", System.StringComparison.Ordinal);
         }
 
+        public static string ResolveMixedRowSpeed(
+            string mCodeValue,
+            string endCoordinate,
+            string processSpeed,
+            string nonCutSpeed)
+        {
+            if (mCodeValue == "3" || (mCodeValue == "0" && string.Equals(endCoordinate, "0;0", System.StringComparison.Ordinal)))
+                return nonCutSpeed;
+
+            return processSpeed;
+        }
+
         private static void AddRows(
             List<ProcessRowData> result,
             IEnumerable<ProcessRowData> rows,

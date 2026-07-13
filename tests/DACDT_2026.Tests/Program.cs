@@ -37,6 +37,7 @@ namespace DACDT_2026.Tests
                 EngraveCutPowerSwitchUsesLastEngraveRowBeforeFirstCutRow();
                 IntermediateEngraveEndContinuesBeforeCutRows();
                 EngraveHomeRowIsDroppedWhenCutFollows();
+                MixedProgramUsesM03SpeedForNonCutRowsAndProcessSpeedForWorkRows();
                 Console.WriteLine("All tests passed.");
                 return 0;
             }
@@ -488,6 +489,26 @@ namespace DACDT_2026.Tests
                     "0;0",
                     true),
                 "The final cut home row should remain.");
+        }
+
+        private static void MixedProgramUsesM03SpeedForNonCutRowsAndProcessSpeedForWorkRows()
+        {
+            AssertEqual(
+                "5000",
+                EngraveCutProcessComposer.ResolveMixedRowSpeed("3", "10;10", "1200", "5000"),
+                "M03 path-start rows should use the non-cut M03 speed.");
+            AssertEqual(
+                "1200",
+                EngraveCutProcessComposer.ResolveMixedRowSpeed("", "20;20", "1200", "5000"),
+                "Engrave/cut work rows should use their process speed.");
+            AssertEqual(
+                "1200",
+                EngraveCutProcessComposer.ResolveMixedRowSpeed("4", "30;30", "1200", "5000"),
+                "M04 rows are still work rows and should not fall back to DXF M04 speed in mixed mode.");
+            AssertEqual(
+                "5000",
+                EngraveCutProcessComposer.ResolveMixedRowSpeed("0", "0;0", "1200", "5000"),
+                "Final home rows should use the non-cut M03 speed.");
         }
 
         private static void AssertEqual(string expected, string actual, string message)

@@ -23,11 +23,11 @@
                                 <TextBox Text="{Binding OffsetYInput, UpdateSourceTrigger=PropertyChanged}"/>
                             </StackPanel>
                             <StackPanel Margin="0,0,6,6">
-                                <TextBlock Text="DXF Speed M03" Foreground="{DynamicResource MutedBrush}"/>
+                                <TextBlock Text="Non-cut Speed M03" Foreground="{DynamicResource MutedBrush}"/>
                                 <TextBox Text="{Binding GlobalSpeedM3Input, UpdateSourceTrigger=PropertyChanged}"/>
                             </StackPanel>
                             <StackPanel Margin="6,0,0,6">
-                                <TextBlock Text="DXF Speed M04" Foreground="{DynamicResource MutedBrush}"/>
+                                <TextBlock Text="Single DXF Speed M04" Foreground="{DynamicResource MutedBrush}"/>
                                 <TextBox Text="{Binding GlobalSpeedInput, UpdateSourceTrigger=PropertyChanged}"/>
                             </StackPanel>
                             <StackPanel Margin="0,0,6,6">
