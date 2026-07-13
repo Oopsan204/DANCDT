@@ -252,7 +252,7 @@
           SkipUnchangedFiles="true" />
   </Target>
   <Target Name="StopWebRtcCameraServiceBeforeCopy" BeforeTargets="BuildAndCopyWebRtcCameraService" Condition=" '$(Configuration)' == 'Debug' ">
-    <Exec Command="taskkill /F /T /IM WebRtcCameraService.exe &gt;NUL 2&gt;NUL &amp; exit /b 0" />
+    <Exec Command="tasklist /FI &quot;IMAGENAME eq DACDT_2026.exe&quot; /NH | find /I &quot;DACDT_2026.exe&quot; &gt;NUL || taskkill /F /T /IM WebRtcCameraService.exe &gt;NUL 2&gt;NUL &amp; exit /b 0" />
   </Target>
   <Target Name="BuildAndCopyWebRtcCameraService" AfterTargets="Build" Condition="Exists('..\WebRtcCameraService\WebRtcCameraService.csproj')">
     <MSBuild Projects="..\WebRtcCameraService\WebRtcCameraService.csproj"
