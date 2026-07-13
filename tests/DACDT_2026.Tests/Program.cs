@@ -34,6 +34,9 @@ namespace DACDT_2026.Tests
                 EngraveCutComposerKeepsOneOrderedProcessListWithPerRowParameters();
                 LaserPowerPercentMapsToPlcRange();
                 ActiveEngraveCutRowsSelectDifferentLaserPowerValues();
+                EngraveCutPowerSwitchUsesLastEngraveRowBeforeFirstCutRow();
+                IntermediateEngraveEndContinuesBeforeCutRows();
+                EngraveHomeRowIsDroppedWhenCutFollows();
                 Console.WriteLine("All tests passed.");
                 return 0;
             }
@@ -433,6 +436,58 @@ namespace DACDT_2026.Tests
             AssertTrue(engravePower != cutPower, "Engrave and cut rows must not write the same laser power when configured differently.");
             AssertEqual(EngraveCutProcessComposer.MapLaserPowerPercentToPlcValue(35).ToString(), engravePower.ToString(), "Engrave row should use engrave power.");
             AssertEqual(EngraveCutProcessComposer.MapLaserPowerPercentToPlcValue(80).ToString(), cutPower.ToString(), "Cut row should use cut power.");
+        }
+
+        private static void EngraveCutPowerSwitchUsesLastEngraveRowBeforeFirstCutRow()
+        {
+            var kinds = new[]
+            {
+                EngraveCutProcessComposer.EngraveKind,
+                EngraveCutProcessComposer.EngraveKind,
+                EngraveCutProcessComposer.CutKind,
+                EngraveCutProcessComposer.CutKind
+            };
+
+            AssertTrue(EngraveCutProcessComposer.TryGetFirstCutRowIndex(kinds, out int firstCutIndex), "Mixed rows should expose the first cut row.");
+            AssertEqual("3", firstCutIndex.ToString(), "First cut row should be one-based.");
+            AssertEqual("2", EngraveCutProcessComposer.GetCutPowerSwitchMonitorIndex(firstCutIndex).ToString(), "Cut power should switch on the row before the first cut row.");
+        }
+
+        private static void IntermediateEngraveEndContinuesBeforeCutRows()
+        {
+            AssertEqual(
+                "Line (Continuous Positioning)",
+                EngraveCutProcessComposer.NormalizeMixedProgramMotionType("Line (End)", isLastRow: false),
+                "The engrave-to-cut transition must not stop the QD75 program.");
+            AssertEqual(
+                "Line (End)",
+                EngraveCutProcessComposer.NormalizeMixedProgramMotionType("Line (End)", isLastRow: true),
+                "Only the final row of the full mixed program should remain End.");
+        }
+
+        private static void EngraveHomeRowIsDroppedWhenCutFollows()
+        {
+            AssertTrue(
+                EngraveCutProcessComposer.ShouldDropHomeBeforeFollowingCut(
+                    EngraveCutProcessComposer.EngraveKind,
+                    "0",
+                    "0;0",
+                    true),
+                "The intermediate engrave home row must be removed when cut rows follow.");
+            AssertTrue(
+                !EngraveCutProcessComposer.ShouldDropHomeBeforeFollowingCut(
+                    EngraveCutProcessComposer.EngraveKind,
+                    "0",
+                    "0;0",
+                    false),
+                "A standalone engrave program should keep its final home row.");
+            AssertTrue(
+                !EngraveCutProcessComposer.ShouldDropHomeBeforeFollowingCut(
+                    EngraveCutProcessComposer.CutKind,
+                    "0",
+                    "0;0",
+                    true),
+                "The final cut home row should remain.");
         }
 
         private static void AssertEqual(string expected, string actual, string message)

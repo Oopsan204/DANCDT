@@ -59,6 +59,54 @@ namespace DACDT_2026
             return TryMapLaserPowerText(rows[oneBasedActiveIndex - 1]?.LaserPower, out plcValue);
         }
 
+        public static bool TryGetFirstCutRowIndex(IEnumerable<string> processKinds, out int oneBasedIndex)
+        {
+            oneBasedIndex = 0;
+            if (processKinds == null)
+                return false;
+
+            int index = 0;
+            foreach (var processKind in processKinds)
+            {
+                index++;
+                if (string.Equals(processKind, CutKind, System.StringComparison.OrdinalIgnoreCase))
+                {
+                    oneBasedIndex = index;
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        public static int GetCutPowerSwitchMonitorIndex(int oneBasedFirstCutIndex)
+        {
+            if (oneBasedFirstCutIndex <= 0)
+                return 0;
+
+            return oneBasedFirstCutIndex > 1 ? oneBasedFirstCutIndex - 1 : oneBasedFirstCutIndex;
+        }
+
+        public static string NormalizeMixedProgramMotionType(string motionType, bool isLastRow)
+        {
+            if (isLastRow || string.IsNullOrEmpty(motionType))
+                return motionType;
+
+            return motionType.Replace("(End)", "(Continuous Positioning)");
+        }
+
+        public static bool ShouldDropHomeBeforeFollowingCut(
+            string processKind,
+            string mCodeValue,
+            string endCoordinate,
+            bool hasFollowingCutRows)
+        {
+            return hasFollowingCutRows
+                && string.Equals(processKind, EngraveKind, System.StringComparison.OrdinalIgnoreCase)
+                && mCodeValue == "0"
+                && string.Equals(endCoordinate, "0;0", System.StringComparison.Ordinal);
+        }
+
         private static void AddRows(
             List<ProcessRowData> result,
             IEnumerable<ProcessRowData> rows,

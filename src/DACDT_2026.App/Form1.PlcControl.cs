@@ -412,77 +412,117 @@ namespace DACDT_2026
         private async Task HandleMixedEngraveCutStartAsync()
         {
             var allRows = processRows.ToList();
-            var engraveRows = allRows
-                .Where(row => string.Equals(row.ProcessKind, EngraveCutProcessComposer.EngraveKind, StringComparison.OrdinalIgnoreCase))
-                .ToList();
-            var cutRows = allRows
-                .Where(row => string.Equals(row.ProcessKind, EngraveCutProcessComposer.CutKind, StringComparison.OrdinalIgnoreCase))
-                .ToList();
-
-            try
+            if (allRows.Count == 0)
             {
-                if (engraveRows.Count > 0)
-                {
-                    bool engraveOk = await RunMixedProcessPhaseAsync("Khac", engraveRows, engravePower);
-                    if (!engraveOk)
-                        return;
-                }
-
-                if (cutRows.Count > 0)
-                {
-                    if (engraveRows.Count > 0)
-                        await Task.Delay(500);
-
-                    await RunMixedProcessPhaseAsync("Cat", cutRows, cutPower);
-                }
+                await NotifyAsync("info", "Start", "No points to send.");
+                return;
             }
-            finally
+
+            SyncEngraveCutSettingsFromUi();
+
+            bool hasEngraveRows = allRows.Any(row => string.Equals(row.ProcessKind, EngraveCutProcessComposer.EngraveKind, StringComparison.OrdinalIgnoreCase));
+            bool hasCutRows = allRows.Any(row => string.Equals(row.ProcessKind, EngraveCutProcessComposer.CutKind, StringComparison.OrdinalIgnoreCase));
+
+            double ignoredCutPower;
+            if (hasEngraveRows && hasCutRows && !DecimalInputParser.TryParseFlexibleDouble(cutPower, out ignoredCutPower))
             {
-                processRows.Clear();
-                processRows.AddRange(allRows);
-                ui.IsStartActionEnabled = processRows.Count > 0;
-                await PushDxfStateAsync();
+                await NotifyAsync("error", "Laser Power", $"Cat power khong hop le: {cutPower}");
+                return;
             }
+
+            string startPower = hasEngraveRows ? engravePower : cutPower;
+            string startPhaseName = hasEngraveRows ? "Khac" : "Cat";
+            if (!await SetMixedLaserPowerAsync(startPhaseName, startPower))
+                return;
+
+            bool sendOk = await HandleSendCadXAsync();
+            if (!sendOk)
+                return;
+
+            int cutPowerSwitchIndex = 0;
+            if (hasEngraveRows && hasCutRows
+                && EngraveCutProcessComposer.TryGetFirstCutRowIndex(allRows.Select(row => row.ProcessKind), out int firstCutIndex))
+            {
+                cutPowerSwitchIndex = EngraveCutProcessComposer.GetCutPowerSwitchMonitorIndex(firstCutIndex);
+            }
+
+            axCurrentDataNo[0] = 0;
+            await WriteDeviceValueAsync("M2000", 1);
+            isProgramRunning = true;
+            UpdateIntegrityState(true);
+            AddLogEntry("M2000", "1", "Write", "OK", "Start Khac+Cat");
+            await Task.Delay(100);
+            await WriteDeviceValueAsync("M2000", 0);
+            AddLogEntry("M2000", "0", "Write", "OK", "Start reset Khac+Cat");
+
+            if (cutPowerSwitchIndex > 0)
+                _ = MonitorMixedCutPowerSwitchAsync(cutPowerSwitchIndex, cutPower);
         }
 
-        private async Task<bool> RunMixedProcessPhaseAsync(string phaseName, List<ProcessRow> phaseRows, string powerText)
+        private async Task<bool> SetMixedLaserPowerAsync(string phaseName, string powerText)
         {
-            if (phaseRows == null || phaseRows.Count == 0)
-                return true;
-
             if (!DecimalInputParser.TryParseFlexibleDouble(powerText, out double powerPercent))
             {
                 await NotifyAsync("error", "Laser Power", $"{phaseName} power khong hop le: {powerText}");
                 return false;
             }
 
-            processRows.Clear();
-            processRows.AddRange(phaseRows);
-            ui.IsStartActionEnabled = false;
-            await PushDxfStateAsync();
-
             await HandleSetLaserPowerAsync(powerPercent);
-
-            bool sendOk = await HandleSendCadXAsync();
-            if (!sendOk)
-                return false;
-
-            await WriteDeviceValueAsync("M2000", 1);
-            isProgramRunning = true;
-            UpdateIntegrityState(true);
-            AddLogEntry("M2000", "1", "Write", "OK", "Start " + phaseName);
-            await Task.Delay(100);
-            await WriteDeviceValueAsync("M2000", 0);
-            AddLogEntry("M2000", "0", "Write", "OK", "Start reset " + phaseName);
-
-            await WaitForCurrentProgramRunCompleteAsync();
             return true;
         }
 
-        private async Task WaitForCurrentProgramRunCompleteAsync()
+        private async Task MonitorMixedCutPowerSwitchAsync(int switchAtDataNo, string powerText)
         {
-            while (isProgramRunning && !isClosing)
+            try
+            {
+                bool sawNewRunBeforeSwitch = switchAtDataNo <= 1;
+                while (!isClosing && isProgramRunning)
+                {
+                    int activeIndex = GetActiveProgramIndex();
+                    if (!sawNewRunBeforeSwitch)
+                    {
+                        if (activeIndex > 0 && activeIndex < switchAtDataNo)
+                            sawNewRunBeforeSwitch = true;
+
+                        await Task.Delay(50);
+                        continue;
+                    }
+
+                    if (activeIndex >= switchAtDataNo)
+                        break;
+
+                    await Task.Delay(50);
+                }
+
+                if (isClosing || !isProgramRunning)
+                    return;
+
+                await WriteDeviceValueAsync(PauseRegister, 1);
+                AddLogEntry(PauseRegister, "1", "Write", "OK", "Pause before Cat power");
                 await Task.Delay(100);
+                await WriteDeviceValueAsync(PauseRegister, 0);
+                AddLogEntry(PauseRegister, "0", "Write", "OK", "Pause reset before Cat power");
+
+                await Task.Delay(200);
+                if (!await SetMixedLaserPowerAsync("Cat", powerText))
+                    return;
+
+                await Task.Delay(200);
+                if (isClosing || !isProgramRunning)
+                    return;
+
+                await WriteDeviceValueAsync(ContinueRegister, 1);
+                AddLogEntry(ContinueRegister, "1", "Write", "OK", "Continue after Cat power");
+                await Task.Delay(100);
+                await WriteDeviceValueAsync(ContinueRegister, 0);
+                AddLogEntry(ContinueRegister, "0", "Write", "OK", "Continue reset after Cat power");
+            }
+            catch (Exception ex)
+            {
+                UpdateIntegrityFault(ex.Message);
+                AddLogEntry("KhacCatPower", powerText ?? string.Empty, "Write", "Error", ex.Message);
+                await NotifyAsync("error", "Laser Power", "Loi doi cong suat Cat: " + ex.Message);
+            }
         }
 
         private async Task HandleContinueWriteAsync(bool active)

@@ -366,9 +366,12 @@ namespace DACDT_2026
                 cutSpeed,
                 cutPower);
 
+            DropEngraveHomeRowBeforeCut(engraveRows, cutRows.Count > 0);
+
             processRows.Clear();
             processRows.AddRange(engraveRows);
             processRows.AddRange(cutRows);
+            NormalizeMixedProgramMotionTypes(processRows);
 
             activeCadDocument = MergeEngraveCutDocuments();
             activeDocumentKind = "DXF";
@@ -378,6 +381,41 @@ namespace DACDT_2026
             ui.IsStartActionEnabled = processRows.Count > 0;
 
             await LogUIAsync("DXF", $"Compiled {processRows.Count} engrave/cut commands into one process table.");
+        }
+
+        private static void DropEngraveHomeRowBeforeCut(List<ProcessRow> engraveRows, bool hasCutRows)
+        {
+            if (engraveRows == null || engraveRows.Count == 0)
+                return;
+
+            var last = engraveRows[engraveRows.Count - 1];
+            if (last == null)
+                return;
+
+            if (EngraveCutProcessComposer.ShouldDropHomeBeforeFollowingCut(
+                last.ProcessKind,
+                last.MCodeValue,
+                last.EndCoordinate,
+                hasCutRows))
+            {
+                engraveRows.RemoveAt(engraveRows.Count - 1);
+            }
+        }
+
+        private static void NormalizeMixedProgramMotionTypes(List<ProcessRow> rows)
+        {
+            if (rows == null)
+                return;
+
+            for (int i = 0; i < rows.Count; i++)
+            {
+                if (rows[i] == null)
+                    continue;
+
+                rows[i].MotionType = EngraveCutProcessComposer.NormalizeMixedProgramMotionType(
+                    rows[i].MotionType,
+                    i == rows.Count - 1);
+            }
         }
 
         private List<ProcessRow> BuildDxfRowsForProcessDocument(
