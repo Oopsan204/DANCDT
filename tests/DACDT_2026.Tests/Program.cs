@@ -24,6 +24,7 @@ namespace DACDT_2026.Tests
                 SingleFlightGateAllowsOnlyOneInFlightOperation();
                 CameraRecordingFrameIntervalIsThrottled();
                 AxisMonitorUpdateCadenceStaysResponsive();
+                BackgroundVideoServiceArgumentsIncludeParentPid();
                 ExitShutdownSendsM210WheneverPlcIsConnected();
                 PlcConnectionGuardBlocksMissingOrDisconnectedPlc();
                 D406JogSpeedUsesFloatWordEncoding();
@@ -296,6 +297,15 @@ namespace DACDT_2026.Tests
             AssertEqual("1000", PerformanceTuning.SlowPlcMonitorPollIntervalMs.ToString(), "Non-axis PLC monitor rows should not block the fast axis path.");
             AssertEqual("1000", PerformanceTuning.MachineMqttPublishIntervalMs.ToString(), "MQTT/web publish must stay secondary to the local PLC monitor path.");
             AssertTrue(PerformanceTuning.MachineMqttPublishIntervalMs >= PerformanceTuning.PlcPollIntervalMs * 100, "MQTT cadence should be at least 100x slower than PLC polling.");
+        }
+
+        private static void BackgroundVideoServiceArgumentsIncludeParentPid()
+        {
+            string args = BackgroundVideoServiceProcess.BuildParentPidArguments(12345);
+
+            AssertEqual("--parent-pid 12345", args, "WebRTC service should receive the owning app process id.");
+            AssertEqual("12345", BackgroundVideoServiceProcess.TryGetParentPid(new[] { "--parent-pid", "12345" }).ToString(), "WebRTC service should parse parent pid arguments.");
+            AssertEqual("0", BackgroundVideoServiceProcess.TryGetParentPid(new[] { "--parent-pid", "abc" }).ToString(), "Invalid parent pid should be ignored.");
         }
 
         private static void ExitShutdownSendsM210WheneverPlcIsConnected()

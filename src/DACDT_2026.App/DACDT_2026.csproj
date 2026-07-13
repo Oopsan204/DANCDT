@@ -138,6 +138,7 @@
     <Compile Include="GcodeCoordinateService.cs" />
     <Compile Include="GcodeDocumentService.cs" />
     <Compile Include="GcodeLineSanitizer.cs" />
+    <Compile Include="BackgroundVideoServiceProcess.cs" />
     <Compile Include="MqttPublishService.cs" />
     <Compile Include="NcGcodeCleaner.cs" />
     <Compile Include="PerformanceTuning.cs" />
@@ -249,6 +250,9 @@
     <Copy SourceFiles="..\..\docs\index.html"
           DestinationFiles="$(TargetDir)index.html"
           SkipUnchangedFiles="true" />
+  </Target>
+  <Target Name="StopWebRtcCameraServiceBeforeCopy" BeforeTargets="BuildAndCopyWebRtcCameraService" Condition=" '$(Configuration)' == 'Debug' ">
+    <Exec Command="taskkill /F /T /IM WebRtcCameraService.exe &gt;NUL 2&gt;NUL &amp; exit /b 0" />
   </Target>
   <Target Name="BuildAndCopyWebRtcCameraService" AfterTargets="Build" Condition="Exists('..\WebRtcCameraService\WebRtcCameraService.csproj')">
     <MSBuild Projects="..\WebRtcCameraService\WebRtcCameraService.csproj"

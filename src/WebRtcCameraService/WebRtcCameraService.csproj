@@ -83,6 +83,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Program.cs" />
+    <Compile Include="..\DACDT_2026.App\BackgroundVideoServiceProcess.cs" Link="BackgroundVideoServiceProcess.cs" />
     <Compile Include="..\DACDT_2026.App\MqttPublishService.cs" Link="MqttPublishService.cs" />
     <Compile Include="..\DACDT_2026.App\WebRtcCameraServer.cs" Link="WebRtcCameraServer.cs" />
   </ItemGroup>

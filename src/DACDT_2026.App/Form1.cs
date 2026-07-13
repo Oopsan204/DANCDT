@@ -1070,6 +1070,7 @@ namespace DACDT_2026
                         UseShellExecute = false,
                         CreateNoWindow = true,
                         WindowStyle = System.Diagnostics.ProcessWindowStyle.Hidden,
+                        Arguments = BackgroundVideoServiceProcess.BuildParentPidArguments(System.Diagnostics.Process.GetCurrentProcess().Id),
                         WorkingDirectory = System.IO.Path.GetDirectoryName(serviceExe)
                     };
                     backgroundServiceProcess = System.Diagnostics.Process.Start(psi);
@@ -1198,6 +1199,7 @@ namespace DACDT_2026
                 if (backgroundServiceProcess != null && !backgroundServiceProcess.HasExited)
                 {
                     backgroundServiceProcess.Kill();
+                    backgroundServiceProcess.WaitForExit(3000);
                     backgroundServiceProcess.Dispose();
                     backgroundServiceProcess = null;
                     System.IO.File.AppendAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "crash_log.txt"), 
@@ -1219,7 +1221,8 @@ namespace DACDT_2026
                     try
                     {
                         p.Kill();
-                        p.WaitForExit(1000);
+                        p.WaitForExit(3000);
+                        p.Dispose();
                     }
                     catch { }
                 }

@@ -37,6 +37,9 @@
     <Compile Include="..\..\src\DACDT_2026.App\PerformanceTuning.cs">
       <Link>PerformanceTuning.cs</Link>
     </Compile>
+    <Compile Include="..\..\src\DACDT_2026.App\BackgroundVideoServiceProcess.cs">
+      <Link>BackgroundVideoServiceProcess.cs</Link>
+    </Compile>
     <Compile Include="..\..\src\DACDT_2026.App\ExitShutdownPolicy.cs">
       <Link>ExitShutdownPolicy.cs</Link>
     </Compile>

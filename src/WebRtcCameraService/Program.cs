@@ -19,6 +19,7 @@ namespace WebRtcCameraService
         static async Task Main(string[] args)
         {
             Console.WriteLine("Starting WebRTC Camera Background Service (x64)...");
+            int parentProcessId = BackgroundVideoServiceProcess.TryGetParentPid(args);
 
             bool createdNew;
             var instanceMutex = new Mutex(true, @"Local\DACDT_2026_WebRtcCameraService", out createdNew);
@@ -70,9 +71,33 @@ namespace WebRtcCameraService
                 cts.Cancel();
                 keepAliveEvent.Set();
             };
+            StartParentExitWatcher(parentProcessId, keepAliveEvent);
             keepAliveEvent.WaitOne();
 
             StopAll();
+        }
+
+        private static void StartParentExitWatcher(int parentProcessId, ManualResetEvent shutdownEvent)
+        {
+            if (parentProcessId <= 0 || shutdownEvent == null)
+                return;
+
+            Task.Run(() =>
+            {
+                try
+                {
+                    using (var parent = System.Diagnostics.Process.GetProcessById(parentProcessId))
+                    {
+                        parent.WaitForExit();
+                    }
+                }
+                catch
+                {
+                }
+
+                try { cts.Cancel(); } catch { }
+                try { shutdownEvent.Set(); } catch { }
+            });
         }
 
         private static void MqttService_MessageReceived(string topic, string payload)
