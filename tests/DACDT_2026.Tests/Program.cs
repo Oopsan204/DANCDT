@@ -34,7 +34,7 @@ namespace DACDT_2026.Tests
                 EngraveCutComposerKeepsOneOrderedProcessListWithPerRowParameters();
                 LaserPowerPercentMapsToPlcRange();
                 ActiveEngraveCutRowsSelectDifferentLaserPowerValues();
-                EngraveCutPowerSwitchUsesLastEngraveRowBeforeFirstCutRow();
+                EngraveCutPowerSwitchUsesFirstCutRow();
                 IntermediateEngraveEndContinuesBeforeCutRows();
                 EngraveHomeRowIsDroppedWhenCutFollows();
                 MixedProgramUsesM03SpeedForNonCutRowsAndProcessSpeedForWorkRows();
@@ -439,7 +439,7 @@ namespace DACDT_2026.Tests
             AssertEqual(EngraveCutProcessComposer.MapLaserPowerPercentToPlcValue(80).ToString(), cutPower.ToString(), "Cut row should use cut power.");
         }
 
-        private static void EngraveCutPowerSwitchUsesLastEngraveRowBeforeFirstCutRow()
+        private static void EngraveCutPowerSwitchUsesFirstCutRow()
         {
             var kinds = new[]
             {
@@ -451,7 +451,7 @@ namespace DACDT_2026.Tests
 
             AssertTrue(EngraveCutProcessComposer.TryGetFirstCutRowIndex(kinds, out int firstCutIndex), "Mixed rows should expose the first cut row.");
             AssertEqual("3", firstCutIndex.ToString(), "First cut row should be one-based.");
-            AssertEqual("2", EngraveCutProcessComposer.GetCutPowerSwitchMonitorIndex(firstCutIndex).ToString(), "Cut power should switch on the row before the first cut row.");
+            AssertEqual("3", EngraveCutProcessComposer.GetCutPowerSwitchMonitorIndex(firstCutIndex).ToString(), "Cut power should switch only when the first cut row is reached.");
         }
 
         private static void IntermediateEngraveEndContinuesBeforeCutRows()

@@ -84,7 +84,7 @@ namespace DACDT_2026
             if (oneBasedFirstCutIndex <= 0)
                 return 0;
 
-            return oneBasedFirstCutIndex > 1 ? oneBasedFirstCutIndex - 1 : oneBasedFirstCutIndex;
+            return oneBasedFirstCutIndex;
         }
 
         public static string NormalizeMixedProgramMotionType(string motionType, bool isLastRow)
