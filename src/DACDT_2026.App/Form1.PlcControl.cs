@@ -1,6 +1,8 @@
 using System;
 using System.Diagnostics;
+using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -355,8 +357,14 @@ namespace DACDT_2026
 
             try
             {
+                if (isMixedEngraveCutProgram)
+                {
+                    await HandleMixedEngraveCutStartAsync();
+                    return;
+                }
+
                 // Rebuild drawing process rows from active CAD/G-code document if loaded, to clear any Test Area data
-                if (activeCadDocument != null)
+                if (activeCadDocument != null && !isMixedEngraveCutProgram)
                 {
                     var drawingRows = BuildConnectedPathsFromCad();
                     drawingRows = PostProcessCompiledRows(drawingRows);
@@ -401,6 +409,82 @@ namespace DACDT_2026
         }
 
         // ── Jog Speed ────────────────────────────────────────────────────────────
+        private async Task HandleMixedEngraveCutStartAsync()
+        {
+            var allRows = processRows.ToList();
+            var engraveRows = allRows
+                .Where(row => string.Equals(row.ProcessKind, EngraveCutProcessComposer.EngraveKind, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            var cutRows = allRows
+                .Where(row => string.Equals(row.ProcessKind, EngraveCutProcessComposer.CutKind, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            try
+            {
+                if (engraveRows.Count > 0)
+                {
+                    bool engraveOk = await RunMixedProcessPhaseAsync("Khac", engraveRows, engravePower);
+                    if (!engraveOk)
+                        return;
+                }
+
+                if (cutRows.Count > 0)
+                {
+                    if (engraveRows.Count > 0)
+                        await Task.Delay(500);
+
+                    await RunMixedProcessPhaseAsync("Cat", cutRows, cutPower);
+                }
+            }
+            finally
+            {
+                processRows.Clear();
+                processRows.AddRange(allRows);
+                ui.IsStartActionEnabled = processRows.Count > 0;
+                await PushDxfStateAsync();
+            }
+        }
+
+        private async Task<bool> RunMixedProcessPhaseAsync(string phaseName, List<ProcessRow> phaseRows, string powerText)
+        {
+            if (phaseRows == null || phaseRows.Count == 0)
+                return true;
+
+            if (!DecimalInputParser.TryParseFlexibleDouble(powerText, out double powerPercent))
+            {
+                await NotifyAsync("error", "Laser Power", $"{phaseName} power khong hop le: {powerText}");
+                return false;
+            }
+
+            processRows.Clear();
+            processRows.AddRange(phaseRows);
+            ui.IsStartActionEnabled = false;
+            await PushDxfStateAsync();
+
+            await HandleSetLaserPowerAsync(powerPercent);
+
+            bool sendOk = await HandleSendCadXAsync();
+            if (!sendOk)
+                return false;
+
+            await WriteDeviceValueAsync("M2000", 1);
+            isProgramRunning = true;
+            UpdateIntegrityState(true);
+            AddLogEntry("M2000", "1", "Write", "OK", "Start " + phaseName);
+            await Task.Delay(100);
+            await WriteDeviceValueAsync("M2000", 0);
+            AddLogEntry("M2000", "0", "Write", "OK", "Start reset " + phaseName);
+
+            await WaitForCurrentProgramRunCompleteAsync();
+            return true;
+        }
+
+        private async Task WaitForCurrentProgramRunCompleteAsync()
+        {
+            while (isProgramRunning && !isClosing)
+                await Task.Delay(100);
+        }
+
         private async Task HandleContinueWriteAsync(bool active)
         {
             if (!active)
@@ -585,9 +669,7 @@ namespace DACDT_2026
             try
             {
                 // UI inputs percentage (0-100%). Map it to PLC value (450-2000).
-                int plcValue = (int)Math.Round(450.0 + (value / 100.0) * (2000.0 - 450.0));
-                if (plcValue < 450) plcValue = 450;
-                if (plcValue > 2000) plcValue = 2000;
+                int plcValue = EngraveCutProcessComposer.MapLaserPowerPercentToPlcValue(value);
 
                 laserPower = value.ToString("0.##", CultureInfo.InvariantCulture);
                 ui.LaserPowerInput = laserPower;

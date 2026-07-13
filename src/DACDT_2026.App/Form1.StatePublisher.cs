@@ -212,6 +212,7 @@ namespace DACDT_2026
                         sb.AppendFormat(",\"mCode\":\"{0}\"", EscapeJson(prim.MCodeValue ?? string.Empty));
                         sb.AppendFormat(",\"speed\":\"{0}\"", EscapeJson(prim.Speed ?? string.Empty));
                         sb.AppendFormat(",\"dwell\":\"{0}\"", EscapeJson(prim.Dwell ?? string.Empty));
+                        sb.AppendFormat(",\"processKind\":\"{0}\"", EscapeJson(prim.ProcessKind ?? string.Empty));
                         sb.Append(",\"center\":");
                         AppendCadCoordinateJson(sb, prim.Center);
                         sb.Append(",\"points\":[");
@@ -478,6 +479,8 @@ namespace DACDT_2026
             sb.AppendFormat(",\"mCode\":\"{0}\"", EscapeJson(row.MCodeValue ?? string.Empty));
             sb.AppendFormat(",\"dwell\":\"{0}\"", EscapeJson(row.Dwell ?? string.Empty));
             sb.AppendFormat(",\"speed\":\"{0}\"", EscapeJson(row.Speed ?? string.Empty));
+            sb.AppendFormat(",\"processKind\":\"{0}\"", EscapeJson(row.ProcessKind ?? string.Empty));
+            sb.AppendFormat(",\"laserPower\":\"{0}\"", EscapeJson(row.LaserPower ?? string.Empty));
             sb.AppendFormat(",\"endCoordinate\":\"{0}\"", EscapeJson(ApplyOffsetToCoord(row.EndCoordinate, rowOx, rowOy)));
             sb.AppendFormat(",\"centerCoordinate\":\"{0}\"", EscapeJson(ApplyOffsetToCoord(row.CenterCoordinate, rowOx, rowOy)));
             sb.AppendFormat(",\"endZ\":{0}", row.EndZ.ToString("0.###", CultureInfo.InvariantCulture));
@@ -529,9 +532,14 @@ namespace DACDT_2026
             var snapGlobalSpeedM3 = globalSpeedM3;
             var snapGcodeSpeedM3 = gcodeSpeedM3;
             var snapRapidSpeed = rapidSpeed;
+            var snapEngraveSpeed = engraveSpeed;
+            var snapEngravePower = engravePower;
+            var snapCutSpeed = cutSpeed;
+            var snapCutPower = cutPower;
             var snapGlobalDwellM3 = globalDwellM3;
             var snapGlobalDwellM4 = globalDwellM4;
             var snapActiveWcs = activeWcs;
+            var snapMixedEngraveCut = isMixedEngraveCutProgram;
 
             if (!string.Equals(snapCurrentView, "dxf", StringComparison.OrdinalIgnoreCase))
             {
@@ -605,6 +613,8 @@ namespace DACDT_2026
                         MCodeValue = row.MCodeValue ?? string.Empty,
                         Dwell = row.Dwell ?? string.Empty,
                         Speed = row.Speed ?? string.Empty,
+                        ProcessKind = row.ProcessKind ?? string.Empty,
+                        LaserPower = row.LaserPower ?? string.Empty,
                         EndCoordinate = ApplyOffsetToCoord(row.EndCoordinate, rowOx, rowOy),
                         CenterCoordinate = ApplyOffsetToCoord(row.CenterCoordinate, rowOx, rowOy),
                         EndZ = row.EndZ.ToString("0.###", CultureInfo.InvariantCulture),
@@ -614,7 +624,9 @@ namespace DACDT_2026
 
                 var projection = CreateCadProjection(rawDoc, snapWorkspaceWidth, snapWorkspaceHeight);
                 var cadPreviewImage = BuildCadPreviewImage(snapDoc, projection);
-                var cadPreviewGeometry = BuildCadPreviewGeometry(snapDoc, projection);
+                var cadPreviewGeometry = snapMixedEngraveCut ? null : BuildCadPreviewGeometry(snapDoc, projection);
+                var cadEngravePreviewGeometry = BuildCadPreviewGeometry(snapDoc, projection, EngraveCutProcessComposer.EngraveKind);
+                var cadCutPreviewGeometry = BuildCadPreviewGeometry(snapDoc, projection, EngraveCutProcessComposer.CutKind);
                 var limitAreas = BuildCadLimitAreas(snapWorkspaceWidth, snapWorkspaceHeight, projection);
                 var axisLines = BuildCadAxisLines(snapDoc, projection);
                 var axisLabels = BuildCadAxisLabels(snapDoc, projection);
@@ -625,7 +637,7 @@ namespace DACDT_2026
                     snapConnected,
                     snapRobotRawX,
                     snapRobotRawY);
-                return new { doc = snapDoc, points, geometryRows, rows, cadPreviewImage, cadPreviewGeometry, limitAreas, axisLines, axisLabels, trackingPoints };
+                return new { doc = snapDoc, points, geometryRows, rows, cadPreviewImage, cadPreviewGeometry, cadEngravePreviewGeometry, cadCutPreviewGeometry, limitAreas, axisLines, axisLabels, trackingPoints };
             });
 
             await RunOnUiAsync(() =>
@@ -644,6 +656,10 @@ namespace DACDT_2026
                     ui.GlobalSpeedM3Input = snapGlobalSpeedM3;
                     ui.GcodeSpeedM3Input = snapGcodeSpeedM3;
                     ui.RapidSpeedInput = snapRapidSpeed;
+                    ui.EngraveSpeedInput = snapEngraveSpeed;
+                    ui.EngravePowerInput = snapEngravePower;
+                    ui.CutSpeedInput = snapCutSpeed;
+                    ui.CutPowerInput = snapCutPower;
                     ui.GlobalDwellM3Input = snapGlobalDwellM3;
                     ui.GlobalDwellM4Input = snapGlobalDwellM4;
                     ui.OffsetXInput = snapOx;
@@ -666,6 +682,8 @@ namespace DACDT_2026
                 ui.SetProcessRows(model.rows, snapActiveProgramIndex);
                 ui.CadPreviewImage = model.cadPreviewImage;
                 ui.CadPreviewGeometry = model.cadPreviewGeometry;
+                ui.CadEngravePreviewGeometry = model.cadEngravePreviewGeometry;
+                ui.CadCutPreviewGeometry = model.cadCutPreviewGeometry;
                 ReplaceCollection(ui.CadPrimitives, Enumerable.Empty<CadPrimitiveViewModel>());
                 ReplaceCollection(ui.CadLimitAreas, model.limitAreas);
                 ReplaceCollection(ui.CadAxisLines, model.axisLines);
@@ -952,6 +970,7 @@ namespace DACDT_2026
                 MCodeValue = primitive.MCodeValue,
                 Speed = primitive.Speed,
                 Dwell = primitive.Dwell,
+                ProcessKind = primitive.ProcessKind,
                 WcsIndex = primitive.WcsIndex
             };
         }
@@ -988,6 +1007,8 @@ namespace DACDT_2026
                 MCodeValue = row.MCodeValue,
                 Dwell = row.Dwell,
                 Speed = row.Speed,
+                ProcessKind = row.ProcessKind,
+                LaserPower = row.LaserPower,
                 EndCoordinate = row.EndCoordinate,
                 CenterCoordinate = row.CenterCoordinate,
                 EndXMm = row.EndXMm,
@@ -1110,7 +1131,10 @@ namespace DACDT_2026
         private static string FormatGeometryNumber(double value)
             => value.ToString("0.000", CultureInfo.InvariantCulture);
 
-        private static System.Windows.Media.Geometry BuildCadPreviewGeometry(CadDocumentService.CadLoadResult doc, CadProjection projection)
+        private static System.Windows.Media.Geometry BuildCadPreviewGeometry(
+            CadDocumentService.CadLoadResult doc,
+            CadProjection projection,
+            string processKind = null)
         {
             if (doc?.Primitives == null || doc.Primitives.Count == 0 || projection == null)
                 return null;
@@ -1121,6 +1145,9 @@ namespace DACDT_2026
                 foreach (var primitive in doc.Primitives)
                 {
                     if (primitive?.Points == null || primitive.Points.Count < 2)
+                        continue;
+                    if (!string.IsNullOrWhiteSpace(processKind)
+                        && !string.Equals(primitive.ProcessKind, processKind, StringComparison.OrdinalIgnoreCase))
                         continue;
                     if (IsRapidPrimitive(primitive))
                         continue;

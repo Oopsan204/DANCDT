@@ -79,8 +79,11 @@ namespace DACDT_2026
         private PLCCommunication plcComm;
 
         private CadDocumentService.CadLoadResult activeCadDocument;
+        private CadDocumentService.CadLoadResult activeEngraveCadDocument;
+        private CadDocumentService.CadLoadResult activeCutCadDocument;
         private string selectedCadPointKey;
         private string activeDocumentKind = "DXF";
+        private bool isMixedEngraveCutProgram;
         private string globalZDown = "";
         private string globalZSafe = "";
         private string globalZStart = "";
@@ -89,6 +92,10 @@ namespace DACDT_2026
         private string gcodeSpeedM3 = "10000";
         private string rapidSpeed = "10000";
         private string testEngraveSpeed = "10000";
+        private string engraveSpeed = "1200";
+        private string engravePower = "35";
+        private string cutSpeed = "500";
+        private string cutPower = "80";
         private string laserPower = "100";
         private double offsetX = 0.0;
         private double offsetY = 0.0;
@@ -242,6 +249,8 @@ namespace DACDT_2026
                 }
             });
             ui.OpenDxfCommand = new RelayCommand(HandleOpenDxfAsync);
+            ui.ImportEngraveDxfCommand = new RelayCommand(HandleImportEngraveDxfAsync);
+            ui.ImportCutDxfCommand = new RelayCommand(HandleImportCutDxfAsync);
             ui.NewGcodeCommand = new RelayCommand(HandleNewGcodeAsync);
             ui.SaveGcodeCommand = new RelayCommand(() => HandleSaveGcodeAsync(ui.RawGcodeText));
             ui.PreviewGcodeCommand = new RelayCommand(() => HandlePreviewGcodeAsync(ui.RawGcodeText));
@@ -350,6 +359,23 @@ namespace DACDT_2026
         {
             offsetX = ui.OffsetXInput;
             offsetY = ui.OffsetYInput;
+            globalSpeed = ui.GlobalSpeedInput;
+            globalSpeedM3 = ui.GlobalSpeedM3Input;
+            globalDwellM3 = ui.GlobalDwellM3Input;
+            globalDwellM4 = ui.GlobalDwellM4Input;
+            testEngraveSpeed = ui.TestEngraveSpeedInput;
+            SyncEngraveCutSettingsFromUi();
+
+            if (isMixedEngraveCutProgram)
+            {
+                await RebuildMixedEngraveCutProgramAsync();
+                SaveSettingsToFile();
+                await HandleScanLimitsAsync();
+                await PushDxfStateAsync();
+                await NotifyAsync("success", "Settings", "Updated engrave/cut DXF settings.");
+                return;
+            }
+
             await HandleProcessValueAsync("speed", ui.GlobalSpeedInput);
             await HandleProcessValueAsync("globalSpeedM3", ui.GlobalSpeedM3Input);
             await HandleProcessValueAsync("dwellM3", ui.GlobalDwellM3Input);
@@ -449,6 +475,10 @@ namespace DACDT_2026
             ui.GcodeSpeedM3Input = gcodeSpeedM3;
             ui.RapidSpeedInput = rapidSpeed;
             ui.TestEngraveSpeedInput = testEngraveSpeed;
+            ui.EngraveSpeedInput = engraveSpeed;
+            ui.EngravePowerInput = engravePower;
+            ui.CutSpeedInput = cutSpeed;
+            ui.CutPowerInput = cutPower;
             ui.GlobalDwellM3Input = globalDwellM3;
             ui.GlobalDwellM4Input = globalDwellM4;
             ui.OffsetXInput = offsetX;
@@ -505,6 +535,10 @@ namespace DACDT_2026
                         case "globalSpeedM3": globalSpeedM3 = val; break;
                         case "gcodeSpeedM3": gcodeSpeedM3 = val; break;
                         case "testEngraveSpeed": testEngraveSpeed = val; break;
+                        case "engraveSpeed": engraveSpeed = val; break;
+                        case "engravePower": engravePower = val; break;
+                        case "cutSpeed": cutSpeed = val; break;
+                        case "cutPower": cutPower = val; break;
                         case "workspaceWidth": double.TryParse(val, NumberStyles.Any, CultureInfo.InvariantCulture, out workspaceWidth); break;
                         case "workspaceHeight": double.TryParse(val, NumberStyles.Any, CultureInfo.InvariantCulture, out workspaceHeight); break;
                         case "offsetX": double.TryParse(val, NumberStyles.Any, CultureInfo.InvariantCulture, out offsetX); break;
@@ -562,6 +596,10 @@ namespace DACDT_2026
                     $"globalDwellM4={globalDwellM4}",
                     $"globalSpeedM3={globalSpeedM3}",
                     $"testEngraveSpeed={testEngraveSpeed}",
+                    $"engraveSpeed={engraveSpeed}",
+                    $"engravePower={engravePower}",
+                    $"cutSpeed={cutSpeed}",
+                    $"cutPower={cutPower}",
                     $"memberPassword={memberPassword}",
                     $"activeWcs={activeWcs}",
                     $"laserPower={laserPower}",

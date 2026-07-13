@@ -31,6 +31,9 @@ namespace DACDT_2026.Tests
                 WebCadUploadReassemblesChunks();
                 WebCadUploadRejectsUnsupportedFiles();
                 WpfThemeManagerAppliesLightAndDarkPalettes();
+                EngraveCutComposerKeepsOneOrderedProcessListWithPerRowParameters();
+                LaserPowerPercentMapsToPlcRange();
+                ActiveEngraveCutRowsSelectDifferentLaserPowerValues();
                 Console.WriteLine("All tests passed.");
                 return 0;
             }
@@ -374,6 +377,62 @@ namespace DACDT_2026.Tests
             AssertEqual("#FFE5E7EB", ((System.Windows.Media.SolidColorBrush)resources["CardHeaderTextBrush"]).Color.ToString(), "Dark axis card header text should stay light.");
             AssertEqual("light", WpfThemeManager.Toggle("dark"), "Dark should toggle to light.");
             AssertEqual("dark", WpfThemeManager.Toggle("light"), "Light should toggle to dark.");
+        }
+
+        private static void EngraveCutComposerKeepsOneOrderedProcessListWithPerRowParameters()
+        {
+            var engraveRows = new[]
+            {
+                new EngraveCutProcessComposer.ProcessRowData { Key = "e1", Speed = "", LaserPower = "" },
+                new EngraveCutProcessComposer.ProcessRowData { Key = "e2", Speed = "400", LaserPower = "1" }
+            };
+            var cutRows = new[]
+            {
+                new EngraveCutProcessComposer.ProcessRowData { Key = "c1", Speed = "", LaserPower = "" }
+            };
+
+            var result = EngraveCutProcessComposer.Compose(
+                engraveRows,
+                cutRows,
+                engraveSpeed: "1200",
+                engravePower: "35",
+                cutSpeed: "500",
+                cutPower: "80");
+
+            AssertEqual("3", result.Count.ToString(), "Engrave and cut rows should be merged into one process list.");
+            AssertEqual("engrave", result[0].ProcessKind, "Engrave rows should come first.");
+            AssertEqual("engrave", result[1].ProcessKind, "All engrave rows should keep engrave kind.");
+            AssertEqual("cut", result[2].ProcessKind, "Cut rows should come after engrave rows.");
+            AssertEqual("1200", result[0].Speed, "Blank engrave speed should use engrave config.");
+            AssertEqual("400", result[1].Speed, "Existing row speed should not be overwritten.");
+            AssertEqual("35", result[0].LaserPower, "Blank engrave power should use engrave config.");
+            AssertEqual("1", result[1].LaserPower, "Existing row power should not be overwritten.");
+            AssertEqual("500", result[2].Speed, "Cut rows should use cut speed.");
+            AssertEqual("80", result[2].LaserPower, "Cut rows should use cut power.");
+        }
+
+        private static void LaserPowerPercentMapsToPlcRange()
+        {
+            AssertEqual("450", EngraveCutProcessComposer.MapLaserPowerPercentToPlcValue(-10).ToString(), "Power below 0% should clamp to the PLC minimum.");
+            AssertEqual("450", EngraveCutProcessComposer.MapLaserPowerPercentToPlcValue(0).ToString(), "0% should map to the PLC minimum.");
+            AssertEqual("1225", EngraveCutProcessComposer.MapLaserPowerPercentToPlcValue(50).ToString(), "50% should map to the midpoint.");
+            AssertEqual("2000", EngraveCutProcessComposer.MapLaserPowerPercentToPlcValue(100).ToString(), "100% should map to the PLC maximum.");
+            AssertEqual("2000", EngraveCutProcessComposer.MapLaserPowerPercentToPlcValue(120).ToString(), "Power above 100% should clamp to the PLC maximum.");
+        }
+
+        private static void ActiveEngraveCutRowsSelectDifferentLaserPowerValues()
+        {
+            var rows = new[]
+            {
+                new EngraveCutProcessComposer.ProcessRowData { ProcessKind = "engrave", LaserPower = "35" },
+                new EngraveCutProcessComposer.ProcessRowData { ProcessKind = "cut", LaserPower = "80" }
+            };
+
+            AssertTrue(EngraveCutProcessComposer.TryGetLaserPowerPlcValue(rows, 1, out int engravePower), "Engrave row should produce a PLC laser power value.");
+            AssertTrue(EngraveCutProcessComposer.TryGetLaserPowerPlcValue(rows, 2, out int cutPower), "Cut row should produce a PLC laser power value.");
+            AssertTrue(engravePower != cutPower, "Engrave and cut rows must not write the same laser power when configured differently.");
+            AssertEqual(EngraveCutProcessComposer.MapLaserPowerPercentToPlcValue(35).ToString(), engravePower.ToString(), "Engrave row should use engrave power.");
+            AssertEqual(EngraveCutProcessComposer.MapLaserPowerPercentToPlcValue(80).ToString(), cutPower.ToString(), "Cut row should use cut power.");
         }
 
         private static void AssertEqual(string expected, string actual, string message)

@@ -103,6 +103,10 @@ namespace DACDT_2026
         private string gcodeSpeedM3Input = "10000";
         private string rapidSpeedInput = "10000";
         private string testEngraveSpeedInput = "10000";
+        private string engraveSpeedInput = "1200";
+        private string engravePowerInput = "35";
+        private string cutSpeedInput = "500";
+        private string cutPowerInput = "80";
         private string globalDwellM3Input = "100";
         private string globalDwellM4Input = "100";
         private double offsetXInput;
@@ -124,6 +128,8 @@ namespace DACDT_2026
         private int lastHighlightedProgramIndex;
         private ImageSource cadPreviewImage;
         private System.Windows.Media.Geometry cadPreviewGeometry;
+        private System.Windows.Media.Geometry cadEngravePreviewGeometry;
+        private System.Windows.Media.Geometry cadCutPreviewGeometry;
         private double cadPreviewStrokeThickness = 0.65;
         private ImageSource cameraFrame;
         private CameraDeviceViewModel selectedCamera;
@@ -184,6 +190,8 @@ namespace DACDT_2026
         public ICommand SetJogSpeedCommand { get; set; }
         public ICommand SetLaserPowerCommand { get; set; }
         public ICommand OpenDxfCommand { get; set; }
+        public ICommand ImportEngraveDxfCommand { get; set; }
+        public ICommand ImportCutDxfCommand { get; set; }
         public ICommand NewGcodeCommand { get; set; }
         public ICommand SaveGcodeCommand { get; set; }
         public ICommand PreviewGcodeCommand { get; set; }
@@ -448,6 +456,30 @@ namespace DACDT_2026
             set => SetProperty(ref testEngraveSpeedInput, value);
         }
 
+        public string EngraveSpeedInput
+        {
+            get => engraveSpeedInput;
+            set => SetProperty(ref engraveSpeedInput, value);
+        }
+
+        public string EngravePowerInput
+        {
+            get => engravePowerInput;
+            set => SetProperty(ref engravePowerInput, value);
+        }
+
+        public string CutSpeedInput
+        {
+            get => cutSpeedInput;
+            set => SetProperty(ref cutSpeedInput, value);
+        }
+
+        public string CutPowerInput
+        {
+            get => cutPowerInput;
+            set => SetProperty(ref cutPowerInput, value);
+        }
+
         public string GlobalDwellM3Input
         {
             get => globalDwellM3Input;
@@ -560,6 +592,18 @@ namespace DACDT_2026
         {
             get => cadPreviewGeometry;
             set => SetProperty(ref cadPreviewGeometry, value);
+        }
+
+        public System.Windows.Media.Geometry CadEngravePreviewGeometry
+        {
+            get => cadEngravePreviewGeometry;
+            set => SetProperty(ref cadEngravePreviewGeometry, value);
+        }
+
+        public System.Windows.Media.Geometry CadCutPreviewGeometry
+        {
+            get => cadCutPreviewGeometry;
+            set => SetProperty(ref cadCutPreviewGeometry, value);
         }
 
         public double CadPreviewStrokeThickness
@@ -1114,9 +1158,22 @@ namespace DACDT_2026
         public string MCodeValue { get; set; }
         public string Dwell { get; set; }
         public string Speed { get; set; }
+        public string ProcessKind { get; set; }
+        public string LaserPower { get; set; }
         public string EndCoordinate { get; set; }
         public string CenterCoordinate { get; set; }
         public string EndZ { get; set; }
+        public string ProcessKindLabel
+        {
+            get
+            {
+                if (string.Equals(ProcessKind, EngraveCutProcessComposer.EngraveKind, StringComparison.OrdinalIgnoreCase))
+                    return "Khac";
+                if (string.Equals(ProcessKind, EngraveCutProcessComposer.CutKind, StringComparison.OrdinalIgnoreCase))
+                    return "Cat";
+                return string.Empty;
+            }
+        }
         public bool IsActive
         {
             get => isActive;

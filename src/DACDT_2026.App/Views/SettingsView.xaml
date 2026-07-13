@@ -42,6 +42,22 @@
                                 <TextBlock Text="Test Area Speed (mm/min)" Foreground="{DynamicResource MutedBrush}"/>
                                 <TextBox Text="{Binding TestEngraveSpeedInput, UpdateSourceTrigger=PropertyChanged}"/>
                             </StackPanel>
+                            <StackPanel Margin="6,0,0,6">
+                                <TextBlock Text="Engrave Speed" Foreground="{DynamicResource MutedBrush}"/>
+                                <TextBox Text="{Binding EngraveSpeedInput, UpdateSourceTrigger=PropertyChanged}"/>
+                            </StackPanel>
+                            <StackPanel Margin="0,0,6,6">
+                                <TextBlock Text="Engrave Power (%)" Foreground="{DynamicResource MutedBrush}"/>
+                                <TextBox Text="{Binding EngravePowerInput, UpdateSourceTrigger=PropertyChanged}"/>
+                            </StackPanel>
+                            <StackPanel Margin="6,0,0,6">
+                                <TextBlock Text="Cut Speed" Foreground="{DynamicResource MutedBrush}"/>
+                                <TextBox Text="{Binding CutSpeedInput, UpdateSourceTrigger=PropertyChanged}"/>
+                            </StackPanel>
+                            <StackPanel Margin="0,0,6,6">
+                                <TextBlock Text="Cut Power (%)" Foreground="{DynamicResource MutedBrush}"/>
+                                <TextBox Text="{Binding CutPowerInput, UpdateSourceTrigger=PropertyChanged}"/>
+                            </StackPanel>
                             <StackPanel Margin="6,0,0,6"/>
                         </UniformGrid>
                         <Button Content="Apply DXF Settings" Command="{Binding ApplyDxfSettingsCommand}" Style="{StaticResource PrimaryButtonStyle}"/>

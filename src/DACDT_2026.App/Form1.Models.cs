@@ -22,6 +22,8 @@ namespace DACDT_2026
             public string MCodeValue       { get; set; }
             public string Dwell            { get; set; }
             public string Speed            { get; set; }
+            public string ProcessKind      { get; set; }
+            public string LaserPower       { get; set; }
             public string EndCoordinate    { get; set; }
             public string CenterCoordinate { get; set; }
             
