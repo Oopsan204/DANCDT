@@ -1258,8 +1258,8 @@ namespace DACDT_2026
                 {
                     PathId = group.Key,
                     Points = pointCollection,
-                    Stroke = isCut ? Brushes.OrangeRed : Brushes.DeepSkyBlue,
-                    StrokeThickness = 0.65
+                    Stroke = isCut ? Brushes.OrangeRed : Brushes.DodgerBlue,
+                    StrokeThickness = 0.95
                 });
             }
 

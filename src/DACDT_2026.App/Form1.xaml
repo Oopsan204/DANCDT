@@ -7,12 +7,16 @@
         Title="DACDT 2026"
         Width="1440"
         Height="860"
-        MinWidth="1180"
-        MinHeight="760"
+        MinWidth="1024"
+        MinHeight="650"
         WindowStartupLocation="CenterScreen"
         WindowStyle="None"
         ResizeMode="NoResize"
         WindowState="Maximized"
+        UseLayoutRounding="True"
+        SnapsToDevicePixels="True"
+        TextOptions.TextFormattingMode="Display"
+        TextOptions.TextRenderingMode="ClearType"
         Background="{DynamicResource BgBrush}"
         Icon="app_icon.png">
     <Window.Resources>
@@ -26,7 +30,9 @@
         </ResourceDictionary>
     </Window.Resources>
 
-    <Grid Margin="6">
+    <Grid Margin="6"
+          UseLayoutRounding="True"
+          SnapsToDevicePixels="True">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>

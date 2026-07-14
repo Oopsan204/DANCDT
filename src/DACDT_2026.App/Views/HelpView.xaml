@@ -4,7 +4,7 @@
     <UserControl.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
-                <ResourceDictionary Source="Styles.xaml"/>
+                <ResourceDictionary Source="/DACDT_2026;component/Views/Styles.xaml"/>
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </UserControl.Resources>
@@ -33,7 +33,7 @@
                 <TextBlock Text="MỤC LỤC NHANH"
                            FontSize="18"
                            FontWeight="Bold"
-                           Foreground="White"
+                           Foreground="{DynamicResource TextBrush}"
                            Margin="0,4,0,8"/>
                 <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" LineHeight="22" Margin="0,0,0,18">
                     1. Tổng quan màn hình&#x0a;
@@ -52,7 +52,7 @@
                 <TextBlock Text="1. Tổng quan màn hình"
                            FontSize="18"
                            FontWeight="Bold"
-                           Foreground="White"
+                           Foreground="{DynamicResource TextBrush}"
                            Margin="0,12,0,6"/>
                 <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" LineHeight="21">
                     Ứng dụng gồm thanh điều hướng bên trái và vùng làm việc chính bên phải. Các tab chính gồm Dashboard,
@@ -68,7 +68,7 @@
                 <TextBlock Text="2. Quy trình khởi động an toàn"
                            FontSize="18"
                            FontWeight="Bold"
-                           Foreground="White"
+                           Foreground="{DynamicResource TextBrush}"
                            Margin="0,18,0,6"/>
                 <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" LineHeight="22">
                     Bước 1: Mở app và kiểm tra màn hình ở trạng thái bình thường, không có cảnh báo lỗi lớn.&#x0a;
@@ -83,7 +83,7 @@
                 <TextBlock Text="3. Kết nối PLC và trạng thái hệ thống"
                            FontSize="18"
                            FontWeight="Bold"
-                           Foreground="White"
+                           Foreground="{DynamicResource TextBrush}"
                            Margin="0,18,0,6"/>
                 <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" LineHeight="21">
                     Khi PLC đã kết nối, app sẽ đọc dữ liệu vị trí, tốc độ, trạng thái trục, mã lỗi và các vùng buffer.
@@ -98,7 +98,7 @@
                 <TextBlock Text="4. Nhóm nút RUN / PAUSE / CONTINUE / STOP"
                            FontSize="18"
                            FontWeight="Bold"
-                           Foreground="White"
+                           Foreground="{DynamicResource TextBrush}"
                            Margin="0,18,0,6"/>
                 <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" LineHeight="22">
                     Các nút RUN, PAUSE, CONTINUE và STOP là dạng nhấn một lần rồi tự nhả, không phải công tắc giữ trạng thái.&#x0a;
@@ -107,8 +107,8 @@
                     CONTINUE: ghi M211 = 1, chờ 100 ms, sau đó ghi M211 = 0. Dùng để chạy tiếp sau khi pause.&#x0a;
                     STOP: ghi M210 = 1, chờ 500 ms, xoá/reset buffer tọa độ và mã lệnh chạy, sau đó ghi M210 = 0.
                 </TextBlock>
-                <Border Background="#1F2937" BorderBrush="#475569" BorderThickness="1" CornerRadius="8" Padding="12" Margin="0,10,0,0">
-                    <TextBlock TextWrapping="Wrap" Foreground="#FDE68A" LineHeight="20">
+                <Border Background="{DynamicResource HelpCodeBrush}" BorderBrush="{DynamicResource HelpCodeBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="12" Margin="0,10,0,0">
+                    <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource HelpWarningTextBrush}" LineHeight="20">
                         Lưu ý an toàn: STOP trong app là lệnh dừng theo quy trình PLC và reset buffer chạy. Nếu có nguy hiểm cơ khí,
                         dùng EMERGENCY STOP thay vì chờ thao tác phần mềm.
                     </TextBlock>
@@ -117,7 +117,7 @@
                 <TextBlock Text="5. Jog tay, HOME và RESET"
                            FontSize="18"
                            FontWeight="Bold"
-                           Foreground="White"
+                           Foreground="{DynamicResource TextBrush}"
                            Margin="0,18,0,6"/>
                 <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" LineHeight="21">
                     Jog tay dùng để di chuyển từng trục khi căn chỉnh máy. Giữ nút jog để chạy, nhả nút để dừng. 
@@ -131,7 +131,7 @@
                 <TextBlock Text="6. Mở file DXF, NC, G-code và kiểm tra dữ liệu"
                            FontSize="18"
                            FontWeight="Bold"
-                           Foreground="White"
+                           Foreground="{DynamicResource TextBrush}"
                            Margin="0,18,0,6"/>
                 <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" LineHeight="22">
                     Vào tab DXF/G-code Run để mở file. App hỗ trợ các file DXF và một số file NC/G-code thông dụng. Sau khi mở,
@@ -147,7 +147,7 @@
                 <TextBlock Text="7. Gửi dữ liệu xuống PLC và chạy chương trình"
                            FontSize="18"
                            FontWeight="Bold"
-                           Foreground="White"
+                           Foreground="{DynamicResource TextBrush}"
                            Margin="0,18,0,6"/>
                 <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" LineHeight="22">
                     Quy trình khuyến nghị:&#x0a;
@@ -167,7 +167,7 @@
                 <TextBlock Text="8. Camera, WebRTC và Web Dashboard"
                            FontSize="18"
                            FontWeight="Bold"
-                           Foreground="White"
+                           Foreground="{DynamicResource TextBrush}"
                            Margin="0,18,0,6"/>
                 <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" LineHeight="21">
                     Tab Monitor dùng để chọn camera, xem hình trực tiếp và ghi hình nếu cần. START bật camera, STOP tắt camera.
@@ -183,7 +183,7 @@
                 <TextBlock Text="9. Settings: offset, tốc độ, workspace và WCS"
                            FontSize="18"
                            FontWeight="Bold"
-                           Foreground="White"
+                           Foreground="{DynamicResource TextBrush}"
                            Margin="0,18,0,6"/>
                 <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" LineHeight="22">
                     Settings dùng để cấu hình tham số vận hành. DXF Offset X/Y dịch hình chạy theo mm. Workspace giới hạn vùng làm việc
@@ -198,7 +198,7 @@
                 <TextBlock Text="10. Telemetry, Logs và chẩn đoán lỗi"
                            FontSize="18"
                            FontWeight="Bold"
-                           Foreground="White"
+                           Foreground="{DynamicResource TextBrush}"
                            Margin="0,18,0,6"/>
                 <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" LineHeight="21">
                     Telemetry dùng để đọc thanh ghi hoặc buffer PLC khi cần kiểm tra sâu. Logs ghi lại thao tác đọc/ghi PLC, kết nối MQTT,
@@ -213,14 +213,14 @@
                 <TextBlock Text="11. Thoát app đúng quy trình"
                            FontSize="18"
                            FontWeight="Bold"
-                           Foreground="White"
+                           Foreground="{DynamicResource TextBrush}"
                            Margin="0,18,0,6"/>
                 <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" LineHeight="22">
                     App không dùng nút X của Windows. Muốn thoát, dùng EXIT APP trên giao diện. Khi nhấn EXIT APP, app hiển thị hộp thoại
                     xác nhận để tránh thoát nhầm. Nếu robot không chạy, chọn Yes sẽ đóng app ngay. Nếu robot đang chạy, chọn Yes sẽ ghi
                     M213 = 1, chờ 500 ms, sau đó tự đóng app. Không cần nhấn EXIT APP lần thứ hai.
                 </TextBlock>
-                <Border Background="#1F2937" BorderBrush="#475569" BorderThickness="1" CornerRadius="8" Padding="12" Margin="0,10,0,0">
+                <Border Background="{DynamicResource HelpCodeBrush}" BorderBrush="{DynamicResource HelpCodeBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="12" Margin="0,10,0,0">
                     <TextBlock TextWrapping="Wrap" Foreground="#FCA5A5" LineHeight="20">
                         Không tắt nguồn máy tính hoặc kill process khi robot đang chạy, trừ trường hợp khẩn cấp. Hãy dùng EXIT APP hoặc
                         EMERGENCY STOP theo đúng tình huống.
@@ -230,7 +230,7 @@
                 <TextBlock Text="12. Lỗi thường gặp"
                            FontSize="18"
                            FontWeight="Bold"
-                           Foreground="White"
+                           Foreground="{DynamicResource TextBrush}"
                            Margin="0,18,0,6"/>
                 <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" LineHeight="22">
                     PLC không kết nối: kiểm tra PLC bật chưa, logical station đúng chưa, MX Component có lỗi không, dây mạng/USB ổn không.&#x0a;
@@ -244,7 +244,7 @@
                 <TextBlock Text="13. Checklist trước khi chạy thật"
                            FontSize="18"
                            FontWeight="Bold"
-                           Foreground="White"
+                           Foreground="{DynamicResource TextBrush}"
                            Margin="0,18,0,6"/>
                 <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" LineHeight="22" Margin="0,0,0,10">
                     □ PLC Connected.&#x0a;

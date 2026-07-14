@@ -28,28 +28,36 @@ namespace DACDT_2026
             ["CardHeaderBrush"] = Color.FromRgb(0x18, 0x23, 0x3A),
             ["CardHeaderTextBrush"] = Color.FromRgb(0xE5, 0xE7, 0xEB),
             ["HelpCalloutBrush"] = Color.FromRgb(0x11, 0x18, 0x27),
-            ["HelpCalloutBorderBrush"] = Color.FromRgb(0x33, 0x41, 0x55)
+            ["HelpCalloutBorderBrush"] = Color.FromRgb(0x33, 0x41, 0x55),
+            ["CadCanvasBrush"] = Color.FromRgb(0x05, 0x0A, 0x14),
+            ["HelpCodeBrush"] = Color.FromRgb(0x1F, 0x29, 0x37),
+            ["HelpCodeBorderBrush"] = Color.FromRgb(0x47, 0x55, 0x69),
+            ["HelpWarningTextBrush"] = Color.FromRgb(0xFD, 0xE6, 0x8A)
         };
 
         private static readonly Dictionary<string, Color> LightPalette = new Dictionary<string, Color>
         {
-            ["BgBrush"] = Color.FromRgb(0xE9, 0xEE, 0xF5),
+            ["BgBrush"] = Color.FromRgb(0xE3, 0xEA, 0xF2),
             ["PanelBrush"] = Color.FromRgb(0xFF, 0xFF, 0xFF),
-            ["PanelAltBrush"] = Color.FromRgb(0xF4, 0xF7, 0xFB),
-            ["BorderBrush"] = Color.FromRgb(0xB9, 0xC7, 0xD6),
-            ["BorderSoftBrush"] = Color.FromRgb(0x7C, 0x8E, 0xA3),
+            ["PanelAltBrush"] = Color.FromRgb(0xED, 0xF3, 0xF8),
+            ["BorderBrush"] = Color.FromRgb(0x8F, 0xA4, 0xBB),
+            ["BorderSoftBrush"] = Color.FromRgb(0x5F, 0x75, 0x8D),
             ["TextBrush"] = Color.FromRgb(0x10, 0x20, 0x33),
-            ["MutedBrush"] = Color.FromRgb(0x5C, 0x6F, 0x86),
-            ["AccentBrush"] = Color.FromRgb(0x0A, 0x7F, 0x95),
+            ["MutedBrush"] = Color.FromRgb(0x42, 0x59, 0x70),
+            ["AccentBrush"] = Color.FromRgb(0x00, 0x7A, 0x91),
             ["DataGridRowBrush"] = Color.FromRgb(0xFF, 0xFF, 0xFF),
             ["DataGridAltRowBrush"] = Color.FromRgb(0xF7, 0xFA, 0xFD),
-            ["DataGridHeaderBrush"] = Color.FromRgb(0xDB, 0xE6, 0xF3),
-            ["HoverBrush"] = Color.FromRgb(0xD8, 0xED, 0xF5),
-            ["SelectedBrush"] = Color.FromRgb(0xB9, 0xE3, 0xEF),
-            ["CardHeaderBrush"] = Color.FromRgb(0xDC, 0xEA, 0xFE),
+            ["DataGridHeaderBrush"] = Color.FromRgb(0xC7, 0xD7, 0xE8),
+            ["HoverBrush"] = Color.FromRgb(0xCB, 0xEA, 0xF2),
+            ["SelectedBrush"] = Color.FromRgb(0xA9, 0xD9, 0xE4),
+            ["CardHeaderBrush"] = Color.FromRgb(0xD4, 0xE4, 0xF3),
             ["CardHeaderTextBrush"] = Color.FromRgb(0x0C, 0x25, 0x40),
             ["HelpCalloutBrush"] = Color.FromRgb(0xF5, 0xF8, 0xFC),
-            ["HelpCalloutBorderBrush"] = Color.FromRgb(0xBF, 0xD0, 0xE2)
+            ["HelpCalloutBorderBrush"] = Color.FromRgb(0xBF, 0xD0, 0xE2),
+            ["CadCanvasBrush"] = Color.FromRgb(0xF8, 0xFA, 0xFC),
+            ["HelpCodeBrush"] = Color.FromRgb(0xF1, 0xF5, 0xF9),
+            ["HelpCodeBorderBrush"] = Color.FromRgb(0xCB, 0xD5, 0xE1),
+            ["HelpWarningTextBrush"] = Color.FromRgb(0x9A, 0x34, 0x12)
         };
 
         public static string Toggle(string currentTheme)
@@ -75,6 +83,25 @@ namespace DACDT_2026
                 SetBrush(resources, item.Key, item.Value);
 
             return normalized;
+        }
+
+        public static string Apply(string theme, ResourceDictionary resources, DependencyObject root)
+        {
+            string normalized = Apply(theme, resources);
+            if (root != null)
+                ApplyToVisualTree(normalized, root);
+
+            return normalized;
+        }
+
+        private static void ApplyToVisualTree(string theme, DependencyObject node)
+        {
+            if (node is FrameworkElement element && element.Resources != null)
+                Apply(theme, element.Resources);
+
+            int childCount = VisualTreeHelper.GetChildrenCount(node);
+            for (int index = 0; index < childCount; index++)
+                ApplyToVisualTree(theme, VisualTreeHelper.GetChild(node, index));
         }
 
         private static bool SetBrush(ResourceDictionary resources, string key, Color color)

@@ -32,6 +32,10 @@
     <SolidColorBrush x:Key="CardHeaderTextBrush" Color="#E5E7EB"/>
     <SolidColorBrush x:Key="HelpCalloutBrush" Color="#111827"/>
     <SolidColorBrush x:Key="HelpCalloutBorderBrush" Color="#334155"/>
+    <SolidColorBrush x:Key="CadCanvasBrush" Color="#050A14"/>
+    <SolidColorBrush x:Key="HelpCodeBrush" Color="#1F2937"/>
+    <SolidColorBrush x:Key="HelpCodeBorderBrush" Color="#475569"/>
+    <SolidColorBrush x:Key="HelpWarningTextBrush" Color="#FDE68A"/>
 
     <Style x:Key="PanelBorderStyle" TargetType="Border">
         <Setter Property="Background" Value="{DynamicResource PanelBrush}"/>
@@ -293,6 +297,8 @@
                             SnapsToDevicePixels="True">
                         <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
                                           VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                          TextElement.Foreground="{TemplateBinding Foreground}"
+                                          TextElement.FontWeight="{TemplateBinding FontWeight}"
                                           RecognizesAccessKey="True"/>
                     </Border>
                     <ControlTemplate.Triggers>

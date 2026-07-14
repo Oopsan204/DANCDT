@@ -162,7 +162,7 @@ namespace DACDT_2026
             LoadSettingsFromFile();
             ConfigureCommands();
             SyncSettingsToUi();
-            currentTheme = WpfThemeManager.Apply(currentTheme, Resources);
+            currentTheme = WpfThemeManager.Apply(currentTheme, Resources, this);
             ui.CurrentTheme = currentTheme;
             mqttService.MessageReceived += MqttService_MessageReceived;
             StartBackgroundVideoService();
@@ -175,6 +175,9 @@ namespace DACDT_2026
 
             Loaded += async (sender, e) =>
             {
+                // Apply after WPF has built the complete visual tree, including each view's local styles.
+                currentTheme = WpfThemeManager.Apply(currentTheme, Resources, this);
+                ui.CurrentTheme = currentTheme;
                 WindowState = WindowState.Maximized;
                 webReady = true;
                 await InitMqttAsync();
@@ -203,7 +206,7 @@ namespace DACDT_2026
             });
             ui.ToggleThemeCommand = new RelayCommand(async () =>
             {
-                currentTheme = WpfThemeManager.Apply(WpfThemeManager.Toggle(currentTheme), Resources);
+                currentTheme = WpfThemeManager.Apply(WpfThemeManager.Toggle(currentTheme), Resources, this);
                 ui.CurrentTheme = currentTheme;
                 SaveSettingsToFile();
                 await PushNavigationStateAsync();
