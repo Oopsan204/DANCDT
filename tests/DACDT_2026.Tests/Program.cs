@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using DACDT_2026;
 
 namespace DACDT_2026.Tests
@@ -39,6 +40,9 @@ namespace DACDT_2026.Tests
                 IntermediateEngraveEndContinuesBeforeCutRows();
                 EngraveHomeRowIsDroppedWhenCutFollows();
                 MixedProgramUsesM03SpeedForNonCutRowsAndProcessSpeedForWorkRows();
+                CadPathSelectionGroupsConnectedLineSegments();
+                CadPathSelectionTogglesEveryPrimitiveInSelectedPath();
+                CadPathSelectionToggleTwiceRestoresEngrave();
                 Console.WriteLine("All tests passed.");
                 return 0;
             }
@@ -519,6 +523,76 @@ namespace DACDT_2026.Tests
                 "5000",
                 EngraveCutProcessComposer.ResolveMixedRowSpeed("0", "0;0", "1200", "5000"),
                 "Final home rows should use the non-cut M03 speed.");
+        }
+
+        private static void CadPathSelectionGroupsConnectedLineSegments()
+        {
+            var first = NewCadLine(0, 0, 10, 0);
+            var second = NewCadLine(10, 0, 10, 10);
+            var separate = NewCadLine(100, 100, 110, 100);
+
+            var paths = CadPathSelection.GroupConnectedPaths(
+                new List<CadDocumentService.CadPrimitiveData> { first, second, separate });
+
+            AssertEqual("2", paths.Count.ToString(), "Connected segments should form one path and disconnected geometry another.");
+            AssertEqual("2", CadPathSelection.AssignPathIds(paths).ToString(), "Two groups should receive two path ids.");
+            AssertEqual("0", first.PathId.ToString(), "The first chain should receive path id zero.");
+            AssertEqual("0", second.PathId.ToString(), "Connected segments should share a path id.");
+            AssertEqual("1", separate.PathId.ToString(), "Disconnected geometry should receive a different path id.");
+        }
+
+        private static void CadPathSelectionTogglesEveryPrimitiveInSelectedPath()
+        {
+            var first = NewCadLine(0, 0, 10, 0);
+            var second = NewCadLine(10, 0, 10, 10);
+            var separate = NewCadLine(100, 100, 110, 100);
+            first.PathId = 4;
+            second.PathId = 4;
+            separate.PathId = 5;
+
+            bool changed = CadPathSelection.ToggleProcessKind(
+                new[] { first, second, separate },
+                4,
+                EngraveCutProcessComposer.EngraveKind,
+                EngraveCutProcessComposer.CutKind);
+
+            AssertTrue(changed, "A valid path id should toggle.");
+            AssertEqual(EngraveCutProcessComposer.CutKind, first.ProcessKind, "The first segment should become Cut.");
+            AssertEqual(EngraveCutProcessComposer.CutKind, second.ProcessKind, "Every selected segment should become Cut.");
+            AssertEqual(EngraveCutProcessComposer.EngraveKind, separate.ProcessKind, "An unrelated contour must not change.");
+        }
+
+        private static void CadPathSelectionToggleTwiceRestoresEngrave()
+        {
+            var first = NewCadLine(0, 0, 10, 0);
+            first.PathId = 7;
+            first.ProcessKind = EngraveCutProcessComposer.EngraveKind;
+
+            CadPathSelection.ToggleProcessKind(
+                new[] { first }, 7,
+                EngraveCutProcessComposer.EngraveKind,
+                EngraveCutProcessComposer.CutKind);
+            CadPathSelection.ToggleProcessKind(
+                new[] { first }, 7,
+                EngraveCutProcessComposer.EngraveKind,
+                EngraveCutProcessComposer.CutKind);
+
+            AssertEqual(EngraveCutProcessComposer.EngraveKind, first.ProcessKind, "Two toggles should restore Engrave.");
+        }
+
+        private static CadDocumentService.CadPrimitiveData NewCadLine(double x1, double y1, double x2, double y2)
+        {
+            return new CadDocumentService.CadPrimitiveData
+            {
+                SourceType = "Line",
+                Points = new List<CadDocumentService.CadCoordinate>
+                {
+                    new CadDocumentService.CadCoordinate(x1, y1),
+                    new CadDocumentService.CadCoordinate(x2, y2)
+                },
+                ProcessKind = EngraveCutProcessComposer.EngraveKind,
+                PathId = -1
+            };
         }
 
         private static void AssertEqual(string expected, string actual, string message)

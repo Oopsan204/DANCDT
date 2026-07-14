@@ -27,6 +27,10 @@
     <Reference Include="PresentationFramework" />
     <Reference Include="System" />
     <Reference Include="System.Core" />
+    <Reference Include="System.Drawing" />
+    <Reference Include="netDxf, Version=2023.11.10.0, Culture=neutral, PublicKeyToken=618c63290969e781, processorArchitecture=MSIL">
+      <HintPath>..\..\packages\netDxf.2023.11.10\lib\net48\netDxf.dll</HintPath>
+    </Reference>
     <Reference Include="WindowsBase" />
   </ItemGroup>
   <ItemGroup>
@@ -54,6 +58,12 @@
     </Compile>
     <Compile Include="..\..\src\DACDT_2026.App\EngraveCutProcessComposer.cs">
       <Link>EngraveCutProcessComposer.cs</Link>
+    </Compile>
+    <Compile Include="..\..\src\DACDT_2026.App\CadDocumentService.cs">
+      <Link>CadDocumentService.cs</Link>
+    </Compile>
+    <Compile Include="..\..\src\DACDT_2026.App\SimpleDxfParser.cs">
+      <Link>SimpleDxfParser.cs</Link>
     </Compile>
     <Compile Include="..\..\src\DACDT_2026.App\GcodeLineSanitizer.cs">
       <Link>GcodeLineSanitizer.cs</Link>
