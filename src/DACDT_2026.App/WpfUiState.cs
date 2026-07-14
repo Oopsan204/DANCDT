@@ -204,6 +204,7 @@ namespace DACDT_2026
         public ICommand WriteBufferCommand { get; set; }
         public ICommand ApplyDxfSettingsCommand { get; set; }
         public ICommand ApplyGcodeSettingsCommand { get; set; }
+        public ICommand SaveSettingsCommand { get; set; }
         public ICommand SetWorkspaceCommand { get; set; }
         public ICommand SelectWcsCommand { get; set; }
         public ICommand SetWcsCommand { get; set; }

@@ -46,6 +46,7 @@ namespace DACDT_2026.Tests
                 CadPathSelectionToggleTwiceRestoresEngrave();
                 SettingsViewUsesApprovedEnglishContract();
                 NonHelpViewsDoNotUseKnownVietnameseOperatorLabels();
+                SettingsViewExposesSaveSettingsCommand();
                 Console.WriteLine("All tests passed.");
                 return 0;
             }
@@ -635,6 +636,18 @@ namespace DACDT_2026.Tests
                     AssertTrue(!source.Contains(label), Path.GetFileName(file) + " must not contain operator label " + label);
                 }
             }
+        }
+
+        private static void SettingsViewExposesSaveSettingsCommand()
+        {
+            string settingsView = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Views", "SettingsView.xaml"));
+            string formSource = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Form1.cs"));
+
+            AssertTrue(settingsView.Contains("Save Settings"), "Settings must expose a Save Settings action.");
+            AssertTrue(settingsView.Contains("{Binding SaveSettingsCommand}"), "Save Settings must bind to SaveSettingsCommand.");
+            AssertTrue(formSource.Contains("app_settings.txt"), "Save Settings must keep using the existing app_settings.txt format.");
+            AssertTrue(!settingsView.Contains("Import Settings"), "Settings must not add a separate import workflow.");
+            AssertTrue(!settingsView.Contains("Export Settings"), "Settings must not add a separate export workflow.");
         }
 
         private static string GetRepositoryPath(params string[] segments)

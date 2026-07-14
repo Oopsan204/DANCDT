@@ -263,6 +263,12 @@ namespace DACDT_2026
             ui.WriteBufferCommand = new RelayCommand(() => HandleWriteBufferRequestAsync(ui.WriteAddressInput, ui.WriteValueInput));
             ui.ApplyDxfSettingsCommand = new RelayCommand(ApplyDxfSettingsAsync);
             ui.ApplyGcodeSettingsCommand = new RelayCommand(ApplyGcodeSettingsAsync);
+            ui.SaveSettingsCommand = new RelayCommand(async () =>
+            {
+                SyncSettingsFromUiForPersistence();
+                SaveSettingsToFile();
+                await NotifyAsync("success", "Settings", "Settings saved locally.");
+            });
             ui.SetWorkspaceCommand = new RelayCommand(async () =>
             {
                 workspaceWidth = ui.WorkspaceWidthInput;
@@ -484,6 +490,39 @@ namespace DACDT_2026
             ui.LaserPowerInput = laserPower;
             ui.CurrentTheme = currentTheme;
             SyncWcsOffsetsToUi();
+        }
+
+        private void SyncSettingsFromUiForPersistence()
+        {
+            logicalStation = ui.LogicalStationInput;
+            plcIpAddress = ui.PlcIpAddressInput;
+            plcPort = ui.PlcPortInput;
+            globalSpeed = ui.GlobalSpeedInput;
+            globalSpeedM3 = ui.GlobalSpeedM3Input;
+            gcodeSpeedM3 = ui.GcodeSpeedM3Input;
+            rapidSpeed = ui.RapidSpeedInput;
+            testEngraveSpeed = ui.TestEngraveSpeedInput;
+            engraveSpeed = ui.EngraveSpeedInput;
+            engravePower = ui.EngravePowerInput;
+            cutSpeed = ui.CutSpeedInput;
+            cutPower = ui.CutPowerInput;
+            globalDwellM3 = ui.GlobalDwellM3Input;
+            globalDwellM4 = ui.GlobalDwellM4Input;
+            offsetX = ui.OffsetXInput;
+            offsetY = ui.OffsetYInput;
+            workspaceWidth = ui.WorkspaceWidthInput;
+            workspaceHeight = ui.WorkspaceHeightInput;
+            laserPower = ui.LaserPowerInput;
+            currentTheme = WpfThemeManager.Normalize(ui.CurrentTheme);
+
+            int activeIndex = GetWcsIndex(ui.ActiveWcs);
+            activeWcs = "G5" + (4 + activeIndex).ToString(CultureInfo.InvariantCulture);
+            foreach (var row in ui.WcsOffsets)
+            {
+                int rowIndex = GetWcsIndex(row.Name);
+                wcsOffsetX[rowIndex] = row.OffsetX;
+                wcsOffsetY[rowIndex] = row.OffsetY;
+            }
         }
 
         private void SyncWcsOffsetsToUi()
