@@ -117,15 +117,15 @@ namespace DACDT_2026
                     axis.ErrorCodeAddr = $"U0\\G{mb + OffErrorCode}";
                     var errLookup = ErrorCodeRegistry.Lookup(errStr);
                     axis.ErrorDescription = errLookup != null
-                        ? $"{errLookup.Description}\nNguyên nhân: {errLookup.Cause}\nKhắc phục: {errLookup.Remedy}"
-                        : (connected && axErrorCode[i] != 0 ? "Lỗi không xác định" : "");
+                        ? $"{errLookup.Description}\nCause: {errLookup.Cause}\nRemedy: {errLookup.Remedy}"
+                        : (connected && axErrorCode[i] != 0 ? "Unknown error" : "");
 
                     axis.WarningCode = connected ? axWarningCode[i].ToString(CultureInfo.InvariantCulture) : dash;
                     axis.WarningCodeAddr = $"U0\\G{mb + OffWarningCode}";
                     var warnLookup = ErrorCodeRegistry.Lookup(warnStr);
                     axis.WarningDescription = warnLookup != null
-                        ? $"{warnLookup.Description}\nNguyên nhân: {warnLookup.Cause}\nKhắc phục: {warnLookup.Remedy}"
-                        : (connected && axWarningCode[i] != 0 ? "Cảnh báo không xác định" : "");
+                        ? $"{warnLookup.Description}\nCause: {warnLookup.Cause}\nRemedy: {warnLookup.Remedy}"
+                        : (connected && axWarningCode[i] != 0 ? "Unknown warning" : "");
 
                     axis.AxisStatus = connected ? FormatAxisStatus(rawStatus) : dash;
                     axis.AxisStatusAddr = $"U0\\G{mb + OffAxisStatus}";
@@ -333,12 +333,12 @@ namespace DACDT_2026
                     sb.AppendFormat(",\"error\":{0}", connected ? axErrorCode[i] : 0);
                     
                     var errLookup = ErrorCodeRegistry.Lookup(connected ? axErrorCode[i].ToString(CultureInfo.InvariantCulture) : "0");
-                    string errDesc = errLookup != null ? $"{errLookup.Description} | Nguyên nhân: {errLookup.Cause} | Khắc phục: {errLookup.Remedy}" : "";
+                    string errDesc = errLookup != null ? $"{errLookup.Description} | Cause: {errLookup.Cause} | Remedy: {errLookup.Remedy}" : "";
                     sb.AppendFormat(",\"errorDesc\":\"{0}\"", EscapeJson(errDesc));
 
                     sb.AppendFormat(",\"warning\":{0}", connected ? axWarningCode[i] : 0);
                     var warnLookup = ErrorCodeRegistry.Lookup(connected ? axWarningCode[i].ToString(CultureInfo.InvariantCulture) : "0");
-                    string warnDesc = warnLookup != null ? $"{warnLookup.Description} | Nguyên nhân: {warnLookup.Cause} | Khắc phục: {warnLookup.Remedy}" : "";
+                    string warnDesc = warnLookup != null ? $"{warnLookup.Description} | Cause: {warnLookup.Cause} | Remedy: {warnLookup.Remedy}" : "";
                     sb.AppendFormat(",\"warningDesc\":\"{0}\"", EscapeJson(warnDesc));
 
                     sb.AppendFormat(",\"status\":\"{0}\"", connected ? FormatAxisStatus(rawStatus) : dash);
@@ -1654,10 +1654,10 @@ namespace DACDT_2026
         }
 
         protected Task NotifyAsync(string kind, string title, string message)
-            => PostToUiAsync("notify", new { kind, title, message });
+            => PostToUiAsync("notify", new { kind, title, message = NormalizeOperatorText(message) });
 
         protected Task LogUIAsync(string title, string message)
-            => PostToUiAsync("log", new { title, message });
+            => PostToUiAsync("log", new { title, message = NormalizeOperatorText(message) });
 
         protected Task SendProgressAsync(bool visible, int percent = 0)
             => PostToUiAsync("progress", new { visible, percent });
@@ -1676,7 +1676,7 @@ namespace DACDT_2026
                         Address = address,
                         Value = value,
                         Status = status,
-                        Message = message
+                        Message = NormalizeOperatorText(message)
                     });
 
                     if (logs.Count > 500) logs.RemoveRange(500, logs.Count - 500);
@@ -1686,6 +1686,52 @@ namespace DACDT_2026
                 ScheduleLogUiRefresh();
             }
             catch { }
+        }
+
+        private static string NormalizeOperatorText(string message)
+        {
+            if (string.IsNullOrEmpty(message))
+                return message;
+
+            return message
+                .Replace("Đã ngắt kết nối PLC.", "PLC disconnected.")
+                .Replace("PLC chưa kết nối.", "PLC is not connected.")
+                .Replace("Chưa kết nối PLC", "PLC is not connected")
+                .Replace("Đã đặt tốc độ trục 4:", "Axis 4 speed set:")
+                .Replace("Không thể ghi tốc độ trục 4.", "Could not write Axis 4 speed.")
+                .Replace("Lỗi ghi tốc độ trục 4:", "Axis 4 speed write error:")
+                .Replace("Khac power", "Engrave power")
+                .Replace("Cat power", "Cut power")
+                .Replace(" power khong hop le:", " power is invalid:")
+                .Replace("Loi doi cong suat Cat:", "Error switching to cut power:")
+                .Replace("Không có tọa độ hoặc máy không ở trạng thái đang chạy.", "No coordinates are loaded or the machine is not running.")
+                .Replace("Đã Stop và xoá buffer tọa độ/lệnh chạy.", "Stopped the machine and cleared the coordinate/command buffer.")
+                .Replace("Stop đã gửi, nhưng xoá buffer chưa hoàn tất. Kiểm tra log.", "Stop was sent, but the buffer was not fully cleared. Check the logs.")
+                .Replace("Jog speed phải là số thập phân hợp lệ.", "Jog speed must be a valid decimal number.")
+                .Replace("Đã lưu cục bộ: Công suất laze =", "Saved locally: laser power =")
+                .Replace("PLC chưa kết nối, giá trị map PLC =", "PLC is not connected; mapped PLC value =")
+                .Replace("Đã đặt công suất laze:", "Laser power set:")
+                .Replace("Lỗi ghi công suất laze.", "Failed to write laser power.")
+                .Replace("Lỗi ghi công suất laze:", "Laser power write error:")
+                .Replace("Lỗi khởi tạo ActUtlType:", "ActUtlType initialization error:")
+                .Replace("Lỗi kết nối PLC:", "PLC connection error:")
+                .Replace("Lỗi ngắt kết nối:", "PLC disconnection error:")
+                .Replace("Lỗi ReadDeviceRange (U device):", "ReadDeviceRange U-device error:")
+                .Replace("Lỗi ReadDeviceRange:", "ReadDeviceRange error:")
+                .Replace("Lỗi ReadDevice:", "ReadDevice error:")
+                .Replace("Lỗi ReadBuffer:", "ReadBuffer error:")
+                .Replace("Lỗi GetDevice ", "GetDevice error for ")
+                .Replace("Lỗi COM khi ghi vào Buffer '", "COM error writing to buffer '")
+                .Replace("Lỗi không xác định khi ghi vào Buffer '", "Unknown error writing to buffer '")
+                .Replace("Lỗi WriteOperationPatternToDevicePath:", "WriteOperationPatternToDevicePath error:")
+                .Replace("Lỗi WritePositioningIdentifierToDevicePath:", "WritePositioningIdentifierToDevicePath error:")
+                .Replace("Không có dữ liệu để ghi.", "No data to write.")
+                .Replace("File có ", "The file contains ")
+                .Replace(" điểm vượt giới hạn QD75 (600 điểm). Đã cắt còn ", " points, exceeding the QD75 limit (600 points). Truncated to the first ")
+                .Replace(" điểm đầu.", " points.")
+                .Replace("Khac+Cat", "Engrave+Cut")
+                .Replace("before Cat power", "before cut power")
+                .Replace("after Cat power", "after cut power");
         }
 
         private Task HandleClearLogsAsync()

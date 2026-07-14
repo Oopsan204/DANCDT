@@ -23,9 +23,9 @@
 - Modify: `tests/DACDT_2026.Tests/Program.cs`
 - Test: `tests/DACDT_2026.Tests/DACDT_2026.Tests.csproj`
 
-- [ ] Add a test that reads `SettingsView.xaml`, requires the new English section/field labels, and rejects `Single DXF Speed M04` and the separate `Apply Speed` button.
-- [ ] Add a test that scans non-Help XAML files for the known Vietnamese operator labels being replaced.
-- [ ] Run the test and confirm it fails on the current XAML.
+- [x] Add a test that reads `SettingsView.xaml`, requires the new English section/field labels, and rejects `Single DXF Speed M04` and the separate `Apply Speed` button.
+- [x] Add a test that scans non-Help XAML files for the known Vietnamese operator labels being replaced.
+- [x] Run the test and confirm it fails on the current XAML.
 
 ### Task 2: Simplify System Settings
 
@@ -34,12 +34,12 @@
 - Modify: `src/DACDT_2026.App/Form1.cs`
 - Modify: `src/DACDT_2026.App/WpfUiState.cs`
 
-- [ ] Rename the DXF section and fields using the approved English labels.
-- [ ] Remove the obsolete `GlobalSpeedInput` field from DXF Settings without deleting the backing property or configuration key.
-- [ ] Move `RapidSpeedInput` into G-code Motion and remove the separate Apply Speed control.
-- [ ] Update `ApplyGcodeSettingsAsync` to save both M03 and G00 values through the existing state fields.
-- [ ] Remove the now-unused `SetG0SpeedCommand` UI command property and registration.
-- [ ] Run the UI text contract and existing tests.
+- [x] Rename the DXF section and fields using the approved English labels.
+- [x] Remove the obsolete `GlobalSpeedInput` field from DXF Settings without deleting the backing property or configuration key.
+- [x] Move `RapidSpeedInput` into G-code Motion and remove the separate Apply Speed control.
+- [x] Update `ApplyGcodeSettingsAsync` to save both M03 and G00 values through the existing state fields.
+- [x] Remove the now-unused `SetG0SpeedCommand` UI command property and registration.
+- [x] Run the UI text contract and existing tests.
 
 ### Task 3: Normalize operator-facing English
 
@@ -48,18 +48,18 @@
 - Modify: user-facing notification/log strings in `src/DACDT_2026.App/*.cs`
 - Modify: `src/DACDT_2026.App/Form1.StatePublisher.cs`
 
-- [ ] Change process display values from `Khac`/`Cat` to `Engrave`/`Cut` without changing internal process kinds.
-- [ ] Translate remaining operator-facing Vietnamese labels, dialogs, notifications, and log text to English.
-- [ ] Leave comments, internal identifiers, protocol values, and Help content unchanged.
-- [ ] Run the full test executable.
+- [x] Change process display values from `Khac`/`Cat` to `Engrave`/`Cut` without changing internal process kinds.
+- [x] Translate remaining operator-facing Vietnamese labels, dialogs, notifications, and log text to English.
+- [x] Leave comments, internal identifiers, protocol values, and Help content unchanged.
+- [x] Run the full test executable.
 
 ### Task 4: Build and visual verification
 
 **Files:**
 - Verify: `src/DACDT_2026.App/DACDT_2026.csproj`
 
-- [ ] Build tests with MSBuild and run `DACDT_2026.Tests.exe`; expect `All tests passed.`
-- [ ] Build the application with `/p:Platform=x86`; expect both DACDT_2026 and WebRtcCameraService outputs.
-- [ ] Open System Settings and verify labels, grouping, spacing, and no overlap.
-- [ ] Confirm no diff in `Form1.PlcControl.cs`, `PLCCommunication.cs`, `QD75BufferWriter.cs`, or `QD75RingBufferRunner.cs`.
-- [ ] Commit the verified implementation.
+- [x] Build tests with MSBuild and run `DACDT_2026.Tests.exe`; expect `All tests passed.`
+- [x] Build the application with `/p:Platform=x86`; expect both DACDT_2026 and WebRtcCameraService outputs.
+- [x] Open System Settings and verify labels, grouping, spacing, and no overlap.
+- [x] Confirm no diff in `Form1.PlcControl.cs`, `PLCCommunication.cs`, `QD75BufferWriter.cs`, or `QD75RingBufferRunner.cs`.
+- [x] Commit the verified implementation.

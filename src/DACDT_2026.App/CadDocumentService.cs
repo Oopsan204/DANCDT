@@ -75,8 +75,8 @@ namespace DACDT_2026
                 PointF end = transform.Apply(line.EndPoint);
                 context.AddPrimitive("Line", new[] { start, end }, false);
                 context.AddLinearSegment(start, end, "Line");
-                context.AddCandidatePoint(start, "Điểm line", "Line", 1);
-                context.AddCandidatePoint(end, "Điểm line", "Line", 1);
+                context.AddCandidatePoint(start, "Line point", "Line", 1);
+                context.AddCandidatePoint(end, "Line point", "Line", 1);
                 return;
             }
 
@@ -110,8 +110,8 @@ namespace DACDT_2026
                 context.AddPrimitive("Arc", arcPoints, false, center, isCw, false);
                 if (arcPoints.Count > 0)
                 {
-                    context.AddCandidatePoint(arcPoints[0], "Đầu cung", "Arc", 2);
-                    context.AddCandidatePoint(arcPoints[arcPoints.Count - 1], "Cuối cung", "Arc", 2);
+                    context.AddCandidatePoint(arcPoints[0], "Arc start", "Arc", 2);
+                    context.AddCandidatePoint(arcPoints[arcPoints.Count - 1], "Arc end", "Arc", 2);
                 }
                 return;
             }
@@ -121,7 +121,7 @@ namespace DACDT_2026
             {
                 CadCoordinate center = new CadCoordinate(transform.Apply(circle.Center).X, transform.Apply(circle.Center).Y);
                 context.AddPrimitive("Circle", SampleCircle(circle, transform), true, center, false, true);
-                context.AddCandidatePoint(transform.Apply(circle.Center), "Tâm circle", "Circle", 3);
+                context.AddCandidatePoint(transform.Apply(circle.Center), "Circle center", "Circle", 3);
                 return;
             }
 
@@ -185,7 +185,7 @@ namespace DACDT_2026
 
             foreach (PointF point in points)
             {
-                context.AddCandidatePoint(point, "Đỉnh polyline", sourceType, 1);
+                context.AddCandidatePoint(point, "Polyline vertex", sourceType, 1);
             }
         }
 
@@ -449,7 +449,7 @@ namespace DACDT_2026
                         PointF intersection;
                         if (TryGetIntersection(LineSegments[i], LineSegments[j], out intersection))
                         {
-                            AddCandidatePoint(intersection, "Giao điểm", LineSegments[i].SourceType + "/" + LineSegments[j].SourceType, 0);
+                            AddCandidatePoint(intersection, "Intersection", LineSegments[i].SourceType + "/" + LineSegments[j].SourceType, 0);
                         }
                     }
                 }

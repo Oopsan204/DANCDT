@@ -98,9 +98,9 @@
                         <TextBlock Text="CAD Preview" Style="{StaticResource PanelTitleStyle}"/>
                         <TextBlock Text="{Binding FileKind}" Foreground="{DynamicResource MutedBrush}" Margin="12,2,0,0"/>
                         <Border Width="14" Height="3" Background="DeepSkyBlue" Margin="14,10,4,0"/>
-                        <TextBlock Text="Khac" Foreground="{DynamicResource MutedBrush}" Margin="0,2,8,0"/>
+                        <TextBlock Text="Engrave" Foreground="{DynamicResource MutedBrush}" Margin="0,2,8,0"/>
                         <Border Width="14" Height="3" Background="OrangeRed" Margin="0,10,4,0"/>
-                        <TextBlock Text="Cat" Foreground="{DynamicResource MutedBrush}" Margin="0,2,0,0"/>
+                        <TextBlock Text="Cut" Foreground="{DynamicResource MutedBrush}" Margin="0,2,0,0"/>
                     </StackPanel>
                     <Border x:Name="CadViewport"
                             Grid.Row="1"

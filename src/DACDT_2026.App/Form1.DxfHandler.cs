@@ -115,7 +115,7 @@ namespace DACDT_2026
             }
             catch (Exception ex)
             {
-                await NotifyAsync("error", "DXF/G-code", "Lỗi mở dialog: " + ex.Message);
+                await NotifyAsync("error", "DXF/G-code", "Open dialog error: " + ex.Message);
                 cadLoadGate.Release();
                 return;
             }
@@ -659,7 +659,7 @@ namespace DACDT_2026
             await PushDxfStateAsync();
             await PublishAllMqttAsync();
             await HandleImportCadToProcessAsync();
-            await NotifyAsync("info", "G-code", "Đã tạo phiên bản G-code trống.");
+            await NotifyAsync("info", "G-code", "Created a blank G-code document.");
         }
 
         private async Task HandleSaveGcodeAsync(string text)
@@ -700,11 +700,11 @@ namespace DACDT_2026
                 isPreviewingGcode = false;
                 try { await HandlePreviewGcodeAsync(text); } catch { }
                 await PushDxfStateAsync();
-                await NotifyAsync("success", "G-code", $"Lưu G-code thành công tại:\n{path}");
+                await NotifyAsync("success", "G-code", $"G-code saved to:\n{path}");
             }
             catch (Exception ex)
             {
-                await NotifyAsync("error", "G-code", "Lỗi khi lưu G-code: " + ex.Message);
+                await NotifyAsync("error", "G-code", "Error saving G-code: " + ex.Message);
             }
             finally
             {
@@ -1124,7 +1124,7 @@ namespace DACDT_2026
                 _ = SendProgressAsync(true, 0);
 
                 // ── BƯỚC 0: Xóa toàn bộ buffer về 0 trước khi ghi dữ liệu mới ──────────
-                await LogUIAsync("PLC", "Đang xóa buffer cũ...");
+                await LogUIAsync("PLC", "Clearing the previous buffer...");
                 var clearTask = Task.Run(() => QD75BufferWriter.ClearAllBuffers(comm, maxPoints: 600));
                 var clearResult = await clearTask;
 
@@ -1137,7 +1137,7 @@ namespace DACDT_2026
 
                 if (!clearResult.Success)
                 {
-                    await NotifyAsync("error", "Clear Buffer", "Không thể xóa buffer cũ. Tiếp tục ghi dữ liệu mới...");
+                    await NotifyAsync("error", "Clear Buffer", "Could not clear the previous buffer. Continuing with the new data...");
                     // Không return — vẫn tiếp tục ghi dữ liệu mới
                 }
                 else
@@ -1169,7 +1169,7 @@ namespace DACDT_2026
                         // Tự động dừng quay camera khi DXF hoàn thành
                         await StopCameraRecordingAsync();
                         await StopCameraAsync();
-                        await NotifyAsync("info", "Camera", "Tự động dừng quay khi DXF hoàn thành.");
+                        await NotifyAsync("info", "Camera", "Camera recording stopped automatically after DXF completion.");
                     };
                     ringRunner.OnError += async (err) =>
                     {
@@ -1453,7 +1453,7 @@ namespace DACDT_2026
                 await WriteDeviceValueAsync("M2000", 0);
                 AddLogEntry("M2000", "0", "Write", "OK", "Start Test Area reset");
 
-                await NotifyAsync("success", "Test Area", "Đã nạp tọa độ vùng khắc và đang chạy test...");
+                await NotifyAsync("success", "Test Area", "Test-area coordinates loaded; the test is running...");
             }
             catch (Exception ex)
             {
@@ -1471,7 +1471,7 @@ namespace DACDT_2026
         {
             if (processRows == null || processRows.Count == 0)
             {
-                await NotifyAsync("info", "Export", "Không có dữ liệu trong bảng để xuất.");
+                await NotifyAsync("info", "Export", "There is no table data to export.");
                 return;
             }
 
@@ -1662,12 +1662,12 @@ namespace DACDT_2026
                 }
 
                 File.WriteAllText(filePath, sb.ToString(), Encoding.UTF8);
-                await NotifyAsync("success", "Export", $"Đã xuất thành công {dataRows.Count} điểm ra file {Path.GetFileName(filePath)}.");
+                await NotifyAsync("success", "Export", $"Exported {dataRows.Count} points to {Path.GetFileName(filePath)}.");
                 await LogUIAsync("Export", $"Exported {dataRows.Count} positioning data rows to {filePath}.");
             }
             catch (Exception ex)
             {
-                await NotifyAsync("error", "Export", $"Lỗi xuất file: {ex.Message}");
+                await NotifyAsync("error", "Export", $"Export error: {ex.Message}");
             }
         }
 
@@ -1686,7 +1686,7 @@ namespace DACDT_2026
 
             try
             {
-                await LogUIAsync("Clear Buffer", "Đang xóa toàn bộ buffer PLC...");
+                await LogUIAsync("Clear Buffer", "Clearing all PLC buffers...");
 
                 var clearTask = Task.Run(() => QD75BufferWriter.ClearAllBuffers(comm, maxPoints: 600));
                 var clearResult = await clearTask;
@@ -1702,17 +1702,17 @@ namespace DACDT_2026
                 {
                     ui.IsStartActionEnabled = false;
                     await NotifyAsync("success", "Clear Buffer", 
-                        "Đã xóa toàn bộ buffer PLC cho tất cả trục. Tất cả dữ liệu cũ đã bị xóa.");
+                        "Cleared all PLC buffers for every axis. All previous data was removed.");
                 }
                 else
                 {
                     await NotifyAsync("error", "Clear Buffer", 
-                        "Không thể xóa hoàn toàn buffer. Kiểm tra log để biết chi tiết.");
+                        "Could not clear every buffer. Check the logs for details.");
                 }
             }
             catch (Exception ex)
             {
-                await NotifyAsync("error", "Clear Buffer", $"Lỗi: {ex.Message}");
+                await NotifyAsync("error", "Clear Buffer", $"Error: {ex.Message}");
             }
             finally
             {
@@ -2393,7 +2393,7 @@ namespace DACDT_2026
 
             if (snapDoc == null)
             {
-                await NotifyAsync("info", "Scan Limits", "Chưa load file DXF / G-code.");
+                await NotifyAsync("info", "Scan Limits", "No DXF or G-code file is loaded.");
                 return;
             }
 
@@ -2427,7 +2427,7 @@ namespace DACDT_2026
                 }
 
                 if (allX.Count == 0)
-                    return Tuple.Create(false, false, "Không tìm thấy toạ độ trong file.");
+                    return Tuple.Create(false, false, "No coordinates were found in the file.");
 
                 // ── Tính min / max thô (từ file) ────────────────────────────────────
                 double rawMinX = allX.Min(), rawMaxX = allX.Max();

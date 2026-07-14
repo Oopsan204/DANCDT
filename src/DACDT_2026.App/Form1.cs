@@ -236,7 +236,7 @@ namespace DACDT_2026
                 {
                     if (val < 0 || val > 100)
                     {
-                        await NotifyAsync("warning", "Laser Power", "Công suất laze phải nằm trong khoảng 0-100%.");
+                        await NotifyAsync("warning", "Laser Power", "Laser power must be between 0% and 100%.");
                         ui.LaserPowerInput = laserPower;
                         return;
                     }
@@ -244,7 +244,7 @@ namespace DACDT_2026
                 }
                 else
                 {
-                    await NotifyAsync("error", "Laser Power", "Giá trị công suất laze không hợp lệ.");
+                    await NotifyAsync("error", "Laser Power", "Invalid laser power value.");
                     ui.LaserPowerInput = laserPower;
                 }
             });
@@ -263,13 +263,6 @@ namespace DACDT_2026
             ui.WriteBufferCommand = new RelayCommand(() => HandleWriteBufferRequestAsync(ui.WriteAddressInput, ui.WriteValueInput));
             ui.ApplyDxfSettingsCommand = new RelayCommand(ApplyDxfSettingsAsync);
             ui.ApplyGcodeSettingsCommand = new RelayCommand(ApplyGcodeSettingsAsync);
-            ui.SetG0SpeedCommand = new RelayCommand(async () =>
-            {
-                rapidSpeed = ui.RapidSpeedInput;
-                SaveSettingsToFile();
-                await PushDxfStateAsync();
-                await NotifyAsync("success", "Settings", "Updated G00 rapid speed.");
-            });
             ui.SetWorkspaceCommand = new RelayCommand(async () =>
             {
                 workspaceWidth = ui.WorkspaceWidthInput;
@@ -388,9 +381,11 @@ namespace DACDT_2026
 
         private async Task ApplyGcodeSettingsAsync()
         {
+            rapidSpeed = ui.RapidSpeedInput;
             await HandleProcessValueAsync("gcodeSpeedM3", ui.GcodeSpeedM3Input);
             SaveSettingsToFile();
             await PushDxfStateAsync();
+            await NotifyAsync("success", "Settings", "Updated G-code motion settings.");
         }
 
         private async Task ApplyWcsSettingsAsync()
@@ -417,13 +412,13 @@ namespace DACDT_2026
             string cleanName = CleanProfileName(ui.ProfileNameInput);
             if (string.IsNullOrWhiteSpace(cleanName))
             {
-                await NotifyAsync("error", "Profiles", "Ten cau hinh khong hop le.");
+                await NotifyAsync("error", "Profiles", "Invalid profile name.");
                 return;
             }
 
             Directory.CreateDirectory(ProfilesDirPath);
             SaveSettingsToFile(Path.Combine(ProfilesDirPath, cleanName + ".txt"));
-            await NotifyAsync("success", "Profiles", $"Da luu cau hinh '{cleanName}'.");
+            await NotifyAsync("success", "Profiles", $"Saved profile '{cleanName}'.");
             await PushDxfStateAsync();
         }
 
@@ -433,7 +428,7 @@ namespace DACDT_2026
             string profilePath = Path.Combine(ProfilesDirPath, cleanName + ".txt");
             if (string.IsNullOrWhiteSpace(cleanName) || !File.Exists(profilePath))
             {
-                await NotifyAsync("error", "Profiles", "Khong tim thay cau hinh.");
+                await NotifyAsync("error", "Profiles", "Profile not found.");
                 return;
             }
 
@@ -446,7 +441,7 @@ namespace DACDT_2026
 
             await HandleScanLimitsAsync();
             await PushDxfStateAsync();
-            await NotifyAsync("success", "Profiles", $"Da tai cau hinh '{cleanName}'.");
+            await NotifyAsync("success", "Profiles", $"Loaded profile '{cleanName}'.");
         }
 
         private async Task DeleteProfileAsync()
@@ -455,12 +450,12 @@ namespace DACDT_2026
             string profilePath = Path.Combine(ProfilesDirPath, cleanName + ".txt");
             if (string.IsNullOrWhiteSpace(cleanName) || !File.Exists(profilePath))
             {
-                await NotifyAsync("error", "Profiles", "Khong tim thay cau hinh de xoa.");
+                await NotifyAsync("error", "Profiles", "Profile to delete was not found.");
                 return;
             }
 
             File.Delete(profilePath);
-            await NotifyAsync("success", "Profiles", $"Da xoa cau hinh '{cleanName}'.");
+            await NotifyAsync("success", "Profiles", $"Deleted profile '{cleanName}'.");
             await PushDxfStateAsync();
         }
 
@@ -839,14 +834,14 @@ namespace DACDT_2026
                 case "BATDAUQUAY":
                     await StartCameraAsync();
                     await StartCameraRecordingAsync();
-                    await NotifyAsync("success", "MQTT Camera", "Bắt đầu quay camera.");
+                    await NotifyAsync("success", "MQTT Camera", "Camera recording started.");
                     break;
 
                 case "STOPRECORD":
                 case "DUNGQUAY":
                     await StopCameraRecordingAsync();
                     await StopCameraAsync();
-                    await NotifyAsync("info", "MQTT Camera", "Dừng quay camera.");
+                    await NotifyAsync("info", "MQTT Camera", "Camera recording stopped.");
                     break;
 
                 default:

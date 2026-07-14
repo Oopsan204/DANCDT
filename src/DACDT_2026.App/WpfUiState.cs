@@ -204,7 +204,6 @@ namespace DACDT_2026
         public ICommand WriteBufferCommand { get; set; }
         public ICommand ApplyDxfSettingsCommand { get; set; }
         public ICommand ApplyGcodeSettingsCommand { get; set; }
-        public ICommand SetG0SpeedCommand { get; set; }
         public ICommand SetWorkspaceCommand { get; set; }
         public ICommand SelectWcsCommand { get; set; }
         public ICommand SetWcsCommand { get; set; }
@@ -258,7 +257,7 @@ namespace DACDT_2026
         public bool IsSettingsView => CurrentView == "settings";
         public bool IsHelpView => CurrentView == "help";
         public bool IsDarkTheme => CurrentTheme == "dark";
-        public string ThemeToggleText => IsDarkTheme ? "☀ Sáng" : "🌙 Tối";
+        public string ThemeToggleText => IsDarkTheme ? "☀ Light" : "🌙 Dark";
 
         public bool IsConnected
         {
@@ -1168,9 +1167,9 @@ namespace DACDT_2026
             get
             {
                 if (string.Equals(ProcessKind, EngraveCutProcessComposer.EngraveKind, StringComparison.OrdinalIgnoreCase))
-                    return "Khac";
+                    return "Engrave";
                 if (string.Equals(ProcessKind, EngraveCutProcessComposer.CutKind, StringComparison.OrdinalIgnoreCase))
-                    return "Cat";
+                    return "Cut";
                 return string.Empty;
             }
         }

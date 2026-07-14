@@ -44,7 +44,7 @@
                         Style="{StaticResource SecondaryButtonStyle}"
                         MinWidth="82"
                         Margin="0,0,12,0"
-                        ToolTip="Đổi giao diện sáng/tối"/>
+                        ToolTip="Switch between light and dark themes"/>
                 <TextBlock Text="{Binding ActiveNotice}"
                            Foreground="{DynamicResource MutedBrush}"
                            VerticalAlignment="Center"

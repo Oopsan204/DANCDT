@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using DACDT_2026;
 
 namespace DACDT_2026.Tests
@@ -43,6 +44,8 @@ namespace DACDT_2026.Tests
                 CadPathSelectionGroupsConnectedLineSegments();
                 CadPathSelectionTogglesEveryPrimitiveInSelectedPath();
                 CadPathSelectionToggleTwiceRestoresEngrave();
+                SettingsViewUsesApprovedEnglishContract();
+                NonHelpViewsDoNotUseKnownVietnameseOperatorLabels();
                 Console.WriteLine("All tests passed.");
                 return 0;
             }
@@ -578,6 +581,82 @@ namespace DACDT_2026.Tests
                 EngraveCutProcessComposer.CutKind);
 
             AssertEqual(EngraveCutProcessComposer.EngraveKind, first.ProcessKind, "Two toggles should restore Engrave.");
+        }
+
+        private static void SettingsViewUsesApprovedEnglishContract()
+        {
+            string source = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Views", "SettingsView.xaml"));
+            string[] requiredLabels =
+            {
+                "DXF Processing",
+                "Travel Speed (M03 / Home) (mm/min)",
+                "Laser On Delay (M03) (ms)",
+                "Laser Off Delay (M04) (ms)",
+                "G-code Motion",
+                "Laser-On Speed (M03) (mm/min)",
+                "Rapid Travel Speed (G00) (mm/min)",
+                "Workspace Width (mm)",
+                "Workspace Height (mm)"
+            };
+
+            foreach (string label in requiredLabels)
+            {
+                AssertTrue(source.Contains(label), "Settings must contain the approved label: " + label);
+            }
+
+            string[] obsoleteLabels =
+            {
+                "Single DXF Speed M04",
+                "Apply Speed",
+                "Machine Config &amp; Workspace"
+            };
+
+            foreach (string label in obsoleteLabels)
+            {
+                AssertTrue(!source.Contains(label), "Settings must remove the obsolete label: " + label);
+            }
+        }
+
+        private static void NonHelpViewsDoNotUseKnownVietnameseOperatorLabels()
+        {
+            string appDirectory = GetRepositoryPath("src", "DACDT_2026.App");
+            string[] prohibitedLabels = { "Text=\"Khac\"", "Text=\"Cat\"" };
+
+            foreach (string file in Directory.GetFiles(appDirectory, "*.xaml", SearchOption.AllDirectories))
+            {
+                if (string.Equals(Path.GetFileName(file), "HelpView.xaml", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                string source = File.ReadAllText(file);
+                foreach (string label in prohibitedLabels)
+                {
+                    AssertTrue(!source.Contains(label), Path.GetFileName(file) + " must not contain operator label " + label);
+                }
+            }
+        }
+
+        private static string GetRepositoryPath(params string[] segments)
+        {
+            DirectoryInfo directory = new DirectoryInfo(AppDomain.CurrentDomain.BaseDirectory);
+            while (directory != null)
+            {
+                if (Directory.Exists(Path.Combine(directory.FullName, "src", "DACDT_2026.App")))
+                {
+                    string path = directory.FullName;
+                    foreach (string segment in segments)
+                    {
+                        path = Path.Combine(path, segment);
+                    }
+
+                    return path;
+                }
+
+                directory = directory.Parent;
+            }
+
+            throw new DirectoryNotFoundException("Could not locate the repository root from the test executable.");
         }
 
         private static CadDocumentService.CadPrimitiveData NewCadLine(double x1, double y1, double x2, double y2)

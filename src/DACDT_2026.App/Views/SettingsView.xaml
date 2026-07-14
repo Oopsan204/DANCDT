@@ -11,8 +11,8 @@
             <StackPanel Grid.Column="0">
                 <Border Style="{StaticResource PanelBorderStyle}">
                     <StackPanel>
-                        <TextBlock Text="DXF Offset &amp; Speed" Style="{StaticResource PanelTitleStyle}"/>
-                        <TextBlock Text="Parameters applied only to DXF paths" Style="{StaticResource PanelSubtitleStyle}"/>
+                        <TextBlock Text="DXF Processing" Style="{StaticResource PanelTitleStyle}"/>
+                        <TextBlock Text="Motion and laser parameters for DXF paths" Style="{StaticResource PanelSubtitleStyle}"/>
                         <UniformGrid Columns="2" Margin="0,10,0,0">
                             <StackPanel Margin="0,0,6,6">
                                 <TextBlock Text="Offset X (mm)" Foreground="{DynamicResource MutedBrush}"/>
@@ -23,42 +23,37 @@
                                 <TextBox Text="{Binding OffsetYInput, UpdateSourceTrigger=PropertyChanged}"/>
                             </StackPanel>
                             <StackPanel Margin="0,0,6,6">
-                                <TextBlock Text="Non-cut Speed M03" Foreground="{DynamicResource MutedBrush}"/>
+                                <TextBlock Text="Travel Speed (M03 / Home) (mm/min)" Foreground="{DynamicResource MutedBrush}"/>
                                 <TextBox Text="{Binding GlobalSpeedM3Input, UpdateSourceTrigger=PropertyChanged}"/>
                             </StackPanel>
                             <StackPanel Margin="6,0,0,6">
-                                <TextBlock Text="Single DXF Speed M04" Foreground="{DynamicResource MutedBrush}"/>
-                                <TextBox Text="{Binding GlobalSpeedInput, UpdateSourceTrigger=PropertyChanged}"/>
-                            </StackPanel>
-                            <StackPanel Margin="0,0,6,6">
-                                <TextBlock Text="Dwell M03 (ms)" Foreground="{DynamicResource MutedBrush}"/>
-                                <TextBox Text="{Binding GlobalDwellM3Input, UpdateSourceTrigger=PropertyChanged}"/>
-                            </StackPanel>
-                            <StackPanel Margin="6,0,0,6">
-                                <TextBlock Text="Dwell M04 (ms)" Foreground="{DynamicResource MutedBrush}"/>
-                                <TextBox Text="{Binding GlobalDwellM4Input, UpdateSourceTrigger=PropertyChanged}"/>
-                            </StackPanel>
-                            <StackPanel Margin="0,0,6,6">
                                 <TextBlock Text="Test Area Speed (mm/min)" Foreground="{DynamicResource MutedBrush}"/>
                                 <TextBox Text="{Binding TestEngraveSpeedInput, UpdateSourceTrigger=PropertyChanged}"/>
                             </StackPanel>
+                            <StackPanel Margin="0,0,6,6">
+                                <TextBlock Text="Laser On Delay (M03) (ms)" Foreground="{DynamicResource MutedBrush}"/>
+                                <TextBox Text="{Binding GlobalDwellM3Input, UpdateSourceTrigger=PropertyChanged}"/>
+                            </StackPanel>
                             <StackPanel Margin="6,0,0,6">
-                                <TextBlock Text="Engrave Speed" Foreground="{DynamicResource MutedBrush}"/>
-                                <TextBox Text="{Binding EngraveSpeedInput, UpdateSourceTrigger=PropertyChanged}"/>
+                                <TextBlock Text="Laser Off Delay (M04) (ms)" Foreground="{DynamicResource MutedBrush}"/>
+                                <TextBox Text="{Binding GlobalDwellM4Input, UpdateSourceTrigger=PropertyChanged}"/>
                             </StackPanel>
                             <StackPanel Margin="0,0,6,6">
+                                <TextBlock Text="Engrave Speed (mm/min)" Foreground="{DynamicResource MutedBrush}"/>
+                                <TextBox Text="{Binding EngraveSpeedInput, UpdateSourceTrigger=PropertyChanged}"/>
+                            </StackPanel>
+                            <StackPanel Margin="6,0,0,6">
                                 <TextBlock Text="Engrave Power (%)" Foreground="{DynamicResource MutedBrush}"/>
                                 <TextBox Text="{Binding EngravePowerInput, UpdateSourceTrigger=PropertyChanged}"/>
                             </StackPanel>
-                            <StackPanel Margin="6,0,0,6">
-                                <TextBlock Text="Cut Speed" Foreground="{DynamicResource MutedBrush}"/>
+                            <StackPanel Margin="0,0,6,6">
+                                <TextBlock Text="Cut Speed (mm/min)" Foreground="{DynamicResource MutedBrush}"/>
                                 <TextBox Text="{Binding CutSpeedInput, UpdateSourceTrigger=PropertyChanged}"/>
                             </StackPanel>
-                            <StackPanel Margin="0,0,6,6">
+                            <StackPanel Margin="6,0,0,6">
                                 <TextBlock Text="Cut Power (%)" Foreground="{DynamicResource MutedBrush}"/>
                                 <TextBox Text="{Binding CutPowerInput, UpdateSourceTrigger=PropertyChanged}"/>
                             </StackPanel>
-                            <StackPanel Margin="6,0,0,6"/>
                         </UniformGrid>
                         <Button Content="Apply DXF Settings" Command="{Binding ApplyDxfSettingsCommand}" Style="{StaticResource PrimaryButtonStyle}"/>
                     </StackPanel>
@@ -66,12 +61,16 @@
 
                 <Border Style="{StaticResource PanelBorderStyle}">
                     <StackPanel>
-                        <TextBlock Text="G-code Speed" Style="{StaticResource PanelTitleStyle}"/>
-                        <TextBlock Text="M03 speed applied only to G-code paths" Style="{StaticResource PanelSubtitleStyle}"/>
-                        <UniformGrid Columns="1" Margin="0,10,0,0">
-                            <StackPanel Margin="0,0,0,6">
-                                <TextBlock Text="G-code Speed M03" Foreground="{DynamicResource MutedBrush}"/>
+                        <TextBlock Text="G-code Motion" Style="{StaticResource PanelTitleStyle}"/>
+                        <TextBlock Text="Motion speeds applied to G-code paths" Style="{StaticResource PanelSubtitleStyle}"/>
+                        <UniformGrid Columns="2" Margin="0,10,0,0">
+                            <StackPanel Margin="0,0,6,6">
+                                <TextBlock Text="Laser-On Speed (M03) (mm/min)" Foreground="{DynamicResource MutedBrush}"/>
                                 <TextBox Text="{Binding GcodeSpeedM3Input, UpdateSourceTrigger=PropertyChanged}"/>
+                            </StackPanel>
+                            <StackPanel Margin="6,0,0,6">
+                                <TextBlock Text="Rapid Travel Speed (G00) (mm/min)" Foreground="{DynamicResource MutedBrush}"/>
+                                <TextBox Text="{Binding RapidSpeedInput, UpdateSourceTrigger=PropertyChanged}"/>
                             </StackPanel>
                         </UniformGrid>
                         <Button Content="Apply G-code Settings" Command="{Binding ApplyGcodeSettingsCommand}" Style="{StaticResource PrimaryButtonStyle}"/>
@@ -80,24 +79,15 @@
 
                 <Border Style="{StaticResource PanelBorderStyle}">
                     <StackPanel>
-                        <TextBlock Text="Machine Config &amp; Workspace" Style="{StaticResource PanelTitleStyle}"/>
-                        <TextBlock Text="Rapid speed and drawing boundary" Style="{StaticResource PanelSubtitleStyle}"/>
-                        <TextBlock Text="G00 rapid speed (mm/min)" Foreground="{DynamicResource MutedBrush}" Margin="0,10,0,3"/>
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
-                            <TextBox Text="{Binding RapidSpeedInput, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,8,0"/>
-                            <Button Grid.Column="1" Content="Apply Speed" Command="{Binding SetG0SpeedCommand}" Style="{StaticResource PrimaryButtonStyle}"/>
-                        </Grid>
+                        <TextBlock Text="Workspace" Style="{StaticResource PanelTitleStyle}"/>
+                        <TextBlock Text="Drawing boundary used by the machine preview" Style="{StaticResource PanelSubtitleStyle}"/>
                         <UniformGrid Columns="2" Margin="0,10,0,0">
                             <StackPanel Margin="0,0,6,0">
-                                <TextBlock Text="Workspace X (mm)" Foreground="{DynamicResource MutedBrush}"/>
+                                <TextBlock Text="Workspace Width (mm)" Foreground="{DynamicResource MutedBrush}"/>
                                 <TextBox Text="{Binding WorkspaceWidthInput, UpdateSourceTrigger=PropertyChanged}"/>
                             </StackPanel>
                             <StackPanel Margin="6,0,0,0">
-                                <TextBlock Text="Workspace Y (mm)" Foreground="{DynamicResource MutedBrush}"/>
+                                <TextBlock Text="Workspace Height (mm)" Foreground="{DynamicResource MutedBrush}"/>
                                 <TextBox Text="{Binding WorkspaceHeightInput, UpdateSourceTrigger=PropertyChanged}"/>
                             </StackPanel>
                         </UniformGrid>
