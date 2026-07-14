@@ -314,6 +314,50 @@ namespace DACDT_2026
             }
         }
 
+        private async Task BrowseCameraRecordingFolderAsync()
+        {
+            await Task.Yield();
+
+            using (var dialog = new System.Windows.Forms.FolderBrowserDialog())
+            {
+                dialog.Description = "Select the camera recording folder";
+                dialog.SelectedPath = Directory.Exists(cameraRecordingDir)
+                    ? cameraRecordingDir
+                    : AppDomain.CurrentDomain.BaseDirectory;
+
+                if (dialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
+                {
+                    ui.CameraRecordingFolderInput = dialog.SelectedPath;
+                    await SetCameraRecordingFolderAsync(dialog.SelectedPath);
+                }
+            }
+        }
+
+        private async Task SetCameraRecordingFolderAsync(string path)
+        {
+            await Task.Yield();
+
+            try
+            {
+                if (string.IsNullOrWhiteSpace(path))
+                {
+                    ui.CameraStatus = "Recording folder is required.";
+                    return;
+                }
+
+                string normalizedPath = Path.GetFullPath(path.Trim());
+                Directory.CreateDirectory(normalizedPath);
+                cameraRecordingDir = normalizedPath;
+                ui.CameraRecordingFolderInput = normalizedPath;
+                SaveSettingsToFile();
+                ui.CameraStatus = "Recording folder set.";
+            }
+            catch (Exception ex)
+            {
+                ui.CameraStatus = "Recording folder error: " + ex.Message;
+            }
+        }
+
         private void SetCameraRunningUiState(bool running, string status, bool clearFrame)
         {
             try
@@ -342,6 +386,7 @@ namespace DACDT_2026
         /// </summary>
         private async Task StartCameraRecordingAsync()
         {
+            string requestedDirectory = ui.CameraRecordingFolderInput;
             await Task.Run(() =>
             {
                 try
@@ -360,7 +405,13 @@ namespace DACDT_2026
                             return;
                         }
 
-                        Directory.CreateDirectory(cameraRecordingDir);
+                        string normalizedDirectory = string.IsNullOrWhiteSpace(requestedDirectory)
+                            ? cameraRecordingDir
+                            : Path.GetFullPath(requestedDirectory.Trim());
+                        Directory.CreateDirectory(normalizedDirectory);
+                        cameraRecordingDir = normalizedDirectory;
+                        ui.CameraRecordingFolderInput = normalizedDirectory;
+                        SaveSettingsToFile();
                         string timestamp = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss", CultureInfo.InvariantCulture);
                         string recordingPath = Path.Combine(cameraRecordingDir, $"camera_{timestamp}");
 
@@ -424,7 +475,7 @@ namespace DACDT_2026
             Bitmap bitmap = null;
             try
             {
-                if (isClosing || !webReady)
+                if (isClosing)
                     return;
 
                 bitmap = (Bitmap)eventArgs.Frame.Clone();
@@ -448,26 +499,29 @@ namespace DACDT_2026
                 }
 
                 // Feed frame to WebRTC server for browser streaming.
-                if (ShouldSendFrameToWebRtc(nowUtc))
+                if (webReady)
                 {
-                    var webRtcBitmap = (Bitmap)bitmap.Clone();
-                    _ = Task.Run(() =>
+                    if (ShouldSendFrameToWebRtc(nowUtc))
                     {
-                        try
+                        var webRtcBitmap = (Bitmap)bitmap.Clone();
+                        _ = Task.Run(() =>
                         {
-                            using (var ms = new MemoryStream())
+                            try
                             {
-                                SaveJpeg(webRtcBitmap, ms, 50L);
-                                byte[] jpegBytes = ms.ToArray();
-                                webRtcBridgeClient.SendFrame(jpegBytes);
+                                using (var ms = new MemoryStream())
+                                {
+                                    SaveJpeg(webRtcBitmap, ms, 50L);
+                                    byte[] jpegBytes = ms.ToArray();
+                                    webRtcBridgeClient.SendFrame(jpegBytes);
+                                }
                             }
-                        }
-                        finally
-                        {
-                            webRtcBitmap.Dispose();
-                            Interlocked.Exchange(ref webRtcFrameInFlight, 0);
-                        }
-                    });
+                            finally
+                            {
+                                webRtcBitmap.Dispose();
+                                Interlocked.Exchange(ref webRtcFrameInFlight, 0);
+                            }
+                        });
+                    }
                 }
 
                 if (ShouldUpdateCameraPreview(nowUtc))

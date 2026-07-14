@@ -313,6 +313,8 @@ namespace DACDT_2026
             ui.StopCameraCommand = new RelayCommand(StopCameraAsync);
             ui.StartCameraRecordingCommand = new RelayCommand(StartCameraRecordingAsync);
             ui.StopCameraRecordingCommand = new RelayCommand(StopCameraRecordingAsync);
+            ui.BrowseCameraRecordingFolderCommand = new RelayCommand(BrowseCameraRecordingFolderAsync);
+            ui.SetCameraRecordingFolderCommand = new RelayCommand(() => SetCameraRecordingFolderAsync(ui.CameraRecordingFolderInput));
             ui.ExportQD75Command = new RelayCommand(() => _ = HandleExportQD75Async());
         }
 
@@ -490,6 +492,7 @@ namespace DACDT_2026
             ui.ActiveWcs = activeWcs;
             ui.LaserPowerInput = laserPower;
             ui.CurrentTheme = currentTheme;
+            ui.CameraRecordingFolderInput = cameraRecordingDir;
             SyncWcsOffsetsToUi();
         }
 
@@ -590,6 +593,7 @@ namespace DACDT_2026
                         case "activeWcs": activeWcs = val; break;
                         case "laserPower": laserPower = val; break;
                         case "theme": currentTheme = WpfThemeManager.Normalize(val); break;
+                        case "cameraRecordingDir": cameraRecordingDir = val; break;
                         default:
                             for (int i = 0; i < 6; i++)
                             {
@@ -639,6 +643,7 @@ namespace DACDT_2026
                     $"activeWcs={activeWcs}",
                     $"laserPower={laserPower}",
                     $"theme={currentTheme}",
+                    $"cameraRecordingDir={cameraRecordingDir}",
                 };
                 for (int i = 0; i < 6; i++)
                 {

@@ -137,6 +137,7 @@ namespace DACDT_2026
         private string selectedCameraMoniker = "";
         private string cameraStatus = "Camera idle.";
         private string cameraRecordingPath = "";
+        private string cameraRecordingFolderInput = "";
         private bool isCameraRunning;
         private bool isCameraRecording;
         private int cameraRecordedFrames;
@@ -219,6 +220,8 @@ namespace DACDT_2026
         public ICommand StopCameraCommand { get; set; }
         public ICommand StartCameraRecordingCommand { get; set; }
         public ICommand StopCameraRecordingCommand { get; set; }
+        public ICommand BrowseCameraRecordingFolderCommand { get; set; }
+        public ICommand SetCameraRecordingFolderCommand { get; set; }
         public ICommand ExportQD75Command { get; set; }
 
         public string CurrentView
@@ -665,6 +668,12 @@ namespace DACDT_2026
         {
             get => cameraRecordingPath;
             set => SetProperty(ref cameraRecordingPath, value);
+        }
+
+        public string CameraRecordingFolderInput
+        {
+            get => cameraRecordingFolderInput;
+            set => SetProperty(ref cameraRecordingFolderInput, value ?? string.Empty);
         }
 
         public bool IsCameraRunning

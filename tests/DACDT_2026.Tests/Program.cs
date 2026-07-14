@@ -26,6 +26,8 @@ namespace DACDT_2026.Tests
                 IntervalGateThrottlesRepeatedWork();
                 SingleFlightGateAllowsOnlyOneInFlightOperation();
                 CameraRecordingFrameIntervalIsThrottled();
+                CameraRecordingPathAndCommandsAreBound();
+                CameraRecordingDoesNotRequireWebRtcForLocalFrames();
                 AxisMonitorUpdateCadenceStaysResponsive();
                 BackgroundVideoServiceArgumentsIncludeParentPid();
                 ExitShutdownSendsM210WheneverPlcIsConnected();
@@ -300,6 +302,35 @@ namespace DACDT_2026.Tests
         private static void CameraRecordingFrameIntervalIsThrottled()
         {
             AssertEqual("100", PerformanceTuning.CameraRecordingFrameIntervalMs.ToString(), "Camera recording should be throttled to 10 fps.");
+        }
+
+        private static void CameraRecordingPathAndCommandsAreBound()
+        {
+            string stateSource = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "WpfUiState.cs"));
+            string formSource = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Form1.cs"));
+            string cameraSource = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Form1.Camera.cs"));
+            string monitorView = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Views", "MonitorView.xaml"));
+            string projectSource = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "DACDT_2026.csproj"));
+
+            AssertTrue(stateSource.Contains("CameraRecordingFolderInput"), "Camera UI state must expose the recording folder input.");
+            AssertTrue(stateSource.Contains("BrowseCameraRecordingFolderCommand"), "Camera UI state must expose the browse command.");
+            AssertTrue(stateSource.Contains("SetCameraRecordingFolderCommand"), "Camera UI state must expose the set-path command.");
+            AssertTrue(formSource.Contains("BrowseCameraRecordingFolderCommand"), "Form command setup must bind the browse command.");
+            AssertTrue(formSource.Contains("SetCameraRecordingFolderCommand"), "Form command setup must bind the set-path command.");
+            AssertTrue(cameraSource.Contains("FolderBrowserDialog"), "Camera path selection must use a folder picker.");
+            AssertTrue(cameraSource.Contains("cameraRecordingDir ="), "Camera recording must use the configured recording directory.");
+            AssertTrue(monitorView.Contains("{Binding CameraRecordingFolderInput"), "Monitor UI must bind the recording folder input.");
+            AssertTrue(monitorView.Contains("{Binding BrowseCameraRecordingFolderCommand}"), "Monitor UI must expose Browse for the recording folder.");
+            AssertTrue(monitorView.Contains("{Binding SetCameraRecordingFolderCommand}"), "Monitor UI must expose Set Path for the recording folder.");
+            AssertTrue(projectSource.Contains("System.Windows.Forms"), "The app must reference Windows Forms for the folder picker.");
+        }
+
+        private static void CameraRecordingDoesNotRequireWebRtcForLocalFrames()
+        {
+            string cameraSource = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Form1.Camera.cs"));
+
+            AssertTrue(!cameraSource.Contains("if (isClosing || !webReady)"), "Local camera recording must not stop when WebRTC is unavailable.");
+            AssertTrue(cameraSource.Contains("if (webReady)"), "WebRTC frame forwarding must remain guarded independently.");
         }
 
         private static void AxisMonitorUpdateCadenceStaysResponsive()

@@ -191,6 +191,7 @@
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
                     <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
@@ -230,7 +231,30 @@
                     <Button Grid.Column="5" Content="STOP REC" Command="{Binding StopCameraRecordingCommand}" Style="{StaticResource SecondaryButtonStyle}"/>
                 </Grid>
 
-                <Border Grid.Row="2"
+                <StackPanel Grid.Row="2" Margin="0,0,0,8">
+                    <TextBlock Text="Recording folder" Style="{StaticResource PanelSubtitleStyle}" Margin="0,0,0,4"/>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="88"/>
+                            <ColumnDefinition Width="86"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBox Text="{Binding CameraRecordingFolderInput, UpdateSourceTrigger=PropertyChanged}"
+                                 VerticalContentAlignment="Center"
+                                 ToolTip="Recording folder"/>
+                        <Button Grid.Column="1"
+                                Content="BROWSE"
+                                Command="{Binding BrowseCameraRecordingFolderCommand}"
+                                Style="{StaticResource SecondaryButtonStyle}"
+                                Margin="6,0,6,0"/>
+                        <Button Grid.Column="2"
+                                Content="SET PATH"
+                                Command="{Binding SetCameraRecordingFolderCommand}"
+                                Style="{StaticResource PrimaryButtonStyle}"/>
+                    </Grid>
+                </StackPanel>
+
+                <Border Grid.Row="3"
                         Background="#050A13"
                         BorderBrush="{DynamicResource BorderBrush}"
                         BorderThickness="1"
@@ -258,7 +282,7 @@
                     </Grid>
                 </Border>
 
-                <TextBlock Grid.Row="3"
+                <TextBlock Grid.Row="4"
                            Text="{Binding CameraRecordingPath}"
                            Foreground="{DynamicResource MutedBrush}"
                            TextTrimming="CharacterEllipsis"
