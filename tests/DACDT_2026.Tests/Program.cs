@@ -31,6 +31,7 @@ namespace DACDT_2026.Tests
                 PlcConnectionGuardBlocksMissingOrDisconnectedPlc();
                 D406JogSpeedUsesFloatWordEncoding();
                 DecimalJogSpeedInputAcceptsDotAndComma();
+                ZHeightConversionUsesTenThousandScale();
                 WebCadUploadReassemblesChunks();
                 WebCadUploadRejectsUnsupportedFiles();
                 WpfThemeManagerAppliesLightAndDarkPalettes();
@@ -355,6 +356,18 @@ namespace DACDT_2026.Tests
             AssertTrue(Math.Abs(comma - 12.345) < 0.000001, "Decimal comma input should keep fractional value.");
 
             AssertEqual("12.5", DecimalInputParser.FormatFloat(12.5f), "PLC jog speed should format back to editable decimal text.");
+        }
+
+        private static void ZHeightConversionUsesTenThousandScale()
+        {
+            AssertTrue(ZHeightSetting.TryConvertToPlcUnits("1.25", out int dotValue), "Z height should accept decimal point input.");
+            AssertEqual("12500", dotValue.ToString(), "Z height millimetres should convert to 0.1 micrometre PLC units.");
+
+            AssertTrue(ZHeightSetting.TryConvertToPlcUnits("1,25", out int commaValue), "Z height should accept decimal comma input.");
+            AssertEqual("12500", commaValue.ToString(), "Z height comma decimal should use the same PLC conversion.");
+
+            AssertTrue(!ZHeightSetting.TryConvertToPlcUnits("abc", out _), "Invalid Z height input should be rejected.");
+            AssertTrue(!ZHeightSetting.TryConvertToPlcUnits("-0.1", out _), "Negative Z height input should be rejected.");
         }
 
         private static void WebCadUploadReassemblesChunks()

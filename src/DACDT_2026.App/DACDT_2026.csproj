@@ -133,6 +133,7 @@
     <Compile Include="CameraDeviceSelection.cs" />
     <Compile Include="Converters.cs" />
     <Compile Include="DecimalInputParser.cs" />
+    <Compile Include="ZHeightSetting.cs" />
     <Compile Include="EngraveCutProcessComposer.cs" />
     <Compile Include="ExitShutdownPolicy.cs" />
     <Compile Include="Form1.Camera.cs" />
