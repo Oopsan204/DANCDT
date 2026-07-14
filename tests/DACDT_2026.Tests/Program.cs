@@ -32,6 +32,7 @@ namespace DACDT_2026.Tests
                 D406JogSpeedUsesFloatWordEncoding();
                 DecimalJogSpeedInputAcceptsDotAndComma();
                 ZHeightConversionUsesTenThousandScale();
+                ZHeightCommandUsesD110ThenPulsesM212();
                 WebCadUploadReassemblesChunks();
                 WebCadUploadRejectsUnsupportedFiles();
                 WpfThemeManagerAppliesLightAndDarkPalettes();
@@ -368,6 +369,22 @@ namespace DACDT_2026.Tests
 
             AssertTrue(!ZHeightSetting.TryConvertToPlcUnits("abc", out _), "Invalid Z height input should be rejected.");
             AssertTrue(!ZHeightSetting.TryConvertToPlcUnits("-0.1", out _), "Negative Z height input should be rejected.");
+        }
+
+        private static void ZHeightCommandUsesD110ThenPulsesM212()
+        {
+            string formSource = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Form1.cs"));
+            string plcSource = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Form1.PlcControl.cs"));
+            string stateSource = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "WpfUiState.cs"));
+
+            AssertTrue(stateSource.Contains("ZHeightInput"), "UI state must expose the Z height input.");
+            AssertTrue(stateSource.Contains("SetZHeightCommand"), "UI state must expose the Z height command.");
+            AssertTrue(formSource.Contains("SetZHeightCommand"), "Form command setup must bind the Z height command.");
+            AssertTrue(plcSource.Contains("WriteDeviceValueAsync(\"D110\", plcValue)"), "Z height must write the converted value to D110.");
+            int d110Index = plcSource.IndexOf("WriteDeviceValueAsync(\"D110\", plcValue)", StringComparison.Ordinal);
+            int m212OnIndex = plcSource.IndexOf("WriteDeviceValueAsync(StopRunRegister, 1)", d110Index, StringComparison.Ordinal);
+            int m212OffIndex = plcSource.IndexOf("WriteDeviceValueAsync(StopRunRegister, 0)", m212OnIndex, StringComparison.Ordinal);
+            AssertTrue(d110Index >= 0 && m212OnIndex > d110Index && m212OffIndex > m212OnIndex, "Z height command must write D110 before pulsing M212 on then off.");
         }
 
         private static void WebCadUploadReassemblesChunks()

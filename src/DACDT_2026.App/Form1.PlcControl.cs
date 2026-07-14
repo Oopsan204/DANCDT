@@ -704,6 +704,35 @@ namespace DACDT_2026
             }
         }
 
+        private async Task HandleSetZHeightAsync(string text)
+        {
+            try
+            {
+                if (!await RequirePlcConnectedAsync("Z Height"))
+                    return;
+
+                if (!ZHeightSetting.TryConvertToPlcUnits(text, out int plcValue))
+                {
+                    await NotifyAsync("error", "Z Height", "Z height must be a non-negative decimal in millimetres.");
+                    return;
+                }
+
+                await WriteDeviceValueAsync("D110", plcValue);
+                AddLogEntry("D110", plcValue.ToString(CultureInfo.InvariantCulture), "Write", "OK", "Set Z Height");
+
+                await WriteDeviceValueAsync(StopRunRegister, 1);
+                AddLogEntry(StopRunRegister, "1", "Write", "OK", "Set Z Height trigger");
+                await WriteDeviceValueAsync(StopRunRegister, 0);
+                AddLogEntry(StopRunRegister, "0", "Write", "OK", "Set Z Height trigger reset");
+
+                await NotifyAsync("success", "Z Height", $"Z height set to {text} mm.");
+            }
+            catch (Exception ex)
+            {
+                await NotifyAsync("error", "Z Height", "Error setting Z height: " + ex.Message);
+            }
+        }
+
         private async Task HandleSetLaserPowerAsync(double value)
         {
             try

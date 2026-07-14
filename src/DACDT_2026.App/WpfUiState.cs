@@ -88,6 +88,7 @@ namespace DACDT_2026
         private int plcPortInput = 3000;
         private float jogSpeedD406 = 1000f;
         private string jogSpeedInput = "1000";
+        private string zHeightInput = "0";
         private bool suppressJogSpeedInputDirty;
         private bool jogSpeedInputDirty;
         private string laserPowerInput = "100";
@@ -188,6 +189,7 @@ namespace DACDT_2026
         public ICommand PauseStartCommand { get; set; }
         public ICommand PauseStopCommand { get; set; }
         public ICommand SetJogSpeedCommand { get; set; }
+        public ICommand SetZHeightCommand { get; set; }
         public ICommand SetLaserPowerCommand { get; set; }
         public ICommand OpenDxfCommand { get; set; }
         public ICommand ImportDxfCommand { get; set; }
@@ -1173,6 +1175,12 @@ namespace DACDT_2026
                     return "Cut";
                 return string.Empty;
             }
+        }
+
+        public string ZHeightInput
+        {
+            get => zHeightInput;
+            set => SetProperty(ref zHeightInput, value ?? string.Empty);
         }
         public bool IsActive
         {

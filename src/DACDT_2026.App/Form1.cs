@@ -230,6 +230,7 @@ namespace DACDT_2026
             ui.PauseStartCommand = new RelayCommand(() => HandlePauseWriteAsync(true));
             ui.PauseStopCommand = new RelayCommand(() => HandlePauseWriteAsync(false));
             ui.SetJogSpeedCommand = new RelayCommand(() => HandleSetJogSpeedAsync(ui.JogSpeedInput));
+            ui.SetZHeightCommand = new RelayCommand(() => HandleSetZHeightAsync(ui.ZHeightInput));
             ui.SetLaserPowerCommand = new RelayCommand(async () =>
             {
                 if (double.TryParse(ui.LaserPowerInput, NumberStyles.Any, CultureInfo.InvariantCulture, out double val))
