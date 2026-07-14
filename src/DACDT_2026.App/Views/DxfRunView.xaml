@@ -46,8 +46,7 @@
                     <Border BorderBrush="{DynamicResource BorderSoftBrush}" BorderThickness="0,0,1,0" Padding="0,0,10,0" Margin="0,0,10,0">
                         <StackPanel Orientation="Horizontal">
                             <Button Content="New Gcode" Command="{Binding NewGcodeCommand}" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,6,0" Width="100"/>
-                            <Button Content="Import Khac" Command="{Binding ImportEngraveDxfCommand}" Style="{StaticResource PrimaryButtonStyle}" Margin="0,0,6,0" Width="110"/>
-                            <Button Content="Import Cat" Command="{Binding ImportCutDxfCommand}" Style="{StaticResource SecondaryButtonStyle}" Width="100"/>
+                            <Button Content="Import DXF" Command="{Binding ImportDxfCommand}" Style="{StaticResource PrimaryButtonStyle}" Width="110"/>
                         </StackPanel>
                     </Border>
 
@@ -178,38 +177,46 @@
                                         </ItemsControl.ItemTemplate>
                                     </ItemsControl>
 
-                                     <Path Data="{Binding CadPreviewGeometry}"
-                                           Stroke="DeepSkyBlue"
-                                           IsHitTestVisible="False">
-                                         <Path.StrokeThickness>
-                                             <MultiBinding Converter="{StaticResource InverseZoomStrokeThicknessConverter}">
-                                                 <Binding Path="CadPreviewStrokeThickness"/>
-                                                 <Binding RelativeSource="{RelativeSource AncestorType={x:Type UserControl}}" Path="CadDisplayZoom"/>
-                                             </MultiBinding>
-                                         </Path.StrokeThickness>
-                                     </Path>
-
-                                     <Path Data="{Binding CadEngravePreviewGeometry}"
-                                           Stroke="DeepSkyBlue"
-                                           IsHitTestVisible="False">
-                                         <Path.StrokeThickness>
-                                             <MultiBinding Converter="{StaticResource InverseZoomStrokeThicknessConverter}">
-                                                 <Binding Path="CadPreviewStrokeThickness"/>
-                                                 <Binding RelativeSource="{RelativeSource AncestorType={x:Type UserControl}}" Path="CadDisplayZoom"/>
-                                             </MultiBinding>
-                                         </Path.StrokeThickness>
-                                     </Path>
-
-                                     <Path Data="{Binding CadCutPreviewGeometry}"
-                                           Stroke="OrangeRed"
-                                           IsHitTestVisible="False">
-                                         <Path.StrokeThickness>
-                                             <MultiBinding Converter="{StaticResource InverseZoomStrokeThicknessConverter}">
-                                                 <Binding Path="CadPreviewStrokeThickness"/>
-                                                 <Binding RelativeSource="{RelativeSource AncestorType={x:Type UserControl}}" Path="CadDisplayZoom"/>
-                                             </MultiBinding>
-                                         </Path.StrokeThickness>
-                                     </Path>
+                                    <ItemsControl ItemsSource="{Binding CadPrimitives}">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <Canvas/>
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Grid>
+                                                    <Polyline Points="{Binding Points}"
+                                                              Stroke="Transparent"
+                                                              StrokeLineJoin="Round"
+                                                              StrokeStartLineCap="Round"
+                                                              StrokeEndLineCap="Round"
+                                                              Cursor="Hand"
+                                                              MouseLeftButtonDown="SelectableCadPath_MouseLeftButtonDown">
+                                                        <Polyline.StrokeThickness>
+                                                            <MultiBinding Converter="{StaticResource InverseZoomStrokeThicknessConverter}">
+                                                                <Binding Source="10"/>
+                                                                <Binding RelativeSource="{RelativeSource AncestorType={x:Type UserControl}}" Path="CadDisplayZoom"/>
+                                                            </MultiBinding>
+                                                        </Polyline.StrokeThickness>
+                                                    </Polyline>
+                                                    <Polyline Points="{Binding Points}"
+                                                              Stroke="{Binding Stroke}"
+                                                              StrokeLineJoin="Round"
+                                                              StrokeStartLineCap="Round"
+                                                              StrokeEndLineCap="Round"
+                                                              IsHitTestVisible="False">
+                                                        <Polyline.StrokeThickness>
+                                                            <MultiBinding Converter="{StaticResource InverseZoomStrokeThicknessConverter}">
+                                                                <Binding Path="StrokeThickness"/>
+                                                                <Binding RelativeSource="{RelativeSource AncestorType={x:Type UserControl}}" Path="CadDisplayZoom"/>
+                                                            </MultiBinding>
+                                                        </Polyline.StrokeThickness>
+                                                    </Polyline>
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
 
                                     <ItemsControl ItemsSource="{Binding CadAxisLabels}" IsHitTestVisible="False">
                                         <ItemsControl.ItemsPanel>

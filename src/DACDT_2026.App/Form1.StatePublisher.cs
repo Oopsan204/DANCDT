@@ -627,6 +627,7 @@ namespace DACDT_2026
                 var cadPreviewGeometry = snapMixedEngraveCut ? null : BuildCadPreviewGeometry(snapDoc, projection);
                 var cadEngravePreviewGeometry = BuildCadPreviewGeometry(snapDoc, projection, EngraveCutProcessComposer.EngraveKind);
                 var cadCutPreviewGeometry = BuildCadPreviewGeometry(snapDoc, projection, EngraveCutProcessComposer.CutKind);
+                var cadPrimitiveLines = BuildCadPrimitiveLines(snapDoc, projection);
                 var limitAreas = BuildCadLimitAreas(snapWorkspaceWidth, snapWorkspaceHeight, projection);
                 var axisLines = BuildCadAxisLines(snapDoc, projection);
                 var axisLabels = BuildCadAxisLabels(snapDoc, projection);
@@ -637,7 +638,7 @@ namespace DACDT_2026
                     snapConnected,
                     snapRobotRawX,
                     snapRobotRawY);
-                return new { doc = snapDoc, points, geometryRows, rows, cadPreviewImage, cadPreviewGeometry, cadEngravePreviewGeometry, cadCutPreviewGeometry, limitAreas, axisLines, axisLabels, trackingPoints };
+                return new { doc = snapDoc, points, geometryRows, rows, cadPreviewImage, cadPreviewGeometry, cadEngravePreviewGeometry, cadCutPreviewGeometry, cadPrimitiveLines, limitAreas, axisLines, axisLabels, trackingPoints };
             });
 
             await RunOnUiAsync(() =>
@@ -684,7 +685,7 @@ namespace DACDT_2026
                 ui.CadPreviewGeometry = model.cadPreviewGeometry;
                 ui.CadEngravePreviewGeometry = model.cadEngravePreviewGeometry;
                 ui.CadCutPreviewGeometry = model.cadCutPreviewGeometry;
-                ReplaceCollection(ui.CadPrimitives, Enumerable.Empty<CadPrimitiveViewModel>());
+                ReplaceCollection(ui.CadPrimitives, model.cadPrimitiveLines);
                 ReplaceCollection(ui.CadLimitAreas, model.limitAreas);
                 ReplaceCollection(ui.CadAxisLines, model.axisLines);
                 ReplaceCollection(ui.CadAxisLabels, model.axisLabels);
@@ -971,6 +972,7 @@ namespace DACDT_2026
                 Speed = primitive.Speed,
                 Dwell = primitive.Dwell,
                 ProcessKind = primitive.ProcessKind,
+                PathId = primitive.PathId,
                 WcsIndex = primitive.WcsIndex
             };
         }
@@ -1222,24 +1224,41 @@ namespace DACDT_2026
             if (doc?.Primitives == null || doc.Primitives.Count == 0 || projection == null)
                 return lines;
 
-            foreach (var primitive in doc.Primitives.Take(50000))
-            {
-                if (primitive.Points == null || primitive.Points.Count < 2)
-                    continue;
-                if (IsRapidPrimitive(primitive))
-                    continue;
-
-                var pointCollection = new PointCollection();
-                foreach (var pt in primitive.Points)
+            var groups = doc.Primitives
+                .Take(50000)
+                .Where(primitive => primitive != null
+                    && primitive.Points != null
+                    && primitive.Points.Count >= 2
+                    && !IsRapidPrimitive(primitive))
+                .Select((primitive, index) => new
                 {
-                    pointCollection.Add(projection.Project(pt.X, pt.Y));
+                    Primitive = primitive,
+                    PathId = primitive.PathId >= 0 ? primitive.PathId : -(index + 1)
+                })
+                .GroupBy(item => item.PathId)
+                .OrderBy(group => group.Key);
+
+            foreach (var group in groups)
+            {
+                var pointCollection = new PointCollection();
+                foreach (var item in group)
+                {
+                    foreach (var point in item.Primitive.Points)
+                        pointCollection.Add(projection.Project(point.X, point.Y));
                 }
                 pointCollection.Freeze();
 
+                bool isCut = group.Any(item =>
+                    string.Equals(
+                        item.Primitive.ProcessKind,
+                        EngraveCutProcessComposer.CutKind,
+                        StringComparison.OrdinalIgnoreCase));
+
                 lines.Add(new CadPrimitiveViewModel
                 {
+                    PathId = group.Key,
                     Points = pointCollection,
-                    Stroke = Brushes.DeepSkyBlue,
+                    Stroke = isCut ? Brushes.OrangeRed : Brushes.DeepSkyBlue,
                     StrokeThickness = 0.65
                 });
             }

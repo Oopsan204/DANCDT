@@ -100,6 +100,29 @@ namespace DACDT_2026.Views
             e.Handled = true;
         }
 
+        private void SelectableCadPath_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (e.ClickCount >= 2)
+            {
+                ResetCadView();
+                e.Handled = true;
+                return;
+            }
+
+            var item = (sender as FrameworkElement)?.DataContext as CadPrimitiveViewModel;
+            var state = DataContext as WpfUiState;
+            if (item == null || state?.ToggleCadPathCommand == null)
+            {
+                e.Handled = true;
+                return;
+            }
+
+            if (state.ToggleCadPathCommand.CanExecute(item.PathId))
+                state.ToggleCadPathCommand.Execute(item.PathId);
+
+            e.Handled = true;
+        }
+
         private void CadViewport_MouseMove(object sender, MouseEventArgs e)
         {
             if (!isCadPanning || e.LeftButton != MouseButtonState.Pressed)

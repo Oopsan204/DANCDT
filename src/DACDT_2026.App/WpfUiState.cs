@@ -1213,6 +1213,7 @@ namespace DACDT_2026
 
     public sealed class CadPrimitiveViewModel
     {
+        public int PathId { get; set; }
         public PointCollection Points { get; set; }
         public Brush Stroke { get; set; }
         public double StrokeThickness { get; set; }
