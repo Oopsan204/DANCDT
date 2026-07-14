@@ -4,9 +4,14 @@
              xmlns:sys="clr-namespace:System;assembly=mscorlib"
              xmlns:local="clr-namespace:DACDT_2026">
     <UserControl.Resources>
-        <local:InverseZoomStrokeThicknessConverter x:Key="InverseZoomStrokeThicknessConverter"/>
-        <local:NegativeHalfConverter x:Key="NegativeHalfConverter"/>
-        <sys:Double x:Key="BaseStrokeThickness">1.0</sys:Double>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="Styles.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+            <local:InverseZoomStrokeThicknessConverter x:Key="InverseZoomStrokeThicknessConverter"/>
+            <local:NegativeHalfConverter x:Key="NegativeHalfConverter"/>
+            <sys:Double x:Key="BaseStrokeThickness">1.0</sys:Double>
+        </ResourceDictionary>
     </UserControl.Resources>
 
     <Grid>

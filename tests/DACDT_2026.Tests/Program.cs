@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using DACDT_2026;
 
 namespace DACDT_2026.Tests
@@ -49,6 +50,8 @@ namespace DACDT_2026.Tests
                 SettingsViewUsesApprovedEnglishContract();
                 NonHelpViewsDoNotUseKnownVietnameseOperatorLabels();
                 SettingsViewExposesSaveSettingsCommand();
+                ViewsExposeSharedStylesToXamlDesigner();
+                WpfXamlUsesValidResourceAndGridSyntax();
                 AntigravityUiWorkflowIsGuarded();
                 Console.WriteLine("All tests passed.");
                 return 0;
@@ -682,6 +685,35 @@ namespace DACDT_2026.Tests
             AssertTrue(formSource.Contains("app_settings.txt"), "Save Settings must keep using the existing app_settings.txt format.");
             AssertTrue(!settingsView.Contains("Import Settings"), "Settings must not add a separate import workflow.");
             AssertTrue(!settingsView.Contains("Export Settings"), "Settings must not add a separate export workflow.");
+        }
+
+        private static void ViewsExposeSharedStylesToXamlDesigner()
+        {
+            string viewsRoot = GetRepositoryPath("src", "DACDT_2026.App", "Views");
+            string[] viewFiles = Directory.GetFiles(viewsRoot, "*.xaml", SearchOption.TopDirectoryOnly)
+                .Where(file => !string.Equals(Path.GetFileName(file), "Styles.xaml", StringComparison.OrdinalIgnoreCase))
+                .Concat(Directory.GetFiles(Path.Combine(viewsRoot, "Panels"), "*.xaml", SearchOption.TopDirectoryOnly))
+                .ToArray();
+
+            foreach (string file in viewFiles)
+            {
+                string source = File.ReadAllText(file);
+                string expectedPath = file.IndexOf(Path.DirectorySeparatorChar + "Panels" + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) >= 0
+                    ? "../Styles.xaml"
+                    : "Styles.xaml";
+                AssertTrue(source.Contains("<UserControl.Resources>"), Path.GetFileName(file) + " must define local resources for standalone XAML design.");
+                AssertTrue(source.Contains("Source=\"" + expectedPath + "\""), Path.GetFileName(file) + " must merge the shared Styles.xaml dictionary.");
+            }
+        }
+
+        private static void WpfXamlUsesValidResourceAndGridSyntax()
+        {
+            string sidebar = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Views", "Panels", "SidebarControl.xaml"));
+            string dxfRun = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Views", "DxfRunView.xaml"));
+
+            AssertTrue(!sidebar.Contains("<Grid.ColumnDefinition "), "Sidebar must use ColumnDefinition children inside Grid.ColumnDefinitions.");
+            string normalizedDxfRun = dxfRun.Replace("\r\n", "\n");
+            AssertTrue(normalizedDxfRun.Contains("<UserControl.Resources>\n        <ResourceDictionary>\n            <ResourceDictionary.MergedDictionaries>"), "DxfRunView resources must wrap merged dictionaries in ResourceDictionary.");
         }
 
         private static void AntigravityUiWorkflowIsGuarded()
