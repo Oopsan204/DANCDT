@@ -668,6 +668,7 @@ namespace DACDT_2026.Tests
             AssertTrue(runner.Contains("src/DACDT_2026.App/Views/**"), "The runner must allow WPF view edits.");
             AssertTrue(runner.Contains("src/DACDT_2026.App/Form1.PlcControl.cs"), "The runner must block PLC control edits.");
             AssertTrue(runner.Contains("--dangerously-skip-permissions") && runner.Contains("throw"), "The runner must reject dangerous permission bypass flags.");
+            AssertTrue(runner.Contains("LOCALAPPDATA") && runner.Contains("agy.exe"), "The runner must find the default Windows Antigravity install path when PATH has not refreshed.");
         }
 
         private static string GetRepositoryPath(params string[] segments)

@@ -14,9 +14,10 @@ if ($PSBoundParameters.Values -contains "--dangerously-skip-permissions") {
 $repoRoot = (git rev-parse --show-toplevel).Trim()
 Set-Location $repoRoot
 
-$agy = Get-Command agy -ErrorAction SilentlyContinue
-if (-not $agy) {
-    throw "Antigravity CLI 'agy' was not found in PATH. Install it or add it to PATH, then rerun this script."
+$agyCommand = Get-Command agy -ErrorAction SilentlyContinue
+$agyPath = if ($agyCommand) { $agyCommand.Source } else { Join-Path $env:LOCALAPPDATA "agy\bin\agy.exe" }
+if (-not (Test-Path -LiteralPath $agyPath)) {
+    throw "Antigravity CLI 'agy' was not found in PATH or at the default Windows install path. Install it or add it to PATH, then rerun this script."
 }
 
 if (-not (Test-Path -LiteralPath $TaskPath)) {
@@ -108,7 +109,7 @@ if ($Model.Trim().Length -gt 0) {
 }
 
 $arguments += @("-p", $prompt)
-& $agy.Source @arguments
+& $agyPath @arguments
 if ($LASTEXITCODE -ne 0) {
     throw "Antigravity CLI exited with code $LASTEXITCODE."
 }
@@ -129,4 +130,3 @@ foreach ($path in $changedPaths) {
 }
 
 Write-Host "Antigravity UI changes stayed inside the approved UI paths."
-
