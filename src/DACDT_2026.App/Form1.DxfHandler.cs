@@ -406,6 +406,38 @@ namespace DACDT_2026
             await LogUIAsync("DXF", $"Compiled {processRows.Count} engrave/cut commands into one process table.");
         }
 
+        private async Task HandleToggleCadPathAsync(int pathId)
+        {
+            if (IsProgramRunning()
+                || !string.Equals(activeDocumentKind, "DXF", StringComparison.OrdinalIgnoreCase)
+                || activeCadDocument?.Primitives == null)
+            {
+                return;
+            }
+
+            if (!await cadLoadGate.WaitAsync(0))
+                return;
+
+            try
+            {
+                bool changed = CadPathSelection.ToggleProcessKind(
+                    activeCadDocument.Primitives,
+                    pathId,
+                    EngraveCutProcessComposer.EngraveKind,
+                    EngraveCutProcessComposer.CutKind);
+                if (!changed)
+                    return;
+
+                await RebuildMixedEngraveCutProgramAsync();
+                await PushDxfStateAsync();
+                await PublishAllMqttAsync();
+            }
+            finally
+            {
+                cadLoadGate.Release();
+            }
+        }
+
         private static void DropEngraveHomeRowBeforeCut(List<ProcessRow> engraveRows, bool hasCutRows)
         {
             if (engraveRows == null || engraveRows.Count == 0)

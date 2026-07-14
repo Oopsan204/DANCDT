@@ -250,6 +250,7 @@ namespace DACDT_2026
             });
             ui.OpenDxfCommand = new RelayCommand(HandleOpenDxfAsync);
             ui.ImportDxfCommand = new RelayCommand(HandleImportDxfAsync);
+            ui.ToggleCadPathCommand = new RelayCommand(p => HandleToggleCadPathAsync(ToInt(p, -1)));
             ui.NewGcodeCommand = new RelayCommand(HandleNewGcodeAsync);
             ui.SaveGcodeCommand = new RelayCommand(() => HandleSaveGcodeAsync(ui.RawGcodeText));
             ui.PreviewGcodeCommand = new RelayCommand(() => HandlePreviewGcodeAsync(ui.RawGcodeText));
