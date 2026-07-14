@@ -26,3 +26,33 @@ and use the relevant skill before proceeding. In particular, use
 `using-superpowers` when starting a new conversation or after compaction so the
 Superpowers workflow is active across projects.
 <!-- SUPERPOWERS_END -->
+
+<!-- ANTIGRAVITY_UI_START -->
+## Antigravity UI Delegation
+
+Codex is the lead engineering agent.
+
+Codex owns:
+- Architecture
+- Domain logic
+- PLC, QD75, camera, MQTT, WebRTC, and machine-control code
+- API integration
+- State management
+- Validation
+- Tests
+- Reviewing and integrating UI changes
+
+Antigravity CLI is the UI implementation agent.
+
+When UI work is needed:
+1. Create or update `docs/ui-contract.md`.
+2. Create or update `docs/ui-task.md`.
+3. Invoke Antigravity CLI with `tools/run-antigravity-ui.ps1`.
+4. Restrict Antigravity to UI directories.
+5. Review the resulting Git diff.
+6. Reject changes to logic directories.
+7. Run tests before accepting the changes.
+
+Never allow Antigravity to redesign API contracts without Codex review.
+Do not use `--dangerously-skip-permissions`.
+<!-- ANTIGRAVITY_UI_END -->

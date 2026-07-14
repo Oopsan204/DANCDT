@@ -47,6 +47,7 @@ namespace DACDT_2026.Tests
                 SettingsViewUsesApprovedEnglishContract();
                 NonHelpViewsDoNotUseKnownVietnameseOperatorLabels();
                 SettingsViewExposesSaveSettingsCommand();
+                AntigravityUiWorkflowIsGuarded();
                 Console.WriteLine("All tests passed.");
                 return 0;
             }
@@ -648,6 +649,25 @@ namespace DACDT_2026.Tests
             AssertTrue(formSource.Contains("app_settings.txt"), "Save Settings must keep using the existing app_settings.txt format.");
             AssertTrue(!settingsView.Contains("Import Settings"), "Settings must not add a separate import workflow.");
             AssertTrue(!settingsView.Contains("Export Settings"), "Settings must not add a separate export workflow.");
+        }
+
+        private static void AntigravityUiWorkflowIsGuarded()
+        {
+            string agents = File.ReadAllText(GetRepositoryPath("AGENTS.md"));
+            string contract = File.ReadAllText(GetRepositoryPath("docs", "ui-contract.md"));
+            string task = File.ReadAllText(GetRepositoryPath("docs", "ui-task.md"));
+            string runner = File.ReadAllText(GetRepositoryPath("tools", "run-antigravity-ui.ps1"));
+
+            AssertTrue(agents.Contains("Antigravity CLI is the UI implementation agent."), "AGENTS.md must define Antigravity as the UI agent.");
+            AssertTrue(agents.Contains("Never allow Antigravity to redesign API contracts without Codex review."), "AGENTS.md must keep API contracts under Codex review.");
+            AssertTrue(contract.Contains("Allowed UI paths"), "The UI contract must list allowed UI paths.");
+            AssertTrue(contract.Contains("Forbidden logic paths"), "The UI contract must list forbidden logic paths.");
+            AssertTrue(task.Contains("Current UI task"), "The UI task file must provide a concrete task slot.");
+            AssertTrue(runner.Contains("agy"), "The runner must call the Antigravity CLI.");
+            AssertTrue(runner.Contains("-p"), "The runner must use non-interactive print mode.");
+            AssertTrue(runner.Contains("src/DACDT_2026.App/Views/**"), "The runner must allow WPF view edits.");
+            AssertTrue(runner.Contains("src/DACDT_2026.App/Form1.PlcControl.cs"), "The runner must block PLC control edits.");
+            AssertTrue(runner.Contains("--dangerously-skip-permissions") && runner.Contains("throw"), "The runner must reject dangerous permission bypass flags.");
         }
 
         private static string GetRepositoryPath(params string[] segments)
