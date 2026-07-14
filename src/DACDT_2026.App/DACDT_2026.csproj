@@ -129,6 +129,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="CadDocumentService.cs" />
+    <Compile Include="CadPathSelection.cs" />
     <Compile Include="CameraDeviceSelection.cs" />
     <Compile Include="Converters.cs" />
     <Compile Include="DecimalInputParser.cs" />

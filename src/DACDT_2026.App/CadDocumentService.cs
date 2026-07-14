@@ -286,6 +286,7 @@ namespace DACDT_2026
             public string Speed { get; set; }
             public string Dwell { get; set; }
             public string ProcessKind { get; set; }
+            public int PathId { get; set; } = -1;
             public int WcsIndex { get; set; } // 0=G54, 1=G55, ..., 5=G59. -1=no WCS (DXF)
         }
 

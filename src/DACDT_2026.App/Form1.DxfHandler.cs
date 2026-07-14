@@ -334,6 +334,7 @@ namespace DACDT_2026
                 return;
 
             var paths = GetConnectedPathsFromCad(document.Primitives, isGcode);
+            CadPathSelection.AssignPathIds(paths);
             document.Primitives.Clear();
             foreach (var path in paths)
                 document.Primitives.AddRange(path);
@@ -2232,138 +2233,7 @@ namespace DACDT_2026
         /// </summary>
         private List<List<CadDocumentService.CadPrimitiveData>> GetConnectedPathsFromCad(
             List<CadDocumentService.CadPrimitiveData> primitives, bool isGcode = false)
-        {
-            var paths = new List<List<CadDocumentService.CadPrimitiveData>>();
-            if (primitives == null || primitives.Count == 0) return paths;
-
-            // Spatial hash: round tọa độ về độ chính xác AreClose (epsilon 0.001) → key string
-            // Một key = (xMm, yMm, zMm) làm tròn 3 chữ số thập phân
-            string KeyOf(CadDocumentService.CadCoordinate p) => isGcode
-                ? string.Format(CultureInfo.InvariantCulture, "{0:0.000}|{1:0.000}|{2:0.000}", p.X, p.Y, p.Z)
-                : string.Format(CultureInfo.InvariantCulture, "{0:0.000}|{1:0.000}", p.X, p.Y);
-
-            // Index endpoints: key → list of (primitive, isStartPoint)
-            // Một key có thể có nhiều primitive trùng đầu/cuối → list
-            var startMap = new Dictionary<string, List<int>>(primitives.Count);
-            var endMap   = new Dictionary<string, List<int>>(primitives.Count);
-            var assigned = new bool[primitives.Count];
-
-            for (int i = 0; i < primitives.Count; i++)
-            {
-                var p = primitives[i];
-                if (p.Points == null || p.Points.Count == 0) { assigned[i] = true; continue; }
-
-                string sk = KeyOf(p.Points[0]);
-                string ek = KeyOf(p.Points[p.Points.Count - 1]);
-
-                if (!startMap.TryGetValue(sk, out var sList)) { sList = new List<int>(); startMap[sk] = sList; }
-                sList.Add(i);
-
-                if (!endMap.TryGetValue(ek, out var eList)) { eList = new List<int>(); endMap[ek] = eList; }
-                eList.Add(i);
-            }
-
-            // Tìm primitive chưa assign tiếp theo bằng cách duyệt tuần tự
-            int searchFrom = 0;
-            while (true)
-            {
-                // Tìm primitive đầu chuỗi mới
-                int seed = -1;
-                for (int i = searchFrom; i < primitives.Count; i++)
-                {
-                    if (!assigned[i]) { seed = i; searchFrom = i + 1; break; }
-                }
-                if (seed < 0) break;
-
-                var currentPath = new List<CadDocumentService.CadPrimitiveData>();
-                currentPath.Add(primitives[seed]);
-                assigned[seed] = true;
-
-                // Mở rộng tail
-                bool grew = true;
-                while (grew)
-                {
-                    grew = false;
-                    var tail = currentPath[currentPath.Count - 1];
-                    if (tail.Points == null || tail.Points.Count == 0) break;
-                    string tailKey = KeyOf(tail.Points[tail.Points.Count - 1]);
-
-                    // Tìm cand có start trùng tail
-                    if (startMap.TryGetValue(tailKey, out var candStarts))
-                    {
-                        foreach (int ci in candStarts)
-                        {
-                            if (assigned[ci]) continue;
-                            currentPath.Add(primitives[ci]);
-                            assigned[ci] = true;
-                            grew = true;
-                            break;
-                        }
-                    }
-                    if (grew) continue;
-
-                    // Tìm cand có end trùng tail → reverse
-                    if (endMap.TryGetValue(tailKey, out var candEnds))
-                    {
-                        foreach (int ci in candEnds)
-                        {
-                            if (assigned[ci]) continue;
-                            var cand = primitives[ci];
-                            cand.Points.Reverse();
-                            if (cand.SourceType != null && cand.SourceType.Contains("Arc")) cand.IsCw = !cand.IsCw;
-                            currentPath.Add(cand);
-                            assigned[ci] = true;
-                            grew = true;
-                            break;
-                        }
-                    }
-                }
-
-                // Mở rộng head
-                grew = true;
-                while (grew)
-                {
-                    grew = false;
-                    var head = currentPath[0];
-                    if (head.Points == null || head.Points.Count == 0) break;
-                    string headKey = KeyOf(head.Points[0]);
-
-                    // Tìm cand có end trùng head
-                    if (endMap.TryGetValue(headKey, out var candEnds))
-                    {
-                        foreach (int ci in candEnds)
-                        {
-                            if (assigned[ci]) continue;
-                            currentPath.Insert(0, primitives[ci]);
-                            assigned[ci] = true;
-                            grew = true;
-                            break;
-                        }
-                    }
-                    if (grew) continue;
-
-                    // Tìm cand có start trùng head → reverse
-                    if (startMap.TryGetValue(headKey, out var candStarts))
-                    {
-                        foreach (int ci in candStarts)
-                        {
-                            if (assigned[ci]) continue;
-                            var cand = primitives[ci];
-                            cand.Points.Reverse();
-                            if (cand.SourceType != null && cand.SourceType.Contains("Arc")) cand.IsCw = !cand.IsCw;
-                            currentPath.Insert(0, cand);
-                            assigned[ci] = true;
-                            grew = true;
-                            break;
-                        }
-                    }
-                }
-
-                paths.Add(currentPath);
-            }
-
-            return paths;
-        }
+            => CadPathSelection.GroupConnectedPaths(primitives, isGcode);
 
         private bool IsClosedPath(List<CadDocumentService.CadPrimitiveData> path, bool isGcode = false)
         {
