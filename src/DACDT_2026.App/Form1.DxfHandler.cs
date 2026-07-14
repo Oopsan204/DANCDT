@@ -155,13 +155,7 @@ namespace DACDT_2026
                         loadedDoc = cadService.Load(selectedPath);
                     }
 
-                    if (loadedDoc?.Primitives != null && loadedDoc.Primitives.Count > 0)
-                    {
-                        var paths = GetConnectedPathsFromCad(loadedDoc.Primitives, isGcode);
-                        loadedDoc.Primitives.Clear();
-                        foreach (var path in paths)
-                            loadedDoc.Primitives.AddRange(path);
-                    }
+                    NormalizeCadDocumentPaths(loadedDoc, isGcode);
                 });
 
                 await loadTask;
@@ -220,16 +214,11 @@ namespace DACDT_2026
             assignedPointKeys.Clear();
             rawGcodeText = string.Empty;
             processRows.Clear();
+            ui.CadPrimitives.Clear();
             ui.IsStartActionEnabled = false;
         }
 
-        private Task HandleImportEngraveDxfAsync()
-            => HandleImportDxfForProcessKindAsync(EngraveCutProcessComposer.EngraveKind);
-
-        private Task HandleImportCutDxfAsync()
-            => HandleImportDxfForProcessKindAsync(EngraveCutProcessComposer.CutKind);
-
-        private async Task HandleImportDxfForProcessKindAsync(string processKind)
+        private async Task HandleImportDxfAsync()
         {
             if (!await cadLoadGate.WaitAsync(0))
             {
@@ -237,9 +226,7 @@ namespace DACDT_2026
                 return;
             }
 
-            string title = string.Equals(processKind, EngraveCutProcessComposer.CutKind, StringComparison.OrdinalIgnoreCase)
-                ? "Import Cut DXF"
-                : "Import Engrave DXF";
+            const string title = "Import DXF";
             string selectedPath = null;
 
             try
@@ -275,6 +262,7 @@ namespace DACDT_2026
             try
             {
                 SyncEngraveCutSettingsFromUi();
+                ClearLoadedFileState();
                 AddLogEntry("DXF", selectedPath, "Read", "Selected", title);
                 await SendProgressAsync(true, 5);
                 await Task.Yield();
@@ -284,13 +272,14 @@ namespace DACDT_2026
                 {
                     loadedDoc = cadService.Load(selectedPath);
                     NormalizeCadDocumentPaths(loadedDoc, isGcode: false);
-                    TagCadDocumentProcessKind(loadedDoc, processKind);
+                    TagCadDocumentProcessKind(loadedDoc, EngraveCutProcessComposer.EngraveKind);
                 });
 
-                if (string.Equals(processKind, EngraveCutProcessComposer.CutKind, StringComparison.OrdinalIgnoreCase))
-                    activeCutCadDocument = loadedDoc;
-                else
-                    activeEngraveCadDocument = loadedDoc;
+                activeCadDocument = loadedDoc;
+                activeEngraveCadDocument = null;
+                activeCutCadDocument = null;
+                activeDocumentKind = "DXF";
+                isMixedEngraveCutProgram = true;
 
                 await SendProgressAsync(true, 35);
                 await RebuildMixedEngraveCutProgramAsync();
@@ -300,10 +289,7 @@ namespace DACDT_2026
                 await PushDxfStateAsync();
                 await PublishAllMqttAsync();
 
-                string label = string.Equals(processKind, EngraveCutProcessComposer.CutKind, StringComparison.OrdinalIgnoreCase)
-                    ? "Cut"
-                    : "Engrave";
-                await NotifyAsync("success", "DXF", $"Imported {label}: {loadedDoc?.FileName ?? Path.GetFileName(selectedPath)}");
+                await NotifyAsync("success", "DXF", $"Imported: {loadedDoc?.FileName ?? Path.GetFileName(selectedPath)}");
             }
             catch (Exception ex)
             {
@@ -352,9 +338,44 @@ namespace DACDT_2026
             }
         }
 
+        private CadDocumentService.CadLoadResult CreateProcessDocumentForKind(
+            CadDocumentService.CadLoadResult source,
+            string processKind)
+        {
+            if (source?.Primitives == null)
+                return null;
+
+            var primitives = source.Primitives
+                .Where(primitive => primitive != null
+                    && string.Equals(primitive.ProcessKind, processKind, StringComparison.OrdinalIgnoreCase))
+                .Select(CloneCadPrimitiveForUi)
+                .Where(primitive => primitive != null)
+                .ToList();
+            if (primitives.Count == 0)
+                return null;
+
+            var points = RebuildPointRowsForDisplay(primitives);
+            return new CadDocumentService.CadLoadResult
+            {
+                FilePath = source.FilePath,
+                DirectoryPath = source.DirectoryPath,
+                FileName = source.FileName,
+                Primitives = primitives,
+                Points = points,
+                Bounds = BuildDisplayBounds(primitives, points)
+            };
+        }
+
         private async Task RebuildMixedEngraveCutProgramAsync()
         {
             SyncEngraveCutSettingsFromUi();
+
+            activeEngraveCadDocument = CreateProcessDocumentForKind(
+                activeCadDocument,
+                EngraveCutProcessComposer.EngraveKind);
+            activeCutCadDocument = CreateProcessDocumentForKind(
+                activeCadDocument,
+                EngraveCutProcessComposer.CutKind);
 
             var engraveRows = BuildDxfRowsForProcessDocument(
                 activeEngraveCadDocument,
@@ -376,9 +397,8 @@ namespace DACDT_2026
             processRows.AddRange(cutRows);
             NormalizeMixedProgramMotionTypes(processRows);
 
-            activeCadDocument = MergeEngraveCutDocuments();
             activeDocumentKind = "DXF";
-            isMixedEngraveCutProgram = activeEngraveCadDocument != null || activeCutCadDocument != null;
+            isMixedEngraveCutProgram = activeCadDocument != null;
             selectedCadPointKey = activeCadDocument?.Points?.FirstOrDefault()?.Key;
             currentView = "dxf";
             ui.IsStartActionEnabled = processRows.Count > 0;
@@ -487,42 +507,6 @@ namespace DACDT_2026
             => row != null
                && row.MCodeValue == "0"
                && string.Equals(row.EndCoordinate, "0;0", StringComparison.Ordinal);
-
-        private CadDocumentService.CadLoadResult MergeEngraveCutDocuments()
-        {
-            var docs = new List<CadDocumentService.CadLoadResult>();
-            if (activeEngraveCadDocument != null)
-                docs.Add(activeEngraveCadDocument);
-            if (activeCutCadDocument != null)
-                docs.Add(activeCutCadDocument);
-            if (docs.Count == 0)
-                return null;
-
-            var primitives = new List<CadDocumentService.CadPrimitiveData>();
-            foreach (var doc in docs)
-            {
-                if (doc.Primitives == null)
-                    continue;
-
-                foreach (var primitive in doc.Primitives)
-                {
-                    var clone = CloneCadPrimitiveForUi(primitive);
-                    if (clone != null)
-                        primitives.Add(clone);
-                }
-            }
-
-            var points = RebuildPointRowsForDisplay(primitives);
-            return new CadDocumentService.CadLoadResult
-            {
-                FilePath = string.Join(" | ", docs.Select(doc => doc.FilePath ?? string.Empty)),
-                DirectoryPath = docs[0].DirectoryPath,
-                FileName = string.Join(" + ", docs.Select(doc => doc.FileName ?? string.Empty).Where(name => !string.IsNullOrWhiteSpace(name))),
-                Primitives = primitives,
-                Points = points,
-                Bounds = BuildDisplayBounds(primitives, points)
-            };
-        }
 
         private async Task ReportNcCleanerResultAsync(NcGcodeCleaner.CleanResult result)
         {

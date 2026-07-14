@@ -190,8 +190,8 @@ namespace DACDT_2026
         public ICommand SetJogSpeedCommand { get; set; }
         public ICommand SetLaserPowerCommand { get; set; }
         public ICommand OpenDxfCommand { get; set; }
-        public ICommand ImportEngraveDxfCommand { get; set; }
-        public ICommand ImportCutDxfCommand { get; set; }
+        public ICommand ImportDxfCommand { get; set; }
+        public ICommand ToggleCadPathCommand { get; set; }
         public ICommand NewGcodeCommand { get; set; }
         public ICommand SaveGcodeCommand { get; set; }
         public ICommand PreviewGcodeCommand { get; set; }
