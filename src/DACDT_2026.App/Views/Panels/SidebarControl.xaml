@@ -79,6 +79,16 @@
                                Foreground="{DynamicResource MutedBrush}"
                                Margin="0,6,0,0"
                                FontSize="11"/>
+
+                    <TextBlock Text="Z height (mm)" Foreground="{DynamicResource MutedBrush}" Margin="0,8,0,3" FontSize="11"/>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <Grid.ColumnDefinition Width="*"/>
+                            <Grid.ColumnDefinition Width="62"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBox Text="{Binding ZHeightInput, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,6,0"/>
+                        <Button Grid.Column="1" Content="SET" Command="{Binding SetZHeightCommand}" Style="{StaticResource PrimaryButtonStyle}"/>
+                    </Grid>
                 </StackPanel>
             </Border>
 
