@@ -156,6 +156,8 @@ namespace DACDT_2026
                     }
 
                     NormalizeCadDocumentPaths(loadedDoc, isGcode);
+                    if (!isGcode)
+                        TagCadDocumentProcessKind(loadedDoc, EngraveCutProcessComposer.EngraveKind);
                 });
 
                 await loadTask;
@@ -165,6 +167,7 @@ namespace DACDT_2026
                 activeCadDocument    = loadedDoc;
                 rawGcodeText         = loadedGcodeText;
                 activeDocumentKind   = isGcode ? "GCODE" : "DXF";
+                isMixedEngraveCutProgram = !isGcode && activeCadDocument != null;
                 selectedCadPointKey  = activeCadDocument?.Points?.FirstOrDefault()?.Key;
                 assignedPointKeys.Clear();
 
@@ -184,8 +187,11 @@ namespace DACDT_2026
                 if (isGcode)
                     await ReportNcCleanerResultAsync(cleanResult);
 
-                // Tự động Import và quét giới hạn
-                await HandleImportCadToProcessAsync();
+                // DXF uses the single-document engrave/cut compiler; G-code keeps its existing path.
+                if (isGcode)
+                    await HandleImportCadToProcessAsync();
+                else
+                    await RebuildMixedEngraveCutProgramAsync();
                 await SendProgressAsync(true, 65);
                 await HandleScanLimitsAsync();
                 await SendProgressAsync(true, 85);
@@ -214,8 +220,20 @@ namespace DACDT_2026
             assignedPointKeys.Clear();
             rawGcodeText = string.Empty;
             processRows.Clear();
-            ui.CadPrimitives.Clear();
+            ClearCadPrimitiveUiState();
             ui.IsStartActionEnabled = false;
+        }
+
+        private void ClearCadPrimitiveUiState()
+        {
+            if (Dispatcher.CheckAccess())
+            {
+                ui.CadPrimitives.Clear();
+                return;
+            }
+
+            if (!Dispatcher.HasShutdownStarted && !Dispatcher.HasShutdownFinished)
+                Dispatcher.Invoke(new Action(() => ui.CadPrimitives.Clear()));
         }
 
         private async Task HandleImportDxfAsync()
