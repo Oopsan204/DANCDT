@@ -326,6 +326,12 @@ namespace DACDT_2026
             }
         }
 
+        public string ZHeightInput
+        {
+            get => zHeightInput;
+            set => SetProperty(ref zHeightInput, value ?? string.Empty);
+        }
+
         public void SetJogSpeedInputFromPlc(float value)
         {
             if (jogSpeedInputDirty)
@@ -1177,11 +1183,6 @@ namespace DACDT_2026
             }
         }
 
-        public string ZHeightInput
-        {
-            get => zHeightInput;
-            set => SetProperty(ref zHeightInput, value ?? string.Empty);
-        }
         public bool IsActive
         {
             get => isActive;

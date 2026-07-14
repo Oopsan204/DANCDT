@@ -379,6 +379,9 @@ namespace DACDT_2026.Tests
 
             AssertTrue(stateSource.Contains("ZHeightInput"), "UI state must expose the Z height input.");
             AssertTrue(stateSource.Contains("SetZHeightCommand"), "UI state must expose the Z height command.");
+            int processRowViewModelIndex = stateSource.IndexOf("public sealed class ProcessRowViewModel", StringComparison.Ordinal);
+            int zHeightInputIndex = stateSource.IndexOf("public string ZHeightInput", StringComparison.Ordinal);
+            AssertTrue(zHeightInputIndex >= 0 && zHeightInputIndex < processRowViewModelIndex, "Z height input must belong to WpfUiState, not a process-row model.");
             AssertTrue(formSource.Contains("SetZHeightCommand"), "Form command setup must bind the Z height command.");
             AssertTrue(plcSource.Contains("WriteDeviceValueAsync(\"D110\", plcValue)"), "Z height must write the converted value to D110.");
             int d110Index = plcSource.IndexOf("WriteDeviceValueAsync(\"D110\", plcValue)", StringComparison.Ordinal);
