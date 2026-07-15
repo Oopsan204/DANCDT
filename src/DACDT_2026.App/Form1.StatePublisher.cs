@@ -6,6 +6,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Media;
+using System.Windows.Threading;
 
 namespace DACDT_2026
 {
@@ -37,31 +38,14 @@ namespace DACDT_2026
 
             await RunOnUiAsync(() =>
             {
-                ui.IsConnected = connected;
-                ui.ConnectionBanner = connectionBanner;
-                ui.ConnectionButtonText = connected ? "DISCONNECT PLC Q" : "CONNECT PLC Q";
+                ui.JogSpeedD406 = currentJogSpeedD406;
+                ui.SetJogSpeedInputFromPlc(currentJogSpeedD406);
 
                 for (int i = 0; i < ui.Axes.Count && i < 4; i++)
                 {
-                    int mb = MonitorBaseG[i];
-                    int rawStatus = axAxisStatus[i];
-                    if (rawStatus > 32767) rawStatus -= 65536;
-
                     AxisStatusViewModel axis = ui.Axes[i];
                     axis.CurrentPos = connected ? FormatPositionMm(axCurrentPos[i]) : dash;
                     axis.CurrentSpeed = connected ? FormatSpeedMm(axCurrentSpeed[i]) : dash;
-                    axis.MCode = connected ? axMCode[i].ToString(CultureInfo.InvariantCulture) : dash;
-                    axis.ErrorCode = connected ? axErrorCode[i].ToString(CultureInfo.InvariantCulture) : dash;
-                    axis.ErrorCodeAddr = $"U0\\G{mb + OffErrorCode}";
-                    axis.WarningCode = connected ? axWarningCode[i].ToString(CultureInfo.InvariantCulture) : dash;
-                    axis.WarningCodeAddr = $"U0\\G{mb + OffWarningCode}";
-                    axis.AxisStatus = connected ? FormatAxisStatus(rawStatus) : dash;
-                    axis.CurrentDataNo = connected ? axCurrentDataNo[i].ToString(CultureInfo.InvariantCulture) : dash;
-                    axis.LastDataNo = connected ? axLastDataNo[i].ToString(CultureInfo.InvariantCulture) : dash;
-                    axis.LimitMinus = connected && (axSignals[i] & 0x01) != 0;
-                    axis.LimitPlus = connected && (axSignals[i] & 0x02) != 0;
-                    axis.HomeDog = connected && (axSignals[i] & 0x40) != 0;
-                    axis.IsComplete = connected && rawStatus == 0;
                 }
 
                 ui.ApplyActiveProgramIndex(GetActiveProgramIndex(), ensureProcessVisible: false);
@@ -77,7 +61,37 @@ namespace DACDT_2026
                         axCurrentPos[1]);
                     ui.UpdateCadTrackingPoint(trackingPoints.FirstOrDefault());
                 }
-            });
+            }, DispatcherPriority.Render);
+        }
+
+        private async Task PushAxisMonitorStateAsync()
+        {
+            bool connected = PlcConnectionGuard.CanUsePlc(plcComm != null, plcComm != null && plcComm.IsConnected);
+            string dash = "--";
+
+            await RunOnUiAsync(() =>
+            {
+                for (int i = 0; i < ui.Axes.Count && i < 4; i++)
+                {
+                    int mb = MonitorBaseG[i];
+                    int rawStatus = axAxisStatus[i];
+                    if (rawStatus > 32767) rawStatus -= 65536;
+
+                    AxisStatusViewModel axis = ui.Axes[i];
+                    axis.MCode = connected ? axMCode[i].ToString(CultureInfo.InvariantCulture) : dash;
+                    axis.ErrorCode = connected ? axErrorCode[i].ToString(CultureInfo.InvariantCulture) : dash;
+                    axis.ErrorCodeAddr = $"U0\\G{mb + OffErrorCode}";
+                    axis.WarningCode = connected ? axWarningCode[i].ToString(CultureInfo.InvariantCulture) : dash;
+                    axis.WarningCodeAddr = $"U0\\G{mb + OffWarningCode}";
+                    axis.AxisStatus = connected ? FormatAxisStatus(rawStatus) : dash;
+                    axis.CurrentDataNo = connected ? axCurrentDataNo[i].ToString(CultureInfo.InvariantCulture) : dash;
+                    axis.LastDataNo = connected ? axLastDataNo[i].ToString(CultureInfo.InvariantCulture) : dash;
+                    axis.LimitMinus = connected && (axSignals[i] & 0x01) != 0;
+                    axis.LimitPlus = connected && (axSignals[i] & 0x02) != 0;
+                    axis.HomeDog = connected && (axSignals[i] & 0x40) != 0;
+                    axis.IsComplete = connected && rawStatus == 0;
+                }
+            }, DispatcherPriority.Render);
         }
 
         private async Task PushControlStateAsync(bool includeTracking = true)
@@ -1813,7 +1827,7 @@ namespace DACDT_2026
             });
         }
 
-        private Task RunOnUiAsync(Action action)
+        private Task RunOnUiAsync(Action action, DispatcherPriority priority = DispatcherPriority.Normal)
         {
             if (Dispatcher.CheckAccess())
             {
@@ -1822,7 +1836,7 @@ namespace DACDT_2026
             }
 
             var tcs = new TaskCompletionSource<bool>();
-            Dispatcher.BeginInvoke(new Action(() =>
+            Dispatcher.BeginInvoke(priority, new Action(() =>
             {
                 try
                 {

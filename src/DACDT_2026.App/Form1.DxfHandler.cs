@@ -4,6 +4,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace DACDT_2026
@@ -1024,6 +1025,8 @@ namespace DACDT_2026
                 await NotifyAsync("error", "Telemetry", PlcConnectionGuard.NotConnectedMessage);
                 return false;
             }
+            if (!await RequirePlcStartupReadyAsync("Send CAD"))
+                return false;
 
             if (processRows.Count == 0)
             {
@@ -1117,8 +1120,11 @@ namespace DACDT_2026
             }
 
             // ── Tạm dừng poll timer để tránh ContextSwitchDeadlock ──────────────────
-            await StopPlcPollingAsync();
+            bool pollingPausedForWrite = ShouldPausePlcPollingForWrite(comm);
+            if (pollingPausedForWrite)
+                await StopPlcPollingAsync();
 
+            Interlocked.Increment(ref plcWriteInFlight);
             try
             {
                 _ = SendProgressAsync(true, 0);
@@ -1246,8 +1252,9 @@ namespace DACDT_2026
             }
             finally
             {
+                Interlocked.Decrement(ref plcWriteInFlight);
                 _ = SendProgressAsync(false, 0);
-                if (plcComm != null && plcComm.IsConnected && !isClosing)
+                if (pollingPausedForWrite && plcComm != null && plcComm.IsConnected && !isClosing)
                     StartPlcPolling();
             }
         }
@@ -1261,6 +1268,8 @@ namespace DACDT_2026
                 await NotifyAsync("error", "Test Area", PlcConnectionGuard.NotConnectedMessage);
                 return;
             }
+            if (!await RequirePlcStartupReadyAsync("Test Area"))
+                return;
 
             if (activeCadDocument == null)
             {
@@ -1387,8 +1396,11 @@ namespace DACDT_2026
                 EndYMm = adjMinY
             });
 
-            // Step 4: Write to PLC
-            await StopPlcPollingAsync();
+            // Step 4: Write to PLC while the dedicated monitor connection stays live.
+            bool pollingPausedForWrite = ShouldPausePlcPollingForWrite(comm);
+            if (pollingPausedForWrite)
+                await StopPlcPollingAsync();
+            Interlocked.Increment(ref plcWriteInFlight);
             try
             {
                 await LogUIAsync("Test", "Clearing buffer...");
@@ -1462,7 +1474,8 @@ namespace DACDT_2026
             }
             finally
             {
-                if (plcComm != null && plcComm.IsConnected && !isClosing)
+                Interlocked.Decrement(ref plcWriteInFlight);
+                if (pollingPausedForWrite && plcComm != null && plcComm.IsConnected && !isClosing)
                     StartPlcPolling();
             }
         }
@@ -1681,10 +1694,15 @@ namespace DACDT_2026
                 await NotifyAsync("error", "Clear Buffer", PlcConnectionGuard.NotConnectedMessage);
                 return;
             }
+            if (!await RequirePlcStartupReadyAsync("Clear Buffer"))
+                return;
 
             // Tạm dừng poll timer
-            await StopPlcPollingAsync();
+            bool pollingPausedForWrite = ShouldPausePlcPollingForWrite(comm);
+            if (pollingPausedForWrite)
+                await StopPlcPollingAsync();
 
+            Interlocked.Increment(ref plcWriteInFlight);
             try
             {
                 await LogUIAsync("Clear Buffer", "Clearing all PLC buffers...");
@@ -1717,8 +1735,9 @@ namespace DACDT_2026
             }
             finally
             {
+                Interlocked.Decrement(ref plcWriteInFlight);
                 _ = SendProgressAsync(false, 0);
-                if (plcComm != null && plcComm.IsConnected && !isClosing)
+                if (pollingPausedForWrite && plcComm != null && plcComm.IsConnected && !isClosing)
                     StartPlcPolling();
             }
         }

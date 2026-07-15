@@ -1,11 +1,14 @@
 <UserControl x:Class="DACDT_2026.Views.DashboardView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:DACDT_2026">
     <UserControl.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
                 <ResourceDictionary Source="/DACDT_2026;component/Views/Styles.xaml"/>
             </ResourceDictionary.MergedDictionaries>
+            <local:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
+            <local:BoolToStatusBrushConverter x:Key="BoolToStatusBrushConverter"/>
         </ResourceDictionary>
     </UserControl.Resources>
     <Grid>

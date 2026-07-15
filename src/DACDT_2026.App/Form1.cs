@@ -77,6 +77,7 @@ namespace DACDT_2026
         private int logPushedVersion;
         private int logUiRefreshPending;
         private PLCCommunication plcComm;
+        private PLCCommunication plcMonitorComm;
 
         private CadDocumentService.CadLoadResult activeCadDocument;
         private CadDocumentService.CadLoadResult activeEngraveCadDocument;
@@ -111,11 +112,16 @@ namespace DACDT_2026
         private QD75RingBufferRunner activeRingRunner;
         private DateTime lastMachineMqttPublishUtc = DateTime.MinValue;
         private readonly IntervalGate controlUiPushGate = new IntervalGate(PerformanceTuning.ControlUiPushIntervalMs);
+        private readonly IntervalGate axisMonitorUiPushGate = new IntervalGate(PerformanceTuning.ControlUiPushIntervalMs);
         private readonly IntervalGate controlTrackingUiPushGate = new IntervalGate(PerformanceTuning.ControlTrackingUiPushIntervalMs);
         private readonly IntervalGate slowPlcMonitorPollGate = new IntervalGate(PerformanceTuning.SlowPlcMonitorPollIntervalMs);
         private readonly IntervalGate plcHeartbeatGate = new IntervalGate(PerformanceTuning.PlcHeartbeatIntervalMs);
         private int machineMqttPublishInFlight;
+        private int plcConnectionChangeInFlight;
+        private int slowPlcMonitorInFlight;
+        private int plcHeartbeatInFlight;
         private int controlUiPushInFlight;
+        private int axisMonitorUiPushInFlight;
         private int plcWriteInFlight;
         private int nextFastMonitorAxis = -1;
 
@@ -135,6 +141,7 @@ namespace DACDT_2026
         private volatile bool webReady;
         private volatile bool isClosing;
         private volatile bool isPolling;
+        private volatile bool plcStartupReady;
         private CancellationTokenSource plcPollCts;
         private Task plcPollTask;
         
@@ -1009,6 +1016,11 @@ namespace DACDT_2026
             {
                 try { plcComm.Dispose(); } catch { }
                 plcComm = null;
+            }
+            if (plcMonitorComm != null)
+            {
+                try { plcMonitorComm.Dispose(); } catch { }
+                plcMonitorComm = null;
             }
 
             base.OnClosing(e);

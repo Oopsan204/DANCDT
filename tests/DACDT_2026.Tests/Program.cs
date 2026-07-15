@@ -29,9 +29,12 @@ namespace DACDT_2026.Tests
                 CameraRecordingPathAndCommandsAreBound();
                 CameraRecordingDoesNotRequireWebRtcForLocalFrames();
                 AxisMonitorUpdateCadenceStaysResponsive();
+                PlcMonitoringUsesOneBatchedReader();
+                FastPlcUiUpdatesUseRenderPriority();
+                CadTrackingMarkerMovesWithoutInvalidatingCanvasLayout();
                 BackgroundVideoServiceArgumentsIncludeParentPid();
                 ExitShutdownSendsM210WheneverPlcIsConnected();
-                PlcConnectionClearsBuffersBeforePolling();
+                PlcConnectionStartsMonitoringBeforeStartupClear();
                 PlcConnectionGuardBlocksMissingOrDisconnectedPlc();
                 RunProgressIsLimitedToEngraveAndCutPrograms();
                 D406JogSpeedUsesFloatWordEncoding();
@@ -55,6 +58,7 @@ namespace DACDT_2026.Tests
                 NonHelpViewsDoNotUseKnownVietnameseOperatorLabels();
                 SettingsViewExposesSaveSettingsCommand();
                 ViewsExposeSharedStylesToXamlDesigner();
+                ViewsDeclareConvertersUsedByXamlDesigner();
                 WpfXamlUsesValidResourceAndGridSyntax();
                 AntigravityUiWorkflowIsGuarded();
                 Console.WriteLine("All tests passed.");
@@ -346,6 +350,51 @@ namespace DACDT_2026.Tests
             AssertTrue(PerformanceTuning.MachineMqttPublishIntervalMs >= PerformanceTuning.PlcPollIntervalMs * 100, "MQTT cadence should be at least 100x slower than PLC polling.");
         }
 
+        private static void PlcMonitoringUsesOneBatchedReader()
+        {
+            string formSource = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Form1.cs"));
+            string plcSource = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Form1.PlcControl.cs"));
+            string communicationSource = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "PLCCommunication.cs"));
+            string dxfSource = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Form1.DxfHandler.cs"));
+
+            AssertTrue(formSource.Contains("private PLCCommunication plcMonitorComm;"), "PLC monitoring must use a dedicated connection so coordinate writes cannot block the display.");
+            int monitorGetterStart = plcSource.IndexOf("private bool TryGetMonitoringPlc", StringComparison.Ordinal);
+            int monitorGetterEnd = plcSource.IndexOf("private bool ShouldPausePlcPollingForWrite", monitorGetterStart, StringComparison.Ordinal);
+            string monitorGetterSource = plcSource.Substring(monitorGetterStart, monitorGetterEnd - monitorGetterStart);
+            AssertTrue(!monitorGetterSource.Contains("TryGetConnectedPlc"), "The monitor reader must never fall back to the coordinate-write connection.");
+            AssertTrue(!plcSource.Contains("Task.WhenAll("), "PLC reads must not use competing poll loops on the same MX Component connection.");
+            AssertTrue(!plcSource.Contains("PlcMonitorLoopAsync"), "Motion and U0\\G values must be captured by one ordered reader loop.");
+            AssertTrue(communicationSource.Contains("ReadDeviceRandom2"), "Monitoring should use MX Component random batch read instead of many GetDevice calls.");
+            AssertTrue(plcSource.Contains("TryReadDeviceWords"), "The PLC poll should request one batched monitoring snapshot.");
+            AssertTrue(plcSource.Contains("monitorBase + 35"), "The batched snapshot must include each axis current QD75 data number.");
+            AssertTrue(plcSource.Contains("private const int FastSnapshotWordCount = 46") && plcSource.Contains("private static readonly string[] FastMonitorDeviceList"), "The fast snapshot must read displayed U0\\G monitor values for all four axes in the same cycle.");
+            AssertTrue(plcSource.Contains("devices.Add(\"D406\")") && plcSource.Contains("devices.Add(\"D407\")"), "The batched snapshot must load the live jog speed without waiting for the slow monitor pass.");
+            AssertTrue(!plcSource.Contains("comm.ReadBuffer(0, ControlBaseG"), "The slow path must not read unused control blocks on the coordinate-write connection.");
+            AssertTrue(dxfSource.Contains("ShouldPausePlcPollingForWrite(comm)"), "Bulk coordinate writes must keep the dedicated monitoring connection running.");
+            AssertTrue(dxfSource.Contains("Interlocked.Increment(ref plcWriteInFlight)"), "Bulk coordinate writes must suspend low-priority reads on the write connection.");
+            AssertTrue(communicationSource.Contains("randomReadRetryAfterUtc"), "A transient MX random-read error must be retried instead of disabling batching for the connection lifetime.");
+        }
+
+        private static void FastPlcUiUpdatesUseRenderPriority()
+        {
+            string source = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Form1.StatePublisher.cs"));
+
+            AssertTrue(source.IndexOf("RunOnUiAsync(() =>", StringComparison.Ordinal) >= 0, "PLC state publisher must marshal updates to the WPF dispatcher.");
+            AssertTrue(source.IndexOf("DispatcherPriority.Render", StringComparison.Ordinal) >= 0, "Fast PLC updates must use WPF render priority so axis values and the CAD marker are not delayed behind normal UI work.");
+        }
+
+        private static void CadTrackingMarkerMovesWithoutInvalidatingCanvasLayout()
+        {
+            string source = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Views", "DxfRunView.xaml"));
+            int start = source.IndexOf("<ItemsControl ItemsSource=\"{Binding CadTrackingPoints}\"", StringComparison.Ordinal);
+            int end = source.IndexOf("</ItemsControl>", start, StringComparison.Ordinal);
+            AssertTrue(start >= 0 && end > start, "DXF view must contain the CAD tracking marker layer.");
+
+            string markerLayer = source.Substring(start, end - start);
+            AssertTrue(markerLayer.IndexOf("Canvas.Left\" Value=\"{Binding X}", StringComparison.Ordinal) < 0, "Tracking marker movement must not invalidate the CAD canvas layout.");
+            AssertTrue(markerLayer.IndexOf("<TranslateTransform X=\"{Binding X}\" Y=\"{Binding Y}\"/>", StringComparison.Ordinal) >= 0, "Tracking marker must move with a render transform.");
+        }
+
         private static void BackgroundVideoServiceArgumentsIncludeParentPid()
         {
             string args = BackgroundVideoServiceProcess.BuildParentPidArguments(12345);
@@ -365,15 +414,28 @@ namespace DACDT_2026.Tests
             AssertEqual("100", PerformanceTuning.ExitHomeDelayMs.ToString(), "Exit should close shortly after HOME ALL.");
         }
 
-        private static void PlcConnectionClearsBuffersBeforePolling()
+        private static void PlcConnectionStartsMonitoringBeforeStartupClear()
         {
             string source = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Form1.PlcControl.cs"));
+            string formSource = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Form1.cs"));
             int connectStart = source.IndexOf("private async Task HandleConnectToggleAsync", StringComparison.Ordinal);
+            int assignmentIndex = source.IndexOf("plcComm = connectedComm", connectStart, StringComparison.Ordinal);
+            int monitorAssignmentIndex = source.IndexOf("plcMonitorComm = monitorComm", assignmentIndex, StringComparison.Ordinal);
+            int pollingIndex = source.IndexOf("StartPlcPolling()", assignmentIndex, StringComparison.Ordinal);
             int clearIndex = source.IndexOf("ClearAllBuffers(connectedComm", connectStart, StringComparison.Ordinal);
-            int pollingIndex = source.IndexOf("StartPlcPolling()", connectStart, StringComparison.Ordinal);
 
             AssertTrue(connectStart >= 0, "PLC connect handler should exist.");
-            AssertTrue(clearIndex > connectStart && clearIndex < pollingIndex, "PLC buffers must be cleared after connect and before polling starts.");
+            AssertTrue(assignmentIndex > connectStart && monitorAssignmentIndex > assignmentIndex && pollingIndex > monitorAssignmentIndex && clearIndex > pollingIndex, "The dedicated monitor must connect and polling must start before the slow 600-point startup clear.");
+            AssertTrue(source.Contains("if (monitorComm == null)"), "Connection must fail clearly when the dedicated monitoring channel cannot open.");
+            AssertTrue(formSource.Contains("private volatile bool plcStartupReady;"), "PLC commands must remain guarded until startup buffer clear finishes.");
+            AssertTrue(formSource.Contains("private int plcConnectionChangeInFlight;"), "PLC connect/disconnect commands must be single-flight.");
+            AssertTrue(source.Contains("CompareExchange(ref plcConnectionChangeInFlight"), "PLC connect/disconnect handler must reject overlapping operations.");
+            AssertTrue(source.Contains("plcStartupReady = true;"), "PLC commands should become ready only after startup clear succeeds.");
+            string dxfSource = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Form1.DxfHandler.cs"));
+            int sendStart = dxfSource.IndexOf("private async Task<bool> HandleSendCadXAsync", StringComparison.Ordinal);
+            int sendEnd = dxfSource.IndexOf("private async Task HandleTestEngraveAreaAsync", sendStart, StringComparison.Ordinal);
+            string sendSource = dxfSource.Substring(sendStart, sendEnd - sendStart);
+            AssertTrue(sendSource.Contains("RequirePlcStartupReadyAsync(\"Send CAD\")"), "Direct coordinate upload must wait until startup clear succeeds.");
         }
 
         private static void PlcConnectionGuardBlocksMissingOrDisconnectedPlc()
@@ -483,9 +545,9 @@ namespace DACDT_2026.Tests
             };
 
             AssertEqual("light", WpfThemeManager.Apply("light", resources), "Theme manager should accept light theme.");
-            AssertEqual("#FFE9EEF5", ((System.Windows.Media.SolidColorBrush)resources["BgBrush"]).Color.ToString(), "Light theme should apply a soft slate background.");
+            AssertEqual("#FFE3EAF2", ((System.Windows.Media.SolidColorBrush)resources["BgBrush"]).Color.ToString(), "Light theme should apply a soft slate background.");
             AssertEqual("#FF102033", ((System.Windows.Media.SolidColorBrush)resources["TextBrush"]).Color.ToString(), "Light theme should keep readable dark text.");
-            AssertEqual("#FFDCEAFE", ((System.Windows.Media.SolidColorBrush)resources["CardHeaderBrush"]).Color.ToString(), "Light axis card header should use a calm blue header.");
+            AssertEqual("#FFD4E4F3", ((System.Windows.Media.SolidColorBrush)resources["CardHeaderBrush"]).Color.ToString(), "Light axis card header should use a calm blue header.");
             AssertEqual("#FF0C2540", ((System.Windows.Media.SolidColorBrush)resources["CardHeaderTextBrush"]).Color.ToString(), "Light axis card header text should be readable.");
 
             AssertEqual("dark", WpfThemeManager.Apply("bad-value", resources), "Unknown theme should fall back to dark.");
@@ -756,11 +818,22 @@ namespace DACDT_2026.Tests
             foreach (string file in viewFiles)
             {
                 string source = File.ReadAllText(file);
-                string expectedPath = file.IndexOf(Path.DirectorySeparatorChar + "Panels" + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) >= 0
-                    ? "../Styles.xaml"
-                    : "Styles.xaml";
                 AssertTrue(source.Contains("<UserControl.Resources>"), Path.GetFileName(file) + " must define local resources for standalone XAML design.");
-                AssertTrue(source.Contains("Source=\"" + expectedPath + "\""), Path.GetFileName(file) + " must merge the shared Styles.xaml dictionary.");
+                AssertTrue(source.Contains("Source=\"/DACDT_2026;component/Views/Styles.xaml\""), Path.GetFileName(file) + " must merge the shared Styles.xaml dictionary.");
+            }
+        }
+
+        private static void ViewsDeclareConvertersUsedByXamlDesigner()
+        {
+            string viewsRoot = GetRepositoryPath("src", "DACDT_2026.App", "Views");
+            foreach (string file in Directory.GetFiles(viewsRoot, "*.xaml", SearchOption.AllDirectories))
+            {
+                string source = File.ReadAllText(file);
+                if (source.Contains("{StaticResource BoolToVisibilityConverter}"))
+                    AssertTrue(source.Contains("<local:BoolToVisibilityConverter x:Key=\"BoolToVisibilityConverter\"/>"), Path.GetFileName(file) + " must declare BoolToVisibilityConverter for standalone XAML design.");
+
+                if (source.Contains("{StaticResource BoolToStatusBrushConverter}"))
+                    AssertTrue(source.Contains("<local:BoolToStatusBrushConverter x:Key=\"BoolToStatusBrushConverter\"/>"), Path.GetFileName(file) + " must declare BoolToStatusBrushConverter for standalone XAML design.");
             }
         }
 

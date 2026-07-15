@@ -24,6 +24,11 @@ namespace DACDT_2026
         // ── Connection ───────────────────────────────────────────────────────────
         private async Task HandleConnectToggleAsync(System.Collections.Generic.Dictionary<string, object> payload)
         {
+            if (Interlocked.CompareExchange(ref plcConnectionChangeInFlight, 1, 0) != 0)
+                return;
+
+            try
+            {
             logicalStation = GetInt(payload, "station", logicalStation);
 
             if (plcComm != null && plcComm.IsConnected)
@@ -56,16 +61,72 @@ namespace DACDT_2026
                     return;
                 }
 
-                var startupClearResult = await Task.Run(() =>
-                    QD75BufferWriter.ClearAllBuffers(connectedComm, maxPoints: 600));
+                plcComm = connectedComm;
+                plcStartupReady = false;
+                UpdateConnectionState(true, "PLC connected - preparing buffers");
+                UpdateIntegrityState(true);
+                await PushControlStateAsync();
+
+                PLCCommunication monitorComm = null;
+                try
+                {
+                    monitorComm = await Task.Run(() =>
+                    {
+                        var comm = new PLCCommunication(plcIpAddress, plcPort, logicalStation);
+                        if (comm.Connect())
+                            return comm;
+
+                        comm.Dispose();
+                        return null;
+                    });
+                }
+                catch
+                {
+                    try { monitorComm?.Dispose(); } catch { }
+                    monitorComm = null;
+                }
+
+                if (!ReferenceEquals(plcComm, connectedComm) || isClosing)
+                {
+                    try { monitorComm?.Dispose(); } catch { }
+                    return;
+                }
+
+                if (monitorComm == null)
+                {
+                    await DisconnectPlcAsync(false);
+                    UpdateConnectionState(false, "PLC disconnected");
+                    UpdateIntegrityFault("Dedicated PLC monitor connection failed.");
+                    await PushControlStateAsync();
+                    await NotifyAsync("error", "PLC", "Dedicated PLC monitor connection failed.");
+                    return;
+                }
+
+                plcMonitorComm = monitorComm;
+                StartPlcPolling();
+
+                QD75BufferWriter.SendResult startupClearResult;
+                Interlocked.Increment(ref plcWriteInFlight);
+                try
+                {
+                    startupClearResult = await Task.Run(() =>
+                        QD75BufferWriter.ClearAllBuffers(connectedComm, maxPoints: 600));
+                }
+                finally
+                {
+                    Interlocked.Decrement(ref plcWriteInFlight);
+                }
                 foreach (var wr in startupClearResult.WriteResults)
                 {
                     AddLogEntry(wr.Address, wr.Value, "Startup clear", wr.Status, wr.Message);
                 }
 
+                if (!ReferenceEquals(plcComm, connectedComm) || isClosing)
+                    return;
+
                 if (!startupClearResult.Success)
                 {
-                    try { connectedComm.Dispose(); } catch { }
+                    await DisconnectPlcAsync(false);
                     UpdateConnectionState(false, "PLC disconnected");
                     UpdateIntegrityFault("Startup PLC buffer clear failed: " + startupClearResult.ErrorMessage);
                     await NotifyAsync("error", "PLC", "PLC buffer clear failed. Connection was closed for safety.");
@@ -73,19 +134,23 @@ namespace DACDT_2026
                     return;
                 }
 
-                plcComm = connectedComm;
+                plcStartupReady = true;
                 UpdateConnectionState(true, "PLC connected");
-                UpdateIntegrityState(true);
-                StartPlcPolling();
                 await PushControlStateAsync();
                 await NotifyAsync("success", "PLC", "PLC connected successfully.");
             }
             catch (Exception ex)
             {
+                try { await DisconnectPlcAsync(false); } catch { }
                 UpdateConnectionState(false, "PLC disconnected");
                 UpdateIntegrityFault(ex.Message);
                 await PushControlStateAsync();
                 await NotifyAsync("error", "PLC", ex.Message);
+            }
+            }
+            finally
+            {
+                Interlocked.Exchange(ref plcConnectionChangeInFlight, 0);
             }
         }
 
@@ -93,12 +158,18 @@ namespace DACDT_2026
         {
             StopPlcPolling();
 
-            if (plcComm != null)
+            var comm = plcComm;
+            var monitorComm = plcMonitorComm;
+            plcStartupReady = false;
+            plcComm = null;
+            plcMonitorComm = null;
+
+            if (comm != null)
             {
-                try { if (plcComm.IsConnected) plcComm.WriteDeviceValue(HeartbeatRegister, 0); } catch { }
-                try { plcComm.Dispose(); } catch { }
-                plcComm = null;
+                try { if (comm.IsConnected) comm.WriteDeviceValue(HeartbeatRegister, 0); } catch { }
+                try { comm.Dispose(); } catch { }
             }
+            try { monitorComm?.Dispose(); } catch { }
 
             foreach (var row in monitorRows)
                 row.Status = "Disconnected";
@@ -116,11 +187,18 @@ namespace DACDT_2026
             await StopPlcPollingAsync();
 
             var comm = plcComm;
+            var monitorComm = plcMonitorComm;
+            plcStartupReady = false;
             plcComm = null;
+            plcMonitorComm = null;
             if (comm != null)
             {
                 try { if (comm.IsConnected) await Task.Run(() => comm.WriteDeviceValue(HeartbeatRegister, 0)); } catch { }
                 try { await Task.Run(() => comm.Dispose()); } catch { }
+            }
+            if (monitorComm != null)
+            {
+                try { await Task.Run(() => monitorComm.Dispose()); } catch { }
             }
 
             foreach (var row in monitorRows)
@@ -383,6 +461,8 @@ namespace DACDT_2026
             if (!active)
                 return;
             if (!await RequirePlcConnectedAsync("Start"))
+                return;
+            if (!await RequirePlcStartupReadyAsync("Start"))
                 return;
 
             try
@@ -649,8 +729,11 @@ namespace DACDT_2026
             }
 
             activeRingRunner?.Stop();
-            await StopPlcPollingAsync();
+            bool pollingPausedForWrite = ShouldPausePlcPollingForWrite(comm);
+            if (pollingPausedForWrite)
+                await StopPlcPollingAsync();
 
+            Interlocked.Increment(ref plcWriteInFlight);
             try
             {
                 await LogUIAsync("Stop", "STOP writes M210 ON, then clears PLC positioning buffers and run commands...");
@@ -703,8 +786,9 @@ namespace DACDT_2026
             }
             finally
             {
+                Interlocked.Decrement(ref plcWriteInFlight);
                 _ = SendProgressAsync(false, 0);
-                if (plcComm != null && plcComm.IsConnected && !isClosing)
+                if (pollingPausedForWrite && plcComm != null && plcComm.IsConnected && !isClosing)
                     StartPlcPolling();
             }
         }
@@ -836,7 +920,8 @@ namespace DACDT_2026
                     return;
 
                 plcPollCts = new CancellationTokenSource();
-                plcPollTask = Task.Run(() => PlcPollLoopAsync(plcPollCts.Token));
+                CancellationToken token = plcPollCts.Token;
+                plcPollTask = Task.Run(() => PlcPollLoopAsync(token));
             }
         }
 
@@ -911,83 +996,24 @@ namespace DACDT_2026
             }
         }
 
-        private async Task PollPlcOnceAsync(CancellationToken token)
+        private Task PollPlcOnceAsync(CancellationToken token)
         {
-            if (isClosing || isPolling || Volatile.Read(ref plcWriteInFlight) > 0)
-                return;
+            if (isClosing || isPolling)
+                return Task.CompletedTask;
 
             PLCCommunication comm;
-            if (!TryGetConnectedPlc(out comm))
-                return;
+            if (!TryGetMonitoringPlc(out comm))
+                return Task.CompletedTask;
 
             isPolling = true;
             try
             {
                 token.ThrowIfCancellationRequested();
+                if (comm.TryReadDeviceWords(FastMonitorDeviceList, out int[] snapshot))
+                    ApplyFastMonitorSnapshot(snapshot);
+                else
+                    ReadFastMonitorSnapshotFallback(comm, GetNextFastMonitorAxis());
 
-                int[] fastDWords = null;
-                try
-                {
-                    fastDWords = comm.ReadDeviceRange("D0", 136);
-                }
-                catch
-                {
-                }
-
-                for (int i = 0; i < 4; i++)
-                {
-                    token.ThrowIfCancellationRequested();
-
-                    try
-                    {
-                        int dBase = i * 10;
-                        if (fastDWords != null && fastDWords.Length > dBase + 5)
-                        {
-                            axCurrentPos[i] = (fastDWords[dBase + 1] << 16) | (fastDWords[dBase] & 0xFFFF);
-                            axCurrentSpeed[i] = (fastDWords[dBase + 5] << 16) | (fastDWords[dBase + 4] & 0xFFFF);
-                        }
-                        else
-                        {
-                            int[] posData = comm.ReadDeviceRange($"D{dBase}", 2);
-                            axCurrentPos[i] = (posData[1] << 16) | (posData[0] & 0xFFFF);
-
-                            int[] speedData = comm.ReadDeviceRange($"D{dBase + 4}", 2);
-                            axCurrentSpeed[i] = (speedData[1] << 16) | (speedData[0] & 0xFFFF);
-                        }
-
-                        if (fastDWords != null && fastDWords.Length > dBase + 104)
-                        {
-                            axMCode[i] = fastDWords[dBase + 104];
-                        }
-                        else
-                        {
-                            try
-                            {
-                                int[] mcodeData = comm.ReadDeviceRange($"D{dBase + 104}", 1);
-                                axMCode[i] = mcodeData[0];
-                            }
-                            catch
-                            {
-                                axMCode[i] = 0;
-                            }
-                        }
-
-                    }
-                    catch
-                    {
-                    }
-                }
-
-                int monitorAxis = GetNextFastMonitorAxis();
-                try
-                {
-                    ReadFastAxisMonitor(comm, monitorAxis);
-                }
-                catch
-                {
-                }
-
-                // Check if program run has completed
                 if (isProgramRunning)
                 {
                     int activeDataNo = GetActiveProgramIndex();
@@ -1002,97 +1028,176 @@ namespace DACDT_2026
                                 break;
                             }
                         }
+
                         if (allAxesStopped)
-                        {
                             isProgramRunning = false;
-                        }
                     }
                 }
 
                 token.ThrowIfCancellationRequested();
                 UpdateIntegrityState(true);
 
-                var nowUtc = DateTime.UtcNow;
+                DateTime nowUtc = DateTime.UtcNow;
                 if (controlUiPushGate.TryEnter(nowUtc))
                     ScheduleControlStatePushFromPoll(includeTracking: controlTrackingUiPushGate.TryEnter(nowUtc));
 
-                if (plcHeartbeatGate.TryEnter(nowUtc))
-                {
-                    try { comm.WriteDeviceValue(HeartbeatRegister, 1); } catch { }
-                }
+                if (axisMonitorUiPushGate.TryEnter(nowUtc))
+                    ScheduleAxisMonitorStatePushFromPoll();
 
-                if (Volatile.Read(ref plcWriteInFlight) == 0 && slowPlcMonitorPollGate.TryEnter(nowUtc))
-                {
-                    for (int i = 0; i < 4; i++)
-                    {
-                        token.ThrowIfCancellationRequested();
-
-                        try
-                        {
-                            int[] ctl = comm.ReadBuffer(0, ControlBaseG[i], 20);
-                            axErrorReset[i] = ctl[OffErrorReset];
-                            axNewSpeed[i] = (ctl[OffNewSpeed + 1] << 16) | (ctl[OffNewSpeed] & 0xFFFF);
-                        }
-                        catch
-                        {
-                        }
-                    }
-
-                    try
-                    {
-                        int[] d406Raw = comm.ReadDeviceRange("D406", 2);
-                        currentJogSpeedD406 = PlcFloatWordCodec.FromWords(d406Raw[0], d406Raw[1]);
-                    }
-                    catch
-                    {
-                    }
-
-                    foreach (var row in monitorRows)
-                    {
-                        token.ThrowIfCancellationRequested();
-
-                        try
-                        {
-                            row.Value = comm.ReadDeviceValue(row.Register).ToString(CultureInfo.InvariantCulture);
-                            row.Status = "OK";
-                        }
-                        catch (Exception ex)
-                        {
-                            row.Status = ex.Message;
-                        }
-                    }
-
-                    if (currentView == "telemetry")
-                        await PushTelemetryStateAsync();
-
-                    ScheduleFullControlStatePushFromPoll(includeTracking: false);
-                }
-
-                if ((nowUtc - lastMachineMqttPublishUtc).TotalMilliseconds >= PerformanceTuning.MachineMqttPublishIntervalMs)
-                {
-                    if (Interlocked.CompareExchange(ref machineMqttPublishInFlight, 1, 0) == 0)
-                    {
-                        lastMachineMqttPublishUtc = nowUtc;
-                        _ = Task.Run(async () =>
-                        {
-                            try
-                            {
-                                await PublishMachineStateToMqttAsync(connected: true);
-                            }
-                            finally
-                            {
-                                Interlocked.Exchange(ref machineMqttPublishInFlight, 0);
-                            }
-                        });
-                    }
-                }
+                ScheduleBackgroundPlcWork(nowUtc);
             }
             finally
             {
                 isPolling = false;
             }
+
+            return Task.CompletedTask;
         }
         // ── Shared helpers ───────────────────────────────────────────────────────
+        private const int FastMCodeStartIndex = 16;
+        private const int FastJogSpeedStartIndex = 20;
+        private const int FastAxisMonitorStartIndex = 22;
+        private const int FastAxisMonitorWordCount = 6;
+        private const int FastSnapshotWordCount = 46;
+        private static readonly string[] FastMonitorDeviceList = CreateFastMonitorDeviceList();
+
+        private static string[] CreateFastMonitorDeviceList()
+        {
+            var devices = new List<string>(FastSnapshotWordCount);
+            for (int axis = 0; axis < 4; axis++)
+            {
+                int dBase = axis * 10;
+                devices.Add($"D{dBase}");
+                devices.Add($"D{dBase + 1}");
+                devices.Add($"D{dBase + 4}");
+                devices.Add($"D{dBase + 5}");
+            }
+
+            for (int axis = 0; axis < 4; axis++)
+                devices.Add($"D{axis * 10 + 104}");
+
+            devices.Add("D406");
+            devices.Add("D407");
+            for (int axis = 0; axis < 4; axis++)
+            {
+                int monitorBase = MonitorBaseG[axis];
+                devices.Add($"U0\\G{monitorBase + OffErrorCode}");
+                devices.Add($"U0\\G{monitorBase + OffWarningCode}");
+                devices.Add($"U0\\G{monitorBase + OffAxisStatus}");
+                devices.Add($"U0\\G{monitorBase + 16}");
+                devices.Add($"U0\\G{monitorBase + 35}");
+                devices.Add($"U0\\G{monitorBase + 37}");
+            }
+
+            return devices.ToArray();
+        }
+
+        private void ApplyFastMonitorSnapshot(int[] snapshot)
+        {
+            if (snapshot == null || snapshot.Length < FastSnapshotWordCount)
+                return;
+
+            for (int axis = 0; axis < 4; axis++)
+            {
+                int wordIndex = axis * 4;
+                axCurrentPos[axis] = CombineWords(snapshot[wordIndex], snapshot[wordIndex + 1]);
+                axCurrentSpeed[axis] = CombineWords(snapshot[wordIndex + 2], snapshot[wordIndex + 3]);
+                axMCode[axis] = snapshot[FastMCodeStartIndex + axis];
+            }
+
+            currentJogSpeedD406 = PlcFloatWordCodec.FromWords(
+                snapshot[FastJogSpeedStartIndex],
+                snapshot[FastJogSpeedStartIndex + 1]);
+            for (int axis = 0; axis < 4; axis++)
+            {
+                int monitorIndex = FastAxisMonitorStartIndex + axis * FastAxisMonitorWordCount;
+                axErrorCode[axis] = snapshot[monitorIndex++];
+                axWarningCode[axis] = snapshot[monitorIndex++];
+                axAxisStatus[axis] = snapshot[monitorIndex++];
+                axSignals[axis] = snapshot[monitorIndex++];
+                axCurrentDataNo[axis] = snapshot[monitorIndex++];
+                axLastDataNo[axis] = snapshot[monitorIndex];
+            }
+        }
+
+        private void ReadFastMonitorSnapshotFallback(PLCCommunication comm, int monitorAxis)
+        {
+            try
+            {
+                int[] motionWords = comm.ReadDeviceRange("D0", 36);
+                for (int axis = 0; axis < 4; axis++)
+                {
+                    int dBase = axis * 10;
+                    axCurrentPos[axis] = CombineWords(motionWords[dBase], motionWords[dBase + 1]);
+                    axCurrentSpeed[axis] = CombineWords(motionWords[dBase + 4], motionWords[dBase + 5]);
+                }
+            }
+            catch
+            {
+            }
+
+            try
+            {
+                int[] mCodes = comm.ReadDeviceRange("D104", 31);
+                for (int axis = 0; axis < 4; axis++)
+                    axMCode[axis] = mCodes[axis * 10];
+            }
+            catch
+            {
+            }
+
+            try
+            {
+                int[] d406Raw = comm.ReadDeviceRange("D406", 2);
+                currentJogSpeedD406 = PlcFloatWordCodec.FromWords(d406Raw[0], d406Raw[1]);
+            }
+            catch
+            {
+            }
+
+            if (monitorAxis != 0)
+            {
+                try
+                {
+                    axCurrentDataNo[0] = comm.ReadBufferSelected(0, MonitorBaseG[0], 35)[0];
+                }
+                catch
+                {
+                }
+            }
+
+            ReadFastAxisMonitorFallback(comm, monitorAxis);
+        }
+
+        private void ReadFastAxisMonitorFallback(PLCCommunication comm, int axisIndex)
+        {
+            try
+            {
+                int[] values = comm.ReadBufferSelected(
+                    0,
+                    MonitorBaseG[axisIndex],
+                    OffErrorCode,
+                    OffWarningCode,
+                    OffAxisStatus,
+                    16,
+                    35,
+                    37);
+
+                axErrorCode[axisIndex] = values[0];
+                axWarningCode[axisIndex] = values[1];
+                axAxisStatus[axisIndex] = values[2];
+                axSignals[axisIndex] = values[3];
+                axCurrentDataNo[axisIndex] = values[4];
+                axLastDataNo[axisIndex] = values[5];
+            }
+            catch
+            {
+            }
+        }
+
+        private static int CombineWords(int low, int high)
+            => unchecked(((high & 0xFFFF) << 16) | (low & 0xFFFF));
+
         private int GetNextFastMonitorAxis()
         {
             int value = Interlocked.Increment(ref nextFastMonitorAxis);
@@ -1102,21 +1207,93 @@ namespace DACDT_2026
             return Math.Abs(value) % 4;
         }
 
-        private void ReadFastAxisMonitor(PLCCommunication comm, int axisIndex)
+        private void ScheduleBackgroundPlcWork(DateTime nowUtc)
         {
-            const int monitorStartOffset = OffErrorCode;
-            const int monitorSignalsOffset = 16;
-            const int monitorCurrentDataNoOffset = 35;
-            const int monitorLastDataNoOffset = 37;
-            const int monitorWordCount = monitorLastDataNoOffset - monitorStartOffset + 1;
+            SchedulePlcHeartbeat(nowUtc);
 
-            int[] mon = comm.ReadBuffer(0, MonitorBaseG[axisIndex] + monitorStartOffset, monitorWordCount);
-            axErrorCode[axisIndex] = mon[OffErrorCode - monitorStartOffset];
-            axWarningCode[axisIndex] = mon[OffWarningCode - monitorStartOffset];
-            axAxisStatus[axisIndex] = mon[OffAxisStatus - monitorStartOffset];
-            axSignals[axisIndex] = mon[monitorSignalsOffset - monitorStartOffset];
-            axCurrentDataNo[axisIndex] = mon[monitorCurrentDataNoOffset - monitorStartOffset];
-            axLastDataNo[axisIndex] = mon[monitorLastDataNoOffset - monitorStartOffset];
+            if (slowPlcMonitorPollGate.TryEnter(nowUtc)
+                && Interlocked.CompareExchange(ref slowPlcMonitorInFlight, 1, 0) == 0)
+            {
+                _ = Task.Run(RunSlowPlcMonitorAsync);
+            }
+
+            if ((nowUtc - lastMachineMqttPublishUtc).TotalMilliseconds >= PerformanceTuning.MachineMqttPublishIntervalMs
+                && Interlocked.CompareExchange(ref machineMqttPublishInFlight, 1, 0) == 0)
+            {
+                lastMachineMqttPublishUtc = nowUtc;
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        await PublishMachineStateToMqttAsync(connected: true);
+                    }
+                    finally
+                    {
+                        Interlocked.Exchange(ref machineMqttPublishInFlight, 0);
+                    }
+                });
+            }
+        }
+
+        private void SchedulePlcHeartbeat(DateTime nowUtc)
+        {
+            if (!plcHeartbeatGate.TryEnter(nowUtc)
+                || Volatile.Read(ref plcWriteInFlight) > 0
+                || Interlocked.CompareExchange(ref plcHeartbeatInFlight, 1, 0) != 0
+                || !TryGetConnectedPlc(out PLCCommunication comm))
+            {
+                return;
+            }
+
+            _ = Task.Run(() =>
+            {
+                try
+                {
+                    if (ReferenceEquals(plcComm, comm) && comm.IsConnected)
+                        comm.WriteDeviceValue(HeartbeatRegister, 1);
+                }
+                catch
+                {
+                }
+                finally
+                {
+                    Interlocked.Exchange(ref plcHeartbeatInFlight, 0);
+                }
+            });
+        }
+
+        private async Task RunSlowPlcMonitorAsync()
+        {
+            try
+            {
+                if (Volatile.Read(ref plcWriteInFlight) > 0 || !TryGetConnectedPlc(out PLCCommunication comm))
+                    return;
+
+                foreach (var row in monitorRows)
+                {
+                    if (Volatile.Read(ref plcWriteInFlight) > 0)
+                        return;
+
+                    try
+                    {
+                        row.Value = comm.ReadDeviceValue(row.Register).ToString(CultureInfo.InvariantCulture);
+                        row.Status = "OK";
+                    }
+                    catch (Exception ex)
+                    {
+                        row.Status = ex.Message;
+                    }
+                }
+
+                if (currentView == "telemetry")
+                    await PushTelemetryStateAsync();
+
+                ScheduleFullControlStatePushFromPoll(includeTracking: false);
+            }
+            finally
+            {
+                Interlocked.Exchange(ref slowPlcMonitorInFlight, 0);
+            }
         }
 
         private void ScheduleControlStatePushFromPoll(bool includeTracking)
@@ -1125,28 +1302,53 @@ namespace DACDT_2026
         private void ScheduleFullControlStatePushFromPoll(bool includeTracking)
             => ScheduleControlStatePushFromPoll(includeTracking, full: true);
 
+        private void ScheduleAxisMonitorStatePushFromPoll()
+        {
+            if (Interlocked.CompareExchange(ref axisMonitorUiPushInFlight, 1, 0) != 0)
+                return;
+
+            _ = CompleteAxisMonitorStatePushAsync();
+        }
+
+        private async Task CompleteAxisMonitorStatePushAsync()
+        {
+            try
+            {
+                await PushAxisMonitorStateAsync();
+            }
+            catch
+            {
+            }
+            finally
+            {
+                Interlocked.Exchange(ref axisMonitorUiPushInFlight, 0);
+            }
+        }
+
         private void ScheduleControlStatePushFromPoll(bool includeTracking, bool full)
         {
             if (Interlocked.CompareExchange(ref controlUiPushInFlight, 1, 0) != 0)
                 return;
 
-            _ = Task.Run(async () =>
+            _ = CompleteControlStatePushAsync(includeTracking, full);
+        }
+
+        private async Task CompleteControlStatePushAsync(bool includeTracking, bool full)
+        {
+            try
             {
-                try
-                {
-                    if (full)
-                        await PushControlStateAsync(includeTracking);
-                    else
-                        await PushFastControlStateAsync(includeTracking);
-                }
-                catch
-                {
-                }
-                finally
-                {
-                    Interlocked.Exchange(ref controlUiPushInFlight, 0);
-                }
-            });
+                if (full)
+                    await PushControlStateAsync(includeTracking);
+                else
+                    await PushFastControlStateAsync(includeTracking);
+            }
+            catch
+            {
+            }
+            finally
+            {
+                Interlocked.Exchange(ref controlUiPushInFlight, 0);
+            }
         }
 
         private Task WriteDeviceValueAsync(string deviceName, int value)
@@ -1187,6 +1389,18 @@ namespace DACDT_2026
             return PlcConnectionGuard.CanUsePlc(comm != null, comm != null && comm.IsConnected);
         }
 
+        private bool TryGetMonitoringPlc(out PLCCommunication comm)
+        {
+            comm = plcMonitorComm;
+            return PlcConnectionGuard.CanUsePlc(comm != null, comm != null && comm.IsConnected);
+        }
+
+        private bool ShouldPausePlcPollingForWrite(PLCCommunication writeComm)
+        {
+            PLCCommunication monitorComm;
+            return !TryGetMonitoringPlc(out monitorComm) || ReferenceEquals(writeComm, monitorComm);
+        }
+
         private async Task<bool> RequirePlcConnectedAsync(string title)
         {
             PLCCommunication comm;
@@ -1194,6 +1408,15 @@ namespace DACDT_2026
                 return true;
 
             await NotifyAsync("error", title, PlcConnectionGuard.NotConnectedMessage);
+            return false;
+        }
+
+        private async Task<bool> RequirePlcStartupReadyAsync(string title)
+        {
+            if (plcStartupReady)
+                return true;
+
+            await NotifyAsync("info", title, "PLC is preparing startup buffers. Please wait.");
             return false;
         }
 

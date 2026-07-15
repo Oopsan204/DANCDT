@@ -8,6 +8,7 @@
             <ResourceDictionary.MergedDictionaries>
                 <ResourceDictionary Source="/DACDT_2026;component/Views/Styles.xaml"/>
             </ResourceDictionary.MergedDictionaries>
+            <local:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
             <local:InverseZoomStrokeThicknessConverter x:Key="InverseZoomStrokeThicknessConverter"/>
             <local:NegativeHalfConverter x:Key="NegativeHalfConverter"/>
             <sys:Double x:Key="BaseStrokeThickness">1.0</sys:Double>
@@ -253,8 +254,11 @@
                                         </ItemsControl.ItemsPanel>
                                         <ItemsControl.ItemContainerStyle>
                                             <Style TargetType="ContentPresenter">
-                                                <Setter Property="Canvas.Left" Value="{Binding X}"/>
-                                                <Setter Property="Canvas.Top" Value="{Binding Y}"/>
+                                                <Setter Property="RenderTransform">
+                                                    <Setter.Value>
+                                                        <TranslateTransform X="{Binding X}" Y="{Binding Y}"/>
+                                                    </Setter.Value>
+                                                </Setter>
                                             </Style>
                                         </ItemsControl.ItemContainerStyle>
                                         <ItemsControl.ItemTemplate>

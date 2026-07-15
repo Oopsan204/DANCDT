@@ -11,6 +11,9 @@ namespace DACDT_2026
         private ActUtlTypeLib.ActUtlType plcDevice;
         private bool isConnected = false;
         private readonly object commLock = new object();
+        private int randomReadSupport;
+        private DateTime randomReadRetryAfterUtc;
+        private int bufferBlockReadSupport;
 
         // Thread-safe accessor — ném exception rõ ràng thay vì NullReferenceException
         private ActUtlTypeLib.ActUtlType Dev
@@ -92,6 +95,93 @@ namespace DACDT_2026
             int result = Dev.ReadDeviceBlock2(deviceName, count, out arr[0]);
             if (result == 0) return arr;
             throw new Exception($"Lỗi ReadDevice: {result}");
+        }
+
+        [MethodImpl(MethodImplOptions.Synchronized)]
+        public bool TryReadDeviceWords(string[] deviceNames, out int[] values)
+        {
+            values = null;
+            if (!isConnected || deviceNames == null || deviceNames.Length == 0)
+                return false;
+            if (randomReadSupport < 0 && DateTime.UtcNow < randomReadRetryAfterUtc)
+                return false;
+
+            try
+            {
+                short[] words = new short[deviceNames.Length];
+                int result = Dev.ReadDeviceRandom2(string.Join("\n", deviceNames), deviceNames.Length, out words[0]);
+                if (result != 0)
+                {
+                    randomReadSupport = -1;
+                    randomReadRetryAfterUtc = DateTime.UtcNow.AddSeconds(1);
+                    return false;
+                }
+
+                values = new int[words.Length];
+                for (int i = 0; i < words.Length; i++)
+                    values[i] = unchecked((ushort)words[i]);
+
+                randomReadSupport = 1;
+                randomReadRetryAfterUtc = DateTime.MinValue;
+                return true;
+            }
+            catch
+            {
+                randomReadSupport = -1;
+                randomReadRetryAfterUtc = DateTime.UtcNow.AddSeconds(1);
+                values = null;
+                return false;
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.Synchronized)]
+        public int[] ReadBufferSelected(int startIO, int address, params int[] offsets)
+        {
+            if (!isConnected) throw new InvalidOperationException("PLC is not connected.");
+            if (offsets == null || offsets.Length == 0) throw new ArgumentException("At least one offset is required.", nameof(offsets));
+
+            int maxOffset = 0;
+            for (int i = 0; i < offsets.Length; i++)
+            {
+                if (offsets[i] < 0) throw new ArgumentOutOfRangeException(nameof(offsets));
+                if (offsets[i] > maxOffset) maxOffset = offsets[i];
+            }
+
+            var dev = Dev;
+            if (bufferBlockReadSupport >= 0)
+            {
+                try
+                {
+                    short[] block = new short[maxOffset + 1];
+                    int result = dev.ReadDeviceBlock2($"U{startIO:X}\\G{address}", block.Length, out block[0]);
+                    if (result == 0)
+                    {
+                        int[] selected = new int[offsets.Length];
+                        for (int i = 0; i < offsets.Length; i++)
+                            selected[i] = unchecked((ushort)block[offsets[i]]);
+
+                        bufferBlockReadSupport = 1;
+                        return selected;
+                    }
+                }
+                catch
+                {
+                }
+
+                bufferBlockReadSupport = -1;
+            }
+
+            int[] fallback = new int[offsets.Length];
+            for (int i = 0; i < offsets.Length; i++)
+            {
+                string deviceName = $"U{startIO:X}\\G{address + offsets[i]}";
+                int result = dev.GetDevice(deviceName, out fallback[i]);
+                if (result != 0)
+                    throw new Exception($"GetDevice {deviceName} failed: {GetErrorMessage(result)}");
+                fallback[i] &= 0xFFFF;
+            }
+
+            return fallback;
         }
 
         /// <summary>
