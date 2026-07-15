@@ -362,6 +362,7 @@ namespace DACDT_2026
 
         private async Task ApplyDxfSettingsAsync()
         {
+            string viewBeforeApply = currentView;
             offsetX = ui.OffsetXInput;
             offsetY = ui.OffsetYInput;
             globalSpeed = ui.GlobalSpeedInput;
@@ -374,6 +375,7 @@ namespace DACDT_2026
             if (isMixedEngraveCutProgram)
             {
                 await RebuildMixedEngraveCutProgramAsync();
+                currentView = viewBeforeApply;
                 SaveSettingsToFile();
                 await HandleScanLimitsAsync();
                 await PushDxfStateAsync();
@@ -1020,7 +1022,7 @@ namespace DACDT_2026
                 {
                     Dispatcher.Invoke(() =>
                     {
-                        ui.CameraStatus = "Sending M210, HOME ALL, then clearing buffers before exit...";
+                        ui.CameraStatus = "Sending M210, HOME ALL, then closing...";
                     });
 
                     await SendStopForExitAsync();
@@ -1073,17 +1075,6 @@ namespace DACDT_2026
             await WriteDeviceValueAsync("M502", 0);
             AddLogEntry("M502", "0", "Write", "OK", "Exit home all reset");
             await Task.Delay(PerformanceTuning.ExitHomeDelayMs);
-
-            var clearResult = await Task.Run(() => QD75BufferWriter.ClearAllBuffers(comm, maxPoints: 600));
-            foreach (var wr in clearResult.WriteResults)
-            {
-                AddLogEntry(wr.Address, wr.Value, "Clear", wr.Status, wr.Message);
-            }
-
-            if (!clearResult.Success)
-            {
-                LogLifecycle("Exit buffer clear warning: " + clearResult.ErrorMessage);
-            }
         }
 
         private void StartBackgroundVideoService()

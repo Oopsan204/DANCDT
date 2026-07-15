@@ -14,6 +14,13 @@ namespace DACDT_2026
     /// </summary>
     public partial class Form1
     {
+        private bool HasEngraveCutProcessRows()
+        {
+            return processRows.Any(row =>
+                string.Equals(row.ProcessKind, EngraveCutProcessComposer.EngraveKind, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(row.ProcessKind, EngraveCutProcessComposer.CutKind, StringComparison.OrdinalIgnoreCase));
+        }
+
         // ── Connection ───────────────────────────────────────────────────────────
         private async Task HandleConnectToggleAsync(System.Collections.Generic.Dictionary<string, object> payload)
         {
@@ -45,6 +52,23 @@ namespace DACDT_2026
                     UpdateConnectionState(false, "PLC disconnected");
                     UpdateIntegrityFault("PLC connection returned an error.");
                     await NotifyAsync("error", "PLC", "PLC connect returned an error.");
+                    await PushControlStateAsync();
+                    return;
+                }
+
+                var startupClearResult = await Task.Run(() =>
+                    QD75BufferWriter.ClearAllBuffers(connectedComm, maxPoints: 600));
+                foreach (var wr in startupClearResult.WriteResults)
+                {
+                    AddLogEntry(wr.Address, wr.Value, "Startup clear", wr.Status, wr.Message);
+                }
+
+                if (!startupClearResult.Success)
+                {
+                    try { connectedComm.Dispose(); } catch { }
+                    UpdateConnectionState(false, "PLC disconnected");
+                    UpdateIntegrityFault("Startup PLC buffer clear failed: " + startupClearResult.ErrorMessage);
+                    await NotifyAsync("error", "PLC", "PLC buffer clear failed. Connection was closed for safety.");
                     await PushControlStateAsync();
                     return;
                 }
@@ -230,6 +254,9 @@ namespace DACDT_2026
             try
             {
                 string register = GetSequentialDevice(JogBaseRegister, offset);
+                if (active)
+                    ui.RunProgressVisible = false;
+
                 int v = active ? 1 : 0;
                 await WriteDeviceValueAsync(register, v);
                 UpdateIntegrityState(true);
@@ -295,6 +322,9 @@ namespace DACDT_2026
 
             try
             {
+                if (active)
+                    ui.RunProgressVisible = false;
+
                 int v = active ? 1 : 0;
                 await WriteDeviceValueAsync("M502", v);
                 UpdateIntegrityState(true);
@@ -383,6 +413,7 @@ namespace DACDT_2026
                     return; // Gửi không thành công (lỗi kết nối hoặc không có dữ liệu) -> Dừng, không chạy
                 }
 
+                ui.RunProgressVisible = HasEngraveCutProcessRows();
                 await WriteDeviceValueAsync("M2000", 1);
                 isProgramRunning = true;
                 UpdateIntegrityState(true);
@@ -439,6 +470,7 @@ namespace DACDT_2026
             if (!sendOk)
                 return;
 
+            ui.RunProgressVisible = HasEngraveCutProcessRows();
             int cutPowerSwitchIndex = 0;
             if (hasEngraveRows && hasCutRows
                 && EngraveCutProcessComposer.TryGetFirstCutRowIndex(allRows.Select(row => row.ProcessKind), out int firstCutIndex))
@@ -608,6 +640,7 @@ namespace DACDT_2026
         private async Task HandleStopRunAsync()
         {
             isProgramRunning = false;
+            ui.RunProgressVisible = false;
             PLCCommunication comm;
             if (!TryGetConnectedPlc(out comm))
             {

@@ -95,6 +95,7 @@ namespace DACDT_2026
         private string progressText = "0%";
         private bool progressVisible;
         private int progressPercent;
+        private bool runProgressVisible;
         private string fileKind = "";
         private string filePath = "";
         private string fileName = "";
@@ -727,12 +728,22 @@ namespace DACDT_2026
             ? "Active data no: " + ActiveProgramIndex
             : "Waiting for PLC data no.";
 
+        private bool HasEngraveCutProgram => allProcessRows.Any(row =>
+            string.Equals(row.ProcessKind, EngraveCutProcessComposer.EngraveKind, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(row.ProcessKind, EngraveCutProcessComposer.CutKind, StringComparison.OrdinalIgnoreCase));
+
+        public bool RunProgressVisible
+        {
+            get => runProgressVisible && HasEngraveCutProgram;
+            set => SetProperty(ref runProgressVisible, value);
+        }
+
         public int RunProgressPercent
         {
             get
             {
                 int total = allProcessRows.Count;
-                if (total <= 0 || ActiveProgramIndex <= 0)
+                if (!HasEngraveCutProgram || total <= 0 || ActiveProgramIndex <= 0)
                     return 0;
 
                 int current = ActiveProgramIndex > total ? total : ActiveProgramIndex;
@@ -798,6 +809,7 @@ namespace DACDT_2026
             ReplaceVisibleRows(ProcessRows, allProcessRows, GetInitialVisibleCount(allProcessRows.Count, 0));
             ReplaceProgramRowsWindow(activeIndex);
             lastHighlightedProgramIndex = activeIndex;
+            OnPropertyChanged(nameof(RunProgressVisible));
             OnPropertyChanged(nameof(RunProgressText));
             OnPropertyChanged(nameof(RunProgressPercent));
             OnPropertyChanged(nameof(IsPauseContinueEnabled));

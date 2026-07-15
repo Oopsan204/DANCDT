@@ -31,7 +31,9 @@ namespace DACDT_2026.Tests
                 AxisMonitorUpdateCadenceStaysResponsive();
                 BackgroundVideoServiceArgumentsIncludeParentPid();
                 ExitShutdownSendsM210WheneverPlcIsConnected();
+                PlcConnectionClearsBuffersBeforePolling();
                 PlcConnectionGuardBlocksMissingOrDisconnectedPlc();
+                RunProgressIsLimitedToEngraveAndCutPrograms();
                 D406JogSpeedUsesFloatWordEncoding();
                 DecimalJogSpeedInputAcceptsDotAndComma();
                 ZHeightConversionUsesTenThousandScale();
@@ -357,10 +359,21 @@ namespace DACDT_2026.Tests
         {
             AssertTrue(ExitShutdownPolicy.ShouldSendExitStop(plcConnected: true), "Exit should send M210 whenever PLC is connected, even if the robot is not running.");
             AssertTrue(!ExitShutdownPolicy.ShouldSendExitStop(plcConnected: false), "Exit cannot send M210 when PLC is disconnected.");
-            AssertEqual("150", PerformanceTuning.ExitStopPulseMs.ToString(), "Exit should pulse M210 briefly instead of holding it ON.");
-            AssertEqual("500", PerformanceTuning.ExitStopDelayMs.ToString(), "Exit should wait 500 ms after pulsing M210 before HOME ALL.");
-            AssertEqual("150", PerformanceTuning.ExitHomePulseMs.ToString(), "Exit should pulse HOME ALL briefly.");
-            AssertEqual("500", PerformanceTuning.ExitHomeDelayMs.ToString(), "Exit should wait 500 ms after HOME ALL before clearing buffers and closing.");
+            AssertEqual("100", PerformanceTuning.ExitStopPulseMs.ToString(), "Exit should pulse M210 briefly instead of holding it ON.");
+            AssertEqual("100", PerformanceTuning.ExitStopDelayMs.ToString(), "Exit should move to HOME quickly after pulsing M210.");
+            AssertEqual("100", PerformanceTuning.ExitHomePulseMs.ToString(), "Exit should pulse HOME ALL briefly.");
+            AssertEqual("100", PerformanceTuning.ExitHomeDelayMs.ToString(), "Exit should close shortly after HOME ALL.");
+        }
+
+        private static void PlcConnectionClearsBuffersBeforePolling()
+        {
+            string source = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Form1.PlcControl.cs"));
+            int connectStart = source.IndexOf("private async Task HandleConnectToggleAsync", StringComparison.Ordinal);
+            int clearIndex = source.IndexOf("ClearAllBuffers(connectedComm", connectStart, StringComparison.Ordinal);
+            int pollingIndex = source.IndexOf("StartPlcPolling()", connectStart, StringComparison.Ordinal);
+
+            AssertTrue(connectStart >= 0, "PLC connect handler should exist.");
+            AssertTrue(clearIndex > connectStart && clearIndex < pollingIndex, "PLC buffers must be cleared after connect and before polling starts.");
         }
 
         private static void PlcConnectionGuardBlocksMissingOrDisconnectedPlc()
@@ -369,6 +382,20 @@ namespace DACDT_2026.Tests
             AssertTrue(!PlcConnectionGuard.CanUsePlc(communicationObjectExists: true, isConnected: false), "PLC operations must be blocked when the PLC communication object is disconnected.");
             AssertTrue(PlcConnectionGuard.CanUsePlc(communicationObjectExists: true, isConnected: true), "PLC operations are allowed only after a live PLC connection exists.");
             AssertEqual("PLC is not connected.", PlcConnectionGuard.NotConnectedMessage, "Disconnected PLC operations should use one consistent message.");
+        }
+
+        private static void RunProgressIsLimitedToEngraveAndCutPrograms()
+        {
+            string stateSource = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "WpfUiState.cs"));
+            string dxfRunView = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Views", "DxfRunView.xaml"));
+            string dashboardView = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Views", "DashboardView.xaml"));
+            string monitorView = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Views", "MonitorView.xaml"));
+
+            AssertTrue(stateSource.Contains("RunProgressVisible"), "Run progress should expose a dedicated visibility state.");
+            AssertTrue(stateSource.Contains("EngraveCutProcessComposer.EngraveKind") && stateSource.Contains("EngraveCutProcessComposer.CutKind"), "Run progress should recognize only engrave and cut rows.");
+            AssertTrue(dxfRunView.Contains("Visibility=\"{Binding RunProgressVisible"), "DXF view should hide run progress for non-engrave/cut operations.");
+            AssertTrue(dashboardView.Contains("Visibility=\"{Binding RunProgressVisible"), "Dashboard should hide run progress for non-engrave/cut operations.");
+            AssertTrue(monitorView.Contains("Visibility=\"{Binding RunProgressVisible"), "Monitor should hide run progress for non-engrave/cut operations.");
         }
 
         private static void D406JogSpeedUsesFloatWordEncoding()

@@ -1445,6 +1445,7 @@ namespace DACDT_2026
 
                 // Trigger execution immediately
                 await LogUIAsync("Test", "Starting test area execution...");
+                ui.RunProgressVisible = false;
                 await WriteDeviceValueAsync("M2000", 1);
                 isProgramRunning = true;
                 UpdateIntegrityState(true);

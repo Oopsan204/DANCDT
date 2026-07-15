@@ -340,8 +340,8 @@
                         </Grid.ColumnDefinitions>
                         <StackPanel>
                             <TextBlock Text="Process Table" Style="{StaticResource PanelTitleStyle}"/>
-                            <TextBlock Text="{Binding RunProgressText}" Foreground="{DynamicResource MutedBrush}" Margin="0,2,0,0"/>
-                            <ProgressBar Height="8" Maximum="100" Value="{Binding RunProgressPercent, Mode=OneWay}" Margin="0,5,0,0"/>
+                            <TextBlock Text="{Binding RunProgressText}" Foreground="{DynamicResource MutedBrush}" Visibility="{Binding RunProgressVisible, Converter={StaticResource BoolToVisibilityConverter}}" Margin="0,2,0,0"/>
+                            <ProgressBar Height="8" Maximum="100" Value="{Binding RunProgressPercent, Mode=OneWay}" Visibility="{Binding RunProgressVisible, Converter={StaticResource BoolToVisibilityConverter}}" Margin="0,5,0,0"/>
                         </StackPanel>
                         <StackPanel Grid.Column="1" Orientation="Horizontal">
                             <ProgressBar Width="150" Height="10" Value="{Binding ProgressPercent}" Maximum="100" Visibility="{Binding ProgressVisible, Converter={StaticResource BoolToVisibilityConverter}}" Margin="0,0,8,0"/>
