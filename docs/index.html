@@ -31,6 +31,10 @@
             --orange: #fb8500;
             --yellow: #d29922;
             --axis-val: #3eb8d4;
+            --cad-engrave: #29b6f6;
+            --cad-cut: #ff7043;
+            --cad-rapid: #f44336;
+            --cad-robot: #76ff03;
             --panel-gap: 12px;
         }
 
@@ -1406,16 +1410,24 @@
                             <span>Chờ dữ liệu CAD từ MQTT…</span>
                         </div>
                         <div class="cad-legend" id="cad-legend" style="display:none">
-                            <div class="cad-legend-item">
-                                <div class="cad-legend-dot" style="background:#29b6f6"></div><span
+                            <div class="cad-legend-item" id="cad-legend-engrave" style="display:none">
+                                <div class="cad-legend-dot" style="background:var(--cad-engrave)"></div><span
+                                    style="color:var(--muted)">Engrave</span>
+                            </div>
+                            <div class="cad-legend-item" id="cad-legend-cut" style="display:none">
+                                <div class="cad-legend-dot" style="background:var(--cad-cut)"></div><span
+                                    style="color:var(--muted)">Cut</span>
+                            </div>
+                            <div class="cad-legend-item" id="cad-legend-line">
+                                <div class="cad-legend-dot" style="background:var(--cad-engrave)"></div><span
                                     style="color:var(--muted)">Line / Arc</span>
                             </div>
-                            <div class="cad-legend-item">
-                                <div class="cad-legend-dot" style="background:#f44336"></div><span
+                            <div class="cad-legend-item" id="cad-legend-rapid" style="display:none">
+                                <div class="cad-legend-dot" style="background:var(--cad-rapid)"></div><span
                                     style="color:var(--muted)">Rapid (G0)</span>
                             </div>
                             <div class="cad-legend-item">
-                                <div class="cad-legend-dot" style="background:#76ff03;border:2px solid #fff"></div><span
+                                <div class="cad-legend-dot" style="background:var(--cad-robot);border:2px solid #fff"></div><span
                                     style="color:var(--muted)">Robot</span>
                             </div>
                         </div>
@@ -2426,6 +2438,10 @@
 
                 const noData = document.getElementById('cad-no-data');
                 const legend = document.getElementById('cad-legend');
+                const engraveLegend = document.getElementById('cad-legend-engrave');
+                const cutLegend = document.getElementById('cad-legend-cut');
+                const lineLegend = document.getElementById('cad-legend-line');
+                const rapidLegend = document.getElementById('cad-legend-rapid');
                 const liveDot = document.getElementById('cad-live-dot');
                 const count = document.getElementById('cad-prims-count');
                 const sub = document.getElementById('cad-file-sub');
@@ -2435,6 +2451,19 @@
 
                 if (noData) noData.style.display = hasPrims ? 'none' : 'flex';
                 if (legend) legend.style.display = hasPrims ? 'flex' : 'none';
+                const processKinds = primitives.map(prim => String(prim.processKind || '').toLowerCase());
+                const mCodes = primitives.map(prim => String(prim.mCode || '').trim());
+                const hasMCodePaths = mCodes.some(code => code === '3' || code === '4');
+                const hasTypedPaths = processKinds.some(kind => kind.includes('engrave') || kind.includes('cut')) || hasMCodePaths;
+                const hasCutPaths = processKinds.some(kind => kind.includes('cut')) || mCodes.some(code => code === '3');
+                const hasRapidPaths = primitives.some(prim => {
+                    const source = String(prim.sourceType || '').toLowerCase();
+                    return source.includes('g0') || source.includes('rapid');
+                });
+                if (engraveLegend) engraveLegend.style.display = hasTypedPaths ? 'flex' : 'none';
+                if (cutLegend) cutLegend.style.display = hasCutPaths ? 'flex' : 'none';
+                if (lineLegend) lineLegend.style.display = hasTypedPaths ? 'none' : 'flex';
+                if (rapidLegend) rapidLegend.style.display = hasRapidPaths ? 'flex' : 'none';
                 if (liveDot) liveDot.style.background = hasPrims ? 'var(--green)' : 'var(--muted)';
                 if (count) {
                     count.textContent = previewTruncated
@@ -2510,14 +2539,23 @@
 
                 ctx.lineCap = 'round';
                 ctx.lineJoin = 'round';
+                const cadEngrave = getComputedStyle(document.documentElement).getPropertyValue('--cad-engrave').trim() || '#29b6f6';
+                const cadCut = getComputedStyle(document.documentElement).getPropertyValue('--cad-cut').trim() || '#ff7043';
                 for (const prim of primitives) {
                     const pts = prim.points || [];
                     if (pts.length < 2) continue;
                     const source = String(prim.sourceType || '').toLowerCase();
+                    const processKind = String(prim.processKind || '').toLowerCase();
+                    const mCode = String(prim.mCode || '').trim();
                     const rapid = source.includes('g0') || source.includes('rapid');
+                    const cut = processKind.includes('cut') || (!processKind && mCode === '3');
                     ctx.save();
-                    ctx.strokeStyle = rapid ? 'rgba(248,81,73,.55)' : '#29b6f6';
-                    ctx.lineWidth = rapid ? 0.8 : 1.1;
+                    ctx.strokeStyle = rapid
+                        ? 'rgba(248,81,73,.55)'
+                        : cut
+                            ? cadCut
+                            : cadEngrave;
+                    ctx.lineWidth = rapid ? 0.8 : (cut ? 1.35 : 1.2);
                     if (rapid) ctx.setLineDash([4, 3]);
                     ctx.beginPath();
                     ctx.moveTo(cx(pts[0].x), cy(pts[0].y));
