@@ -3,7 +3,7 @@
 ; ============================================================
 
 #define MyAppName "DACDT 2026"
-#define MyAppVersion "1.0.0"
+#define MyAppVersion "1.0.1"
 #define MyAppPublisher "AML"
 #define MyAppExeName "DACDT_2026.exe"
 #define MyAppURL ""
@@ -39,6 +39,8 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 ; Main executable and config
 Source: "{#BuildDir}\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#BuildDir}\{#MyAppExeName}.config"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#BuildDir}\WebRtcCameraService.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#BuildDir}\WebRtcCameraService.exe.config"; DestDir: "{app}"; Flags: ignoreversion
 
 ; All DLLs (both managed and native)
 Source: "{#BuildDir}\*.dll"; DestDir: "{app}"; Flags: ignoreversion

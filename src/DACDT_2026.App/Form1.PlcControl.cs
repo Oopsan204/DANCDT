@@ -184,6 +184,7 @@ namespace DACDT_2026
         private async Task DisconnectPlcAsync(bool updateUi = true)
         {
             isProgramRunning = false;
+            isTestAreaProgramRunning = false;
             await StopPlcPollingAsync();
 
             var comm = plcComm;
@@ -494,6 +495,7 @@ namespace DACDT_2026
                 }
 
                 ui.RunProgressVisible = HasEngraveCutProcessRows();
+                isTestAreaProgramRunning = false;
                 await WriteDeviceValueAsync("M2000", 1);
                 isProgramRunning = true;
                 UpdateIntegrityState(true);
@@ -522,6 +524,11 @@ namespace DACDT_2026
         // ── Jog Speed ────────────────────────────────────────────────────────────
         private async Task HandleMixedEngraveCutStartAsync()
         {
+            string viewBeforeRun = currentView;
+            await RebuildMixedEngraveCutProgramAsync();
+            currentView = viewBeforeRun;
+            await PushDxfStateAsync();
+
             var allRows = processRows.ToList();
             if (allRows.Count == 0)
             {
@@ -559,6 +566,7 @@ namespace DACDT_2026
             }
 
             axCurrentDataNo[0] = 0;
+            isTestAreaProgramRunning = false;
             await WriteDeviceValueAsync("M2000", 1);
             isProgramRunning = true;
             UpdateIntegrityState(true);
@@ -720,6 +728,7 @@ namespace DACDT_2026
         private async Task HandleStopRunAsync()
         {
             isProgramRunning = false;
+            isTestAreaProgramRunning = false;
             ui.RunProgressVisible = false;
             PLCCommunication comm;
             if (!TryGetConnectedPlc(out comm))
@@ -1017,7 +1026,10 @@ namespace DACDT_2026
                 if (isProgramRunning)
                 {
                     int activeDataNo = GetActiveProgramIndex();
-                    if (processRows.Count > 0 && activeDataNo >= processRows.Count)
+                    int completedDataNo = activeDataNo;
+                    if (isTestAreaProgramRunning)
+                        completedDataNo = Math.Max(activeDataNo, Math.Max(0, axLastDataNo[0]));
+                    if (processRows.Count > 0 && completedDataNo >= processRows.Count)
                     {
                         bool allAxesStopped = true;
                         for (int i = 0; i < 4; i++)
@@ -1030,7 +1042,10 @@ namespace DACDT_2026
                         }
 
                         if (allAxesStopped)
+                        {
                             isProgramRunning = false;
+                            isTestAreaProgramRunning = false;
+                        }
                     }
                 }
 

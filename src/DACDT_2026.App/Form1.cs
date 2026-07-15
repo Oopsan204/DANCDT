@@ -138,6 +138,7 @@ namespace DACDT_2026
         }
 
         private volatile bool isProgramRunning;
+        private volatile bool isTestAreaProgramRunning;
         private volatile bool webReady;
         private volatile bool isClosing;
         private volatile bool isPolling;

@@ -37,6 +37,7 @@ namespace DACDT_2026.Tests
                 PlcConnectionStartsMonitoringBeforeStartupClear();
                 PlcConnectionGuardBlocksMissingOrDisconnectedPlc();
                 RunProgressIsLimitedToEngraveAndCutPrograms();
+                CompletedTestAreaUsesLastExecutedDataNumberToUnlockSelection();
                 D406JogSpeedUsesFloatWordEncoding();
                 DecimalJogSpeedInputAcceptsDotAndComma();
                 ZHeightConversionUsesTenThousandScale();
@@ -51,9 +52,12 @@ namespace DACDT_2026.Tests
                 IntermediateEngraveEndContinuesBeforeCutRows();
                 EngraveHomeRowIsDroppedWhenCutFollows();
                 MixedProgramUsesM03SpeedForNonCutRowsAndProcessSpeedForWorkRows();
+                MixedRunRebuildsSelectedDxfAfterTestArea();
+                MixedRunPreservesCurrentViewWhileRefreshingRows();
                 CadPathSelectionGroupsConnectedLineSegments();
                 CadPathSelectionTogglesEveryPrimitiveInSelectedPath();
                 CadPathSelectionToggleTwiceRestoresEngrave();
+                CadPathSelectionClickWaitsForImportAndExplainsRunLock();
                 SettingsViewUsesApprovedEnglishContract();
                 NonHelpViewsDoNotUseKnownVietnameseOperatorLabels();
                 SettingsViewExposesSaveSettingsCommand();
@@ -460,6 +464,29 @@ namespace DACDT_2026.Tests
             AssertTrue(monitorView.Contains("Visibility=\"{Binding RunProgressVisible"), "Monitor should hide run progress for non-engrave/cut operations.");
         }
 
+        private static void CompletedTestAreaUsesLastExecutedDataNumberToUnlockSelection()
+        {
+            string formSource = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Form1.cs"));
+            string source = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Form1.PlcControl.cs"));
+            string dxfSource = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Form1.DxfHandler.cs"));
+            int start = source.IndexOf("private Task PollPlcOnceAsync", StringComparison.Ordinal);
+            int end = source.IndexOf("private void ScheduleBackgroundPlcWork", start, StringComparison.Ordinal);
+            AssertTrue(start >= 0 && end > start, "The PLC polling completion handler must exist.");
+
+            string handler = source.Substring(start, end - start);
+            AssertTrue(formSource.Contains("private volatile bool isTestAreaProgramRunning;"), "Test Area completion must have a dedicated run-state marker.");
+            AssertTrue(dxfSource.Contains("isTestAreaProgramRunning = true;"), "Starting Test Area must enable its dedicated completion marker.");
+            AssertTrue(handler.Contains("int completedDataNo = activeDataNo;"), "Normal engrave/cut completion must keep using its continuous active row number.");
+            AssertTrue(handler.Contains("if (isTestAreaProgramRunning)"), "Only Test Area may fall back to the PLC last-executed data number.");
+            AssertTrue(
+                handler.Contains("completedDataNo = Math.Max(activeDataNo, Math.Max(0, axLastDataNo[0]));"),
+                "Program completion must include the PLC last-executed data number because Test Area can reset the current number to zero.");
+            AssertTrue(
+                handler.Contains("processRows.Count > 0 && completedDataNo >= processRows.Count"),
+                "A completed Test Area must release the running lock after its final row.");
+            AssertTrue(handler.Contains("if (allAxesStopped)"), "Cut-path selection must remain locked until every axis has stopped.");
+        }
+
         private static void D406JogSpeedUsesFloatWordEncoding()
         {
             float expected = 12.345f;
@@ -686,6 +713,41 @@ namespace DACDT_2026.Tests
                 "Final home rows should use the non-cut M03 speed.");
         }
 
+        private static void MixedRunRebuildsSelectedDxfAfterTestArea()
+        {
+            string source = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Form1.PlcControl.cs"));
+            int start = source.IndexOf("private async Task HandleMixedEngraveCutStartAsync", StringComparison.Ordinal);
+            int end = source.IndexOf("private async Task<bool> SetMixedLaserPowerAsync", start, StringComparison.Ordinal);
+            AssertTrue(start >= 0 && end > start, "The mixed engrave/cut RUN handler must exist.");
+
+            string handler = source.Substring(start, end - start);
+            int rebuildIndex = handler.IndexOf("await RebuildMixedEngraveCutProgramAsync();", StringComparison.Ordinal);
+            int snapshotIndex = handler.IndexOf("var allRows = processRows.ToList();", StringComparison.Ordinal);
+            int sendIndex = handler.IndexOf("await HandleSendCadXAsync();", StringComparison.Ordinal);
+
+            AssertTrue(rebuildIndex >= 0, "Mixed DXF RUN must rebuild the selected contour after Test Area replaced the process rows.");
+            AssertTrue(rebuildIndex < snapshotIndex, "Mixed DXF RUN must rebuild the selected contour before snapshotting process rows.");
+            AssertTrue(snapshotIndex < sendIndex, "Mixed DXF RUN must snapshot the rebuilt contour before writing it to the PLC.");
+        }
+
+        private static void MixedRunPreservesCurrentViewWhileRefreshingRows()
+        {
+            string source = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Form1.PlcControl.cs"));
+            int start = source.IndexOf("private async Task HandleMixedEngraveCutStartAsync", StringComparison.Ordinal);
+            int end = source.IndexOf("private async Task<bool> SetMixedLaserPowerAsync", start, StringComparison.Ordinal);
+            AssertTrue(start >= 0 && end > start, "The mixed engrave/cut RUN handler must exist.");
+
+            string handler = source.Substring(start, end - start);
+            int saveViewIndex = handler.IndexOf("string viewBeforeRun = currentView;", StringComparison.Ordinal);
+            int rebuildIndex = handler.IndexOf("await RebuildMixedEngraveCutProgramAsync();", StringComparison.Ordinal);
+            int restoreViewIndex = handler.IndexOf("currentView = viewBeforeRun;", StringComparison.Ordinal);
+            int pushIndex = handler.IndexOf("await PushDxfStateAsync();", StringComparison.Ordinal);
+
+            AssertTrue(saveViewIndex >= 0, "Mixed DXF RUN must remember the current view before rebuilding rows.");
+            AssertTrue(saveViewIndex < rebuildIndex, "Mixed DXF RUN must remember the current view before the DXF rebuild changes it.");
+            AssertTrue(rebuildIndex < restoreViewIndex && restoreViewIndex < pushIndex, "Mixed DXF RUN must restore the current view before refreshing the process table.");
+        }
+
         private static void CadPathSelectionGroupsConnectedLineSegments()
         {
             var first = NewCadLine(0, 0, 10, 0);
@@ -739,6 +801,19 @@ namespace DACDT_2026.Tests
                 EngraveCutProcessComposer.CutKind);
 
             AssertEqual(EngraveCutProcessComposer.EngraveKind, first.ProcessKind, "Two toggles should restore Engrave.");
+        }
+
+        private static void CadPathSelectionClickWaitsForImportAndExplainsRunLock()
+        {
+            string source = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Form1.DxfHandler.cs"));
+            int start = source.IndexOf("private async Task HandleToggleCadPathAsync", StringComparison.Ordinal);
+            int end = source.IndexOf("private static void DropEngraveHomeRowBeforeCut", start, StringComparison.Ordinal);
+            AssertTrue(start >= 0 && end > start, "DXF path toggle handler must exist.");
+
+            string handler = source.Substring(start, end - start);
+            AssertTrue(handler.Contains("await cadLoadGate.WaitAsync();"), "A cut-path click must wait for the visible DXF import to finish instead of being discarded.");
+            AssertTrue(!handler.Contains("cadLoadGate.WaitAsync(0)"), "A cut-path click must not use a zero-timeout load gate.");
+            AssertTrue(handler.Contains("Stop the active program before changing cut paths."), "A running program must explain why cut-path selection is locked.");
         }
 
         private static void SettingsViewUsesApprovedEnglishContract()

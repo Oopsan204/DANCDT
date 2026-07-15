@@ -427,20 +427,34 @@ namespace DACDT_2026
 
         private async Task HandleToggleCadPathAsync(int pathId)
         {
-            if (IsProgramRunning()
-                || !string.Equals(activeDocumentKind, "DXF", StringComparison.OrdinalIgnoreCase)
-                || activeCadDocument?.Primitives == null)
+            if (IsProgramRunning())
             {
+                await NotifyAsync("info", "Cut path", "Stop the active program before changing cut paths.");
                 return;
             }
 
-            if (!await cadLoadGate.WaitAsync(0))
+            var selectedDocument = activeCadDocument;
+            if (!string.Equals(activeDocumentKind, "DXF", StringComparison.OrdinalIgnoreCase)
+                || selectedDocument?.Primitives == null)
                 return;
 
+            await cadLoadGate.WaitAsync();
             try
             {
+                if (IsProgramRunning())
+                {
+                    await NotifyAsync("info", "Cut path", "Stop the active program before changing cut paths.");
+                    return;
+                }
+
+                if (!ReferenceEquals(activeCadDocument, selectedDocument)
+                    || !string.Equals(activeDocumentKind, "DXF", StringComparison.OrdinalIgnoreCase))
+                {
+                    return;
+                }
+
                 bool changed = CadPathSelection.ToggleProcessKind(
-                    activeCadDocument.Primitives,
+                    selectedDocument.Primitives,
                     pathId,
                     EngraveCutProcessComposer.EngraveKind,
                     EngraveCutProcessComposer.CutKind);
@@ -1459,6 +1473,7 @@ namespace DACDT_2026
                 await LogUIAsync("Test", "Starting test area execution...");
                 ui.RunProgressVisible = false;
                 await WriteDeviceValueAsync("M2000", 1);
+                isTestAreaProgramRunning = true;
                 isProgramRunning = true;
                 UpdateIntegrityState(true);
                 AddLogEntry("M2000", "1", "Write", "OK", "Start Test Area");
