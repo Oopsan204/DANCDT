@@ -34,6 +34,8 @@ namespace DACDT_2026.Tests
                 CameraRecordingCreatesMp4VideoFile();
                 CameraRecordingNormalizesNativeFrames();
                 CameraRecordingUsesMpeg4CodecForX86Ffmpeg();
+                CameraRecordingSummaryFormatsElapsedTimeAndFileSize();
+                CameraRecordingStatusUsesDurationAndMp4Size();
                 WebRtcUsesTwoMegabitTarget();
                 CameraRecordingDoesNotRequireWebRtcForLocalFrames();
                 AxisMonitorUpdateCadenceStaysResponsive();
@@ -51,6 +53,7 @@ namespace DACDT_2026.Tests
                 PlcConnectionGuardBlocksMissingOrDisconnectedPlc();
                 RunProgressIsLimitedToEngraveAndCutPrograms();
                 CompletedTestAreaUsesLastExecutedDataNumberToUnlockSelection();
+                NormalRunCompletionUnlocksAfterPlcResetsCurrentDataNumber();
                 NavigationRefreshesAreSingleFlightAndLatestWins();
                 StartCannotRaceWithTestAreaExecution();
                 HoldButtonsReleaseWhenMouseCaptureIsLost();
@@ -392,6 +395,26 @@ namespace DACDT_2026.Tests
             AssertTrue(!recorderSource.Contains("VideoCodec.H264"), "The x86 recorder must not use the crashing H264 encoder from the bundled FFmpeg build.");
         }
 
+        private static void CameraRecordingSummaryFormatsElapsedTimeAndFileSize()
+        {
+            AssertEqual("00:00:00", CameraRecordingSummary.FormatElapsed(TimeSpan.Zero), "A new recording must show zero elapsed time.");
+            AssertEqual("01:02:03", CameraRecordingSummary.FormatElapsed(new TimeSpan(1, 2, 3)), "Elapsed recording time must use hours, minutes, and seconds.");
+            AssertEqual("1.5 MB", CameraRecordingSummary.FormatFileSize(1572864), "Completed MP4 size must be formatted for operators.");
+            AssertEqual("MP4 saved: 00:01:23 (12.4 MB)", CameraRecordingSummary.FormatSavedText(new TimeSpan(0, 1, 23), 13002342), "Saved text must include elapsed recording time and MP4 size.");
+        }
+
+        private static void CameraRecordingStatusUsesDurationAndMp4Size()
+        {
+            string stateSource = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "WpfUiState.cs"));
+            string cameraSource = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Form1.Camera.cs"));
+
+            AssertTrue(stateSource.Contains("CameraRecordingElapsed"), "Camera UI state must expose elapsed recording time.");
+            AssertTrue(!stateSource.Contains("CameraRecordedFrames + \" frames\""), "Camera UI must not show frame count as recording duration.");
+            AssertTrue(cameraSource.Contains("cameraRecordingDurationTimer"), "Camera recording must update elapsed time with a dedicated timer.");
+            AssertTrue(cameraSource.Contains("CameraRecordingSummary.FormatSavedText"), "Stopping recording must show elapsed time and MP4 file size.");
+            AssertTrue(cameraSource.Contains("new FileInfo(recordingPath).Length"), "MP4 size must be read after recording completes.");
+        }
+
         private static void WebRtcUsesTwoMegabitTarget()
         {
             string webRtcSource = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "WebRtcCameraServer.cs"));
@@ -608,17 +631,34 @@ namespace DACDT_2026.Tests
             AssertTrue(start >= 0 && end > start, "The PLC polling completion handler must exist.");
 
             string handler = source.Substring(start, end - start);
-            AssertTrue(formSource.Contains("private volatile bool isTestAreaProgramRunning;"), "Test Area completion must have a dedicated run-state marker.");
-            AssertTrue(dxfSource.Contains("isTestAreaProgramRunning = true;"), "Starting Test Area must enable its dedicated completion marker.");
-            AssertTrue(handler.Contains("int completedDataNo = activeDataNo;"), "Normal engrave/cut completion must keep using its continuous active row number.");
-            AssertTrue(handler.Contains("if (isTestAreaProgramRunning)"), "Only Test Area may fall back to the PLC last-executed data number.");
+            AssertTrue(formSource.Contains("private readonly ProgramRunCompletionTracker programRunCompletionTracker"), "Program completion must keep dedicated state for each RUN.");
+            AssertTrue(dxfSource.Contains("programRunCompletionTracker.Begin();"), "Starting Test Area must reset completion tracking before its start pulse.");
             AssertTrue(
-                handler.Contains("completedDataNo = Math.Max(activeDataNo, Math.Max(0, axLastDataNo[0]));"),
-                "Program completion must include the PLC last-executed data number because Test Area can reset the current number to zero.");
+                handler.Contains("programRunCompletionTracker.Observe("),
+                "PLC polling must use the shared completion tracker for every program type.");
             AssertTrue(
-                handler.Contains("processRows.Count > 0 && completedDataNo >= processRows.Count"),
-                "A completed Test Area must release the running lock after its final row.");
-            AssertTrue(handler.Contains("if (allAxesStopped)"), "Cut-path selection must remain locked until every axis has stopped.");
+                handler.Contains("Math.Max(0, axLastDataNo[0])"),
+                "Program completion must include the PLC last-executed data number because the PLC can reset the current number to zero at completion.");
+            AssertTrue(handler.Contains("bool allAxesStopped = true"), "Cut-path selection must remain locked until every axis has stopped.");
+        }
+
+        private static void NormalRunCompletionUnlocksAfterPlcResetsCurrentDataNumber()
+        {
+            var tracker = new ProgramRunCompletionTracker();
+            tracker.Begin();
+
+            AssertTrue(
+                !tracker.Observe(activeDataNo: 0, lastDataNo: 5, processRowCount: 5, allAxesStopped: true),
+                "A stale final data number must not unlock RUN before the new program has executed a row.");
+            AssertTrue(
+                !tracker.Observe(activeDataNo: 1, lastDataNo: 5, processRowCount: 5, allAxesStopped: false),
+                "A program that is moving must remain locked.");
+            AssertTrue(
+                !tracker.Observe(activeDataNo: 5, lastDataNo: 4, processRowCount: 5, allAxesStopped: true),
+                "RUN must remain locked until the PLC last data number confirms every point was executed.");
+            AssertTrue(
+                tracker.Observe(activeDataNo: 0, lastDataNo: 5, processRowCount: 5, allAxesStopped: true),
+                "RUN must unlock after an executed program returns current data number to zero at its final row.");
         }
 
         private static void NavigationRefreshesAreSingleFlightAndLatestWins()
@@ -648,7 +688,7 @@ namespace DACDT_2026.Tests
             AssertTrue(startHandler.Contains("if (IsProgramRunning())"), "RUN must be blocked while Test Area or another program is still running.");
             AssertTrue(startHandler.Contains("Wait for the current program to finish"), "RUN must explain why it was blocked instead of silently queuing a second run.");
             AssertTrue(testHandler.Contains("if (IsProgramRunning())"), "Test Area must be blocked while another program is still running.");
-            AssertTrue(testHandler.Contains("isTestAreaProgramRunning = true;"), "Test Area must keep its dedicated run marker until PLC completion is observed.");
+            AssertTrue(testHandler.Contains("programRunCompletionTracker.Begin();"), "Test Area must reset the shared PLC completion tracker before it starts.");
         }
 
         private static void HoldButtonsReleaseWhenMouseCaptureIsLost()

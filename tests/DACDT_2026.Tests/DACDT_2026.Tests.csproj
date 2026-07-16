@@ -44,6 +44,9 @@
     <Compile Include="..\..\src\DACDT_2026.App\CameraVideoFrameNormalizer.cs">
       <Link>CameraVideoFrameNormalizer.cs</Link>
     </Compile>
+    <Compile Include="..\..\src\DACDT_2026.App\CameraRecordingSummary.cs">
+      <Link>CameraRecordingSummary.cs</Link>
+    </Compile>
     <Compile Include="..\..\src\DACDT_2026.App\PerformanceTuning.cs">
       <Link>PerformanceTuning.cs</Link>
     </Compile>
@@ -58,6 +61,9 @@
     </Compile>
     <Compile Include="..\..\src\DACDT_2026.App\PlcConnectionGuard.cs">
       <Link>PlcConnectionGuard.cs</Link>
+    </Compile>
+    <Compile Include="..\..\src\DACDT_2026.App\ProgramRunCompletionTracker.cs">
+      <Link>ProgramRunCompletionTracker.cs</Link>
     </Compile>
     <Compile Include="..\..\src\DACDT_2026.App\DecimalInputParser.cs">
       <Link>DecimalInputParser.cs</Link>

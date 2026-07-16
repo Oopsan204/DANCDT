@@ -3,7 +3,7 @@
 ; ============================================================
 
 #define MyAppName "DACDT 2026"
-#define MyAppVersion "1.0.5"
+#define MyAppVersion "1.1.0"
 #define MyAppPublisher "AML"
 #define MyAppExeName "DACDT_2026.exe"
 #define MyAppURL ""
@@ -90,8 +90,6 @@ end;
 
 // Check if MX Component COM is registered (ActUtlTypeLib)
 procedure CurStepChanged(CurStep: TSetupStep);
-var
-  classRoot: String;
 begin
   if CurStep = ssPostInstall then
   begin

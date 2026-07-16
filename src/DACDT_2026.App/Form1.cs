@@ -114,6 +114,7 @@ namespace DACDT_2026
         private readonly double[] wcsOffsetY = new double[6];
         private string rawGcodeText = string.Empty;
         private QD75RingBufferRunner activeRingRunner;
+        private readonly ProgramRunCompletionTracker programRunCompletionTracker = new ProgramRunCompletionTracker();
         private DateTime lastMachineMqttPublishUtc = DateTime.MinValue;
         private readonly IntervalGate controlUiPushGate = new IntervalGate(PerformanceTuning.ControlUiPushIntervalMs);
         private readonly IntervalGate axisMonitorUiPushGate = new IntervalGate(PerformanceTuning.ControlUiPushIntervalMs);
@@ -142,7 +143,6 @@ namespace DACDT_2026
         }
 
         private volatile bool isProgramRunning;
-        private volatile bool isTestAreaProgramRunning;
         private volatile bool webReady;
         private volatile bool isClosing;
         private volatile bool isPolling;
@@ -169,6 +169,7 @@ namespace DACDT_2026
         {
             InitializeComponent();
             DataContext = ui;
+            InitializeCameraRecordingDurationTimer();
 
             InitializeProcessRows();
             UpdateConnectionState(false, "PLC disconnected");

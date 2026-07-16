@@ -141,6 +141,8 @@ namespace DACDT_2026
         private bool isCameraRunning;
         private bool isCameraRecording;
         private int cameraRecordedFrames;
+        private string cameraRecordingElapsed = "00:00:00";
+        private string cameraRecordingCompletedText = "MP4 recording stopped";
         private readonly List<CadPointViewModel> allCadPoints = new List<CadPointViewModel>();
         private readonly List<GeometryRowViewModel> allGeometryRows = new List<GeometryRowViewModel>();
         private readonly List<ProcessRowViewModel> allProcessRows = new List<ProcessRowViewModel>();
@@ -686,16 +688,32 @@ namespace DACDT_2026
         public int CameraRecordedFrames
         {
             get => cameraRecordedFrames;
+            set => SetProperty(ref cameraRecordedFrames, value);
+        }
+
+        public string CameraRecordingElapsed
+        {
+            get => cameraRecordingElapsed;
             set
             {
-                if (SetProperty(ref cameraRecordedFrames, value))
+                if (SetProperty(ref cameraRecordingElapsed, value ?? "00:00:00"))
+                    OnPropertyChanged(nameof(CameraRecordingText));
+            }
+        }
+
+        public string CameraRecordingCompletedText
+        {
+            get => cameraRecordingCompletedText;
+            set
+            {
+                if (SetProperty(ref cameraRecordingCompletedText, value ?? "MP4 recording stopped"))
                     OnPropertyChanged(nameof(CameraRecordingText));
             }
         }
 
         public string CameraRecordingText => IsCameraRecording
-            ? "Recording MP4: " + CameraRecordedFrames + " frames"
-            : "MP4 recording stopped";
+            ? "Recording MP4: " + CameraRecordingElapsed
+            : CameraRecordingCompletedText;
 
         public int ActiveProgramIndex
         {

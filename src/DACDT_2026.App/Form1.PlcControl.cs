@@ -184,7 +184,7 @@ namespace DACDT_2026
         private async Task DisconnectPlcAsync(bool updateUi = true)
         {
             isProgramRunning = false;
-            isTestAreaProgramRunning = false;
+            programRunCompletionTracker.Reset();
             await StopPlcPollingAsync();
 
             var comm = plcComm;
@@ -502,7 +502,7 @@ namespace DACDT_2026
                 }
 
                 ui.RunProgressVisible = HasEngraveCutProcessRows();
-                isTestAreaProgramRunning = false;
+                programRunCompletionTracker.Begin();
                 await WriteDeviceValueAsync("M2000", 1);
                 isProgramRunning = true;
                 UpdateIntegrityState(true);
@@ -578,7 +578,7 @@ namespace DACDT_2026
             }
 
             axCurrentDataNo[0] = 0;
-            isTestAreaProgramRunning = false;
+            programRunCompletionTracker.Begin();
             await WriteDeviceValueAsync("M2000", 1);
             isProgramRunning = true;
             UpdateIntegrityState(true);
@@ -740,7 +740,7 @@ namespace DACDT_2026
         private async Task HandleStopRunAsync()
         {
             isProgramRunning = false;
-            isTestAreaProgramRunning = false;
+            programRunCompletionTracker.Reset();
             ui.RunProgressVisible = false;
             PLCCommunication comm;
             if (!TryGetConnectedPlc(out comm))
@@ -1038,26 +1038,23 @@ namespace DACDT_2026
                 if (isProgramRunning)
                 {
                     int activeDataNo = GetActiveProgramIndex();
-                    int completedDataNo = activeDataNo;
-                    if (isTestAreaProgramRunning)
-                        completedDataNo = Math.Max(activeDataNo, Math.Max(0, axLastDataNo[0]));
-                    if (processRows.Count > 0 && completedDataNo >= processRows.Count)
+                    bool allAxesStopped = true;
+                    for (int i = 0; i < 4; i++)
                     {
-                        bool allAxesStopped = true;
-                        for (int i = 0; i < 4; i++)
+                        if (axAxisStatus[i] > 1 || axCurrentSpeed[i] > 0)
                         {
-                            if (axAxisStatus[i] > 1 || axCurrentSpeed[i] > 0)
-                            {
-                                allAxesStopped = false;
-                                break;
-                            }
+                            allAxesStopped = false;
+                            break;
                         }
+                    }
 
-                        if (allAxesStopped)
-                        {
-                            isProgramRunning = false;
-                            isTestAreaProgramRunning = false;
-                        }
+                    if (programRunCompletionTracker.Observe(
+                        activeDataNo,
+                        Math.Max(0, axLastDataNo[0]),
+                        processRows.Count,
+                        allAxesStopped))
+                    {
+                        isProgramRunning = false;
                     }
                 }
 

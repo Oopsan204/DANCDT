@@ -9,6 +9,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Web.Script.Serialization;
 using System.Windows.Media.Imaging;
+using System.Windows.Threading;
 using AForge.Video;
 using AForge.Video.DirectShow;
 
@@ -27,6 +28,8 @@ namespace DACDT_2026
         private int recordedFrameCount;
         private volatile bool cameraRecordingActive;
         private string activeCameraRecordingPath = string.Empty;
+        private DateTime cameraRecordingStartedUtc = DateTime.MinValue;
+        private DispatcherTimer cameraRecordingDurationTimer;
         private CameraVideoRecorder cameraVideoRecorder;
         private readonly IntervalGate cameraRecordingGate = new IntervalGate(PerformanceTuning.CameraRecordingFrameIntervalMs);
         private readonly SingleFlightGate cameraRecordingSaveGate = new SingleFlightGate();
@@ -40,6 +43,41 @@ namespace DACDT_2026
         private const int CameraMqttPublishIntervalMs = 200;
         private const long CameraMqttJpegQuality = 25L;
         private readonly JavaScriptSerializer cameraStatusSerializer = new JavaScriptSerializer();
+
+        private void InitializeCameraRecordingDurationTimer()
+        {
+            cameraRecordingDurationTimer = new DispatcherTimer(DispatcherPriority.Background, Dispatcher)
+            {
+                Interval = TimeSpan.FromSeconds(1)
+            };
+            cameraRecordingDurationTimer.Tick += CameraRecordingDurationTimer_Tick;
+        }
+
+        private void CameraRecordingDurationTimer_Tick(object sender, EventArgs e)
+        {
+            DateTime startedUtc;
+            lock (cameraLock)
+            {
+                if (!cameraRecordingActive || cameraRecordingStartedUtc == DateTime.MinValue)
+                {
+                    cameraRecordingDurationTimer.Stop();
+                    return;
+                }
+
+                startedUtc = cameraRecordingStartedUtc;
+            }
+
+            ui.CameraRecordingElapsed = CameraRecordingSummary.FormatElapsed(DateTime.UtcNow - startedUtc);
+        }
+
+        private void StartCameraRecordingDurationTimer()
+        {
+            if (cameraRecordingDurationTimer == null || !cameraRecordingActive)
+                return;
+
+            CameraRecordingDurationTimer_Tick(this, EventArgs.Empty);
+            cameraRecordingDurationTimer.Start();
+        }
 
         private Task PublishCameraStatusAsync(bool running, string state, string message = null)
         {
@@ -195,6 +233,9 @@ namespace DACDT_2026
         /// </summary>
         private async Task StopCameraAsync()
         {
+            if (cameraRecordingActive)
+                await StopCameraRecordingAsync();
+
             await Task.Run(() =>
             {
                 try
@@ -207,6 +248,7 @@ namespace DACDT_2026
                         _ = PublishCameraStatusAsync(false, "stopped", "camera stopped");
 
                         cameraRecordingActive = false;
+                        cameraRecordingStartedUtc = DateTime.MinValue;
                         ui.IsCameraRecording = false;
                         recorderToClose = cameraVideoRecorder;
                         cameraVideoRecorder = null;
@@ -219,6 +261,7 @@ namespace DACDT_2026
                     }
 
                     recorderToClose?.Complete();
+                    Dispatcher?.BeginInvoke(new Action(() => cameraRecordingDurationTimer?.Stop()));
                 }
                 catch (Exception ex)
                 {
@@ -242,6 +285,7 @@ namespace DACDT_2026
                     _ = PublishCameraStatusAsync(false, "stopped", "camera stopped");
 
                     cameraRecordingActive = false;
+                    cameraRecordingStartedUtc = DateTime.MinValue;
                     ui.IsCameraRecording = false;
                     recorderToClose = cameraVideoRecorder;
                     cameraVideoRecorder = null;
@@ -257,6 +301,7 @@ namespace DACDT_2026
                 }
 
                 recorderToClose?.Complete();
+                cameraRecordingDurationTimer?.Stop();
             }
             catch { }
         }
@@ -431,12 +476,15 @@ namespace DACDT_2026
 
                         cameraVideoRecorder = new CameraVideoRecorder(recordingPath, 10, 2000000);
                         activeCameraRecordingPath = recordingPath;
+                        cameraRecordingStartedUtc = DateTime.UtcNow;
                         cameraRecordingActive = true;
                         cameraRecordingGate.Reset();
                         ui.CameraRecordingPath = recordingPath;
                         ui.IsCameraRecording = true;
                         recordedFrameCount = 0;
                         ui.CameraRecordedFrames = 0;
+                        ui.CameraRecordingElapsed = "00:00:00";
+                        ui.CameraRecordingCompletedText = "MP4 recording stopped";
                         ui.CameraStatus = $"Recording MP4: {Path.GetFileName(recordingPath)}";
                     }
                 }
@@ -447,6 +495,8 @@ namespace DACDT_2026
                     ui.CameraStatus = $"Error starting recording: {ex.Message}";
                 }
             });
+
+            StartCameraRecordingDurationTimer();
         }
 
         /// <summary>
@@ -460,7 +510,7 @@ namespace DACDT_2026
                 {
                     CameraVideoRecorder recorderToClose;
                     string recordingPath;
-                    int framesRecorded;
+                    DateTime recordingStartedUtc;
                     lock (cameraLock)
                     {
                         cameraRecordingActive = false;
@@ -468,17 +518,26 @@ namespace DACDT_2026
                         recorderToClose = cameraVideoRecorder;
                         cameraVideoRecorder = null;
                         recordingPath = activeCameraRecordingPath;
-                        framesRecorded = recordedFrameCount;
+                        recordingStartedUtc = cameraRecordingStartedUtc;
+                        cameraRecordingStartedUtc = DateTime.MinValue;
                         activeCameraRecordingPath = string.Empty;
                         recordedFrameCount = 0;
                     }
 
                     recorderToClose?.Complete();
+                    TimeSpan recordingElapsed = recordingStartedUtc == DateTime.MinValue
+                        ? TimeSpan.Zero
+                        : DateTime.UtcNow - recordingStartedUtc;
+                    long fileSize = File.Exists(recordingPath) ? new FileInfo(recordingPath).Length : 0;
+                    string savedText = CameraRecordingSummary.FormatSavedText(recordingElapsed, fileSize);
 
                     Dispatcher?.BeginInvoke(new Action(() =>
                     {
+                        cameraRecordingDurationTimer?.Stop();
                         ui.CameraRecordedFrames = 0;
-                        ui.CameraStatus = $"MP4 saved: {Path.GetFileName(recordingPath)} ({framesRecorded} frames)";
+                        ui.CameraRecordingElapsed = CameraRecordingSummary.FormatElapsed(recordingElapsed);
+                        ui.CameraRecordingCompletedText = savedText;
+                        ui.CameraStatus = savedText + ": " + Path.GetFileName(recordingPath);
                     }));
                 }
                 catch (Exception ex)
@@ -624,7 +683,6 @@ namespace DACDT_2026
 
         private void SaveCameraRecordingFrame(Bitmap bitmap)
         {
-            int frameNo = 0;
             CameraVideoRecorder recorder;
 
             try
@@ -637,11 +695,7 @@ namespace DACDT_2026
                 if (recorder == null || !recorder.WriteFrame(bitmap))
                     return;
 
-                frameNo = Interlocked.Increment(ref recordedFrameCount);
-                Dispatcher?.BeginInvoke(new Action(() =>
-                {
-                    ui.CameraRecordedFrames = frameNo;
-                }));
+                Interlocked.Increment(ref recordedFrameCount);
             }
             catch (Exception ex)
             {

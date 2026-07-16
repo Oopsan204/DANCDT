@@ -144,6 +144,7 @@
     <Compile Include="CameraDeviceSelection.cs" />
     <Compile Include="ConfigurationFilePathStore.cs" />
     <Compile Include="CameraVideoFrameNormalizer.cs" />
+    <Compile Include="CameraRecordingSummary.cs" />
     <Compile Include="CameraVideoRecorder.cs" />
     <Compile Include="Converters.cs" />
     <Compile Include="DecimalInputParser.cs" />
@@ -160,6 +161,7 @@
     <Compile Include="PerformanceTuning.cs" />
     <Compile Include="PlcConnectionGuard.cs" />
     <Compile Include="PlcFloatWordCodec.cs" />
+    <Compile Include="ProgramRunCompletionTracker.cs" />
     <Compile Include="WebCadUploadSession.cs" />
     <Compile Include="WpfThemeManager.cs" />
     <Compile Include="Form1.cs">
