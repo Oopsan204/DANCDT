@@ -27,6 +27,8 @@ namespace DACDT_2026.Tests
                 SingleFlightGateAllowsOnlyOneInFlightOperation();
                 CameraRecordingFrameIntervalIsThrottled();
                 CameraRecordingPathAndCommandsAreBound();
+                CameraRecordingCreatesMp4VideoFile();
+                WebRtcUsesTwoMegabitTarget();
                 CameraRecordingDoesNotRequireWebRtcForLocalFrames();
                 AxisMonitorUpdateCadenceStaysResponsive();
                 PlcMonitoringUsesOneBatchedReader();
@@ -38,6 +40,10 @@ namespace DACDT_2026.Tests
                 PlcConnectionGuardBlocksMissingOrDisconnectedPlc();
                 RunProgressIsLimitedToEngraveAndCutPrograms();
                 CompletedTestAreaUsesLastExecutedDataNumberToUnlockSelection();
+                NavigationRefreshesAreSingleFlightAndLatestWins();
+                StartCannotRaceWithTestAreaExecution();
+                HoldButtonsReleaseWhenMouseCaptureIsLost();
+                CadTouchGesturesSupportPinchZoomAndSingleFingerSelection();
                 D406JogSpeedUsesFloatWordEncoding();
                 DecimalJogSpeedInputAcceptsDotAndComma();
                 ZHeightConversionUsesTenThousandScale();
@@ -311,7 +317,8 @@ namespace DACDT_2026.Tests
 
         private static void CameraRecordingFrameIntervalIsThrottled()
         {
-            AssertEqual("100", PerformanceTuning.CameraRecordingFrameIntervalMs.ToString(), "Camera recording should be throttled to 10 fps.");
+            AssertEqual("42", PerformanceTuning.CameraRecordingFrameIntervalMs.ToString(), "Camera recording should target approximately 24 fps.");
+            AssertEqual("42", PerformanceTuning.WebRtcFrameIntervalMs.ToString(), "WebRTC camera forwarding should target approximately 24 fps.");
         }
 
         private static void CameraRecordingPathAndCommandsAreBound()
@@ -333,6 +340,29 @@ namespace DACDT_2026.Tests
             AssertTrue(monitorView.Contains("{Binding BrowseCameraRecordingFolderCommand}"), "Monitor UI must expose Browse for the recording folder.");
             AssertTrue(monitorView.Contains("{Binding SetCameraRecordingFolderCommand}"), "Monitor UI must expose Set Path for the recording folder.");
             AssertTrue(projectSource.Contains("System.Windows.Forms"), "The app must reference Windows Forms for the folder picker.");
+        }
+
+        private static void CameraRecordingCreatesMp4VideoFile()
+        {
+            string cameraSource = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Form1.Camera.cs"));
+            string stateSource = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "WpfUiState.cs"));
+            string projectSource = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "DACDT_2026.csproj"));
+            string packagesSource = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "packages.config"));
+
+            AssertTrue(cameraSource.Contains("CameraVideoRecorder"), "Camera recording must use a video writer.");
+            AssertTrue(cameraSource.Contains(".mp4"), "Camera recording output must be MP4.");
+            AssertTrue(cameraSource.Contains("WriteFrame"), "Camera frames must be written to the MP4 recorder.");
+            AssertTrue(!cameraSource.Contains("frame_{frameNo:D6}.jpg"), "Camera recording must not create one JPEG file per frame.");
+            AssertTrue(stateSource.Contains("Recording MP4"), "Camera UI must describe MP4 recording.");
+            AssertTrue(projectSource.Contains("Accord.Video.FFMPEG"), "The app must reference the MP4 video writer.");
+            AssertTrue(packagesSource.Contains("Accord.Video.FFMPEG"), "The MP4 video writer dependency must be restorable.");
+        }
+
+        private static void WebRtcUsesTwoMegabitTarget()
+        {
+            string webRtcSource = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "WebRtcCameraServer.cs"));
+
+            AssertTrue(webRtcSource.Contains("TargetWebRtcKbps = 4000"), "WebRTC should use a 4 Mbps target bitrate for sharper camera video.");
         }
 
         private static void CameraRecordingDoesNotRequireWebRtcForLocalFrames()
@@ -485,6 +515,72 @@ namespace DACDT_2026.Tests
                 handler.Contains("processRows.Count > 0 && completedDataNo >= processRows.Count"),
                 "A completed Test Area must release the running lock after its final row.");
             AssertTrue(handler.Contains("if (allAxesStopped)"), "Cut-path selection must remain locked until every axis has stopped.");
+        }
+
+        private static void NavigationRefreshesAreSingleFlightAndLatestWins()
+        {
+            string source = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Form1.cs"));
+
+            AssertTrue(source.Contains("private readonly SemaphoreSlim viewRefreshGate"), "Navigation refreshes must share one UI refresh gate.");
+            AssertTrue(source.Contains("private int navigationRefreshVersion;"), "Navigation refreshes must track the newest requested view.");
+            AssertTrue(source.Contains("Interlocked.Increment(ref navigationRefreshVersion)"), "Each navigation request must advance the refresh version.");
+            AssertTrue(source.Contains("RefreshViewDataAfterNavigationAsync(requestedView, requestVersion)"), "Navigation must refresh the requested view with its version.");
+            AssertTrue(source.Contains("private async Task RefreshViewDataAfterNavigationAsync(string viewName, int requestVersion)"), "View refresh must receive the navigation version.");
+            AssertTrue(source.Contains("await viewRefreshGate.WaitAsync()"), "View refresh must be single-flight.");
+            AssertTrue(source.Contains("requestVersion != Volatile.Read(ref navigationRefreshVersion)"), "Stale navigation refreshes must be discarded.");
+            AssertTrue(source.Contains("viewRefreshGate.Release()"), "View refresh gate must always be released.");
+        }
+
+        private static void StartCannotRaceWithTestAreaExecution()
+        {
+            string plcSource = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Form1.PlcControl.cs"));
+            string dxfSource = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Form1.DxfHandler.cs"));
+            int startIndex = plcSource.IndexOf("private async Task HandleStartWriteAsync", StringComparison.Ordinal);
+            int startEnd = plcSource.IndexOf("private async Task HandleMixedEngraveCutStartAsync", startIndex, StringComparison.Ordinal);
+            string startHandler = plcSource.Substring(startIndex, startEnd - startIndex);
+            int testIndex = dxfSource.IndexOf("private async Task HandleTestEngraveAreaAsync", StringComparison.Ordinal);
+            string testHandler = dxfSource.Substring(testIndex);
+
+            AssertTrue(startHandler.Contains("if (IsProgramRunning())"), "RUN must be blocked while Test Area or another program is still running.");
+            AssertTrue(startHandler.Contains("Wait for the current program to finish"), "RUN must explain why it was blocked instead of silently queuing a second run.");
+            AssertTrue(testHandler.Contains("if (IsProgramRunning())"), "Test Area must be blocked while another program is still running.");
+            AssertTrue(testHandler.Contains("isTestAreaProgramRunning = true;"), "Test Area must keep its dedicated run marker until PLC completion is observed.");
+        }
+
+        private static void HoldButtonsReleaseWhenMouseCaptureIsLost()
+        {
+            string dashboardXaml = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Views", "DashboardView.xaml"));
+            string dxfXaml = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Views", "DxfRunView.xaml"));
+            string sidebarXaml = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Views", "Panels", "SidebarControl.xaml"));
+            string dashboardCode = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Views", "DashboardView.xaml.cs"));
+            string dxfCode = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Views", "DxfRunView.xaml.cs"));
+            string sidebarCode = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Views", "Panels", "SidebarControl.xaml.cs"));
+            string formSource = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Form1.cs"));
+            string plcSource = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Form1.PlcControl.cs"));
+
+            AssertTrue(dashboardXaml.Contains("LostMouseCapture=\"HoldButton_LostMouseCapture\""), "Dashboard hold buttons must release on lost mouse capture.");
+            AssertTrue(dxfXaml.Contains("LostMouseCapture=\"HoldButton_LostMouseCapture\""), "DXF hold buttons must release on lost mouse capture.");
+            AssertTrue(sidebarXaml.Contains("LostMouseCapture=\"JogButton_LostMouseCapture\""), "Jog buttons must release on lost mouse capture.");
+            AssertTrue(dashboardCode.Contains("CaptureMouse()") && dashboardCode.Contains("HoldButton_LostMouseCapture"), "Dashboard hold handling must capture and safely release the mouse.");
+            AssertTrue(dxfCode.Contains("CaptureMouse()") && dxfCode.Contains("HoldButton_LostMouseCapture"), "DXF hold handling must capture and safely release the mouse.");
+            AssertTrue(sidebarCode.Contains("CaptureMouse()") && sidebarCode.Contains("JogButton_LostMouseCapture"), "Jog handling must capture and safely release the mouse.");
+            AssertTrue(formSource.Contains("private readonly SemaphoreSlim plcDeviceWriteGate"), "PLC device writes must share a serialization gate.");
+            AssertTrue(plcSource.Contains("private async Task WriteDeviceValueSerializedAsync") && plcSource.Contains("await plcDeviceWriteGate.WaitAsync()"), "PLC device writes must preserve ON/OFF ordering.");
+        }
+
+        private static void CadTouchGesturesSupportPinchZoomAndSingleFingerSelection()
+        {
+            string xaml = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Views", "DxfRunView.xaml"));
+            string code = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Views", "DxfRunView.xaml.cs"));
+
+            AssertTrue(xaml.Contains("PreviewTouchDown=\"CadViewport_PreviewTouchDown\""), "CAD viewport must receive the first touch point before it becomes a mouse event.");
+            AssertTrue(xaml.Contains("PreviewTouchMove=\"CadViewport_PreviewTouchMove\""), "CAD viewport must track touch movement for pinch zoom.");
+            AssertTrue(xaml.Contains("PreviewTouchUp=\"CadViewport_PreviewTouchUp\""), "CAD viewport must finish touch selection and release captures.");
+            AssertTrue(code.Contains("activeTouchPoints"), "CAD touch handling must track multiple fingers independently.");
+            AssertTrue(code.Contains("isTouchPinching"), "CAD touch handling must distinguish pinch gestures from one-finger selection.");
+            AssertTrue(code.Contains("ApplyCadPinchTransform"), "Pinch movement must update zoom around the two-finger midpoint.");
+            AssertTrue(code.Contains("ToggleCadPathCommand.Execute(item.PathId)"), "A one-finger tap must preserve direct CAD path selection.");
+            AssertTrue(code.Contains("TouchDevice.Capture(CadViewport)"), "Touch points must stay captured while the finger moves across the CAD viewport.");
         }
 
         private static void D406JogSpeedUsesFloatWordEncoding()

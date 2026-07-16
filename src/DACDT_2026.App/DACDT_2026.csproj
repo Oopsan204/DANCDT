@@ -66,6 +66,15 @@
     <Reference Include="AForge.Video.DirectShow">
       <HintPath>..\..\packages\AForge.Video.DirectShow.2.2.5\lib\AForge.Video.DirectShow.dll</HintPath>
     </Reference>
+    <Reference Include="Accord">
+      <HintPath>..\..\packages\Accord.3.8.0\lib\net462\Accord.dll</HintPath>
+    </Reference>
+    <Reference Include="Accord.Video">
+      <HintPath>..\..\packages\Accord.Video.3.8.0\lib\net462\Accord.Video.dll</HintPath>
+    </Reference>
+    <Reference Include="Accord.Video.FFMPEG">
+      <HintPath>..\..\packages\Accord.Video.FFMPEG.3.8.0\lib\net462\Accord.Video.FFMPEG.dll</HintPath>
+    </Reference>
     <Reference Include="Gcode.Utils, Version=0.2.0.9, Culture=neutral, processorArchitecture=MSIL">
       <HintPath>..\..\packages\Gcode.Utils.0.2.9\lib\netstandard2.0\Gcode.Utils.dll</HintPath>
     </Reference>
@@ -133,6 +142,7 @@
     <Compile Include="CadDocumentService.cs" />
     <Compile Include="CadPathSelection.cs" />
     <Compile Include="CameraDeviceSelection.cs" />
+    <Compile Include="CameraVideoRecorder.cs" />
     <Compile Include="Converters.cs" />
     <Compile Include="DecimalInputParser.cs" />
     <Compile Include="ZHeightSetting.cs" />
@@ -279,6 +289,14 @@
     </ItemGroup>
     <Copy SourceFiles="@(WebDashboardAssetFiles)"
           DestinationFiles="@(WebDashboardAssetFiles->'$(TargetDir)assets\%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
+  </Target>
+  <Target Name="CopyAccordVideoFfmpegNative" AfterTargets="Build" Condition="Exists('..\..\packages\Accord.Video.FFMPEG.3.8.0\build')">
+    <ItemGroup>
+      <AccordVideoFfmpegNativeFiles Include="..\..\packages\Accord.Video.FFMPEG.3.8.0\build\*.dll" />
+    </ItemGroup>
+    <Copy SourceFiles="@(AccordVideoFfmpegNativeFiles)"
+          DestinationFiles="@(AccordVideoFfmpegNativeFiles-&gt;'$(TargetDir)%(Filename)%(Extension)')"
           SkipUnchangedFiles="true" />
   </Target>
 </Project>

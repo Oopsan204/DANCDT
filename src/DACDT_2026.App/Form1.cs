@@ -40,6 +40,9 @@ namespace DACDT_2026
 
         private readonly WpfUiState ui = new WpfUiState();
         private readonly SemaphoreSlim cadLoadGate = new SemaphoreSlim(1, 1);
+        private readonly SemaphoreSlim viewRefreshGate = new SemaphoreSlim(1, 1);
+        private readonly SemaphoreSlim programCommandGate = new SemaphoreSlim(1, 1);
+        private readonly SemaphoreSlim plcDeviceWriteGate = new SemaphoreSlim(1, 1);
         private readonly object plcPollSync = new object();
 
         private readonly CadDocumentService cadService = new CadDocumentService();
@@ -147,6 +150,7 @@ namespace DACDT_2026
         private Task plcPollTask;
         
         private string currentView = "control";
+        private int navigationRefreshVersion;
         private string currentTheme = "dark";
         private string plcIpAddress = "192.168.3.39";
         private int plcPort = 3000;
@@ -332,14 +336,20 @@ namespace DACDT_2026
         private async Task HandleSwitchViewAsync(object viewPayload)
         {
             currentView = Convert.ToString(viewPayload, CultureInfo.InvariantCulture) ?? "control";
+            string requestedView = currentView;
+            int requestVersion = Interlocked.Increment(ref navigationRefreshVersion);
             await PushNavigationStateAsync();
-            _ = RefreshViewDataAfterNavigationAsync(currentView);
+            _ = RefreshViewDataAfterNavigationAsync(requestedView, requestVersion);
         }
 
-        private async Task RefreshViewDataAfterNavigationAsync(string viewName)
+        private async Task RefreshViewDataAfterNavigationAsync(string viewName, int requestVersion)
         {
+            await viewRefreshGate.WaitAsync();
             try
             {
+                if (requestVersion != Volatile.Read(ref navigationRefreshVersion))
+                    return;
+
                 if (string.Equals(viewName, "telemetry", StringComparison.OrdinalIgnoreCase))
                 {
                     await PushTelemetryStateAsync();
@@ -366,6 +376,19 @@ namespace DACDT_2026
             catch
             {
             }
+            finally
+            {
+                viewRefreshGate.Release();
+            }
+        }
+
+        private async Task<bool> TryEnterProgramCommandAsync(string action)
+        {
+            if (await programCommandGate.WaitAsync(0))
+                return true;
+
+            await NotifyAsync("info", action, "Another program command is already being processed.");
+            return false;
         }
 
         private async Task ApplyDxfSettingsAsync()

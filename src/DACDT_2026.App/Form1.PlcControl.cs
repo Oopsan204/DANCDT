@@ -358,13 +358,10 @@ namespace DACDT_2026
             }
             catch (Exception ex)
             {
-                if (active)
-                {
-                    UpdateIntegrityFault(ex.Message);
-                    AddLogEntry(JogBaseRegister, (active ? 1 : 0).ToString(CultureInfo.InvariantCulture), "Write", "Error", ex.Message);
-                    await NotifyAsync("error", "Jog", ex.Message);
-                    await PushControlStateAsync();
-                }
+                UpdateIntegrityFault(ex.Message);
+                AddLogEntry(GetSequentialDevice(JogBaseRegister, offset), (active ? 1 : 0).ToString(CultureInfo.InvariantCulture), "Write", "Error", ex.Message);
+                await NotifyAsync("error", "Jog", active ? ex.Message : "Failed to release Jog: " + ex.Message);
+                await PushControlStateAsync();
             }
         }
 
@@ -461,13 +458,23 @@ namespace DACDT_2026
         {
             if (!active)
                 return;
-            if (!await RequirePlcConnectedAsync("Start"))
-                return;
-            if (!await RequirePlcStartupReadyAsync("Start"))
+            if (!await TryEnterProgramCommandAsync("Start"))
                 return;
 
             try
             {
+                if (IsProgramRunning())
+                {
+                    await NotifyAsync("info", "Start", "Wait for the current program to finish before starting a new program.");
+                    return;
+                }
+                if (!await RequirePlcConnectedAsync("Start"))
+                    return;
+                if (!await RequirePlcStartupReadyAsync("Start"))
+                    return;
+
+                try
+                {
                 if (isMixedEngraveCutProgram)
                 {
                     await HandleMixedEngraveCutStartAsync();
@@ -518,6 +525,11 @@ namespace DACDT_2026
                 AddLogEntry("M2000", "1", "Write", "Error", ex.Message);
                 await NotifyAsync("error", "Start", ex.Message);
                 await PushControlStateAsync();
+            }
+            }
+            finally
+            {
+                programCommandGate.Release();
             }
         }
 
@@ -1369,19 +1381,26 @@ namespace DACDT_2026
         private Task WriteDeviceValueAsync(string deviceName, int value)
         {
             Interlocked.Increment(ref plcWriteInFlight);
-            return Task.Run(() =>
+            return WriteDeviceValueSerializedAsync(deviceName, value);
+        }
+
+        private async Task WriteDeviceValueSerializedAsync(string deviceName, int value)
+        {
+            await plcDeviceWriteGate.WaitAsync();
+            try
             {
-                try
+                await Task.Run(() =>
                 {
                     PLCCommunication comm = GetConnectedPlcOrThrow();
 
                     comm.WriteDeviceValue(deviceName, value);
-                }
-                finally
-                {
-                    Interlocked.Decrement(ref plcWriteInFlight);
-                }
-            });
+                });
+            }
+            finally
+            {
+                plcDeviceWriteGate.Release();
+                Interlocked.Decrement(ref plcWriteInFlight);
+            }
         }
 
         private void EnsureConnected()

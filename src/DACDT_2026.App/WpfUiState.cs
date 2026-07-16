@@ -704,8 +704,8 @@ namespace DACDT_2026
         }
 
         public string CameraRecordingText => IsCameraRecording
-            ? "Recording frames: " + CameraRecordedFrames
-            : "Recording stopped";
+            ? "Recording MP4: " + CameraRecordedFrames + " frames"
+            : "MP4 recording stopped";
 
         public int ActiveProgramIndex
         {

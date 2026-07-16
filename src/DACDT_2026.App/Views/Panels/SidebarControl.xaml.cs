@@ -6,6 +6,7 @@ namespace DACDT_2026.Views.Panels
     public partial class SidebarControl : UserControl
     {
         private object activeJogOffset;
+        private Button activeJogButton;
 
         public SidebarControl()
         {
@@ -14,7 +15,12 @@ namespace DACDT_2026.Views.Panels
 
         private void JogButton_PreviewMouseDown(object sender, MouseButtonEventArgs e)
         {
-            activeJogOffset = (sender as Button)?.Tag;
+            if (!(sender is Button button))
+                return;
+
+            activeJogOffset = button.Tag;
+            activeJogButton = button;
+            button.CaptureMouse();
             var command = (DataContext as WpfUiState)?.JogStartCommand;
             if (command != null && command.CanExecute(activeJogOffset))
                 command.Execute(activeJogOffset);
@@ -27,16 +33,31 @@ namespace DACDT_2026.Views.Panels
 
         private void JogButton_MouseLeave(object sender, MouseEventArgs e)
         {
-            if (e.LeftButton == MouseButtonState.Pressed)
+            if (e.LeftButton == MouseButtonState.Pressed && activeJogButton == null)
                 StopJog();
+        }
+
+        private void JogButton_LostMouseCapture(object sender, MouseEventArgs e)
+        {
+            StopJog();
         }
 
         private void StopJog()
         {
-            var command = (DataContext as WpfUiState)?.JogStopCommand;
-            if (command != null && command.CanExecute(activeJogOffset))
-                command.Execute(activeJogOffset);
+            object offset = activeJogOffset;
+            Button button = activeJogButton;
             activeJogOffset = null;
+            activeJogButton = null;
+
+            if (button != null && button.IsMouseCaptured)
+                button.ReleaseMouseCapture();
+
+            if (offset == null)
+                return;
+
+            var command = (DataContext as WpfUiState)?.JogStopCommand;
+            if (command != null && command.CanExecute(offset))
+                command.Execute(offset);
         }
     }
 }

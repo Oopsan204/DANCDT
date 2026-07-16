@@ -27,6 +27,7 @@ namespace DACDT_2026
         private int recordedFrameCount;
         private volatile bool cameraRecordingActive;
         private string activeCameraRecordingPath = string.Empty;
+        private CameraVideoRecorder cameraVideoRecorder;
         private readonly IntervalGate cameraRecordingGate = new IntervalGate(PerformanceTuning.CameraRecordingFrameIntervalMs);
         private readonly SingleFlightGate cameraRecordingSaveGate = new SingleFlightGate();
         private object cameraLock = new object();
@@ -198,6 +199,7 @@ namespace DACDT_2026
             {
                 try
                 {
+                    CameraVideoRecorder recorderToClose;
                     lock (cameraLock)
                     {
                         StopCameraSourceLocked();
@@ -205,12 +207,18 @@ namespace DACDT_2026
                         _ = PublishCameraStatusAsync(false, "stopped", "camera stopped");
 
                         cameraRecordingActive = false;
+                        ui.IsCameraRecording = false;
+                        recorderToClose = cameraVideoRecorder;
+                        cameraVideoRecorder = null;
                         activeCameraRecordingPath = string.Empty;
+                        ui.CameraRecordedFrames = 0;
                         Interlocked.Exchange(ref webRtcFrameInFlight, 0);
                         cameraPreviewGate.Reset();
                         webRtcFrameGate.Reset();
                         SetCameraRunningUiState(false, "Camera stopped.", clearFrame: true);
                     }
+
+                    recorderToClose?.Complete();
                 }
                 catch (Exception ex)
                 {
@@ -224,6 +232,7 @@ namespace DACDT_2026
         /// </summary>
         private void StopCameraCore()
         {
+            CameraVideoRecorder recorderToClose = null;
             try
             {
                 lock (cameraLock)
@@ -233,6 +242,9 @@ namespace DACDT_2026
                     _ = PublishCameraStatusAsync(false, "stopped", "camera stopped");
 
                     cameraRecordingActive = false;
+                    ui.IsCameraRecording = false;
+                    recorderToClose = cameraVideoRecorder;
+                    cameraVideoRecorder = null;
                     activeCameraRecordingPath = string.Empty;
                     ui.IsCameraRunning = false;
                     recordedFrameCount = 0;
@@ -243,6 +255,8 @@ namespace DACDT_2026
                     cameraMqttPublishInFlight = false;
                     Interlocked.Exchange(ref webRtcFrameInFlight, 0);
                 }
+
+                recorderToClose?.Complete();
             }
             catch { }
         }
@@ -413,8 +427,9 @@ namespace DACDT_2026
                         ui.CameraRecordingFolderInput = normalizedDirectory;
                         SaveSettingsToFile();
                         string timestamp = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss", CultureInfo.InvariantCulture);
-                        string recordingPath = Path.Combine(cameraRecordingDir, $"camera_{timestamp}");
+                        string recordingPath = Path.Combine(cameraRecordingDir, $"camera_{timestamp}.mp4");
 
+                        cameraVideoRecorder = new CameraVideoRecorder(recordingPath, 10, 2000000);
                         activeCameraRecordingPath = recordingPath;
                         cameraRecordingActive = true;
                         cameraRecordingGate.Reset();
@@ -422,7 +437,7 @@ namespace DACDT_2026
                         ui.IsCameraRecording = true;
                         recordedFrameCount = 0;
                         ui.CameraRecordedFrames = 0;
-                        ui.CameraStatus = $"Recording frames to: {Path.GetFileName(recordingPath)}";
+                        ui.CameraStatus = $"Recording MP4: {Path.GetFileName(recordingPath)}";
                     }
                 }
                 catch (Exception ex)
@@ -443,20 +458,27 @@ namespace DACDT_2026
             {
                 try
                 {
+                    CameraVideoRecorder recorderToClose;
+                    string recordingPath;
                     int framesRecorded;
                     lock (cameraLock)
                     {
                         cameraRecordingActive = false;
                         ui.IsCameraRecording = false;
+                        recorderToClose = cameraVideoRecorder;
+                        cameraVideoRecorder = null;
+                        recordingPath = activeCameraRecordingPath;
                         framesRecorded = recordedFrameCount;
                         activeCameraRecordingPath = string.Empty;
                         recordedFrameCount = 0;
                     }
 
+                    recorderToClose?.Complete();
+
                     Dispatcher?.BeginInvoke(new Action(() =>
                     {
                         ui.CameraRecordedFrames = 0;
-                        ui.CameraStatus = $"Recording stopped. Frames saved: {framesRecorded}";
+                        ui.CameraStatus = $"MP4 saved: {Path.GetFileName(recordingPath)} ({framesRecorded} frames)";
                     }));
                 }
                 catch (Exception ex)
@@ -603,21 +625,19 @@ namespace DACDT_2026
         private void SaveCameraRecordingFrame(Bitmap bitmap)
         {
             int frameNo = 0;
-            string folder = activeCameraRecordingPath;
+            CameraVideoRecorder recorder;
 
             try
             {
-                if (string.IsNullOrWhiteSpace(folder))
-                    return;
-
-                Directory.CreateDirectory(folder);
-                frameNo = Interlocked.Increment(ref recordedFrameCount);
-                string framePath = Path.Combine(folder, $"frame_{frameNo:D6}.jpg");
-                using (var stream = File.Create(framePath))
+                lock (cameraLock)
                 {
-                    SaveJpeg(bitmap, stream, 80L);
+                    recorder = cameraVideoRecorder;
                 }
 
+                if (recorder == null || !recorder.WriteFrame(bitmap))
+                    return;
+
+                frameNo = Interlocked.Increment(ref recordedFrameCount);
                 Dispatcher?.BeginInvoke(new Action(() =>
                 {
                     ui.CameraRecordedFrames = frameNo;
@@ -625,7 +645,7 @@ namespace DACDT_2026
             }
             catch (Exception ex)
             {
-                SetCameraStatusOnUiThread("Recording frame save error: " + ex.Message);
+                SetCameraStatusOnUiThread("Recording MP4 error: " + ex.Message);
             }
             finally
             {

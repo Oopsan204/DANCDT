@@ -3,7 +3,7 @@
 ; ============================================================
 
 #define MyAppName "DACDT 2026"
-#define MyAppVersion "1.0.1"
+#define MyAppVersion "1.0.5"
 #define MyAppPublisher "AML"
 #define MyAppExeName "DACDT_2026.exe"
 #define MyAppURL ""

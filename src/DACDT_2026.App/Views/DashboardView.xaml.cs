@@ -10,6 +10,7 @@ namespace DACDT_2026.Views
     public partial class DashboardView : UserControl
     {
         private string activeHold;
+        private Button activeHoldButton;
         private WpfUiState observedState;
 
         public DashboardView()
@@ -20,27 +21,55 @@ namespace DACDT_2026.Views
 
         private void HoldButton_PreviewMouseDown(object sender, MouseButtonEventArgs e)
         {
-            activeHold = (sender as Button)?.Tag as string;
+            if (!(sender is Button button))
+                return;
+
+            StopHold();
+            activeHold = button.Tag as string;
+            activeHoldButton = button;
+            button.CaptureMouse();
             ExecuteHoldCommand(true);
         }
 
         private void HoldButton_PreviewMouseUp(object sender, MouseButtonEventArgs e)
         {
-            ExecuteHoldCommand(false);
+            StopHold();
         }
 
         private void HoldButton_MouseLeave(object sender, MouseEventArgs e)
         {
-            if (e.LeftButton == MouseButtonState.Pressed)
-                ExecuteHoldCommand(false);
+            if (e.LeftButton == MouseButtonState.Pressed && activeHoldButton == null)
+                StopHold();
+        }
+
+        private void HoldButton_LostMouseCapture(object sender, MouseEventArgs e)
+        {
+            StopHold();
         }
 
         private void ExecuteHoldCommand(bool start)
         {
-            HoldCommandRouter.Execute(DataContext as WpfUiState, activeHold, start);
-
             if (!start)
-                activeHold = null;
+            {
+                StopHold();
+                return;
+            }
+
+            HoldCommandRouter.Execute(DataContext as WpfUiState, activeHold, start);
+        }
+
+        private void StopHold()
+        {
+            string action = activeHold;
+            Button button = activeHoldButton;
+            activeHold = null;
+            activeHoldButton = null;
+
+            if (button != null && button.IsMouseCaptured)
+                button.ReleaseMouseCapture();
+
+            if (!string.IsNullOrEmpty(action))
+                HoldCommandRouter.Execute(DataContext as WpfUiState, action, false);
         }
 
         private void DashboardView_DataContextChanged(object sender, DependencyPropertyChangedEventArgs e)

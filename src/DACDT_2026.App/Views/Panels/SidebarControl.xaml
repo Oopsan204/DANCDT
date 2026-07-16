@@ -59,13 +59,13 @@
                             <ColumnDefinition/>
                             <ColumnDefinition/>
                         </Grid.ColumnDefinitions>
-                        <Button Grid.Row="0" Grid.Column="1" Content="Up" Tag="2" Style="{StaticResource PrimaryButtonStyle}" PreviewMouseDown="JogButton_PreviewMouseDown" PreviewMouseUp="JogButton_PreviewMouseUp" MouseLeave="JogButton_MouseLeave"/>
-                        <Button Grid.Row="1" Grid.Column="0" Content="Left" Tag="1" Style="{StaticResource PrimaryButtonStyle}" PreviewMouseDown="JogButton_PreviewMouseDown" PreviewMouseUp="JogButton_PreviewMouseUp" MouseLeave="JogButton_MouseLeave"/>
+                        <Button Grid.Row="0" Grid.Column="1" Content="Up" Tag="2" Style="{StaticResource PrimaryButtonStyle}" PreviewMouseDown="JogButton_PreviewMouseDown" PreviewMouseUp="JogButton_PreviewMouseUp" MouseLeave="JogButton_MouseLeave" LostMouseCapture="JogButton_LostMouseCapture"/>
+                        <Button Grid.Row="1" Grid.Column="0" Content="Left" Tag="1" Style="{StaticResource PrimaryButtonStyle}" PreviewMouseDown="JogButton_PreviewMouseDown" PreviewMouseUp="JogButton_PreviewMouseUp" MouseLeave="JogButton_MouseLeave" LostMouseCapture="JogButton_LostMouseCapture"/>
                         <Border Grid.Row="1" Grid.Column="1" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6" Margin="3">
                             <TextBlock Text="XY" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{DynamicResource MutedBrush}" FontWeight="Bold"/>
                         </Border>
-                        <Button Grid.Row="1" Grid.Column="2" Content="Right" Tag="0" Style="{StaticResource PrimaryButtonStyle}" PreviewMouseDown="JogButton_PreviewMouseDown" PreviewMouseUp="JogButton_PreviewMouseUp" MouseLeave="JogButton_MouseLeave"/>
-                        <Button Grid.Row="2" Grid.Column="1" Content="Down" Tag="3" Style="{StaticResource PrimaryButtonStyle}" PreviewMouseDown="JogButton_PreviewMouseDown" PreviewMouseUp="JogButton_PreviewMouseUp" MouseLeave="JogButton_MouseLeave"/>
+                        <Button Grid.Row="1" Grid.Column="2" Content="Right" Tag="0" Style="{StaticResource PrimaryButtonStyle}" PreviewMouseDown="JogButton_PreviewMouseDown" PreviewMouseUp="JogButton_PreviewMouseUp" MouseLeave="JogButton_MouseLeave" LostMouseCapture="JogButton_LostMouseCapture"/>
+                        <Button Grid.Row="2" Grid.Column="1" Content="Down" Tag="3" Style="{StaticResource PrimaryButtonStyle}" PreviewMouseDown="JogButton_PreviewMouseDown" PreviewMouseUp="JogButton_PreviewMouseUp" MouseLeave="JogButton_MouseLeave" LostMouseCapture="JogButton_LostMouseCapture"/>
                     </Grid>
 
                     <Grid Margin="0,8,0,0">
@@ -73,8 +73,8 @@
                             <ColumnDefinition/>
                             <ColumnDefinition/>
                         </Grid.ColumnDefinitions>
-                        <Button Grid.Column="0" Content="Z+" Tag="4" Style="{StaticResource PrimaryButtonStyle}" Margin="0,0,4,0" PreviewMouseDown="JogButton_PreviewMouseDown" PreviewMouseUp="JogButton_PreviewMouseUp" MouseLeave="JogButton_MouseLeave"/>
-                        <Button Grid.Column="1" Content="Z-" Tag="5" Style="{StaticResource PrimaryButtonStyle}" Margin="4,0,0,0" PreviewMouseDown="JogButton_PreviewMouseDown" PreviewMouseUp="JogButton_PreviewMouseUp" MouseLeave="JogButton_MouseLeave"/>
+                        <Button Grid.Column="0" Content="Z+" Tag="4" Style="{StaticResource PrimaryButtonStyle}" Margin="0,0,4,0" PreviewMouseDown="JogButton_PreviewMouseDown" PreviewMouseUp="JogButton_PreviewMouseUp" MouseLeave="JogButton_MouseLeave" LostMouseCapture="JogButton_LostMouseCapture"/>
+                        <Button Grid.Column="1" Content="Z-" Tag="5" Style="{StaticResource PrimaryButtonStyle}" Margin="4,0,0,0" PreviewMouseDown="JogButton_PreviewMouseDown" PreviewMouseUp="JogButton_PreviewMouseUp" MouseLeave="JogButton_MouseLeave" LostMouseCapture="JogButton_LostMouseCapture"/>
                     </Grid>
 
                     <TextBlock Text="Jog speed D406 (mm/min)" Foreground="{DynamicResource MutedBrush}" Margin="0,8,0,3" FontSize="11"/>

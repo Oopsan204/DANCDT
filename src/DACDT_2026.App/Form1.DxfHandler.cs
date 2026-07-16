@@ -1276,6 +1276,17 @@ namespace DACDT_2026
         // ── Test Area (Engrave Boundary Test) ────────────────────────────────────
         private async Task HandleTestEngraveAreaAsync()
         {
+            if (!await TryEnterProgramCommandAsync("Test Area"))
+                return;
+
+            try
+            {
+            if (IsProgramRunning())
+            {
+                await NotifyAsync("info", "Test Area", "Wait for the current program to finish before starting Test Area.");
+                return;
+            }
+
             PLCCommunication comm;
             if (!TryGetConnectedPlc(out comm))
             {
@@ -1492,6 +1503,11 @@ namespace DACDT_2026
                 Interlocked.Decrement(ref plcWriteInFlight);
                 if (pollingPausedForWrite && plcComm != null && plcComm.IsConnected && !isClosing)
                     StartPlcPolling();
+            }
+            }
+            finally
+            {
+                programCommandGate.Release();
             }
         }
 

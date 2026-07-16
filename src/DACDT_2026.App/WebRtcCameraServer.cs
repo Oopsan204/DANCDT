@@ -26,7 +26,7 @@ namespace DACDT_2026
         private long _sentFrameCount;
         private string _lastEncoderError;
         private const int MaxWebRtcStreamWidth = 640;
-        private const int TargetWebRtcKbps = 1000;
+        private const int TargetWebRtcKbps = 4000;
         private const int StatusPublishIntervalMs = 1000;
 
         public bool IsRunning => _isRunning;
