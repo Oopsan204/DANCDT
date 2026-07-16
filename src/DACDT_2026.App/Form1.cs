@@ -50,6 +50,7 @@ namespace DACDT_2026
         private readonly MqttPublishService mqttService = new MqttPublishService();
         private readonly WebCadUploadSession webCadUploadSession = new WebCadUploadSession();
         private readonly WebRtcBridgeClient webRtcBridgeClient = new WebRtcBridgeClient();
+        private readonly ConfigurationFilePathStore configurationFilePathStore;
         private System.Diagnostics.Process backgroundServiceProcess;
 
         private readonly List<MonitorRow> monitorRows = new List<MonitorRow>();
@@ -161,6 +162,8 @@ namespace DACDT_2026
         private float currentJogSpeedD406 = 1000f;
         private bool allowClose;
         private bool isShutdownInitiated;
+        private string configurationFilePath = string.Empty;
+        private bool configurationFileSelectionRequired;
 
         public Form1()
         {
@@ -171,7 +174,10 @@ namespace DACDT_2026
             UpdateConnectionState(false, "PLC disconnected");
             UpdateIntegrityState(false);
 
-            LoadSettingsFromFile();
+            configurationFilePathStore = new ConfigurationFilePathStore(
+                DefaultConfigurationFilePath,
+                ConfigurationSelectionStatePath);
+            LoadSelectedConfigurationAtStartup();
             ConfigureCommands();
             SyncSettingsToUi();
             currentTheme = WpfThemeManager.Apply(currentTheme, Resources, this);
@@ -187,6 +193,9 @@ namespace DACDT_2026
 
             Loaded += async (sender, e) =>
             {
+                if (configurationFileSelectionRequired)
+                    await PromptForConfigurationFileAsync();
+
                 // Apply after WPF has built the complete visual tree, including each view's local styles.
                 currentTheme = WpfThemeManager.Apply(currentTheme, Resources, this);
                 ui.CurrentTheme = currentTheme;
@@ -204,11 +213,20 @@ namespace DACDT_2026
             };
         }
 
-        private static string SettingsFilePath =>
-            Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "app_settings.txt");
+        private static string SettingsDataDirectory =>
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "DACDT_2026");
 
-        private static string ProfilesDirPath =>
-            Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "settings_profiles");
+        private static string DefaultConfigurationFilePath =>
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "DACDT_2026", "DACDT_2026_settings.txt");
+
+        private static string ConfigurationSelectionStatePath =>
+            Path.Combine(SettingsDataDirectory, "configuration_path.txt");
+
+        private static string PreviousSettingsFilePath =>
+            Path.Combine(SettingsDataDirectory, "app_settings.txt");
+
+        private static string LegacySettingsFilePath =>
+            Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "app_settings.txt");
 
         private void ConfigureCommands()
         {
@@ -281,10 +299,9 @@ namespace DACDT_2026
             ui.ApplyGcodeSettingsCommand = new RelayCommand(ApplyGcodeSettingsAsync);
             ui.SaveSettingsCommand = new RelayCommand(async () =>
             {
-                SyncSettingsFromUiForPersistence();
-                SaveSettingsToFile();
-                await NotifyAsync("success", "Settings", "Settings saved locally.");
+                await SaveSelectedConfigurationAsync(showSuccess: true);
             });
+            ui.BrowseConfigurationFileCommand = new RelayCommand(PromptForConfigurationFileAsync);
             ui.SetWorkspaceCommand = new RelayCommand(async () =>
             {
                 workspaceWidth = ui.WorkspaceWidthInput;
@@ -320,9 +337,6 @@ namespace DACDT_2026
                 await PushControlStateAsync();
                 await NotifyAsync("success", "PLC", "PLC connection settings saved.");
             });
-            ui.SaveProfileCommand = new RelayCommand(SaveProfileAsync);
-            ui.LoadProfileCommand = new RelayCommand(LoadProfileAsync);
-            ui.DeleteProfileCommand = new RelayCommand(DeleteProfileAsync);
             ui.RefreshCamerasCommand = new RelayCommand(RefreshCamerasAsync);
             ui.StartCameraCommand = new RelayCommand(StartCameraAsync);
             ui.StopCameraCommand = new RelayCommand(StopCameraAsync);
@@ -452,60 +466,9 @@ namespace DACDT_2026
             await NotifyAsync("success", "WCS", $"Saved G54-G59 offsets. Active {activeWcs} X={ui.WcsOffsetXInput} Y={ui.WcsOffsetYInput}");
         }
 
-        private async Task SaveProfileAsync()
-        {
-            string cleanName = CleanProfileName(ui.ProfileNameInput);
-            if (string.IsNullOrWhiteSpace(cleanName))
-            {
-                await NotifyAsync("error", "Profiles", "Invalid profile name.");
-                return;
-            }
-
-            Directory.CreateDirectory(ProfilesDirPath);
-            SaveSettingsToFile(Path.Combine(ProfilesDirPath, cleanName + ".txt"));
-            await NotifyAsync("success", "Profiles", $"Saved profile '{cleanName}'.");
-            await PushDxfStateAsync();
-        }
-
-        private async Task LoadProfileAsync()
-        {
-            string cleanName = CleanProfileName(ui.SelectedProfile);
-            string profilePath = Path.Combine(ProfilesDirPath, cleanName + ".txt");
-            if (string.IsNullOrWhiteSpace(cleanName) || !File.Exists(profilePath))
-            {
-                await NotifyAsync("error", "Profiles", "Profile not found.");
-                return;
-            }
-
-            LoadSettingsFromFile(profilePath);
-            SaveSettingsToFile();
-            SyncSettingsToUi();
-
-            if (activeCadDocument != null)
-                await HandleImportCadToProcessAsync();
-
-            await HandleScanLimitsAsync();
-            await PushDxfStateAsync();
-            await NotifyAsync("success", "Profiles", $"Loaded profile '{cleanName}'.");
-        }
-
-        private async Task DeleteProfileAsync()
-        {
-            string cleanName = CleanProfileName(ui.SelectedProfile);
-            string profilePath = Path.Combine(ProfilesDirPath, cleanName + ".txt");
-            if (string.IsNullOrWhiteSpace(cleanName) || !File.Exists(profilePath))
-            {
-                await NotifyAsync("error", "Profiles", "Profile to delete was not found.");
-                return;
-            }
-
-            File.Delete(profilePath);
-            await NotifyAsync("success", "Profiles", $"Deleted profile '{cleanName}'.");
-            await PushDxfStateAsync();
-        }
-
         private void SyncSettingsToUi()
         {
+            ui.ConfigurationFilePathInput = configurationFilePath;
             ui.LogicalStationInput = logicalStation;
             ui.PlcIpAddressInput = plcIpAddress;
             ui.PlcPortInput = plcPort;
@@ -586,13 +549,13 @@ namespace DACDT_2026
             ui.WcsOffsetYInput = wcsOffsetY[activeIndex];
         }
 
-        private void LoadSettingsFromFile(string path = null)
+        private bool LoadSettingsFromFile(string path = null)
         {
             try
             {
                 if (string.IsNullOrEmpty(path))
-                    path = SettingsFilePath;
-                if (!File.Exists(path)) return;
+                    path = configurationFilePath;
+                if (!File.Exists(path)) return false;
 
                 foreach (string line in File.ReadAllLines(path))
                 {
@@ -636,20 +599,31 @@ namespace DACDT_2026
                                 string gName = "G5" + (4 + i);
                                 if (key == "wcs" + gName + "X") { double.TryParse(val, NumberStyles.Any, CultureInfo.InvariantCulture, out wcsOffsetX[i]); break; }
                                 if (key == "wcs" + gName + "Y") { double.TryParse(val, NumberStyles.Any, CultureInfo.InvariantCulture, out wcsOffsetY[i]); break; }
-                            }
-                            break;
+                        }
+                        break;
                     }
                 }
+
+                return true;
             }
-            catch { }
+            catch
+            {
+                return false;
+            }
         }
 
-        private void SaveSettingsToFile(string path = null)
+        private bool SaveSettingsToFile(string path = null)
         {
             try
             {
                 if (string.IsNullOrEmpty(path))
-                    path = SettingsFilePath;
+                    path = configurationFilePath;
+                if (string.IsNullOrWhiteSpace(path))
+                    return false;
+
+                string directory = Path.GetDirectoryName(path);
+                if (!string.IsNullOrEmpty(directory))
+                    Directory.CreateDirectory(directory);
 
                 var lines = new List<string>
                 {
@@ -688,23 +662,148 @@ namespace DACDT_2026
                     lines.Add($"wcs{gName}Y={wcsOffsetY[i].ToString("0.###", CultureInfo.InvariantCulture)}");
                 }
                 File.WriteAllLines(path, lines);
+
+                return true;
             }
-            catch { }
+            catch
+            {
+                return false;
+            }
         }
 
-        private List<string> GetProfilesList()
+        private void LoadSelectedConfigurationAtStartup()
         {
-            var profiles = new List<string>();
+            configurationFilePath = configurationFilePathStore.GetSelectedPath();
+            if (!configurationFilePathStore.NeedsSelection(configurationFilePath))
+            {
+                LoadSettingsFromFile(configurationFilePath);
+                return;
+            }
+
+            if (string.Equals(configurationFilePath, DefaultConfigurationFilePath, StringComparison.OrdinalIgnoreCase))
+            {
+                string legacyPath = File.Exists(PreviousSettingsFilePath)
+                    ? PreviousSettingsFilePath
+                    : LegacySettingsFilePath;
+                if (File.Exists(legacyPath) && LoadSettingsFromFile(legacyPath))
+                    return;
+            }
+
+            configurationFileSelectionRequired = true;
+        }
+
+        private async Task PromptForConfigurationFileAsync()
+        {
+            var dialog = new Microsoft.Win32.OpenFileDialog
+            {
+                Filter = "Configuration files (*.txt)|*.txt|All files (*.*)|*.*",
+                InitialDirectory = configurationFilePathStore.GetBrowseDirectory(configurationFilePath),
+                CheckFileExists = true,
+                Multiselect = false
+            };
+
+            if (dialog.ShowDialog(this) == true)
+                await SelectConfigurationFileAsync(dialog.FileName);
+        }
+
+        private async Task SelectConfigurationFileAsync(string path)
+        {
+            string selectedPath = path == null ? string.Empty : path.Trim();
+            if (configurationFilePathStore.NeedsSelection(selectedPath) || !LoadSettingsFromFile(selectedPath))
+            {
+                await NotifyAsync("error", "Settings", "The selected configuration file could not be loaded.");
+                return;
+            }
+
+            if (!configurationFilePathStore.TrySaveSelectedPath(selectedPath))
+            {
+                await NotifyAsync("error", "Settings", "The selected configuration path could not be remembered.");
+                return;
+            }
+
+            configurationFilePath = selectedPath;
+            configurationFileSelectionRequired = false;
+            SyncSettingsToUi();
+            currentTheme = WpfThemeManager.Apply(currentTheme, Resources, this);
+            ui.CurrentTheme = currentTheme;
+            await NotifyAsync("success", "Settings", "Configuration file loaded.");
+        }
+
+        private async Task SaveSelectedConfigurationAsync(bool showSuccess)
+        {
+            string selectedPath = ui.ConfigurationFilePathInput == null
+                ? string.Empty
+                : ui.ConfigurationFilePathInput.Trim();
+            if (string.IsNullOrWhiteSpace(selectedPath))
+                selectedPath = configurationFilePath;
+
+            SyncSettingsFromUiForPersistence();
+            if (!SaveSettingsToFile(selectedPath))
+            {
+                await NotifyAsync("error", "Settings", "The configuration file could not be saved.");
+                return;
+            }
+
+            if (!configurationFilePathStore.TrySaveSelectedPath(selectedPath))
+            {
+                await NotifyAsync("error", "Settings", "The configuration file was saved, but its path could not be remembered.");
+                return;
+            }
+
+            configurationFilePath = selectedPath;
+            configurationFileSelectionRequired = false;
+            ui.ConfigurationFilePathInput = configurationFilePath;
+            if (showSuccess)
+                await NotifyAsync("success", "Settings", "Settings saved to the configuration file.");
+        }
+
+        private void SaveSelectedConfigurationOnClose()
+        {
             try
             {
-                if (Directory.Exists(ProfilesDirPath))
+                string selectedPath = ui.ConfigurationFilePathInput == null
+                    ? string.Empty
+                    : ui.ConfigurationFilePathInput.Trim();
+                if (string.IsNullOrWhiteSpace(selectedPath))
+                    selectedPath = configurationFilePath;
+
+                SyncSettingsFromUiForPersistence();
+                if (IsUncConfigurationPath(selectedPath))
                 {
-                    foreach (var file in Directory.GetFiles(ProfilesDirPath, "*.txt"))
-                        profiles.Add(Path.GetFileNameWithoutExtension(file));
+                    SaveConfigurationToNetworkPathInBackground(selectedPath);
+                    return;
                 }
+
+                if (SaveSettingsToFile(selectedPath) && configurationFilePathStore.TrySaveSelectedPath(selectedPath))
+                    configurationFilePath = selectedPath;
+                else
+                    LogLifecycle("Configuration file was not saved during shutdown.");
             }
-            catch { }
-            return profiles;
+            catch (Exception ex)
+            {
+                LogLifecycle("Configuration save during shutdown failed: " + ex.Message);
+            }
+        }
+
+        private static bool IsUncConfigurationPath(string path)
+        {
+            return !string.IsNullOrWhiteSpace(path) && path.TrimStart().StartsWith(@"\\", StringComparison.Ordinal);
+        }
+
+        private void SaveConfigurationToNetworkPathInBackground(string path)
+        {
+            _ = Task.Run(() =>
+            {
+                try
+                {
+                    if (!SaveSettingsToFile(path) || !configurationFilePathStore.TrySaveSelectedPath(path))
+                        LogLifecycle("Network configuration file was not saved during shutdown.");
+                }
+                catch (Exception ex)
+                {
+                    LogLifecycle("Network configuration save during shutdown failed: " + ex.Message);
+                }
+            });
         }
 
         private static Dictionary<string, object> Payload(params object[] keyValues)
@@ -735,18 +834,6 @@ namespace DACDT_2026
                 case "G59": return 5;
                 default: return 0;
             }
-        }
-
-        private static string CleanProfileName(string rawName)
-        {
-            if (string.IsNullOrWhiteSpace(rawName)) return "";
-            var cleanName = "";
-            foreach (char c in rawName)
-            {
-                if (char.IsLetterOrDigit(c) || c == '_' || c == '-')
-                    cleanName += c;
-            }
-            return cleanName;
         }
 
         private async Task InitMqttAsync()
@@ -1026,6 +1113,7 @@ namespace DACDT_2026
 
             isClosing = true;
             webReady = false;
+            SaveSelectedConfigurationOnClose();
             StopCameraCore();
             StopPlcPolling();
             try { webRtcBridgeClient.Dispose(); } catch { }
@@ -1038,12 +1126,12 @@ namespace DACDT_2026
 
             if (plcComm != null)
             {
-                try { plcComm.Dispose(); } catch { }
+                QueuePlcDisposeForShutdown(plcComm);
                 plcComm = null;
             }
             if (plcMonitorComm != null)
             {
-                try { plcMonitorComm.Dispose(); } catch { }
+                QueuePlcDisposeForShutdown(plcMonitorComm);
                 plcMonitorComm = null;
             }
 
@@ -1061,7 +1149,7 @@ namespace DACDT_2026
                         ui.CameraStatus = "Sending M210, HOME ALL, then closing...";
                     });
 
-                    await SendStopForExitAsync();
+                    await ExitShutdownPolicy.WaitForBestEffortAsync(SendStopForExitAsync());
                 }
             }
             catch (Exception ex)
@@ -1111,6 +1199,17 @@ namespace DACDT_2026
             await WriteDeviceValueAsync("M502", 0);
             AddLogEntry("M502", "0", "Write", "OK", "Exit home all reset");
             await Task.Delay(PerformanceTuning.ExitHomeDelayMs);
+        }
+
+        private static void QueuePlcDisposeForShutdown(PLCCommunication comm)
+        {
+            if (comm == null)
+                return;
+
+            _ = Task.Run(() =>
+            {
+                try { comm.Dispose(); } catch { }
+            });
         }
 
         private void StartBackgroundVideoService()

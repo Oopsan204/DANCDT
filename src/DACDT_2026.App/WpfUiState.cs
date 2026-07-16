@@ -118,8 +118,7 @@ namespace DACDT_2026
         private string activeWcs = "G54";
         private double wcsOffsetXInput;
         private double wcsOffsetYInput;
-        private string profileNameInput = "";
-        private string selectedProfile = "";
+        private string configurationFilePathInput = "";
         private string telemetryAddressInput = "D100";
         private int telemetryLengthInput = 1;
         private string writeAddressInput = "D100";
@@ -168,7 +167,6 @@ namespace DACDT_2026
         public BulkObservableCollection<CadAxisLabelViewModel> CadAxisLabels { get; } = new BulkObservableCollection<CadAxisLabelViewModel>();
         public BulkObservableCollection<CadTrackingPointViewModel> CadTrackingPoints { get; } = new BulkObservableCollection<CadTrackingPointViewModel>();
         public BulkObservableCollection<WcsOffsetViewModel> WcsOffsets { get; } = new BulkObservableCollection<WcsOffsetViewModel>();
-        public BulkObservableCollection<string> Profiles { get; } = new BulkObservableCollection<string>();
 
         public ICommand SwitchViewCommand { get; set; }
         public ICommand ToggleThemeCommand { get; set; }
@@ -209,13 +207,11 @@ namespace DACDT_2026
         public ICommand ApplyDxfSettingsCommand { get; set; }
         public ICommand ApplyGcodeSettingsCommand { get; set; }
         public ICommand SaveSettingsCommand { get; set; }
+        public ICommand BrowseConfigurationFileCommand { get; set; }
         public ICommand SetWorkspaceCommand { get; set; }
         public ICommand SelectWcsCommand { get; set; }
         public ICommand SetWcsCommand { get; set; }
         public ICommand ApplyPlcConnectionCommand { get; set; }
-        public ICommand SaveProfileCommand { get; set; }
-        public ICommand LoadProfileCommand { get; set; }
-        public ICommand DeleteProfileCommand { get; set; }
         public ICommand RefreshCamerasCommand { get; set; }
         public ICommand StartCameraCommand { get; set; }
         public ICommand StopCameraCommand { get; set; }
@@ -546,16 +542,10 @@ namespace DACDT_2026
             set => SetProperty(ref wcsOffsetYInput, value);
         }
 
-        public string ProfileNameInput
+        public string ConfigurationFilePathInput
         {
-            get => profileNameInput;
-            set => SetProperty(ref profileNameInput, value);
-        }
-
-        public string SelectedProfile
-        {
-            get => selectedProfile;
-            set => SetProperty(ref selectedProfile, value);
+            get => configurationFilePathInput;
+            set => SetProperty(ref configurationFilePathInput, value);
         }
 
         public string TelemetryAddressInput

@@ -1,7 +1,11 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.Drawing;
+using System.Drawing.Imaging;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using DACDT_2026;
 
 namespace DACDT_2026.Tests
@@ -28,6 +32,8 @@ namespace DACDT_2026.Tests
                 CameraRecordingFrameIntervalIsThrottled();
                 CameraRecordingPathAndCommandsAreBound();
                 CameraRecordingCreatesMp4VideoFile();
+                CameraRecordingNormalizesNativeFrames();
+                CameraRecordingUsesMpeg4CodecForX86Ffmpeg();
                 WebRtcUsesTwoMegabitTarget();
                 CameraRecordingDoesNotRequireWebRtcForLocalFrames();
                 AxisMonitorUpdateCadenceStaysResponsive();
@@ -36,6 +42,11 @@ namespace DACDT_2026.Tests
                 CadTrackingMarkerMovesWithoutInvalidatingCanvasLayout();
                 BackgroundVideoServiceArgumentsIncludeParentPid();
                 ExitShutdownSendsM210WheneverPlcIsConnected();
+                ConfigurationFilePathIsRememberedAndMissingFilesNeedSelection();
+                PortableConfigurationIsLoadedSavedAndRecoveredAtStartup();
+                SettingsUsesOnePortableConfigurationFileWorkflow();
+                ConfigurationSaveDoesNotBlockExitForUnreachableNetworkPaths();
+                ExitShutdownDoesNotBlockOnLostLan();
                 PlcConnectionStartsMonitoringBeforeStartupClear();
                 PlcConnectionGuardBlocksMissingOrDisconnectedPlc();
                 RunProgressIsLimitedToEngraveAndCutPrograms();
@@ -358,6 +369,29 @@ namespace DACDT_2026.Tests
             AssertTrue(packagesSource.Contains("Accord.Video.FFMPEG"), "The MP4 video writer dependency must be restorable.");
         }
 
+        private static void CameraRecordingNormalizesNativeFrames()
+        {
+            using (var source = new Bitmap(5, 3, PixelFormat.Format32bppArgb))
+            using (var normalized = CameraVideoFrameNormalizer.CreateRgb24Frame(source, 4, 2))
+            {
+                AssertEqual("4", normalized.Width.ToString(), "The normalized frame must keep the writer width.");
+                AssertEqual("2", normalized.Height.ToString(), "The normalized frame must keep the writer height.");
+                AssertEqual(PixelFormat.Format24bppRgb.ToString(), normalized.PixelFormat.ToString(), "The native video writer must receive an owned RGB24 bitmap.");
+            }
+
+            string recorderSource = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "CameraVideoRecorder.cs"));
+            AssertTrue(recorderSource.Contains("CameraVideoFrameNormalizer.CreateRgb24Frame"), "The recorder must normalize every frame before native FFmpeg writing.");
+            AssertTrue(!recorderSource.Contains("writer.WriteVideoFrame(source)"), "The recorder must not pass a camera-owned bitmap directly to FFmpeg.");
+        }
+
+        private static void CameraRecordingUsesMpeg4CodecForX86Ffmpeg()
+        {
+            string recorderSource = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "CameraVideoRecorder.cs"));
+
+            AssertTrue(recorderSource.Contains("VideoCodec.MPEG4"), "The x86 recorder must use the MPEG4 encoder that writes MP4 safely.");
+            AssertTrue(!recorderSource.Contains("VideoCodec.H264"), "The x86 recorder must not use the crashing H264 encoder from the bundled FFmpeg build.");
+        }
+
         private static void WebRtcUsesTwoMegabitTarget()
         {
             string webRtcSource = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "WebRtcCameraServer.cs"));
@@ -446,6 +480,76 @@ namespace DACDT_2026.Tests
             AssertEqual("100", PerformanceTuning.ExitStopDelayMs.ToString(), "Exit should move to HOME quickly after pulsing M210.");
             AssertEqual("100", PerformanceTuning.ExitHomePulseMs.ToString(), "Exit should pulse HOME ALL briefly.");
             AssertEqual("100", PerformanceTuning.ExitHomeDelayMs.ToString(), "Exit should close shortly after HOME ALL.");
+        }
+
+        private static void ConfigurationFilePathIsRememberedAndMissingFilesNeedSelection()
+        {
+            string root = Path.Combine(Path.GetTempPath(), "dacdt-config-test-" + Guid.NewGuid().ToString("N"));
+            string defaultPath = Path.Combine(root, "Documents", "DACDT_2026_settings.txt");
+            string statePath = Path.Combine(root, "state", "config_path.txt");
+
+            try
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(defaultPath));
+                var store = new ConfigurationFilePathStore(defaultPath, statePath);
+
+                AssertEqual(defaultPath, store.GetSelectedPath(), "The default configuration file must be used before a path is selected.");
+                AssertEqual(Path.GetDirectoryName(defaultPath), store.GetBrowseDirectory(defaultPath), "Browse must open the folder that contains the selected configuration file.");
+                AssertTrue(store.TrySaveSelectedPath(@"\\server\dacdt\machine.txt"), "A UNC configuration path must be remembered.");
+                AssertEqual(@"\\server\dacdt\machine.txt", store.GetSelectedPath(), "The remembered path must be restored.");
+                AssertTrue(store.NeedsSelection(store.GetSelectedPath()), "A missing selected file must request a replacement selection.");
+            }
+            finally
+            {
+                if (Directory.Exists(root))
+                    Directory.Delete(root, recursive: true);
+            }
+        }
+
+        private static void PortableConfigurationIsLoadedSavedAndRecoveredAtStartup()
+        {
+            string formSource = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Form1.cs"));
+
+            AssertTrue(formSource.Contains("LoadSelectedConfigurationAtStartup"), "Startup must load the remembered configuration file.");
+            AssertTrue(formSource.Contains("PromptForConfigurationFileAsync"), "A missing configuration file must prompt for replacement selection.");
+            AssertTrue(formSource.Contains("InitialDirectory = configurationFilePathStore.GetBrowseDirectory(configurationFilePath)"), "Browse must open directly in the selected configuration folder.");
+            AssertTrue(formSource.Contains("SaveSettingsToFile(selectedPath)"), "Save Settings must write to the selected portable file.");
+            AssertTrue(formSource.Contains("SyncSettingsFromUiForPersistence();"), "Closing must snapshot current UI values before saving.");
+        }
+
+        private static void SettingsUsesOnePortableConfigurationFileWorkflow()
+        {
+            string xaml = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Views", "SettingsView.xaml"));
+            string stateSource = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "WpfUiState.cs"));
+
+            AssertTrue(xaml.Contains("Configuration File"), "Settings must show the selected configuration file.");
+            AssertTrue(xaml.Contains("BrowseConfigurationFileCommand"), "Settings must let the operator choose a portable configuration file.");
+            AssertTrue(!xaml.Contains("Configuration Profiles"), "Named profiles must be removed from Settings.");
+            AssertTrue(stateSource.Contains("ConfigurationFilePathInput"), "The UI state must expose the configuration-file path.");
+        }
+
+        private static void ConfigurationSaveDoesNotBlockExitForUnreachableNetworkPaths()
+        {
+            string formSource = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Form1.cs"));
+
+            AssertTrue(formSource.Contains("IsUncConfigurationPath"), "Configuration persistence must recognize UNC network paths.");
+            AssertTrue(formSource.Contains("SaveConfigurationToNetworkPathInBackground"), "Exit must save a network configuration path without blocking the UI thread.");
+        }
+
+        private static void ExitShutdownDoesNotBlockOnLostLan()
+        {
+            string formSource = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Form1.cs"));
+            string policySource = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "ExitShutdownPolicy.cs"));
+
+            AssertTrue(policySource.Contains("PlcExitWaitTimeoutMs = 600"), "PLC shutdown must have a short, explicit maximum wait time.");
+            AssertTrue(policySource.Contains("Task.WhenAny"), "PLC shutdown must race an unresponsive operation against the timeout.");
+            AssertTrue(formSource.Contains("await ExitShutdownPolicy.WaitForBestEffortAsync(SendStopForExitAsync())"), "Exit must close after the bounded PLC command wait.");
+            AssertTrue(formSource.Contains("QueuePlcDisposeForShutdown"), "PLC connections must be disposed in the background during shutdown.");
+
+            var stuckOperation = new TaskCompletionSource<bool>();
+            var timer = Stopwatch.StartNew();
+            ExitShutdownPolicy.WaitForBestEffortAsync(stuckOperation.Task, 25).GetAwaiter().GetResult();
+            AssertTrue(timer.ElapsedMilliseconds < 250, "A stuck PLC operation must return control after the specified timeout.");
         }
 
         private static void PlcConnectionStartsMonitoringBeforeStartupClear()
@@ -973,7 +1077,8 @@ namespace DACDT_2026.Tests
 
             AssertTrue(settingsView.Contains("Save Settings"), "Settings must expose a Save Settings action.");
             AssertTrue(settingsView.Contains("{Binding SaveSettingsCommand}"), "Save Settings must bind to SaveSettingsCommand.");
-            AssertTrue(formSource.Contains("app_settings.txt"), "Save Settings must keep using the existing app_settings.txt format.");
+            AssertTrue(formSource.Contains("DACDT_2026_settings.txt"), "Save Settings must use the portable TXT configuration file.");
+            AssertTrue(formSource.Contains("ConfigurationSelectionStatePath"), "The selected configuration path must be remembered separately.");
             AssertTrue(!settingsView.Contains("Import Settings"), "Settings must not add a separate import workflow.");
             AssertTrue(!settingsView.Contains("Export Settings"), "Settings must not add a separate export workflow.");
         }

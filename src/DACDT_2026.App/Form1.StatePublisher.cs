@@ -528,7 +528,6 @@ namespace DACDT_2026
             var snapRowsSource = processRows.ToArray();
             var snapKind = activeDocumentKind;
             var snapRawText = snapKind == "GCODE" ? rawGcodeText : string.Empty;
-            var snapProfiles = GetProfilesList();
             var snapPointKey = selectedCadPointKey ?? string.Empty;
             var snapOx = offsetX;
             var snapOy = offsetY;
@@ -565,7 +564,6 @@ namespace DACDT_2026
                     ui.FilePath = snapDocSource?.FilePath ?? string.Empty;
                     ui.FileName = snapDocSource?.FileName ?? string.Empty;
                     ui.ActiveWcs = snapActiveWcs;
-                    ReplaceCollection(ui.Profiles, snapProfiles);
                 });
                 return;
             }
@@ -704,7 +702,6 @@ namespace DACDT_2026
                 ReplaceCollection(ui.CadAxisLines, model.axisLines);
                 ReplaceCollection(ui.CadAxisLabels, model.axisLabels);
                 ReplaceCollection(ui.CadTrackingPoints, model.trackingPoints);
-                ReplaceCollection(ui.Profiles, snapProfiles);
             });
 
         }

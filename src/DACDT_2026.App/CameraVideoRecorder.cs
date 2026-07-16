@@ -1,7 +1,5 @@
 using System;
 using System.Drawing;
-using System.Drawing.Drawing2D;
-using System.Drawing.Imaging;
 using System.IO;
 using Accord.Video.FFMPEG;
 
@@ -36,7 +34,7 @@ namespace DACDT_2026
                 if (closed)
                     return false;
 
-                Bitmap evenSizedFrame = null;
+                Bitmap normalizedFrame = null;
                 try
                 {
                     if (writer == null)
@@ -48,30 +46,18 @@ namespace DACDT_2026
                             return false;
 
                         writer = new VideoFileWriter();
-                        writer.Open(filePath, width, height, new Accord.Math.Rational(framesPerSecond, 1), VideoCodec.H264, bitRate);
+                        // The bundled FFmpeg 3.2.2 x86 H264 encoder crashes during sws_scale.
+                        writer.Open(filePath, width, height, new Accord.Math.Rational(framesPerSecond, 1), VideoCodec.MPEG4, bitRate);
                     }
 
-                    if (source.Width != writer.Width || source.Height != writer.Height)
-                    {
-                        evenSizedFrame = new Bitmap(writer.Width, writer.Height, PixelFormat.Format24bppRgb);
-                        using (Graphics graphics = Graphics.FromImage(evenSizedFrame))
-                        {
-                            graphics.CompositingMode = CompositingMode.SourceCopy;
-                            graphics.DrawImage(source, new Rectangle(0, 0, writer.Width, writer.Height));
-                        }
-
-                        writer.WriteVideoFrame(evenSizedFrame);
-                    }
-                    else
-                    {
-                        writer.WriteVideoFrame(source);
-                    }
+                    normalizedFrame = CameraVideoFrameNormalizer.CreateRgb24Frame(source, writer.Width, writer.Height);
+                    writer.WriteVideoFrame(normalizedFrame);
 
                     return true;
                 }
                 finally
                 {
-                    evenSizedFrame?.Dispose();
+                    normalizedFrame?.Dispose();
                 }
             }
         }

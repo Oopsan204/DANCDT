@@ -38,6 +38,12 @@
     <Compile Include="..\..\src\DACDT_2026.App\CameraDeviceSelection.cs">
       <Link>CameraDeviceSelection.cs</Link>
     </Compile>
+    <Compile Include="..\..\src\DACDT_2026.App\ConfigurationFilePathStore.cs">
+      <Link>ConfigurationFilePathStore.cs</Link>
+    </Compile>
+    <Compile Include="..\..\src\DACDT_2026.App\CameraVideoFrameNormalizer.cs">
+      <Link>CameraVideoFrameNormalizer.cs</Link>
+    </Compile>
     <Compile Include="..\..\src\DACDT_2026.App\PerformanceTuning.cs">
       <Link>PerformanceTuning.cs</Link>
     </Compile>

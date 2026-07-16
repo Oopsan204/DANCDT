@@ -155,21 +155,15 @@
 
                 <Border Style="{StaticResource PanelBorderStyle}">
                     <StackPanel>
-                        <TextBlock Text="Configuration Profiles" Style="{StaticResource PanelTitleStyle}"/>
-                        <TextBlock Text="Save, load or delete settings profiles" Style="{StaticResource PanelSubtitleStyle}"/>
+                        <TextBlock Text="Configuration File" Style="{StaticResource PanelTitleStyle}"/>
+                        <TextBlock Text="Portable machine settings file" Style="{StaticResource PanelSubtitleStyle}"/>
                         <Grid Margin="0,10,0,0">
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="1.1*"/>
-                                <ColumnDefinition Width="1*"/>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
-                            <TextBox Text="{Binding ProfileNameInput, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,8,0"/>
-                            <ComboBox Grid.Column="1" ItemsSource="{Binding Profiles}" SelectedItem="{Binding SelectedProfile}" Margin="0,0,8,0"/>
-                            <Button Grid.Column="2" Content="Save" Command="{Binding SaveProfileCommand}" Style="{StaticResource PrimaryButtonStyle}" Margin="0,0,6,0"/>
-                            <Button Grid.Column="3" Content="Load" Command="{Binding LoadProfileCommand}" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,6,0"/>
-                            <Button Grid.Column="4" Content="Delete" Command="{Binding DeleteProfileCommand}" Style="{StaticResource DangerButtonStyle}"/>
+                            <TextBox Text="{Binding ConfigurationFilePathInput, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,8,0"/>
+                            <Button Grid.Column="1" Content="Browse" Command="{Binding BrowseConfigurationFileCommand}" Style="{StaticResource SecondaryButtonStyle}"/>
                         </Grid>
                     </StackPanel>
                 </Border>
