@@ -66,6 +66,8 @@ namespace DACDT_2026.Tests
                 ZHeightCommandUsesD110ThenPulsesM212();
                 WebCadUploadReassemblesChunks();
                 WebCadUploadRejectsUnsupportedFiles();
+                CadMqttTransferSplitsJsonItemsByUtf8Size();
+                CadMqttCadDirectionsUseChunkedProtocol();
                 WpfThemeManagerAppliesLightAndDarkPalettes();
                 EngraveCutComposerKeepsOneOrderedProcessListWithPerRowParameters();
                 LaserPowerPercentMapsToPlcRange();
@@ -830,6 +832,37 @@ namespace DACDT_2026.Tests
             AssertTrue(WebCadUploadSession.IsAllowedFileName("shape.dxf"), "DXF upload should be accepted.");
             AssertTrue(WebCadUploadSession.IsAllowedFileName("laser.nc"), "NC/G-code upload should be accepted.");
             AssertTrue(!WebCadUploadSession.IsAllowedFileName("notes.pdf"), "Non-CAD upload should be rejected.");
+        }
+
+        private static void CadMqttTransferSplitsJsonItemsByUtf8Size()
+        {
+            var items = new[]
+            {
+                "{\"id\":0,\"name\":\"đường thẳng\"}",
+                "{\"id\":1,\"points\":[1,2,3,4]}",
+                "{\"id\":2,\"points\":[5,6,7,8]}"
+            };
+
+            var chunks = CadMqttTransfer.SplitJsonItems(items, 64);
+
+            AssertTrue(chunks.Count > 1, "CAD transfer should split items into multiple chunks when the byte limit is reached.");
+            AssertEqual("3", chunks.SelectMany(chunk => chunk).Count().ToString(), "CAD transfer should keep every primitive exactly once.");
+            AssertEqual(items[0], chunks.SelectMany(chunk => chunk).First(), "CAD transfer should preserve item order.");
+            AssertTrue(chunks.All(chunk => System.Text.Encoding.UTF8.GetByteCount("[" + string.Join(",", chunk) + "]") <= 64), "CAD chunks should respect the UTF-8 byte limit.");
+        }
+
+        private static void CadMqttCadDirectionsUseChunkedProtocol()
+        {
+            string statePublisher = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Form1.StatePublisher.cs"));
+            string uploadHandler = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Form1.WebCadUpload.cs"));
+            string web = File.ReadAllText(GetRepositoryPath("docs", "index.html"));
+
+            AssertTrue(statePublisher.Contains("cadTransfer\\\":\\\"start"), "App-to-web CAD must publish a transfer start envelope.");
+            AssertTrue(statePublisher.Contains("cadTransfer\\\":\\\"chunk"), "App-to-web CAD must publish chunk envelopes.");
+            AssertTrue(statePublisher.Contains("PublishDirectAsync(\"DACDT/cad/state\""), "App-to-web CAD must bypass the bounded general MQTT queue.");
+            AssertTrue(uploadHandler.Contains("webCadUploadMessageGate"), "Web-to-app CAD chunks must be processed sequentially.");
+            AssertTrue(web.Contains("const chunkSize = 64 * 1024;"), "Web-to-app CAD must use larger upload chunks.");
+            AssertTrue(web.Contains("handleCadTransferMessage"), "Web must reassemble app-to-web CAD transfers before rendering.");
         }
 
         private static void WpfThemeManagerAppliesLightAndDarkPalettes()

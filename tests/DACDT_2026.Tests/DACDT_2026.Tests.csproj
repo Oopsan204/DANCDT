@@ -95,6 +95,9 @@
     <Compile Include="..\..\src\DACDT_2026.App\WebCadUploadSession.cs">
       <Link>WebCadUploadSession.cs</Link>
     </Compile>
+    <Compile Include="..\..\src\DACDT_2026.App\CadMqttTransfer.cs">
+      <Link>CadMqttTransfer.cs</Link>
+    </Compile>
     <Compile Include="..\..\src\DACDT_2026.App\WpfThemeManager.cs">
       <Link>WpfThemeManager.cs</Link>
     </Compile>

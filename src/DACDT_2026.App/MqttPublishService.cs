@@ -26,6 +26,7 @@ namespace DACDT_2026
         private const int MaxQueueSize = 200;
         private readonly ConcurrentQueue<MqttApplicationMessage> _publishQueue = new ConcurrentQueue<MqttApplicationMessage>();
         private readonly SemaphoreSlim _queueSemaphore = new SemaphoreSlim(0);
+        private readonly SemaphoreSlim _brokerPublishSemaphore = new SemaphoreSlim(1, 1);
         private readonly object _queueLock = new object();
         private Task _queueProcessorTask;
         private CancellationTokenSource _queueCts;
@@ -153,14 +154,34 @@ namespace DACDT_2026
             return Task.CompletedTask;
         }
 
+        /// <summary>
+        /// Publishes one message immediately, preserving order with the background queue.
+        /// Used for multi-part CAD transfers so a large transfer cannot be silently dropped
+        /// by the bounded general-purpose queue.
+        /// </summary>
+        public async Task PublishDirectAsync(string topic, string payload, bool retain = false)
+        {
+            if (!IsConnected || string.IsNullOrWhiteSpace(topic))
+                return;
+
+            var message = BuildMessage(topic, payload != null ? Encoding.UTF8.GetBytes(payload) : Array.Empty<byte>(), retain);
+            await _brokerPublishSemaphore.WaitAsync();
+            try
+            {
+                using (var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(10)))
+                {
+                    await _mqttClient.PublishAsync(message, timeoutCts.Token);
+                }
+            }
+            finally
+            {
+                _brokerPublishSemaphore.Release();
+            }
+        }
+
         private void EnqueuePublish(string topic, byte[] payload, bool retain)
         {
-            var message = new MqttApplicationMessageBuilder()
-                .WithTopic(topic)
-                .WithPayload(payload)
-                .WithRetainFlag(retain)
-                .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtMostOnce)
-                .Build();
+            var message = BuildMessage(topic, payload, retain);
 
             lock (_queueLock)
             {
@@ -175,6 +196,16 @@ namespace DACDT_2026
                 }
                 _queueSemaphore.Release();
             }
+        }
+
+        private static MqttApplicationMessage BuildMessage(string topic, byte[] payload, bool retain)
+        {
+            return new MqttApplicationMessageBuilder()
+                .WithTopic(topic)
+                .WithPayload(payload ?? Array.Empty<byte>())
+                .WithRetainFlag(retain)
+                .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtMostOnce)
+                .Build();
         }
 
         private void StartQueueProcessor()
@@ -256,7 +287,15 @@ namespace DACDT_2026
                             publishTimeoutCts.CancelAfter(TimeSpan.FromSeconds(5));
                             try
                             {
+                            await _brokerPublishSemaphore.WaitAsync(publishTimeoutCts.Token);
+                            try
+                            {
                                 await _mqttClient.PublishAsync(message, publishTimeoutCts.Token);
+                            }
+                            finally
+                            {
+                                _brokerPublishSemaphore.Release();
+                            }
                             }
                             catch (Exception ex)
                             {

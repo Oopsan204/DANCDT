@@ -49,6 +49,7 @@ namespace DACDT_2026
         private readonly GcodeCoordinateService gcodeCoordinateService = new GcodeCoordinateService();
         private readonly MqttPublishService mqttService = new MqttPublishService();
         private readonly WebCadUploadSession webCadUploadSession = new WebCadUploadSession();
+        private readonly SemaphoreSlim webCadUploadMessageGate = new SemaphoreSlim(1, 1);
         private readonly WebRtcBridgeClient webRtcBridgeClient = new WebRtcBridgeClient();
         private readonly ConfigurationFilePathStore configurationFilePathStore;
         private System.Diagnostics.Process backgroundServiceProcess;

@@ -164,6 +164,7 @@
     <Compile Include="PlcFloatWordCodec.cs" />
     <Compile Include="ProgramRunCompletionTracker.cs" />
     <Compile Include="WebCadUploadSession.cs" />
+    <Compile Include="CadMqttTransfer.cs" />
     <Compile Include="WpfThemeManager.cs" />
     <Compile Include="Form1.cs">
       <SubType>Code</SubType>

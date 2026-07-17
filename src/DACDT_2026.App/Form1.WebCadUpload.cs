@@ -11,6 +11,8 @@ namespace DACDT_2026
 {
     public partial class Form1
     {
+        private DateTime lastWebCadUploadStatusUtc = DateTime.MinValue;
+
         private static bool IsWebCadUploadTopic(string topic)
         {
             return string.Equals(topic, "DACDT/cad/upload/start", StringComparison.OrdinalIgnoreCase)
@@ -20,6 +22,19 @@ namespace DACDT_2026
         }
 
         private async Task HandleWebCadUploadMessageAsync(string topic, string payload)
+        {
+            await webCadUploadMessageGate.WaitAsync();
+            try
+            {
+                await HandleWebCadUploadMessageCoreAsync(topic, payload);
+            }
+            finally
+            {
+                webCadUploadMessageGate.Release();
+            }
+        }
+
+        private async Task HandleWebCadUploadMessageCoreAsync(string topic, string payload)
         {
             try
             {
@@ -32,6 +47,7 @@ namespace DACDT_2026
                         GetUploadInt(map, "totalChunks"),
                         GetUploadInt(map, "totalBytes"));
 
+                    lastWebCadUploadStatusUtc = DateTime.UtcNow;
                     await PublishCadUploadStatusAsync("receiving", $"Receiving {webCadUploadSession.FileName}", webCadUploadSession.ReceivedChunks, webCadUploadSession.ExpectedChunks);
                     return;
                 }
@@ -43,11 +59,14 @@ namespace DACDT_2026
                         GetUploadInt(map, "index"),
                         GetUploadString(map, "data"));
 
-                    await PublishCadUploadStatusAsync(
-                        complete ? "received" : "receiving",
-                        complete ? "Upload chunks received." : "Receiving chunks...",
-                        webCadUploadSession.ReceivedChunks,
-                        webCadUploadSession.ExpectedChunks);
+                    if (complete || ShouldPublishWebCadUploadProgress())
+                    {
+                        await PublishCadUploadStatusAsync(
+                            complete ? "received" : "receiving",
+                            complete ? "Upload chunks received." : "Receiving chunks...",
+                            webCadUploadSession.ReceivedChunks,
+                            webCadUploadSession.ExpectedChunks);
+                    }
                     return;
                 }
 
@@ -68,6 +87,16 @@ namespace DACDT_2026
                 await PublishCadUploadStatusAsync("error", ex.Message, webCadUploadSession.ReceivedChunks, webCadUploadSession.ExpectedChunks);
                 await NotifyAsync("error", "Web CAD Upload", ex.Message);
             }
+        }
+
+        private bool ShouldPublishWebCadUploadProgress()
+        {
+            DateTime now = DateTime.UtcNow;
+            if ((now - lastWebCadUploadStatusUtc).TotalMilliseconds < 250)
+                return false;
+
+            lastWebCadUploadStatusUtc = now;
+            return true;
         }
 
         private async Task FinishWebCadUploadAsync(string jobId)
