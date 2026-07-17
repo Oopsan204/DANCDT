@@ -1531,6 +1531,7 @@
                 this.hasWebRtcTrack = false;
                 this.hasVideoFrame = false;
                 this._cadData = null;
+                this._cadTransferSessions = new Map();
                 this._cadDirty = false;
                 this._pendingDashboardData = null;
                 this._dashboardDirty = false;
@@ -1775,7 +1776,7 @@
                 }
 
                 const file = this._selectedCadFile;
-                const chunkSize = 16 * 1024;
+                const chunkSize = 64 * 1024;
                 const totalChunks = Math.ceil(file.size / chunkSize);
                 const jobId = 'cad_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);
                 const statusEl = document.getElementById('cad-upload-status');
@@ -1907,8 +1908,12 @@
                         this.msgCount++;
                         this._msgCountDirty = true;
                         const cadData = JSON.parse(payload);
-                        this._cadData = cadData;
-                        this.renderCadPreview(cadData);
+                        if (cadData && cadData.cadTransfer) {
+                            this.handleCadTransferMessage(cadData);
+                        } else {
+                            this._cadData = cadData;
+                            this.renderCadPreview(cadData);
+                        }
                         return;
                     }
 
@@ -1928,6 +1933,57 @@
                         }
                     }
                 } catch (e) { }
+            }
+
+            handleCadTransferMessage(data) {
+                const sessionId = String(data.sessionId || '');
+                if (!sessionId) return;
+
+                if (data.cadTransfer === 'start') {
+                    const totalChunks = Math.max(0, Number(data.totalChunks) || 0);
+                    this._cadTransferSessions.set(sessionId, {
+                        data: Object.assign({}, data, { cadPrimitives: [] }),
+                        chunks: new Array(totalChunks),
+                        received: 0,
+                        totalChunks
+                    });
+                    while (this._cadTransferSessions.size > 3) {
+                        const oldestId = this._cadTransferSessions.keys().next().value;
+                        this._cadTransferSessions.delete(oldestId);
+                    }
+                    return;
+                }
+
+                const session = this._cadTransferSessions.get(sessionId);
+                if (!session) return;
+
+                if (data.cadTransfer === 'chunk') {
+                    const index = Number(data.index);
+                    if (!Number.isInteger(index) || index < 0 || index >= session.totalChunks || session.chunks[index]) return;
+                    session.chunks[index] = Array.isArray(data.cadPrimitives) ? data.cadPrimitives : [];
+                    session.received++;
+                    return;
+                }
+
+                if (data.cadTransfer === 'finish') {
+                    if (session.received !== session.totalChunks) return;
+                    const primitives = [];
+                    for (let index = 0; index < session.chunks.length; index++) {
+                        if (!session.chunks[index]) return;
+                        primitives.push(...session.chunks[index]);
+                    }
+                    const cadData = Object.assign({}, session.data, {
+                        cadPrimitives: primitives,
+                        trackingPoints: Array.isArray(data.trackingPoints) ? data.trackingPoints : [],
+                        timestamp: data.timestamp || new Date().toISOString()
+                    });
+                    delete cadData.cadTransfer;
+                    delete cadData.sessionId;
+                    delete cadData.totalChunks;
+                    this._cadTransferSessions.delete(sessionId);
+                    this._cadData = cadData;
+                    this.renderCadPreview(cadData);
+                }
             }
 
             updateDxfInfoDom(data) {
