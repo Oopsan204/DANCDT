@@ -18,15 +18,21 @@
                 <TextBlock Text="HƯỚNG DẪN SỬ DỤNG"
                            Style="{StaticResource PanelTitleStyle}"
                            FontSize="24"/>
-                <TextBlock Text="DACDT 2026 - Gantry Robot Control System"
+                <TextBlock Text="Hướng dẫn vận hành hệ thống DACDT 2026"
                            Style="{StaticResource PanelSubtitleStyle}"
                            Margin="0,4,0,14"/>
 
-                <Border Background="{DynamicResource HelpCalloutBrush}" BorderBrush="{DynamicResource HelpCalloutBorderBrush}" BorderThickness="1" CornerRadius="10" Padding="14" Margin="0,0,0,16">
-                    <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" LineHeight="20">
-                        Tài liệu này hướng dẫn vận hành phần mềm điều khiển robot gantry DACDT 2026. 
-                        Hãy đọc theo thứ tự từ trên xuống khi mới sử dụng. Khi vận hành thực tế, luôn kiểm tra vùng làm việc,
-                        tọa độ, tốc độ, trạng thái PLC và nút dừng khẩn cấp trước khi cho robot chạy.
+                <Border Background="{DynamicResource HelpCalloutBrush}"
+                        BorderBrush="{DynamicResource HelpCalloutBorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="10"
+                        Padding="14"
+                        Margin="0,0,0,16">
+                    <TextBlock TextWrapping="Wrap"
+                               Foreground="{DynamicResource MutedBrush}"
+                               LineHeight="20">
+                        Đọc các bước an toàn trước khi vận hành. Luôn kiểm tra vùng làm việc, trạng thái PLC,
+                        đường chạy và vị trí nút EMERGENCY STOP trước khi cho máy chạy.
                     </TextBlock>
                 </Border>
 
@@ -35,226 +41,152 @@
                            FontWeight="Bold"
                            Foreground="{DynamicResource TextBrush}"
                            Margin="0,4,0,8"/>
-                <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" LineHeight="22" Margin="0,0,0,18">
-                    1. Tổng quan màn hình&#x0a;
-                    2. Quy trình khởi động an toàn&#x0a;
-                    3. Kết nối PLC và trạng thái hệ thống&#x0a;
-                    4. Nhóm nút RUN / PAUSE / CONTINUE / STOP&#x0a;
-                    5. Jog tay và HOME / RESET&#x0a;
-                    6. Mở file DXF, NC, G-code và kiểm tra dữ liệu&#x0a;
-                    7. Gửi dữ liệu xuống PLC và chạy chương trình&#x0a;
-                    8. Camera, WebRTC và Web Dashboard&#x0a;
-                    9. Telemetry, Logs và chẩn đoán lỗi&#x0a;
-                    10. Thoát app đúng quy trình&#x0a;
-                    11. Lỗi thường gặp và cách kiểm tra
+                <TextBlock TextWrapping="Wrap"
+                           Foreground="{DynamicResource MutedBrush}"
+                           LineHeight="22"
+                           Margin="0,0,0,18">
+                    1. An toàn trước khi vận hành&#x0a;
+                    2. Khởi động và kết nối PLC&#x0a;
+                    3. Jog tay, HOME và RESET&#x0a;
+                    4. Mở và kiểm tra file DXF/G-code&#x0a;
+                    5. Gửi dữ liệu và chạy chương trình&#x0a;
+                    6. RUN / PAUSE / CONTINUE / STOP&#x0a;
+                    7. Camera, Logs và Settings&#x0a;
+                    8. Thoát app, xử lý lỗi và checklist
                 </TextBlock>
 
-                <TextBlock Text="1. Tổng quan màn hình"
+                <TextBlock Text="1. An toàn trước khi vận hành"
                            FontSize="18"
                            FontWeight="Bold"
                            Foreground="{DynamicResource TextBrush}"
                            Margin="0,12,0,6"/>
-                <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" LineHeight="21">
-                    Ứng dụng gồm thanh điều hướng bên trái và vùng làm việc chính bên phải. Các tab chính gồm Dashboard,
-                    DXF/G-code Run, Monitor, Telemetry, Logs, Settings và Help. App được cấu hình chạy toàn màn hình,
-                    không có nút X/thu nhỏ/phóng to của Windows. Muốn thoát app phải dùng nút EXIT APP trong giao diện.
+                <TextBlock TextWrapping="Wrap"
+                           Foreground="{DynamicResource MutedBrush}"
+                           LineHeight="22">
+                    Kiểm tra nguồn máy, vùng làm việc, vật cản, gá đặt phôi và hành trình các trục. Đảm bảo người vận hành
+                    đứng ngoài vùng nguy hiểm và biết vị trí nút EMERGENCY STOP. Khi có nguy hiểm cơ khí, nhấn EMERGENCY STOP ngay.
                 </TextBlock>
-                <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" LineHeight="21" Margin="0,8,0,0">
-                    Dashboard dùng để theo dõi nhanh vị trí, tốc độ, mã M, lỗi và trạng thái từng trục. DXF/G-code Run
-                    dùng để mở file, xem CAD preview, kiểm tra bảng lệnh và gửi dữ liệu xuống PLC. Monitor dùng cho camera.
-                    Telemetry và Logs dùng để kiểm tra sâu khi cần debug PLC hoặc quá trình truyền dữ liệu.
-                </TextBlock>
-
-                <TextBlock Text="2. Quy trình khởi động an toàn"
-                           FontSize="18"
-                           FontWeight="Bold"
-                           Foreground="{DynamicResource TextBrush}"
-                           Margin="0,18,0,6"/>
-                <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" LineHeight="22">
-                    Bước 1: Mở app và kiểm tra màn hình ở trạng thái bình thường, không có cảnh báo lỗi lớn.&#x0a;
-                    Bước 2: Kiểm tra PLC đã bật, dây mạng/kết nối MX Component ổn định.&#x0a;
-                    Bước 3: Vào phần kết nối PLC, nhập đúng logical station hoặc thông số kết nối đang dùng.&#x0a;
-                    Bước 4: Nhấn CONNECT PLC Q. Khi kết nối thành công, trạng thái sẽ chuyển sang Connected.&#x0a;
-                    Bước 5: Kiểm tra vị trí hiện tại của các trục, vùng làm việc và vật cản cơ khí.&#x0a;
-                    Bước 6: Nếu cần, chạy HOME hoặc jog tay với tốc độ thấp để đưa máy về vị trí an toàn.&#x0a;
-                    Bước 7: Chỉ mở file và chạy chương trình sau khi đã xác nhận máy đang ở vùng an toàn.
-                </TextBlock>
-
-                <TextBlock Text="3. Kết nối PLC và trạng thái hệ thống"
-                           FontSize="18"
-                           FontWeight="Bold"
-                           Foreground="{DynamicResource TextBrush}"
-                           Margin="0,18,0,6"/>
-                <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" LineHeight="21">
-                    Khi PLC đã kết nối, app sẽ đọc dữ liệu vị trí, tốc độ, trạng thái trục, mã lỗi và các vùng buffer.
-                    Nếu PLC mất kết nối, các nút điều khiển quan trọng có thể báo lỗi hoặc không thực hiện được. Khi gặp lỗi
-                    kết nối, hãy kiểm tra nguồn PLC, cáp, địa chỉ logical station, quyền MX Component và trạng thái mạng.
-                </TextBlock>
-                <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" LineHeight="21" Margin="0,8,0,0">
-                    Ý nghĩa nhanh: Connected là đã kết nối PLC. READY là app sẵn sàng thao tác. RUN là đang chạy hoặc có
-                    chương trình hoạt động. ERROR/WARNING là cần đọc log hoặc mã lỗi trước khi tiếp tục.
-                </TextBlock>
-
-                <TextBlock Text="4. Nhóm nút RUN / PAUSE / CONTINUE / STOP"
-                           FontSize="18"
-                           FontWeight="Bold"
-                           Foreground="{DynamicResource TextBrush}"
-                           Margin="0,18,0,6"/>
-                <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" LineHeight="22">
-                    Các nút RUN, PAUSE, CONTINUE và STOP là dạng nhấn một lần rồi tự nhả, không phải công tắc giữ trạng thái.&#x0a;
-                    RUN: ghi M2000 = 1, chờ 100 ms, sau đó ghi M2000 = 0. Trước khi chạy, app sẽ chuẩn bị/gửi dữ liệu cần thiết.&#x0a;
-                    PAUSE: ghi M210 = 1, chờ 100 ms, sau đó ghi M210 = 0. Dùng để tạm dừng theo logic PLC.&#x0a;
-                    CONTINUE: ghi M211 = 1, chờ 100 ms, sau đó ghi M211 = 0. Dùng để chạy tiếp sau khi pause.&#x0a;
-                    STOP: ghi M210 = 1, chờ 500 ms, xoá/reset buffer tọa độ và mã lệnh chạy, sau đó ghi M210 = 0.
-                </TextBlock>
-                <Border Background="{DynamicResource HelpCodeBrush}" BorderBrush="{DynamicResource HelpCodeBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="12" Margin="0,10,0,0">
-                    <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource HelpWarningTextBrush}" LineHeight="20">
-                        Lưu ý an toàn: STOP trong app là lệnh dừng theo quy trình PLC và reset buffer chạy. Nếu có nguy hiểm cơ khí,
-                        dùng EMERGENCY STOP thay vì chờ thao tác phần mềm.
+                <Border Background="{DynamicResource HelpCodeBrush}"
+                        BorderBrush="{DynamicResource HelpCodeBorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Padding="12"
+                        Margin="0,10,0,0">
+                    <TextBlock TextWrapping="Wrap"
+                               Foreground="{DynamicResource HelpWarningTextBrush}"
+                               LineHeight="20">
+                        Không đưa tay hoặc vật lạ vào vùng chạy khi máy đang hoạt động. STOP là dừng theo quy trình;
+                        EMERGENCY STOP dùng cho tình huống khẩn cấp.
                     </TextBlock>
                 </Border>
 
-                <TextBlock Text="5. Jog tay, HOME và RESET"
+                <TextBlock Text="2. Khởi động và kết nối PLC"
                            FontSize="18"
                            FontWeight="Bold"
                            Foreground="{DynamicResource TextBrush}"
                            Margin="0,18,0,6"/>
-                <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" LineHeight="21">
-                    Jog tay dùng để di chuyển từng trục khi căn chỉnh máy. Giữ nút jog để chạy, nhả nút để dừng. 
-                    Tốc độ jog được ghi bằng D406, đơn vị mm/min. Trước khi jog, nên đặt tốc độ thấp để tránh va chạm.
-                </TextBlock>
-                <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" LineHeight="21" Margin="0,8,0,0">
-                    HOME dùng để đưa trục hoặc toàn bộ hệ về vị trí gốc theo logic PLC. RESET dùng để reset lỗi hoặc trạng thái
-                    lỗi đã được xử lý. Không nhấn HOME khi đang có vật cản hoặc chưa kiểm tra hành trình máy.
+                <TextBlock TextWrapping="Wrap"
+                           Foreground="{DynamicResource MutedBrush}"
+                           LineHeight="22">
+                    1) Bật nguồn máy và PLC.&#x0a;
+                    2) Kiểm tra dây mạng và trạng thái kết nối.&#x0a;
+                    3) Nhập đúng thông tin kết nối PLC theo cấu hình máy.&#x0a;
+                    4) Nhấn CONNECT PLC Q và chờ trạng thái Connected/Ready.&#x0a;
+                    5) Kiểm tra vị trí, tốc độ và trạng thái của các trục trước khi thao tác.
                 </TextBlock>
 
-                <TextBlock Text="6. Mở file DXF, NC, G-code và kiểm tra dữ liệu"
+                <TextBlock Text="3. Jog tay, HOME và RESET"
                            FontSize="18"
                            FontWeight="Bold"
                            Foreground="{DynamicResource TextBrush}"
                            Margin="0,18,0,6"/>
-                <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" LineHeight="22">
-                    Vào tab DXF/G-code Run để mở file. App hỗ trợ các file DXF và một số file NC/G-code thông dụng. Sau khi mở,
-                    kiểm tra CAD Preview trước. Dùng con lăn chuột để zoom, kéo chuột để pan và double-click để reset view nếu có hỗ trợ.
-                    Bảng Process Table hiển thị thứ tự điểm/lệnh sẽ dùng để chạy. Geometry Data hiển thị dữ liệu hình học chi tiết.
-                </TextBlock>
-                <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" LineHeight="22" Margin="0,8,0,0">
-                    Trước khi gửi xuống PLC, hãy kiểm tra: hình vẽ có đúng chiều không, điểm bắt đầu có hợp lý không, vùng làm việc
-                    có vượt giới hạn không, tốc độ có phù hợp không, WCS G54-G59 có offset đúng không, và Z/speed/dwell có đúng với
-                    đầu công tác đang dùng không.
+                <TextBlock TextWrapping="Wrap"
+                           Foreground="{DynamicResource MutedBrush}"
+                           LineHeight="22">
+                    Đặt tốc độ jog thấp trước khi căn chỉnh. Giữ nút jog để di chuyển và nhả nút để dừng. Dùng HOME
+                    khi vùng máy an toàn để đưa trục về vị trí gốc. Chỉ dùng RESET sau khi đã xử lý nguyên nhân lỗi.
+                    Không HOME hoặc jog khi có vật cản trong vùng chuyển động.
                 </TextBlock>
 
-                <TextBlock Text="7. Gửi dữ liệu xuống PLC và chạy chương trình"
+                <TextBlock Text="4. Mở và kiểm tra file DXF/G-code"
                            FontSize="18"
                            FontWeight="Bold"
                            Foreground="{DynamicResource TextBrush}"
                            Margin="0,18,0,6"/>
-                <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" LineHeight="22">
-                    Quy trình khuyến nghị:&#x0a;
-                    1) Kết nối PLC thành công.&#x0a;
-                    2) Mở file DXF/G-code.&#x0a;
-                    3) Kiểm tra preview và bảng lệnh.&#x0a;
-                    4) Kiểm tra offset, tốc độ, workspace.&#x0a;
-                    5) Gửi dữ liệu xuống PLC nếu có nút Send CAD/Send to PLC.&#x0a;
-                    6) Nhấn RUN để chạy.&#x0a;
-                    7) Khi cần tạm dừng dùng PAUSE, chạy tiếp dùng CONTINUE, dừng quy trình dùng STOP.
-                </TextBlock>
-                <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" LineHeight="21" Margin="0,8,0,0">
-                    Không nên nhấn RUN liên tục. Sau mỗi lần gửi dữ liệu hoặc nhấn RUN, hãy quan sát trạng thái trục và log để chắc
-                    PLC đã nhận đúng lệnh. Nếu bảng Process Table rỗng hoặc sai thứ tự điểm, không chạy máy.
+                <TextBlock TextWrapping="Wrap"
+                           Foreground="{DynamicResource MutedBrush}"
+                           LineHeight="22">
+                    Mở tab DXF / GCODE Run và chọn file cần chạy. Kiểm tra bản xem trước, thứ tự đường chạy, điểm bắt đầu,
+                    chiều di chuyển, kích thước vùng làm việc, tốc độ và hệ tọa độ WCS. Nếu hình vẽ, bảng lệnh hoặc thông số
+                    không đúng, không gửi dữ liệu xuống PLC.
                 </TextBlock>
 
-                <TextBlock Text="8. Camera, WebRTC và Web Dashboard"
+                <TextBlock Text="5. Gửi dữ liệu và chạy chương trình"
                            FontSize="18"
                            FontWeight="Bold"
                            Foreground="{DynamicResource TextBrush}"
                            Margin="0,18,0,6"/>
-                <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" LineHeight="21">
-                    Tab Monitor dùng để chọn camera, xem hình trực tiếp và ghi hình nếu cần. START bật camera, STOP tắt camera.
-                    REC bắt đầu ghi, STOP REC dừng ghi. Nếu web dashboard đang xem camera qua WebRTC, app sẽ truyền hình qua
-                    WebRtcCameraService nền.
-                </TextBlock>
-                <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" LineHeight="21" Margin="0,8,0,0">
-                    Nếu camera không hiện trên web, kiểm tra app điều khiển có đang bật camera không, MQTT có Connected không,
-                    WebRtcCameraService có chạy không, và log có báo lỗi WebRTC/candidate/connection không. Nếu camera trong app có hình
-                    nhưng web đen, thử dừng WebRTC rồi bật lại stream.
+                <TextBlock TextWrapping="Wrap"
+                           Foreground="{DynamicResource MutedBrush}"
+                           LineHeight="22">
+                    Quy trình vận hành: kết nối PLC, mở file, kiểm tra bản xem trước, kiểm tra bảng lệnh và các thông số,
+                    sau đó nhấn Send CAD hoặc Send to PLC. Chờ quá trình gửi hoàn tất, quan sát trạng thái và chỉ nhấn RUN
+                    khi dữ liệu đã đầy đủ. Không nhấn RUN liên tục hoặc chạy khi bảng lệnh trống.
                 </TextBlock>
 
-                <TextBlock Text="9. Settings: offset, tốc độ, workspace và WCS"
+                <TextBlock Text="6. RUN / PAUSE / CONTINUE / STOP"
                            FontSize="18"
                            FontWeight="Bold"
                            Foreground="{DynamicResource TextBrush}"
                            Margin="0,18,0,6"/>
-                <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" LineHeight="22">
-                    Settings dùng để cấu hình tham số vận hành. DXF Offset X/Y dịch hình chạy theo mm. Workspace giới hạn vùng làm việc
-                    để dễ quan sát và tránh chạy ngoài vùng. Rapid speed/G00 speed dùng cho di chuyển nhanh. M03/M04 speed và dwell dùng
-                    cho các lệnh xử lý tương ứng.
-                </TextBlock>
-                <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" LineHeight="21" Margin="0,8,0,0">
-                    WCS G54-G59 là offset hệ tọa độ làm việc. Nếu file G-code dùng G54/G55/... thì app sẽ áp offset tương ứng vào dữ liệu.
-                    Sau khi sửa thông số, nhấn Apply/Save nếu giao diện có nút lưu để đảm bảo thông số được cập nhật.
+                <TextBlock TextWrapping="Wrap"
+                           Foreground="{DynamicResource MutedBrush}"
+                           LineHeight="22">
+                    RUN: bắt đầu chạy chương trình sau khi dữ liệu đã được kiểm tra.&#x0a;
+                    PAUSE: tạm dừng chương trình theo quy trình của PLC.&#x0a;
+                    CONTINUE: chạy tiếp sau khi đã PAUSE và xác nhận máy an toàn.&#x0a;
+                    STOP: dừng chương trình theo quy trình và đưa hệ thống về trạng thái chờ.&#x0a;
+                    EMERGENCY STOP: dừng khẩn cấp khi có nguy hiểm; sau đó chỉ RESET và vận hành lại khi nguyên nhân đã được xử lý.
                 </TextBlock>
 
-                <TextBlock Text="10. Telemetry, Logs và chẩn đoán lỗi"
+                <TextBlock Text="7. Camera, Logs và Settings"
                            FontSize="18"
                            FontWeight="Bold"
                            Foreground="{DynamicResource TextBrush}"
                            Margin="0,18,0,6"/>
-                <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" LineHeight="21">
-                    Telemetry dùng để đọc thanh ghi hoặc buffer PLC khi cần kiểm tra sâu. Logs ghi lại thao tác đọc/ghi PLC, kết nối MQTT,
-                    WebRTC, camera, gửi dữ liệu và lỗi phát sinh. Khi robot không chạy đúng, hãy đọc log theo thứ tự thời gian để biết
-                    lệnh nào đã được gửi, địa chỉ nào bị lỗi và PLC trả trạng thái gì.
-                </TextBlock>
-                <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" LineHeight="21" Margin="0,8,0,0">
-                    Khi báo lỗi, nên ghi lại: thời điểm lỗi, file đang chạy, trục nào lỗi, mã lỗi PLC, trạng thái MQTT, trạng thái camera
-                    và vài dòng log gần nhất. Các thông tin này giúp truy nguyên nhanh hơn nhiều so với chỉ nói “không chạy”.
+                <TextBlock TextWrapping="Wrap"
+                           Foreground="{DynamicResource MutedBrush}"
+                           LineHeight="22">
+                    Monitor dùng để chọn camera, xem hình trực tiếp và ghi hình khi cần. Logs dùng để xem thao tác gần nhất,
+                    trạng thái kết nối và lỗi phát sinh. Settings dùng để chỉnh các thông số vận hành như tốc độ, workspace,
+                    offset và hệ tọa độ. Sau khi thay đổi, kiểm tra lại giá trị rồi nhấn Apply hoặc Save nếu có.
                 </TextBlock>
 
-                <TextBlock Text="11. Thoát app đúng quy trình"
+                <TextBlock Text="8. Thoát app, xử lý lỗi và checklist"
                            FontSize="18"
                            FontWeight="Bold"
                            Foreground="{DynamicResource TextBrush}"
                            Margin="0,18,0,6"/>
-                <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" LineHeight="22">
-                    App không dùng nút X của Windows. Muốn thoát, dùng EXIT APP trên giao diện. Khi nhấn EXIT APP, app hiển thị hộp thoại
-                    xác nhận để tránh thoát nhầm. Nếu robot không chạy, chọn Yes sẽ đóng app ngay. Nếu robot đang chạy, chọn Yes sẽ ghi
-                    M213 = 1, chờ 500 ms, sau đó tự đóng app. Không cần nhấn EXIT APP lần thứ hai.
+                <TextBlock TextWrapping="Wrap"
+                           Foreground="{DynamicResource MutedBrush}"
+                           LineHeight="22">
+                    Khi kết thúc, dừng chương trình theo đúng quy trình, xác nhận các trục đã dừng rồi nhấn EXIT APP.
+                    Nếu PLC không kết nối, kiểm tra nguồn PLC, dây mạng và thông tin kết nối. Nếu RUN không hoạt động,
+                    kiểm tra dữ liệu đã gửi, bảng lệnh và cảnh báo. Nếu hình chạy sai, kiểm tra lại file, offset, WCS,
+                    tốc độ và workspace.
                 </TextBlock>
-                <Border Background="{DynamicResource HelpCodeBrush}" BorderBrush="{DynamicResource HelpCodeBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="12" Margin="0,10,0,0">
-                    <TextBlock TextWrapping="Wrap" Foreground="#FCA5A5" LineHeight="20">
-                        Không tắt nguồn máy tính hoặc kill process khi robot đang chạy, trừ trường hợp khẩn cấp. Hãy dùng EXIT APP hoặc
-                        EMERGENCY STOP theo đúng tình huống.
-                    </TextBlock>
-                </Border>
-
-                <TextBlock Text="12. Lỗi thường gặp"
-                           FontSize="18"
-                           FontWeight="Bold"
-                           Foreground="{DynamicResource TextBrush}"
-                           Margin="0,18,0,6"/>
-                <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" LineHeight="22">
-                    PLC không kết nối: kiểm tra PLC bật chưa, logical station đúng chưa, MX Component có lỗi không, dây mạng/USB ổn không.&#x0a;
-                    RUN không chạy: kiểm tra đã gửi dữ liệu xuống PLC chưa, bảng Process Table có dữ liệu chưa, PLC có lỗi hoặc warning không.&#x0a;
-                    STOP không dừng như mong muốn: kiểm tra ladder PLC đang xử lý M210 đúng chưa, buffer đã được clear chưa, log có ghi lỗi clear không.&#x0a;
-                    File mở nhưng hình sai: kiểm tra đơn vị file, offset X/Y, WCS, chiều trục, vùng workspace và layer/entity trong DXF.&#x0a;
-                    Camera app có hình nhưng web không có: kiểm tra WebRTC service, MQTT, stream status, browser permission và log WebRTC.&#x0a;
-                    App không build được: thường do app đang chạy nên file exe bị khóa. Stop debug/app rồi build lại.
-                </TextBlock>
-
-                <TextBlock Text="13. Checklist trước khi chạy thật"
-                           FontSize="18"
-                           FontWeight="Bold"
-                           Foreground="{DynamicResource TextBrush}"
-                           Margin="0,18,0,6"/>
-                <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" LineHeight="22" Margin="0,0,0,10">
-                    □ PLC Connected.&#x0a;
-                    □ Không có lỗi/warning nguy hiểm trên PLC.&#x0a;
+                <TextBlock TextWrapping="Wrap"
+                           Foreground="{DynamicResource MutedBrush}"
+                           LineHeight="22"
+                           Margin="0,8,0,10">
+                    Checklist trước khi chạy:&#x0a;
+                    □ PLC đã Connected/Ready.&#x0a;
+                    □ Không có lỗi hoặc cảnh báo nguy hiểm.&#x0a;
                     □ Vùng chạy không có vật cản.&#x0a;
-                    □ File DXF/G-code đã kiểm tra preview.&#x0a;
-                    □ Offset, WCS, speed và workspace đúng.&#x0a;
-                    □ Process Table có dữ liệu hợp lý.&#x0a;
-                    □ Biết vị trí EMERGENCY STOP.&#x0a;
-                    □ Người vận hành đứng ngoài vùng nguy hiểm.
+                    □ File và bản xem trước đúng.&#x0a;
+                    □ Tốc độ, workspace và WCS đúng.&#x0a;
+                    □ Bảng lệnh có dữ liệu hợp lý.&#x0a;
+                    □ Người vận hành đứng ngoài vùng nguy hiểm và biết vị trí EMERGENCY STOP.
                 </TextBlock>
             </StackPanel>
         </Border>

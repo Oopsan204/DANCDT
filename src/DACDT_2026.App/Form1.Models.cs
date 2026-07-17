@@ -37,12 +37,6 @@ namespace DACDT_2026
             public int    WcsIndex         { get; set; } // 0=G54, 1=G55, ..., 5=G59. -1=DXF
         }
 
-        private sealed class TelemetryBuffer
-        {
-            public string Path   { get; set; }
-            public int    Length { get; set; }
-        }
-
         private sealed class LogEntry
         {
             public DateTime Timestamp { get; set; }

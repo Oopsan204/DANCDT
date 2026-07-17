@@ -16,7 +16,6 @@ namespace DACDT_2026
     ///   - Import CAD sang process table
     ///   - Build connected paths
     ///   - Send positioning data to PLC
-    ///   - Telemetry buffer read/write
     /// </summary>
     public partial class Form1
     {
@@ -1079,7 +1078,7 @@ namespace DACDT_2026
             PLCCommunication comm;
             if (!TryGetConnectedPlc(out comm))
             {
-                await NotifyAsync("error", "Telemetry", PlcConnectionGuard.NotConnectedMessage);
+                await NotifyAsync("error", "PLC", PlcConnectionGuard.NotConnectedMessage);
                 return false;
             }
             if (!await RequirePlcStartupReadyAsync("Send CAD"))
@@ -1087,7 +1086,7 @@ namespace DACDT_2026
 
             if (processRows.Count == 0)
             {
-                await NotifyAsync("info", "Telemetry", "No points to send.");
+                await NotifyAsync("info", "DXF", "No points to send.");
                 return false;
             }
 
@@ -1263,14 +1262,14 @@ namespace DACDT_2026
                     {
                         AddLogEntry(wr.Address, wr.Value, "Write", wr.Status, wr.Message);
                         if (!wr.Status.StartsWith("OK"))
-                            await NotifyAsync("error", "Telemetry [Axis1]", $"{wr.Address}: {wr.Message}");
+                            await NotifyAsync("error", "PLC [Axis1]", $"{wr.Address}: {wr.Message}");
                     }
 
                     _ = SendProgressAsync(true, 50);
 
                     if (!sendResult.Success)
                     {
-                        await NotifyAsync("error", "Telemetry [Axis1]", "Failed to load Axis 1 buffer.");
+                        await NotifyAsync("error", "PLC [Axis1]", "Failed to load Axis 1 buffer.");
                         return false;
                     }
 
@@ -1284,14 +1283,14 @@ namespace DACDT_2026
                     {
                         AddLogEntry(wr.Address, wr.Value, "Write", wr.Status, wr.Message);
                         if (!wr.Status.StartsWith("OK"))
-                            await NotifyAsync("error", "Telemetry [Axis2]", $"{wr.Address}: {wr.Message}");
+                            await NotifyAsync("error", "PLC [Axis2]", $"{wr.Address}: {wr.Message}");
                     }
 
                     _ = SendProgressAsync(true, 100);
 
                     if (!slaveResult.Success)
                     {
-                        await NotifyAsync("error", "Telemetry [Axis2]", "Failed to load Axis 2 buffer.");
+                        await NotifyAsync("error", "PLC [Axis2]", "Failed to load Axis 2 buffer.");
                         return false;
                     }
 
@@ -2404,60 +2403,6 @@ namespace DACDT_2026
 
         private static string FormatPoint(CadDocumentService.CadPointData point)
             => string.Format(CultureInfo.InvariantCulture, "{0:0.###}, {1:0.###}", point.X, point.Y);
-
-        // ── Telemetry buffer handlers ─────────────────────────────────────────────
-        private async Task HandleAddTelemetryRegisterAsync(string register)
-        {
-            if (string.IsNullOrWhiteSpace(register)) return;
-            register = register.Trim().ToUpperInvariant();
-            if (telemetryRegisters.Exists(r => string.Equals(r, register, StringComparison.OrdinalIgnoreCase)))
-            {
-                await NotifyAsync("info", "Telemetry", "Register already exists.");
-                return;
-            }
-            telemetryRegisters.Add(register);
-            await PushTelemetryStateAsync();
-        }
-
-        private async Task HandleRemoveTelemetryRegisterAsync(string register)
-        {
-            if (string.IsNullOrWhiteSpace(register)) return;
-            var item = telemetryRegisters.Find(r => string.Equals(r, register, StringComparison.OrdinalIgnoreCase));
-            if (item != null) telemetryRegisters.Remove(item);
-            await PushTelemetryStateAsync();
-        }
-
-        private async Task HandleAddTelemetryBufferAsync(string path, int length)
-        {
-            if (string.IsNullOrWhiteSpace(path) || length <= 0) return;
-            telemetryBuffers.Add(new TelemetryBuffer { Path = path.Trim(), Length = Math.Max(1, length) });
-            await PushTelemetryStateAsync();
-        }
-
-        private async Task HandleRemoveTelemetryBufferAsync(string path)
-        {
-            if (string.IsNullOrWhiteSpace(path)) return;
-            var buf = telemetryBuffers.FirstOrDefault(b => string.Equals(b.Path, path, StringComparison.OrdinalIgnoreCase));
-            if (buf != null) telemetryBuffers.Remove(buf);
-            await PushTelemetryStateAsync();
-        }
-
-        private async Task HandleWriteBufferRequestAsync(string path, int value)
-        {
-            PLCCommunication comm;
-            if (!TryGetConnectedPlc(out comm))
-            {
-                await NotifyAsync("error", "Telemetry", PlcConnectionGuard.NotConnectedMessage);
-                return;
-            }
-
-            var wr = await Task.Run(() => QD75BufferWriter.WriteBufferValue(comm, path, value));
-            AddLogEntry(wr.Address, wr.Value, "Write", wr.Status, wr.Message);
-            if (wr.Status.StartsWith("OK"))
-                await NotifyAsync("success", "Telemetry", $"Successfully wrote to {path} using {wr.Message}.");
-            else
-                await NotifyAsync("error", "Telemetry", wr.Message);
-        }
 
         // ── Process row initialization ────────────────────────────────────────────
         private void InitializeProcessRows()

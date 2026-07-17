@@ -86,6 +86,8 @@ namespace DACDT_2026.Tests
                 ViewsDeclareConvertersUsedByXamlDesigner();
                 WpfXamlUsesValidResourceAndGridSyntax();
                 AntigravityUiWorkflowIsGuarded();
+                HelpViewContainsVietnameseOperationalGuide();
+                TelemetryFeatureIsRemoved();
                 Console.WriteLine("All tests passed.");
                 return 0;
             }
@@ -1190,6 +1192,21 @@ namespace DACDT_2026.Tests
             AssertTrue(normalizedDxfRun.Contains("<UserControl.Resources>\n        <ResourceDictionary>\n            <ResourceDictionary.MergedDictionaries>"), "DxfRunView resources must wrap merged dictionaries in ResourceDictionary.");
         }
 
+        private static void TelemetryFeatureIsRemoved()
+        {
+            string appRoot = GetRepositoryPath("src", "DACDT_2026.App");
+            string sidebar = File.ReadAllText(Path.Combine(appRoot, "Views", "Panels", "SidebarControl.xaml"));
+            string rootView = File.ReadAllText(Path.Combine(appRoot, "Form1.xaml"));
+            string project = File.ReadAllText(Path.Combine(appRoot, "DACDT_2026.csproj"));
+
+            AssertTrue(!sidebar.Contains("Content=\"Telemetry\""), "Sidebar must not expose the Telemetry navigation button.");
+            AssertTrue(!sidebar.Contains("CommandParameter=\"telemetry\""), "Sidebar must not expose the telemetry route.");
+            AssertTrue(!rootView.Contains("TelemetryView"), "Root view must not instantiate TelemetryView.");
+            AssertTrue(!project.Contains("Views\\TelemetryView.xaml"), "The application project must not compile TelemetryView.xaml.");
+            AssertTrue(!File.Exists(Path.Combine(appRoot, "Views", "TelemetryView.xaml")), "TelemetryView.xaml must be removed.");
+            AssertTrue(!File.Exists(Path.Combine(appRoot, "Views", "TelemetryView.xaml.cs")), "TelemetryView.xaml.cs must be removed.");
+        }
+
         private static void AntigravityUiWorkflowIsGuarded()
         {
             string agents = File.ReadAllText(GetRepositoryPath("AGENTS.md"));
@@ -1208,6 +1225,40 @@ namespace DACDT_2026.Tests
             AssertTrue(runner.Contains("src/DACDT_2026.App/Form1.PlcControl.cs"), "The runner must block PLC control edits.");
             AssertTrue(runner.Contains("--dangerously-skip-permissions") && runner.Contains("throw"), "The runner must reject dangerous permission bypass flags.");
             AssertTrue(runner.Contains("LOCALAPPDATA") && runner.Contains("agy.exe"), "The runner must find the default Windows Antigravity install path when PATH has not refreshed.");
+        }
+
+        private static void HelpViewContainsVietnameseOperationalGuide()
+        {
+            string help = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Views", "HelpView.xaml"));
+            string[] requiredSections =
+            {
+                "An toàn trước khi vận hành",
+                "Khởi động và kết nối PLC",
+                "Jog tay, HOME và RESET",
+                "Mở và kiểm tra file DXF/G-code",
+                "Gửi dữ liệu và chạy chương trình",
+                "RUN / PAUSE / CONTINUE / STOP",
+                "Camera, Logs và Settings",
+                "Thoát app, xử lý lỗi và checklist"
+            };
+
+            foreach (string section in requiredSections)
+                AssertTrue(help.Contains(section), "Help must contain the Vietnamese operator section: " + section);
+
+            string[] forbiddenContent =
+            {
+                "Telemetry",
+                "TelemetryView",
+                "MarkupCompilePass1",
+                "WebRtcCameraService",
+                "M2000",
+                "M210",
+                "M213",
+                "App không build được"
+            };
+
+            foreach (string phrase in forbiddenContent)
+                AssertTrue(!help.Contains(phrase), "Help must not contain developer/internal content: " + phrase);
         }
 
         private static string GetRepositoryPath(params string[] segments)

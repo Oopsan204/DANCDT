@@ -592,62 +592,6 @@ namespace DACDT_2026
 
 
         /// <summary>
-        /// Write a single 32-bit value to a device path and return a WriteResult.
-        /// Used for telemetry / manual buffer writes.
-        /// </summary>
-        public static WriteResult WriteBufferValue(PLCCommunication plcComm, string path, int value)
-        {
-            if (plcComm == null || !plcComm.IsConnected)
-            {
-                return new WriteResult
-                {
-                    Address = path,
-                    Value = value.ToString(CultureInfo.InvariantCulture),
-                    Status = "Error",
-                    Message = "PLC is not connected."
-                };
-            }
-
-            try
-            {
-                string used;
-                int result = plcComm.WriteInt32ToDevicePath(path, value, out used);
-                if (result == 0)
-                {
-                    return new WriteResult
-                    {
-                        Address = path,
-                        Value = value.ToString(CultureInfo.InvariantCulture),
-                        Status = "OK",
-                        Message = used
-                    };
-                }
-                else
-                {
-                    // Chuyển đổi mã lỗi thành hex để dễ debug
-                    string hexError = result > 0 ? $"0x{result:X8}" : result.ToString();
-                    return new WriteResult
-                    {
-                        Address = path,
-                        Value = value.ToString(CultureInfo.InvariantCulture),
-                        Status = $"Error({hexError})",
-                        Message = $"WriteInt32ToDevicePath returned error code {hexError}. Method used: {used}"
-                    };
-                }
-            }
-            catch (Exception ex)
-            {
-                return new WriteResult
-                {
-                    Address = path,
-                    Value = value.ToString(CultureInfo.InvariantCulture),
-                    Status = "Error",
-                    Message = $"Exception: {ex.Message}"
-                };
-            }
-        }
-
-        /// <summary>
         /// Convert raw buffer value to mm (Pr.1=0: raw × 10⁻¹ µm = raw/10000 mm)
         /// </summary>
         public static string FormatPositionMm(int rawValue)

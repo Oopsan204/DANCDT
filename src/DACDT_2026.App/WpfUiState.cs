@@ -119,8 +119,6 @@ namespace DACDT_2026
         private double wcsOffsetXInput;
         private double wcsOffsetYInput;
         private string configurationFilePathInput = "";
-        private string telemetryAddressInput = "D100";
-        private int telemetryLengthInput = 1;
         private string writeAddressInput = "D100";
         private int writeValueInput = 12345;
         private string selectedPointKey = "";
@@ -156,8 +154,6 @@ namespace DACDT_2026
         public BulkObservableCollection<AxisStatusViewModel> Axes { get; } = new BulkObservableCollection<AxisStatusViewModel>();
         public BulkObservableCollection<LogRowViewModel> Logs { get; } = new BulkObservableCollection<LogRowViewModel>();
         public BulkObservableCollection<UiEventViewModel> Events { get; } = new BulkObservableCollection<UiEventViewModel>();
-        public BulkObservableCollection<TelemetryRegisterViewModel> TelemetryRegisters { get; } = new BulkObservableCollection<TelemetryRegisterViewModel>();
-        public BulkObservableCollection<TelemetryBufferViewModel> TelemetryBuffers { get; } = new BulkObservableCollection<TelemetryBufferViewModel>();
         public BulkObservableCollection<CameraDeviceViewModel> Cameras { get; } = new BulkObservableCollection<CameraDeviceViewModel>();
         public BulkObservableCollection<CadPointViewModel> CadPoints { get; } = new BulkObservableCollection<CadPointViewModel>();
         public BulkObservableCollection<GeometryRowViewModel> GeometryRows { get; } = new BulkObservableCollection<GeometryRowViewModel>();
@@ -203,9 +199,6 @@ namespace DACDT_2026
         public ICommand SendCadXCommand { get; set; }
         public ICommand TestEngraveAreaCommand { get; set; }
         public ICommand ClearLogsCommand { get; set; }
-        public ICommand AddTelemetryRegisterCommand { get; set; }
-        public ICommand AddTelemetryBufferCommand { get; set; }
-        public ICommand WriteBufferCommand { get; set; }
         public ICommand ApplyDxfSettingsCommand { get; set; }
         public ICommand ApplyGcodeSettingsCommand { get; set; }
         public ICommand SaveSettingsCommand { get; set; }
@@ -233,7 +226,6 @@ namespace DACDT_2026
                     OnPropertyChanged(nameof(IsControlView));
                     OnPropertyChanged(nameof(IsDxfView));
                     OnPropertyChanged(nameof(IsMonitorView));
-                    OnPropertyChanged(nameof(IsTelemetryView));
                     OnPropertyChanged(nameof(IsLogsView));
                     OnPropertyChanged(nameof(IsSettingsView));
                     OnPropertyChanged(nameof(IsHelpView));
@@ -257,7 +249,6 @@ namespace DACDT_2026
         public bool IsControlView => CurrentView == "control";
         public bool IsDxfView => CurrentView == "dxf";
         public bool IsMonitorView => CurrentView == "monitor";
-        public bool IsTelemetryView => CurrentView == "telemetry";
         public bool IsLogsView => CurrentView == "logs";
         public bool IsSettingsView => CurrentView == "settings";
         public bool IsHelpView => CurrentView == "help";
@@ -548,18 +539,6 @@ namespace DACDT_2026
         {
             get => configurationFilePathInput;
             set => SetProperty(ref configurationFilePathInput, value);
-        }
-
-        public string TelemetryAddressInput
-        {
-            get => telemetryAddressInput;
-            set => SetProperty(ref telemetryAddressInput, value);
-        }
-
-        public int TelemetryLengthInput
-        {
-            get => telemetryLengthInput;
-            set => SetProperty(ref telemetryLengthInput, value);
         }
 
         public string WriteAddressInput
@@ -1129,20 +1108,6 @@ namespace DACDT_2026
         public string Kind { get; set; }
         public string Title { get; set; }
         public string Message { get; set; }
-    }
-
-    public sealed class TelemetryRegisterViewModel
-    {
-        public string Register { get; set; }
-        public string Value { get; set; }
-        public string Status { get; set; }
-    }
-
-    public sealed class TelemetryBufferViewModel
-    {
-        public string Path { get; set; }
-        public string Values { get; set; }
-        public string Status { get; set; }
     }
 
     public sealed class CameraDeviceViewModel

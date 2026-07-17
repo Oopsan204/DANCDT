@@ -1309,9 +1309,6 @@ namespace DACDT_2026
                     }
                 }
 
-                if (currentView == "telemetry")
-                    await PushTelemetryStateAsync();
-
                 ScheduleFullControlStatePushFromPoll(includeTracking: false);
             }
             finally

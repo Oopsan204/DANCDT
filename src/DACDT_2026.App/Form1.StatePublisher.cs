@@ -13,7 +13,7 @@ namespace DACDT_2026
     public partial class Form1
     {
         private Task PushAllStateAsync()
-            => Task.WhenAll(PushControlStateAsync(), PushDxfStateAsync(), PushTelemetryStateAsync(), PushLogsStateAsync());
+            => Task.WhenAll(PushControlStateAsync(), PushDxfStateAsync(), PushLogsStateAsync());
 
         private Task PushNavigationStateAsync()
         {
@@ -1577,68 +1577,6 @@ namespace DACDT_2026
                 return coord;
 
             return string.Format(CultureInfo.InvariantCulture, "{0:0.###};{1:0.###}", x + ox, y + oy);
-        }
-
-        private async Task PushTelemetryStateAsync()
-        {
-            var comm = plcComm;
-            bool connected = comm != null && comm.IsConnected;
-            var regs = telemetryRegisters.ToArray();
-            var bufs = telemetryBuffers.Select(buf => new TelemetryBuffer { Path = buf.Path, Length = buf.Length }).ToArray();
-
-            var model = await Task.Run(() =>
-            {
-                var dValues = new List<TelemetryRegisterViewModel>();
-                var buffers = new List<TelemetryBufferViewModel>();
-
-                foreach (var reg in regs)
-                {
-                    if (connected)
-                    {
-                        try
-                        {
-                            int v = comm.ReadDeviceValue(reg);
-                            dValues.Add(new TelemetryRegisterViewModel { Register = reg, Value = v.ToString(CultureInfo.InvariantCulture), Status = "OK" });
-                        }
-                        catch (Exception ex)
-                        {
-                            dValues.Add(new TelemetryRegisterViewModel { Register = reg, Value = "--", Status = ex.Message });
-                        }
-                    }
-                    else
-                    {
-                        dValues.Add(new TelemetryRegisterViewModel { Register = reg, Value = "--", Status = "Disconnected" });
-                    }
-                }
-
-                foreach (var buf in bufs)
-                {
-                    if (connected)
-                    {
-                        try
-                        {
-                            int[] arr = comm.ReadDeviceRange(buf.Path, buf.Length);
-                            buffers.Add(new TelemetryBufferViewModel { Path = buf.Path, Values = string.Join(", ", arr), Status = "OK" });
-                        }
-                        catch (Exception ex)
-                        {
-                            buffers.Add(new TelemetryBufferViewModel { Path = buf.Path, Values = "", Status = ex.Message });
-                        }
-                    }
-                    else
-                    {
-                        buffers.Add(new TelemetryBufferViewModel { Path = buf.Path, Values = "", Status = "Disconnected" });
-                    }
-                }
-
-                return new { dValues, buffers };
-            });
-
-            await RunOnUiAsync(() =>
-            {
-                ReplaceCollection(ui.TelemetryRegisters, model.dValues);
-                ReplaceCollection(ui.TelemetryBuffers, model.buffers);
-            });
         }
 
         private async Task PushLogsStateAsync()

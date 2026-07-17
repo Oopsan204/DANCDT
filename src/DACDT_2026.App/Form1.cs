@@ -58,9 +58,6 @@ namespace DACDT_2026
         private readonly Dictionary<string, string> assignedPointKeys =
             new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
-        private readonly List<string> telemetryRegisters = new List<string> { "U0\\G800", "U0\\G900", "U0\\G1000", "U0\\G1100" };
-        private readonly List<TelemetryBuffer> telemetryBuffers = new List<TelemetryBuffer> { new TelemetryBuffer { Path = "U0\\G2006", Length = 2 } };
-
         private readonly int[] axCurrentPos = new int[4];
         private readonly int[] axCurrentSpeed = new int[4];
         private readonly int[] axMCode = new int[4];
@@ -293,9 +290,6 @@ namespace DACDT_2026
             ui.SendCadXCommand = new RelayCommand(async () => await HandleSendCadXAsync());
             ui.TestEngraveAreaCommand = new RelayCommand(HandleTestEngraveAreaAsync);
             ui.ClearLogsCommand = new RelayCommand(HandleClearLogsAsync);
-            ui.AddTelemetryRegisterCommand = new RelayCommand(() => HandleAddTelemetryRegisterAsync(ui.TelemetryAddressInput));
-            ui.AddTelemetryBufferCommand = new RelayCommand(() => HandleAddTelemetryBufferAsync(ui.TelemetryAddressInput, ui.TelemetryLengthInput));
-            ui.WriteBufferCommand = new RelayCommand(() => HandleWriteBufferRequestAsync(ui.WriteAddressInput, ui.WriteValueInput));
             ui.ApplyDxfSettingsCommand = new RelayCommand(ApplyDxfSettingsAsync);
             ui.ApplyGcodeSettingsCommand = new RelayCommand(ApplyGcodeSettingsAsync);
             ui.SaveSettingsCommand = new RelayCommand(async () =>
@@ -365,11 +359,7 @@ namespace DACDT_2026
                 if (requestVersion != Volatile.Read(ref navigationRefreshVersion))
                     return;
 
-                if (string.Equals(viewName, "telemetry", StringComparison.OrdinalIgnoreCase))
-                {
-                    await PushTelemetryStateAsync();
-                }
-                else if (string.Equals(viewName, "logs", StringComparison.OrdinalIgnoreCase))
+                if (string.Equals(viewName, "logs", StringComparison.OrdinalIgnoreCase))
                 {
                     await PushLogsStateAsync();
                 }
