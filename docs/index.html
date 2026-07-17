@@ -1840,8 +1840,7 @@
             }
 
             publishBinaryCadChunk(jobId, index, bytes) {
-                const msg = new Paho.MQTT.Message('');
-                msg.payloadBytes = bytes;
+                const msg = new Paho.MQTT.Message(bytes);
                 msg.destinationName = `DACDT/cad/upload/binary/${jobId}/${index}`;
                 msg.qos = 1;
                 msg.retained = false;
