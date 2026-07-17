@@ -1776,7 +1776,7 @@
                 }
 
                 const file = this._selectedCadFile;
-                const chunkSize = 64 * 1024;
+                const chunkSize = 128 * 1024;
                 const totalChunks = Math.ceil(file.size / chunkSize);
                 const jobId = 'cad_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);
                 const statusEl = document.getElementById('cad-upload-status');
@@ -1788,6 +1788,7 @@
                         fileName: file.name,
                         totalBytes: file.size,
                         totalChunks,
+                        protocol: 'binary',
                         source: 'web'
                     });
 
@@ -1796,10 +1797,9 @@
                     for (let index = 0; index < totalChunks; index++) {
                         const start = index * chunkSize;
                         const end = Math.min(start + chunkSize, bytes.length);
-                        const base64 = this.bytesToBase64(bytes.subarray(start, end));
-                        this.publishJson('DACDT/cad/upload/chunk', { jobId, index, data: base64 });
+                        this.publishBinaryCadChunk(jobId, index, bytes.subarray(start, end));
                         if (statusEl) statusEl.textContent = `Uploading ${index + 1}/${totalChunks}: ${file.name}`;
-                        if (index % 4 === 0) await new Promise(resolve => setTimeout(resolve, 8));
+                        if (index % 8 === 7) await new Promise(resolve => setTimeout(resolve, 2));
                     }
 
                     this.publishJson('DACDT/cad/upload/finish', { jobId });
@@ -1816,6 +1816,14 @@
             publishJson(topic, data) {
                 const msg = new Paho.MQTT.Message(JSON.stringify(data));
                 msg.destinationName = topic;
+                msg.qos = 1;
+                msg.retained = false;
+                this.client.send(msg);
+            }
+
+            publishBinaryCadChunk(jobId, index, bytes) {
+                const msg = new Paho.MQTT.Message(bytes);
+                msg.destinationName = `DACDT/cad/upload/binary/${jobId}/${index}`;
                 msg.qos = 1;
                 msg.retained = false;
                 this.client.send(msg);

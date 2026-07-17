@@ -40,6 +40,7 @@ namespace DACDT_2026
         public event Action Connected;
         public event Action Disconnected;
         public event Action<string, string> MessageReceived;
+        public event Action<string, byte[]> BinaryMessageReceived;
 
         public MqttPublishService()
         {
@@ -417,6 +418,16 @@ namespace DACDT_2026
             {
                 string topic = arg.ApplicationMessage?.Topic ?? string.Empty;
                 ArraySegment<byte> payload = arg.ApplicationMessage?.PayloadSegment ?? default(ArraySegment<byte>);
+                if (topic.StartsWith("DACDT/cad/upload/binary/", StringComparison.OrdinalIgnoreCase))
+                {
+                    var bytes = new byte[payload.Count];
+                    if (payload.Array != null && payload.Count > 0)
+                        Buffer.BlockCopy(payload.Array, payload.Offset, bytes, 0, payload.Count);
+
+                    BinaryMessageReceived?.Invoke(topic, bytes);
+                    return Task.CompletedTask;
+                }
+
                 string text = payload.Array == null
                     ? string.Empty
                     : Encoding.UTF8.GetString(payload.Array, payload.Offset, payload.Count);

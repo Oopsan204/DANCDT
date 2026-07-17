@@ -65,6 +65,8 @@ namespace DACDT_2026.Tests
                 ZHeightConversionUsesTenThousandScale();
                 ZHeightCommandUsesD110ThenPulsesM212();
                 WebCadUploadReassemblesChunks();
+                WebCadUploadReassemblesBinaryChunks();
+                WebCadBinaryUploadUsesRawMqttPayloads();
                 WebCadUploadRejectsUnsupportedFiles();
                 CadMqttTransferSplitsJsonItemsByUtf8Size();
                 CadMqttCadDirectionsUseChunkedProtocol();
@@ -827,6 +829,33 @@ namespace DACDT_2026.Tests
             AssertEqual("G1 X10 Y10", System.Text.Encoding.UTF8.GetString(upload.Assemble()), "Upload chunks should reassemble in index order.");
         }
 
+        private static void WebCadUploadReassemblesBinaryChunks()
+        {
+            var upload = new WebCadUploadSession();
+            upload.Begin("job-binary", "part.nc", totalChunks: 2, totalBytes: 10);
+
+            bool complete1 = upload.AddBinaryChunk("job-binary", 1, System.Text.Encoding.UTF8.GetBytes("Y10"));
+            bool complete2 = upload.AddBinaryChunk("job-binary", 0, System.Text.Encoding.UTF8.GetBytes("G1 X10 "));
+
+            AssertTrue(!complete1, "Binary upload should not complete before all chunks arrive.");
+            AssertTrue(complete2, "Binary upload should complete when the last missing chunk arrives.");
+            AssertEqual("G1 X10 Y10", System.Text.Encoding.UTF8.GetString(upload.Assemble()), "Binary upload chunks should reassemble in index order.");
+        }
+
+        private static void WebCadBinaryUploadUsesRawMqttPayloads()
+        {
+            string webSource = File.ReadAllText(GetRepositoryPath("docs", "index.html"));
+            string mqttSource = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "MqttPublishService.cs"));
+            string formSource = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Form1.cs"));
+            string uploadSource = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Form1.WebCadUpload.cs"));
+
+            AssertTrue(webSource.Contains("new Paho.MQTT.Message(bytes)"), "Web CAD upload should construct raw MQTT binary messages.");
+            AssertTrue(webSource.Contains("DACDT/cad/upload/binary/"), "Web CAD binary chunks should carry job and index in the topic.");
+            AssertTrue(mqttSource.Contains("BinaryMessageReceived"), "MQTT service should expose raw binary upload messages.");
+            AssertTrue(formSource.Contains("DACDT/cad/upload/binary/#"), "App should subscribe to binary CAD upload chunks.");
+            AssertTrue(uploadSource.Contains("AddBinaryChunk"), "App upload handler should assemble raw binary chunks.");
+        }
+
         private static void WebCadUploadRejectsUnsupportedFiles()
         {
             AssertTrue(WebCadUploadSession.IsAllowedFileName("shape.dxf"), "DXF upload should be accepted.");
@@ -861,7 +890,7 @@ namespace DACDT_2026.Tests
             AssertTrue(statePublisher.Contains("cadTransfer\\\":\\\"chunk"), "App-to-web CAD must publish chunk envelopes.");
             AssertTrue(statePublisher.Contains("PublishDirectAsync(\"DACDT/cad/state\""), "App-to-web CAD must bypass the bounded general MQTT queue.");
             AssertTrue(uploadHandler.Contains("webCadUploadMessageGate"), "Web-to-app CAD chunks must be processed sequentially.");
-            AssertTrue(web.Contains("const chunkSize = 64 * 1024;"), "Web-to-app CAD must use larger upload chunks.");
+            AssertTrue(web.Contains("const chunkSize = 128 * 1024;"), "Web-to-app CAD must use larger upload chunks.");
             AssertTrue(web.Contains("handleCadTransferMessage"), "Web must reassemble app-to-web CAD transfers before rendering.");
         }
 

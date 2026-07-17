@@ -182,6 +182,7 @@ namespace DACDT_2026
             currentTheme = WpfThemeManager.Apply(currentTheme, Resources, this);
             ui.CurrentTheme = currentTheme;
             mqttService.MessageReceived += MqttService_MessageReceived;
+            mqttService.BinaryMessageReceived += MqttService_BinaryMessageReceived;
             StartBackgroundVideoService();
 
             StateChanged += (sender, e) =>
@@ -854,6 +855,7 @@ namespace DACDT_2026
                     "DACDT/camera/command",
                     "DACDT/cad/upload/start",
                     "DACDT/cad/upload/chunk",
+                    "DACDT/cad/upload/binary/#",
                     "DACDT/cad/upload/finish",
                     "DACDT/cad/upload/cancel");
                 Console.WriteLine($"[DEBUG] MQTT connection completed. IsConnected={mqttService.IsConnected}");
@@ -883,6 +885,14 @@ namespace DACDT_2026
 
 
             _ = HandleMqttCommandAsync(topic, payload);
+        }
+
+        private void MqttService_BinaryMessageReceived(string topic, byte[] payload)
+        {
+            if (isClosing)
+                return;
+
+            _ = HandleWebCadBinaryUploadMessageAsync(topic, payload);
         }
 
         private async Task HandleMqttCommandAsync(string topic, string payload)

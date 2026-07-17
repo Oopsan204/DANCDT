@@ -21,6 +21,53 @@ namespace DACDT_2026
                 || string.Equals(topic, "DACDT/cad/upload/cancel", StringComparison.OrdinalIgnoreCase);
         }
 
+        private static bool TryParseBinaryUploadTopic(string topic, out string jobId, out int index)
+        {
+            jobId = string.Empty;
+            index = -1;
+            const string prefix = "DACDT/cad/upload/binary/";
+            if (string.IsNullOrWhiteSpace(topic) || !topic.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                return false;
+
+            string[] parts = topic.Substring(prefix.Length).Split('/');
+            if (parts.Length != 2 || string.IsNullOrWhiteSpace(parts[0]))
+                return false;
+
+            jobId = parts[0];
+            return int.TryParse(parts[1], NumberStyles.None, CultureInfo.InvariantCulture, out index);
+        }
+
+        private async Task HandleWebCadBinaryUploadMessageAsync(string topic, byte[] payload)
+        {
+            await webCadUploadMessageGate.WaitAsync();
+            try
+            {
+                string jobId;
+                int index;
+                if (!TryParseBinaryUploadTopic(topic, out jobId, out index))
+                    throw new InvalidOperationException("Binary CAD upload topic is invalid.");
+
+                bool complete = webCadUploadSession.AddBinaryChunk(jobId, index, payload);
+                if (complete || ShouldPublishWebCadUploadProgress())
+                {
+                    await PublishCadUploadStatusAsync(
+                        complete ? "received" : "receiving",
+                        complete ? "Upload chunks received." : "Receiving chunks...",
+                        webCadUploadSession.ReceivedChunks,
+                        webCadUploadSession.ExpectedChunks);
+                }
+            }
+            catch (Exception ex)
+            {
+                await PublishCadUploadStatusAsync("error", ex.Message, webCadUploadSession.ReceivedChunks, webCadUploadSession.ExpectedChunks);
+                await NotifyAsync("error", "Web CAD Upload", ex.Message);
+            }
+            finally
+            {
+                webCadUploadMessageGate.Release();
+            }
+        }
+
         private async Task HandleWebCadUploadMessageAsync(string topic, string payload)
         {
             await webCadUploadMessageGate.WaitAsync();

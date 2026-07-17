@@ -12,6 +12,7 @@ namespace DACDT_2026
         private readonly Dictionary<int, byte[]> chunks = new Dictionary<int, byte[]>();
         private int expectedChunks;
         private int expectedBytes;
+        private int receivedBytes;
 
         public string JobId { get; private set; }
         public string FileName { get; private set; }
@@ -26,6 +27,7 @@ namespace DACDT_2026
             FileName = null;
             expectedChunks = 0;
             expectedBytes = 0;
+            receivedBytes = 0;
         }
 
         public void Begin(string jobId, string fileName, int totalChunks, int totalBytes)
@@ -44,18 +46,36 @@ namespace DACDT_2026
             FileName = Path.GetFileName(fileName);
             expectedChunks = totalChunks;
             expectedBytes = totalBytes;
+            receivedBytes = 0;
         }
 
         public bool AddChunk(string jobId, int index, string base64)
+        {
+            if (string.IsNullOrEmpty(base64))
+                throw new ArgumentException("Upload chunk is empty.");
+
+            return AddBinaryChunk(jobId, index, Convert.FromBase64String(base64));
+        }
+
+        public bool AddBinaryChunk(string jobId, int index, byte[] data)
         {
             if (!string.Equals(JobId, jobId, StringComparison.Ordinal))
                 return false;
             if (index < 0 || index >= expectedChunks)
                 throw new ArgumentOutOfRangeException(nameof(index), "Upload chunk index is out of range.");
-            if (string.IsNullOrEmpty(base64))
+            if (data == null || data.Length == 0)
                 throw new ArgumentException("Upload chunk is empty.");
 
-            chunks[index] = Convert.FromBase64String(base64);
+            byte[] previous;
+            int previousBytes = chunks.TryGetValue(index, out previous) ? previous.Length : 0;
+            long nextBytes = (long)receivedBytes - previousBytes + data.Length;
+            if (nextBytes > expectedBytes)
+                throw new InvalidOperationException("Upload chunks exceed the declared file size.");
+
+            var copy = new byte[data.Length];
+            Buffer.BlockCopy(data, 0, copy, 0, data.Length);
+            chunks[index] = copy;
+            receivedBytes = (int)nextBytes;
             return chunks.Count == expectedChunks;
         }
 
