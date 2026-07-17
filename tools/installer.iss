@@ -20,7 +20,7 @@ DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
 OutputDir={#RepoRoot}\artifacts\installer
 OutputBaseFilename=DACDT_2026_Setup_V{#MyAppVersion}
-SetupIconFile=
+SetupIconFile={#RepoRoot}\src\DACDT_2026.App\app_icon.ico
 Compression=lzma2/ultra64
 SolidCompression=yes
 WizardStyle=modern
@@ -39,6 +39,7 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 ; Main executable and config
 Source: "{#BuildDir}\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#BuildDir}\{#MyAppExeName}.config"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#RepoRoot}\src\DACDT_2026.App\app_icon.ico"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#BuildDir}\WebRtcCameraService.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#BuildDir}\WebRtcCameraService.exe.config"; DestDir: "{app}"; Flags: ignoreversion
 
@@ -52,9 +53,9 @@ Source: "{#RepoRoot}\src\DACDT_2026.App\error_codes.js"; DestDir: "{app}\ui"; Fl
 Source: "{#RepoRoot}\src\DACDT_2026.App\error_codes.json"; DestDir: "{app}\ui"; Flags: ignoreversion
 
 [Icons]
-Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
+Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\app_icon.ico"
 Name: "{group}\Uninstall {#MyAppName}"; Filename: "{uninstallexe}"
-Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
+Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\app_icon.ico"; Tasks: desktopicon
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
