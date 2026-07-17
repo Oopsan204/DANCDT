@@ -1780,7 +1780,7 @@
                 }
 
                 const file = this._selectedCadFile;
-                const chunkSize = 16 * 1024;
+                const chunkSize = 64 * 1024;
                 const totalChunks = Math.ceil(file.size / chunkSize);
                 const jobId = 'cad_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);
                 const statusEl = document.getElementById('cad-upload-status');
@@ -1867,7 +1867,7 @@
                     
                     if (data.status === 'error' && data.missingChunks && data.missingChunks.length > 0 && data.jobId === this._cadUploadJobId && this._cadUploadBusy) {
                         this.addLog(`Upload error, retrying ${data.missingChunks.length} missing chunks...`, 'info');
-                        const chunkSize = 16 * 1024;
+                        const chunkSize = 64 * 1024;
                         this._sendCadChunks(this._cadUploadBuffer, chunkSize, data.jobId, total, statusEl, data.missingChunks)
                             .then(() => {
                                 this.publishJson('DACDT/cad/upload/finish', { jobId: data.jobId });
