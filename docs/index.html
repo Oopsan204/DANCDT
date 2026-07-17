@@ -1531,6 +1531,7 @@
                 this.hasWebRtcTrack = false;
                 this.hasVideoFrame = false;
                 this._cadData = null;
+                this._cadTransferSessions = new Map();
                 this._cadDirty = false;
                 this._pendingDashboardData = null;
                 this._dashboardDirty = false;
@@ -2024,8 +2025,12 @@
 
                         try {
                             const cadData = JSON.parse(payload);
-                            this._cadData = cadData;
-                            this.renderCadPreview(cadData);
+                            if (cadData && cadData.cadTransfer) {
+                                this.handleCadTransferMessage(cadData);
+                            } else {
+                                this._cadData = cadData;
+                                this.renderCadPreview(cadData);
+                            }
                         } catch (e) {
                             const payloadBytes = new TextEncoder().encode(payload || '').length;
                             this.addLog(`CAD state lỗi: ${e.message} · payload ${payloadBytes} bytes`, 'error');
@@ -2059,6 +2064,57 @@
                     }
                 } catch (e) {
                     this.addLog('MQTT message xử lý lỗi: ' + e.message, 'error');
+                }
+            }
+
+            handleCadTransferMessage(data) {
+                const sessionId = String(data.sessionId || '');
+                if (!sessionId) return;
+
+                if (data.cadTransfer === 'start') {
+                    const totalChunks = Math.max(0, Number(data.totalChunks) || 0);
+                    this._cadTransferSessions.set(sessionId, {
+                        data: Object.assign({}, data, { cadPrimitives: [] }),
+                        chunks: new Array(totalChunks),
+                        received: 0,
+                        totalChunks
+                    });
+                    while (this._cadTransferSessions.size > 3) {
+                        const oldestId = this._cadTransferSessions.keys().next().value;
+                        this._cadTransferSessions.delete(oldestId);
+                    }
+                    return;
+                }
+
+                const session = this._cadTransferSessions.get(sessionId);
+                if (!session) return;
+
+                if (data.cadTransfer === 'chunk') {
+                    const index = Number(data.index);
+                    if (!Number.isInteger(index) || index < 0 || index >= session.totalChunks || session.chunks[index]) return;
+                    session.chunks[index] = Array.isArray(data.cadPrimitives) ? data.cadPrimitives : [];
+                    session.received++;
+                    return;
+                }
+
+                if (data.cadTransfer === 'finish') {
+                    if (session.received !== session.totalChunks) return;
+                    const primitives = [];
+                    for (let index = 0; index < session.chunks.length; index++) {
+                        if (!session.chunks[index]) return;
+                        primitives.push(...session.chunks[index]);
+                    }
+                    const cadData = Object.assign({}, session.data, {
+                        cadPrimitives: primitives,
+                        trackingPoints: Array.isArray(data.trackingPoints) ? data.trackingPoints : [],
+                        timestamp: data.timestamp || new Date().toISOString()
+                    });
+                    delete cadData.cadTransfer;
+                    delete cadData.sessionId;
+                    delete cadData.totalChunks;
+                    this._cadTransferSessions.delete(sessionId);
+                    this._cadData = cadData;
+                    this.renderCadPreview(cadData);
                 }
             }
 
