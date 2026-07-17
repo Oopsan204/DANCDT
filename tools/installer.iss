@@ -3,7 +3,7 @@
 ; ============================================================
 
 #define MyAppName "DACDT 2026"
-#define MyAppVersion "1.1.0"
+#define MyAppVersion "1.2.0"
 #define MyAppPublisher "AML"
 #define MyAppExeName "DACDT_2026.exe"
 #define MyAppURL ""
@@ -19,7 +19,7 @@ DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
 OutputDir={#RepoRoot}\artifacts\installer
-OutputBaseFilename=DACDT_2026_Setup_v{#MyAppVersion}
+OutputBaseFilename=DACDT_2026_Setup_V{#MyAppVersion}
 SetupIconFile=
 Compression=lzma2/ultra64
 SolidCompression=yes

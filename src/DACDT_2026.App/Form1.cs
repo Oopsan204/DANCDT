@@ -665,6 +665,14 @@ namespace DACDT_2026
         private void LoadSelectedConfigurationAtStartup()
         {
             configurationFilePath = configurationFilePathStore.GetSelectedPath();
+            if (string.Equals(configurationFilePath, DefaultConfigurationFilePath, StringComparison.OrdinalIgnoreCase)
+                && !File.Exists(DefaultConfigurationFilePath)
+                && SaveSettingsToFile(DefaultConfigurationFilePath))
+            {
+                configurationFileSelectionRequired = false;
+                return;
+            }
+
             if (!configurationFilePathStore.NeedsSelection(configurationFilePath))
             {
                 LoadSettingsFromFile(configurationFilePath);

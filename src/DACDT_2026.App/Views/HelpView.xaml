@@ -116,9 +116,10 @@
                 <TextBlock TextWrapping="Wrap"
                            Foreground="{DynamicResource MutedBrush}"
                            LineHeight="22">
-                    Mở tab DXF / GCODE Run và chọn file cần chạy. Kiểm tra bản xem trước, thứ tự đường chạy, điểm bắt đầu,
-                    chiều di chuyển, kích thước vùng làm việc, tốc độ và hệ tọa độ WCS. Nếu hình vẽ, bảng lệnh hoặc thông số
-                    không đúng, không gửi dữ liệu xuống PLC.
+                    Mở tab DXF / GCODE Run và chọn file cần chạy. Hệ thống chỉ nhận đường thẳng, cung tròn và hình tròn;
+                    không sử dụng spline, ellipse hoặc các dạng hình học khác. Kiểm tra bản xem trước, thứ tự đường chạy,
+                    điểm bắt đầu, chiều di chuyển, kích thước vùng làm việc, tốc độ và hệ tọa độ WCS. Nếu hình vẽ, bảng lệnh
+                    hoặc thông số không đúng, không gửi dữ liệu xuống PLC.
                 </TextBlock>
 
                 <TextBlock Text="5. Gửi dữ liệu và chạy chương trình"

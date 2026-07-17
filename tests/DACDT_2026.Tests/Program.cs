@@ -46,6 +46,7 @@ namespace DACDT_2026.Tests
                 ExitShutdownSendsM210WheneverPlcIsConnected();
                 ConfigurationFilePathIsRememberedAndMissingFilesNeedSelection();
                 PortableConfigurationIsLoadedSavedAndRecoveredAtStartup();
+                FirstRunCreatesDefaultConfigurationFile();
                 SettingsUsesOnePortableConfigurationFileWorkflow();
                 ConfigurationSaveDoesNotBlockExitForUnreachableNetworkPaths();
                 ExitShutdownDoesNotBlockOnLostLan();
@@ -541,6 +542,15 @@ namespace DACDT_2026.Tests
             AssertTrue(formSource.Contains("InitialDirectory = configurationFilePathStore.GetBrowseDirectory(configurationFilePath)"), "Browse must open directly in the selected configuration folder.");
             AssertTrue(formSource.Contains("SaveSettingsToFile(selectedPath)"), "Save Settings must write to the selected portable file.");
             AssertTrue(formSource.Contains("SyncSettingsFromUiForPersistence();"), "Closing must snapshot current UI values before saving.");
+        }
+
+        private static void FirstRunCreatesDefaultConfigurationFile()
+        {
+            string formSource = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Form1.cs"));
+
+            AssertTrue(formSource.Contains("File.Exists(DefaultConfigurationFilePath)"), "Startup must check whether the default configuration file exists.");
+            AssertTrue(formSource.Contains("SaveSettingsToFile(DefaultConfigurationFilePath)"), "First startup must create the default configuration file when it is missing.");
+            AssertTrue(formSource.Contains("configurationFileSelectionRequired = false"), "A successfully created default configuration must not prompt for file selection.");
         }
 
         private static void SettingsUsesOnePortableConfigurationFileWorkflow()
