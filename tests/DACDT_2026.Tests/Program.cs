@@ -57,6 +57,7 @@ namespace DACDT_2026.Tests
                 NavigationRefreshesAreSingleFlightAndLatestWins();
                 StartCannotRaceWithTestAreaExecution();
                 HoldButtonsReleaseWhenMouseCaptureIsLost();
+                CadTouchSessionKeepsFixedPinchPairAndResetsOnFingerRelease();
                 CadTouchGesturesSupportPinchZoomAndSingleFingerSelection();
                 D406JogSpeedUsesFloatWordEncoding();
                 DecimalJogSpeedInputAcceptsDotAndComma();
@@ -77,7 +78,7 @@ namespace DACDT_2026.Tests
                 CadPathSelectionGroupsConnectedLineSegments();
                 CadPathSelectionTogglesEveryPrimitiveInSelectedPath();
                 CadPathSelectionToggleTwiceRestoresEngrave();
-                CadPathSelectionClickWaitsForImportAndExplainsRunLock();
+                CadPathSelectionUpdatesImmediatelyAndExplainsRunLock();
                 SettingsViewUsesApprovedEnglishContract();
                 NonHelpViewsDoNotUseKnownVietnameseOperatorLabels();
                 SettingsViewExposesSaveSettingsCommand();
@@ -712,6 +713,22 @@ namespace DACDT_2026.Tests
             AssertTrue(plcSource.Contains("private async Task WriteDeviceValueSerializedAsync") && plcSource.Contains("await plcDeviceWriteGate.WaitAsync()"), "PLC device writes must preserve ON/OFF ordering.");
         }
 
+        private static void CadTouchSessionKeepsFixedPinchPairAndResetsOnFingerRelease()
+        {
+            var session = new CadTouchGestureSession();
+            session.BeginTouch(11, new System.Windows.Point(10, 10));
+            session.BeginTouch(22, new System.Windows.Point(30, 10));
+            session.UpdateTouch(22, new System.Windows.Point(50, 10));
+
+            AssertTrue(session.TryTakePinchFrame(out CadPinchFrame frame), "A two-finger move must produce one pinch frame.");
+            AssertEqual("11", frame.PrimaryTouchId.ToString(), "The first touch must remain the primary pinch touch.");
+            AssertEqual("22", frame.SecondaryTouchId.ToString(), "The second touch must remain the secondary pinch touch.");
+            AssertTrue(!session.TryTakePinchFrame(out frame), "A frame must be consumed once rather than applied repeatedly.");
+
+            session.EndTouch(11);
+            AssertTrue(!session.IsPinching, "Releasing either pinch finger must end the pinch session.");
+        }
+
         private static void CadTouchGesturesSupportPinchZoomAndSingleFingerSelection()
         {
             string xaml = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Views", "DxfRunView.xaml"));
@@ -720,8 +737,11 @@ namespace DACDT_2026.Tests
             AssertTrue(xaml.Contains("PreviewTouchDown=\"CadViewport_PreviewTouchDown\""), "CAD viewport must receive the first touch point before it becomes a mouse event.");
             AssertTrue(xaml.Contains("PreviewTouchMove=\"CadViewport_PreviewTouchMove\""), "CAD viewport must track touch movement for pinch zoom.");
             AssertTrue(xaml.Contains("PreviewTouchUp=\"CadViewport_PreviewTouchUp\""), "CAD viewport must finish touch selection and release captures.");
-            AssertTrue(code.Contains("activeTouchPoints"), "CAD touch handling must track multiple fingers independently.");
-            AssertTrue(code.Contains("isTouchPinching"), "CAD touch handling must distinguish pinch gestures from one-finger selection.");
+            AssertTrue(xaml.Contains("<Binding Source=\"24\"/>"), "Tablet CAD hit targets must use a 24 DIP stroke.");
+            AssertTrue(code.Contains("CadTouchGestureSession"), "CAD touch handling must use one deterministic touch session.");
+            AssertTrue(code.Contains("CompositionTarget.Rendering"), "Pinch transforms must be coalesced to render cadence.");
+            AssertTrue(code.Contains("touchSession.IsPinchTouch"), "Only a released pinch finger may end the active pinch session.");
+            AssertTrue(code.Contains("e.StylusDevice != null"), "Promoted touch mouse events must not trigger CAD mouse commands.");
             AssertTrue(code.Contains("ApplyCadPinchTransform"), "Pinch movement must update zoom around the two-finger midpoint.");
             AssertTrue(code.Contains("ToggleCadPathCommand.Execute(item.PathId)"), "A one-finger tap must preserve direct CAD path selection.");
             AssertTrue(code.Contains("TouchDevice.Capture(CadViewport)"), "Touch points must stay captured while the finger moves across the CAD viewport.");
@@ -1043,16 +1063,23 @@ namespace DACDT_2026.Tests
             AssertEqual(EngraveCutProcessComposer.EngraveKind, first.ProcessKind, "Two toggles should restore Engrave.");
         }
 
-        private static void CadPathSelectionClickWaitsForImportAndExplainsRunLock()
+        private static void CadPathSelectionUpdatesImmediatelyAndExplainsRunLock()
         {
             string source = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Form1.DxfHandler.cs"));
+            string stateSource = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "WpfUiState.cs"));
             int start = source.IndexOf("private async Task HandleToggleCadPathAsync", StringComparison.Ordinal);
             int end = source.IndexOf("private static void DropEngraveHomeRowBeforeCut", start, StringComparison.Ordinal);
             AssertTrue(start >= 0 && end > start, "DXF path toggle handler must exist.");
 
             string handler = source.Substring(start, end - start);
-            AssertTrue(handler.Contains("await cadLoadGate.WaitAsync();"), "A cut-path click must wait for the visible DXF import to finish instead of being discarded.");
-            AssertTrue(!handler.Contains("cadLoadGate.WaitAsync(0)"), "A cut-path click must not use a zero-timeout load gate.");
+            AssertTrue(stateSource.Contains("public void UpdateCadPathStroke(int pathId, bool isCut)"), "The UI state must update one selected CAD path without rebuilding the canvas.");
+            AssertTrue(handler.Contains("Interlocked.Increment(ref cadPathSelectionVersion)"), "Each CAD tap must invalidate an older deferred refresh.");
+            AssertTrue(handler.Contains("await Task.Delay(CadPathSelectionRefreshDelayMs)"), "Repeated taps must be coalesced before rebuilding process rows.");
+            AssertTrue(!handler.Contains("await PublishAllMqttAsync();"), "A path tap must not wait for MQTT publication.");
+            int toggleEnd = handler.IndexOf("private async Task ScheduleCadPathSelectionRefreshAsync", StringComparison.Ordinal);
+            AssertTrue(toggleEnd > 0, "The immediate CAD path toggle must schedule a deferred refresh.");
+            string toggleHandler = handler.Substring(0, toggleEnd);
+            AssertTrue(!toggleHandler.Contains("cadLoadGate.WaitAsync"), "A CAD tap must not wait for the import gate before changing its local color.");
             AssertTrue(handler.Contains("Stop the active program before changing cut paths."), "A running program must explain why cut-path selection is locked.");
         }
 

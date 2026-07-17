@@ -823,6 +823,16 @@ namespace DACDT_2026
             OnPropertyChanged(nameof(IsPauseContinueEnabled));
         }
 
+        public void UpdateCadPathStroke(int pathId, bool isCut)
+        {
+            Brush stroke = isCut ? Brushes.OrangeRed : Brushes.DodgerBlue;
+            foreach (CadPrimitiveViewModel primitive in CadPrimitives)
+            {
+                if (primitive.PathId == pathId)
+                    primitive.Stroke = stroke;
+            }
+        }
+
         public bool LoadMoreCadPoints()
             => AppendNextRows(CadPoints, allCadPoints);
 
@@ -1249,11 +1259,17 @@ namespace DACDT_2026
         }
     }
 
-    public sealed class CadPrimitiveViewModel
+    public sealed class CadPrimitiveViewModel : ObservableState
     {
+        private Brush stroke;
+
         public int PathId { get; set; }
         public PointCollection Points { get; set; }
-        public Brush Stroke { get; set; }
+        public Brush Stroke
+        {
+            get => stroke;
+            set => SetProperty(ref stroke, value);
+        }
         public double StrokeThickness { get; set; }
     }
 

@@ -141,6 +141,7 @@
   <ItemGroup>
     <Compile Include="CadDocumentService.cs" />
     <Compile Include="CadPathSelection.cs" />
+    <Compile Include="CadTouchGestureSession.cs" />
     <Compile Include="CameraDeviceSelection.cs" />
     <Compile Include="ConfigurationFilePathStore.cs" />
     <Compile Include="CameraVideoFrameNormalizer.cs" />

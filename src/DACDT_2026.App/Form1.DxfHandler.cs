@@ -20,6 +20,9 @@ namespace DACDT_2026
     /// </summary>
     public partial class Form1
     {
+        private const int CadPathSelectionRefreshDelayMs = 120;
+        private int cadPathSelectionVersion;
+
         // ── Open DXF ────────────────────────────────────────────────────────────
 
         private string ShowOpenFileDialog()
@@ -438,36 +441,76 @@ namespace DACDT_2026
                 || selectedDocument?.Primitives == null)
                 return;
 
-            await cadLoadGate.WaitAsync();
+            bool changed = CadPathSelection.ToggleProcessKind(
+                selectedDocument.Primitives,
+                pathId,
+                EngraveCutProcessComposer.EngraveKind,
+                EngraveCutProcessComposer.CutKind);
+            if (!changed)
+                return;
+
+            bool isCut = selectedDocument.Primitives.Any(primitive =>
+                primitive.PathId == pathId
+                && string.Equals(
+                    primitive.ProcessKind,
+                    EngraveCutProcessComposer.CutKind,
+                    StringComparison.OrdinalIgnoreCase));
+            ui.UpdateCadPathStroke(pathId, isCut);
+
+            int selectionVersion = Interlocked.Increment(ref cadPathSelectionVersion);
+            _ = ScheduleCadPathSelectionRefreshAsync(selectionVersion, selectedDocument);
+        }
+
+        private async Task ScheduleCadPathSelectionRefreshAsync(
+            int selectionVersion,
+            CadDocumentService.CadLoadResult selectedDocument)
+        {
             try
             {
-                if (IsProgramRunning())
-                {
-                    await NotifyAsync("info", "Cut path", "Stop the active program before changing cut paths.");
-                    return;
-                }
+                await Task.Delay(CadPathSelectionRefreshDelayMs);
 
-                if (!ReferenceEquals(activeCadDocument, selectedDocument)
+                if (selectionVersion != Volatile.Read(ref cadPathSelectionVersion)
+                    || IsProgramRunning()
+                    || !ReferenceEquals(activeCadDocument, selectedDocument)
                     || !string.Equals(activeDocumentKind, "DXF", StringComparison.OrdinalIgnoreCase))
                 {
                     return;
                 }
 
-                bool changed = CadPathSelection.ToggleProcessKind(
-                    selectedDocument.Primitives,
-                    pathId,
-                    EngraveCutProcessComposer.EngraveKind,
-                    EngraveCutProcessComposer.CutKind);
-                if (!changed)
+                await cadLoadGate.WaitAsync();
+                try
+                {
+                    if (selectionVersion != Volatile.Read(ref cadPathSelectionVersion)
+                        || IsProgramRunning()
+                        || !ReferenceEquals(activeCadDocument, selectedDocument)
+                        || !string.Equals(activeDocumentKind, "DXF", StringComparison.OrdinalIgnoreCase))
+                    {
+                        return;
+                    }
+
+                    await RebuildMixedEngraveCutProgramAsync();
+                    await PushDxfStateAsync();
+                }
+                finally
+                {
+                    cadLoadGate.Release();
+                }
+
+                if (IsProgramRunning())
                     return;
 
-                await RebuildMixedEngraveCutProgramAsync();
-                await PushDxfStateAsync();
-                await PublishAllMqttAsync();
+                if (selectionVersion != Volatile.Read(ref cadPathSelectionVersion)
+                    || !ReferenceEquals(activeCadDocument, selectedDocument)
+                    || !string.Equals(activeDocumentKind, "DXF", StringComparison.OrdinalIgnoreCase))
+                {
+                    return;
+                }
+
+                _ = PublishAllMqttAsync();
             }
-            finally
+            catch (Exception ex)
             {
-                cadLoadGate.Release();
+                await LogUIAsync("DXF", "Could not refresh the selected cut path: " + ex.Message);
             }
         }
 

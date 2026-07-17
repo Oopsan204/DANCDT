@@ -80,6 +80,9 @@
     <Compile Include="..\..\src\DACDT_2026.App\CadPathSelection.cs">
       <Link>CadPathSelection.cs</Link>
     </Compile>
+    <Compile Include="..\..\src\DACDT_2026.App\CadTouchGestureSession.cs">
+      <Link>CadTouchGestureSession.cs</Link>
+    </Compile>
     <Compile Include="..\..\src\DACDT_2026.App\SimpleDxfParser.cs">
       <Link>SimpleDxfParser.cs</Link>
     </Compile>

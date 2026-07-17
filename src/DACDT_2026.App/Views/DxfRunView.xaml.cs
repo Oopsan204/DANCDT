@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -28,19 +27,11 @@ namespace DACDT_2026.Views
         private double cadPanStartX;
         private double cadPanStartY;
         private double cadZoom = 1.0;
-        private readonly Dictionary<int, CadTouchPoint> activeTouchPoints = new Dictionary<int, CadTouchPoint>();
+        private readonly CadTouchGestureSession touchSession = new CadTouchGestureSession();
         private CadPrimitiveViewModel touchStartCadItem;
         private Point touchStartPoint;
         private Point touchLastPoint;
-        private bool isTouchPinching;
-        private double touchPreviousDistance;
-        private Point touchPreviousMidpoint;
-
-        private sealed class CadTouchPoint
-        {
-            public TouchDevice Device { get; set; }
-            public Point Position { get; set; }
-        }
+        private bool isCadPinchRenderSubscribed;
 
         public DxfRunView()
         {
@@ -108,6 +99,12 @@ namespace DACDT_2026.Views
 
         private void CadViewport_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
         {
+            if (e.StylusDevice != null || touchSession.IsTouchActive)
+            {
+                e.Handled = true;
+                return;
+            }
+
             if (CadSurface == null)
                 return;
 
@@ -133,56 +130,41 @@ namespace DACDT_2026.Views
                 return;
 
             Point position = e.GetTouchPoint(CadSurface).Position;
-            activeTouchPoints[e.TouchDevice.Id] = new CadTouchPoint
-            {
-                Device = e.TouchDevice,
-                Position = position
-            };
+            touchSession.BeginTouch(e.TouchDevice.Id, position);
 
-            if (activeTouchPoints.Count == 1)
+            if (touchSession.IsPinching)
+            {
+                isCadPanning = false;
+                touchStartCadItem = null;
+                CadViewport.ReleaseMouseCapture();
+                StartCadPinchRenderLoop();
+            }
+            else
             {
                 touchStartCadItem = FindCadPrimitive(e.OriginalSource as DependencyObject);
                 touchStartPoint = position;
                 touchLastPoint = position;
-                isTouchPinching = false;
-                e.TouchDevice.Capture(CadViewport);
-            }
-            else if (activeTouchPoints.Count == 2)
-            {
-                isTouchPinching = true;
-                isCadPanning = false;
-                CadViewport.ReleaseMouseCapture();
-
-                var pair = GetPinchPair();
-                touchPreviousDistance = Distance(pair[0].Position, pair[1].Position);
-                touchPreviousMidpoint = Midpoint(pair[0].Position, pair[1].Position);
-                e.TouchDevice.Capture(CadViewport);
             }
 
+            e.TouchDevice.Capture(CadViewport);
             e.Handled = true;
         }
 
         private void CadViewport_PreviewTouchMove(object sender, TouchEventArgs e)
         {
-            if (!activeTouchPoints.TryGetValue(e.TouchDevice.Id, out CadTouchPoint touchPoint))
+            if (CadSurface == null || e.TouchDevice == null)
                 return;
 
-            touchPoint.Position = e.GetTouchPoint(CadSurface).Position;
-            if (activeTouchPoints.Count >= 2)
+            Point current = e.GetTouchPoint(CadSurface).Position;
+            touchSession.UpdateTouch(e.TouchDevice.Id, current);
+            if (touchSession.IsPinching)
             {
-                var pair = GetPinchPair();
-                Point midpoint = Midpoint(pair[0].Position, pair[1].Position);
-                double distance = Distance(pair[0].Position, pair[1].Position);
-                ApplyCadPinchTransform(touchPreviousDistance, distance, touchPreviousMidpoint, midpoint);
-                touchPreviousDistance = distance;
-                touchPreviousMidpoint = midpoint;
                 e.Handled = true;
                 return;
             }
 
-            if (!isTouchPinching)
+            if (touchSession.IsTouchActive)
             {
-                Point current = touchPoint.Position;
                 Vector delta = current - touchLastPoint;
                 if (Distance(touchStartPoint, current) >= TouchPanThreshold)
                 {
@@ -197,28 +179,61 @@ namespace DACDT_2026.Views
 
         private void CadViewport_PreviewTouchUp(object sender, TouchEventArgs e)
         {
-            if (!activeTouchPoints.TryGetValue(e.TouchDevice.Id, out CadTouchPoint touchPoint))
+            if (CadSurface == null || e.TouchDevice == null || !touchSession.IsTouchActive)
                 return;
 
-            touchPoint.Position = e.GetTouchPoint(CadSurface).Position;
-            activeTouchPoints.Remove(e.TouchDevice.Id);
+            Point position = e.GetTouchPoint(CadSurface).Position;
+            bool endedPinch = touchSession.IsPinching && touchSession.IsPinchTouch(e.TouchDevice.Id);
+            bool wasPinching = touchSession.IsPinching;
+            bool shouldSelect = !wasPinching && Distance(touchStartPoint, position) < TouchPanThreshold;
+            touchSession.EndTouch(e.TouchDevice.Id);
 
-            if (activeTouchPoints.Count == 0)
-            {
-                if (!isTouchPinching && Distance(touchStartPoint, touchPoint.Position) < TouchPanThreshold)
-                    SelectCadPrimitive(touchStartCadItem);
+            if (endedPinch)
+                StopCadPinchRenderLoop();
 
+            if (shouldSelect)
+                SelectCadPrimitive(touchStartCadItem);
+
+            if (!touchSession.IsTouchActive)
                 ResetTouchGesture();
-            }
 
             e.Handled = true;
         }
 
         private void CadViewport_LostTouchCapture(object sender, TouchEventArgs e)
         {
-            activeTouchPoints.Remove(e.TouchDevice.Id);
-            if (activeTouchPoints.Count == 0)
-                ResetTouchGesture();
+            ResetTouchGesture();
+            e.Handled = true;
+        }
+
+        private void StartCadPinchRenderLoop()
+        {
+            if (isCadPinchRenderSubscribed)
+                return;
+
+            CompositionTarget.Rendering += ApplyPendingCadPinchFrame;
+            isCadPinchRenderSubscribed = true;
+        }
+
+        private void StopCadPinchRenderLoop()
+        {
+            if (!isCadPinchRenderSubscribed)
+                return;
+
+            CompositionTarget.Rendering -= ApplyPendingCadPinchFrame;
+            isCadPinchRenderSubscribed = false;
+        }
+
+        private void ApplyPendingCadPinchFrame(object sender, EventArgs e)
+        {
+            if (!touchSession.TryTakePinchFrame(out CadPinchFrame frame))
+                return;
+
+            ApplyCadPinchTransform(
+                Distance(frame.PreviousPrimary, frame.PreviousSecondary),
+                Distance(frame.Primary, frame.Secondary),
+                Midpoint(frame.PreviousPrimary, frame.PreviousSecondary),
+                Midpoint(frame.Primary, frame.Secondary));
         }
 
         private void ApplyCadPinchTransform(double oldDistance, double newDistance, Point oldMidpoint, Point newMidpoint)
@@ -233,19 +248,6 @@ namespace DACDT_2026.Views
             CadPanTransform.Y = oldMidpoint.Y - ((oldMidpoint.Y - CadPanTransform.Y) * appliedRatio)
                 + (newMidpoint.Y - oldMidpoint.Y);
             ApplyCadZoom(nextZoom);
-        }
-
-        private CadTouchPoint[] GetPinchPair()
-        {
-            var pair = new CadTouchPoint[2];
-            int index = 0;
-            foreach (CadTouchPoint point in activeTouchPoints.Values)
-            {
-                pair[index++] = point;
-                if (index == pair.Length)
-                    break;
-            }
-            return pair;
         }
 
         private static double Distance(Point first, Point second)
@@ -284,15 +286,19 @@ namespace DACDT_2026.Views
 
         private void ResetTouchGesture()
         {
-            activeTouchPoints.Clear();
+            StopCadPinchRenderLoop();
+            touchSession.Reset();
             touchStartCadItem = null;
-            isTouchPinching = false;
-            touchPreviousDistance = 0.0;
-            touchPreviousMidpoint = new Point();
         }
 
         private void CadViewport_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
+            if (e.StylusDevice != null || touchSession.IsTouchActive)
+            {
+                e.Handled = true;
+                return;
+            }
+
             if (e.ClickCount >= 2)
             {
                 ResetCadView();
@@ -311,6 +317,12 @@ namespace DACDT_2026.Views
 
         private void SelectableCadPath_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
+            if (e.StylusDevice != null || touchSession.IsTouchActive)
+            {
+                e.Handled = true;
+                return;
+            }
+
             if (e.ClickCount >= 2)
             {
                 ResetCadView();
@@ -334,6 +346,12 @@ namespace DACDT_2026.Views
 
         private void CadViewport_MouseMove(object sender, MouseEventArgs e)
         {
+            if (e.StylusDevice != null || touchSession.IsTouchActive)
+            {
+                e.Handled = true;
+                return;
+            }
+
             if (!isCadPanning || e.LeftButton != MouseButtonState.Pressed)
                 return;
 
@@ -345,12 +363,21 @@ namespace DACDT_2026.Views
 
         private void CadViewport_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
         {
+            if (e.StylusDevice != null || touchSession.IsTouchActive)
+            {
+                e.Handled = true;
+                return;
+            }
+
             EndCadPan();
             e.Handled = true;
         }
 
         private void CadViewport_MouseLeave(object sender, MouseEventArgs e)
         {
+            if (e.StylusDevice != null || touchSession.IsTouchActive)
+                return;
+
             if (isCadPanning && e.LeftButton != MouseButtonState.Pressed)
                 EndCadPan();
         }
