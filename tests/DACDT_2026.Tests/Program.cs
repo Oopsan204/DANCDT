@@ -86,6 +86,8 @@ namespace DACDT_2026.Tests
                 CadPathHitIndexFindsNearestHorizontalSegment();
                 CadPathHitIndexRejectsMissOutsideRadius();
                 CadPathHitIndexUsesPathIdForDeterministicTies();
+                CadPathHitIndexHandlesIntMaxValueGridBoundary();
+                CadPathHitIndexKeepsTheTrulyNearestPathDespiteTinyDistanceDifference();
                 CadPathHitIndexFindsOnlyTheNearbyPathInALargeSet();
                 CadPathSelectionUpdatesImmediatelyAndExplainsRunLock();
                 CadInteractionAvoidsExpensiveHitTestingAndFullStateRebuild();
@@ -1237,6 +1239,56 @@ namespace DACDT_2026.Tests
                 "spatial index should accept an exact tie at the hit radius");
             AssertEqual("3", pathId.ToString(CultureInfo.InvariantCulture),
                 "equal-distance paths should be resolved by the smaller path id");
+        }
+
+        private static void CadPathHitIndexKeepsTheTrulyNearestPathDespiteTinyDistanceDifference()
+        {
+            var index = CadPathHitIndex.Build(
+                new[]
+                {
+                    new CadHitPath(1, new[]
+                    {
+                        new System.Windows.Point(0, 0.0000010),
+                        new System.Windows.Point(100, 0.0000010)
+                    }),
+                    new CadHitPath(2, new[]
+                    {
+                        new System.Windows.Point(0, 0.0000009),
+                        new System.Windows.Point(100, 0.0000009)
+                    })
+                },
+                10);
+
+            int pathId;
+            AssertTrue(index.TryFindNearest(new System.Windows.Point(40, 0), 0.000002, out pathId),
+                "spatial index should accept both nearly coincident paths within the hit radius");
+            AssertEqual("2", pathId.ToString(CultureInfo.InvariantCulture),
+                "a tiny but real distance difference must beat the path-id tie-breaker");
+        }
+
+        private static void CadPathHitIndexHandlesIntMaxValueGridBoundary()
+        {
+            const double boundary = 2147483647.0;
+            var buildTask = Task.Run(() => CadPathHitIndex.Build(
+                new[]
+                {
+                    new CadHitPath(42, new[]
+                    {
+                        new System.Windows.Point(boundary, boundary),
+                        new System.Windows.Point(boundary, boundary)
+                    })
+                },
+                1));
+
+            AssertTrue(buildTask.Wait(TimeSpan.FromSeconds(1)),
+                "spatial index build must terminate at the int.MaxValue grid boundary");
+
+            CadPathHitIndex index = buildTask.Result;
+            int pathId;
+            AssertTrue(index.TryFindNearest(new System.Windows.Point(boundary, boundary), 0, out pathId),
+                "spatial index should query a path stored in the int.MaxValue grid cell");
+            AssertEqual("42", pathId.ToString(CultureInfo.InvariantCulture),
+                "the int.MaxValue boundary query should return the stored path");
         }
 
         private static void CadPathHitIndexFindsOnlyTheNearbyPathInALargeSet()

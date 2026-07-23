@@ -23,8 +23,6 @@ namespace DACDT_2026
 
     public sealed class CadPathHitIndex
     {
-        private const double TieToleranceSquared = 1e-12;
-
         private readonly Dictionary<GridCell, List<int>> segmentIdsByCell;
         private readonly Dictionary<int, IReadOnlyList<Point>> pointsByPathId;
         private readonly Segment[] segments;
@@ -76,9 +74,9 @@ namespace DACDT_2026
                     int minCellY = ToCell(segment.MinY, cellSize);
                     int maxCellY = ToCell(segment.MaxY, cellSize);
 
-                    for (int cellX = minCellX; cellX <= maxCellX; cellX++)
+                    for (int cellX = minCellX; ; cellX++)
                     {
-                        for (int cellY = minCellY; cellY <= maxCellY; cellY++)
+                        for (int cellY = minCellY; ; cellY++)
                         {
                             var cell = new GridCell(cellX, cellY);
                             List<int> segmentIds;
@@ -89,7 +87,13 @@ namespace DACDT_2026
                             }
 
                             segmentIds.Add(segment.Id);
+
+                            if (cellY == maxCellY)
+                                break;
                         }
+
+                        if (cellX == maxCellX)
+                            break;
                     }
                 }
             }
@@ -118,17 +122,23 @@ namespace DACDT_2026
             int maxCellY = ToCell(point.Y + radius, cellSize);
             var candidateSegmentIds = new HashSet<int>();
 
-            for (int cellX = minCellX; cellX <= maxCellX; cellX++)
+            for (int cellX = minCellX; ; cellX++)
             {
-                for (int cellY = minCellY; cellY <= maxCellY; cellY++)
+                for (int cellY = minCellY; ; cellY++)
                 {
                     List<int> segmentIds;
-                    if (!segmentIdsByCell.TryGetValue(new GridCell(cellX, cellY), out segmentIds))
-                        continue;
+                    if (segmentIdsByCell.TryGetValue(new GridCell(cellX, cellY), out segmentIds))
+                    {
+                        foreach (int segmentId in segmentIds)
+                            candidateSegmentIds.Add(segmentId);
+                    }
 
-                    foreach (int segmentId in segmentIds)
-                        candidateSegmentIds.Add(segmentId);
+                    if (cellY == maxCellY)
+                        break;
                 }
+
+                if (cellX == maxCellX)
+                    break;
             }
 
             bool found = false;
@@ -142,8 +152,8 @@ namespace DACDT_2026
                     continue;
 
                 if (!found
-                    || distanceSquared < bestDistanceSquared - TieToleranceSquared
-                    || (Math.Abs(distanceSquared - bestDistanceSquared) <= TieToleranceSquared
+                    || distanceSquared < bestDistanceSquared
+                    || (distanceSquared == bestDistanceSquared
                         && segment.PathId < bestPathId))
                 {
                     found = true;
