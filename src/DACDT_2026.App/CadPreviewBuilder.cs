@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
+using System.Threading;
 
 namespace DACDT_2026
 {
@@ -27,8 +27,10 @@ namespace DACDT_2026
 
         public static CadDocumentService.CadLoadResult Build(
             CadDocumentService.CadLoadResult source,
-            Limits limits)
+            Limits limits,
+            CancellationToken cancellationToken = default(CancellationToken))
         {
+            cancellationToken.ThrowIfCancellationRequested();
             if (source == null)
                 return null;
 
@@ -51,6 +53,7 @@ namespace DACDT_2026
             long totalSourcePoints = 0;
             for (int i = 0; i < primitiveLimit; i++)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 IList<CadDocumentService.CadCoordinate> points = source.Primitives[i]?.Points;
                 if (points != null && points.Count > 1)
                     totalSourcePoints += points.Count;
@@ -60,10 +63,10 @@ namespace DACDT_2026
                 return preview;
 
             int remainingPoints = limits.MaxPreviewPoints;
-            var seenPointKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
             for (int i = 0; i < primitiveLimit && remainingPoints >= 2; i++)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 CadDocumentService.CadPrimitiveData sourcePrimitive = source.Primitives[i];
                 if (sourcePrimitive?.Points == null || sourcePrimitive.Points.Count < 2)
                     continue;
@@ -75,7 +78,10 @@ namespace DACDT_2026
                 if (allowedPoints < 2)
                     break;
 
-                var previewPoints = SamplePoints(sourcePrimitive.Points, allowedPoints);
+                var previewPoints = SamplePoints(
+                    sourcePrimitive.Points,
+                    allowedPoints,
+                    cancellationToken);
                 preview.Primitives.Add(new CadDocumentService.CadPrimitiveData
                 {
                     SourceType = sourcePrimitive.SourceType,
@@ -90,28 +96,6 @@ namespace DACDT_2026
                     PathId = sourcePrimitive.PathId,
                     WcsIndex = sourcePrimitive.WcsIndex
                 });
-
-                string lineType = sourcePrimitive.SourceType ?? "CAD";
-                for (int pointIndex = 0; pointIndex < previewPoints.Count; pointIndex++)
-                {
-                    CadDocumentService.CadCoordinate point = previewPoints[pointIndex];
-                    string key = MakePointKey(point);
-                    if (!seenPointKeys.Add(key))
-                        continue;
-
-                    preview.Points.Add(new CadDocumentService.CadPointData
-                    {
-                        Index = preview.Points.Count + 1,
-                        LineType = lineType,
-                        X = point.X,
-                        Y = point.Y,
-                        Z = point.Z,
-                        XDisplay = point.X.ToString("0.###", CultureInfo.InvariantCulture),
-                        YDisplay = point.Y.ToString("0.###", CultureInfo.InvariantCulture),
-                        ZDisplay = point.Z.ToString("0.###", CultureInfo.InvariantCulture),
-                        Key = key
-                    });
-                }
 
                 remainingPoints -= previewPoints.Count;
             }
@@ -134,13 +118,18 @@ namespace DACDT_2026
 
         private static List<CadDocumentService.CadCoordinate> SamplePoints(
             IList<CadDocumentService.CadCoordinate> source,
-            int count)
+            int count,
+            CancellationToken cancellationToken)
         {
             if (count >= source.Count)
             {
                 var copy = new List<CadDocumentService.CadCoordinate>(source.Count);
                 for (int i = 0; i < source.Count; i++)
+                {
+                    if ((i & 2047) == 0)
+                        cancellationToken.ThrowIfCancellationRequested();
                     copy.Add(CloneCoordinate(source[i]));
+                }
                 return copy;
             }
 
@@ -149,6 +138,8 @@ namespace DACDT_2026
             long sourceLastIndex = source.Count - 1L;
             for (int i = 0; i < count; i++)
             {
+                if ((i & 2047) == 0)
+                    cancellationToken.ThrowIfCancellationRequested();
                 int sourceIndex = (int)((i * sourceLastIndex + denominator / 2L) / denominator);
                 sampled.Add(CloneCoordinate(source[sourceIndex]));
             }
@@ -181,14 +172,5 @@ namespace DACDT_2026
                 };
         }
 
-        private static string MakePointKey(CadDocumentService.CadCoordinate point)
-        {
-            return string.Format(
-                CultureInfo.InvariantCulture,
-                "{0:0.###}|{1:0.###}|{2:0.###}",
-                point.X,
-                point.Y,
-                point.Z);
-        }
     }
 }

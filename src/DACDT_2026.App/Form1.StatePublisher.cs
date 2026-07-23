@@ -560,6 +560,10 @@ namespace DACDT_2026
             var snapDocSource = activeCadDocument;
             var snapRowsSource = processRows.ToArray();
             var snapKind = activeDocumentKind;
+            bool snapIsGcodeKind = string.Equals(snapKind, "GCODE", StringComparison.OrdinalIgnoreCase);
+            bool snapHasEngraveCut = snapRowsSource.Any(row =>
+                string.Equals(row?.ProcessKind, EngraveCutProcessComposer.EngraveKind, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(row?.ProcessKind, EngraveCutProcessComposer.CutKind, StringComparison.OrdinalIgnoreCase));
             var snapRawText = snapKind == "GCODE" ? rawGcodeText : string.Empty;
             var snapPointKey = selectedCadPointKey ?? string.Empty;
             var snapOx = offsetX;
@@ -586,6 +590,16 @@ namespace DACDT_2026
             var snapGlobalDwellM4 = globalDwellM4;
             var snapActiveWcs = activeWcs;
             var snapMixedEngraveCut = isMixedEngraveCutProgram;
+            Func<int, int, IReadOnlyList<ProcessRowViewModel>> processRowWindowLoader =
+                (start, count) => BuildProcessRowViewModelWindow(
+                    snapRowsSource,
+                    start,
+                    count,
+                    snapIsGcodeKind,
+                    snapOx,
+                    snapOy,
+                    snapWcsOffsetX,
+                    snapWcsOffsetY);
 
             if (!string.Equals(snapCurrentView, "dxf", StringComparison.OrdinalIgnoreCase))
             {
@@ -603,56 +617,15 @@ namespace DACDT_2026
 
             var model = await Task.Run(() =>
             {
-                bool isGcodeKind = string.Equals(snapKind, "GCODE", StringComparison.OrdinalIgnoreCase);
                 var rawDoc = snapDocSource;
-                var previewDoc = CadPreviewBuilder.Build(rawDoc, CadPreviewBuilder.DefaultLimits);
-                var snapDoc = CreateDisplayCadDocument(
-                    previewDoc,
-                    isGcodeKind,
+                var snapDoc = CadDisplayDocumentBuilder.Build(
+                    rawDoc,
+                    snapIsGcodeKind,
                     snapOx,
                     snapOy,
                     snapWcsOffsetX,
-                    snapWcsOffsetY);
-                var snapRows = snapRowsSource.Select(CloneProcessRowForUi).Where(row => row != null).ToList();
-
-                var rows = snapRows.Select((row, rowIndex) =>
-                {
-                    double rowOx;
-                    double rowOy;
-                    if (row.MCodeValue == "0" && string.Equals(row.EndCoordinate, "0;0"))
-                    {
-                        rowOx = 0.0;
-                        rowOy = 0.0;
-                    }
-                    else if (isGcodeKind)
-                    {
-                        int wIdx = Math.Max(0, Math.Min(5, row.WcsIndex));
-                        rowOx = snapWcsOffsetX[wIdx];
-                        rowOy = snapWcsOffsetY[wIdx];
-                    }
-                    else
-                    {
-                        rowOx = snapOx;
-                        rowOy = snapOy;
-                    }
-
-                    return new ProcessRowViewModel
-                    {
-                        Index = rowIndex + 1,
-                        Key = row.Key,
-                        MotionType = row.MotionType,
-                        MCodeValue = row.MCodeValue ?? string.Empty,
-                        Dwell = row.Dwell ?? string.Empty,
-                        Speed = row.Speed ?? string.Empty,
-                        ProcessKind = row.ProcessKind ?? string.Empty,
-                        LaserPower = row.LaserPower ?? string.Empty,
-                        EndCoordinate = ApplyOffsetToCoord(row.EndCoordinate, rowOx, rowOy),
-                        CenterCoordinate = ApplyOffsetToCoord(row.CenterCoordinate, rowOx, rowOy),
-                        EndZ = row.EndZ.ToString("0.###", CultureInfo.InvariantCulture),
-                        IsActive = snapActiveProgramIndex > 0 && rowIndex + 1 == snapActiveProgramIndex
-                    };
-                }).ToList();
-
+                    snapWcsOffsetY,
+                    CancellationToken.None);
                 var projection = CreateCadProjection(snapDoc, snapWorkspaceWidth, snapWorkspaceHeight);
                 var cadPreviewGeometry = snapMixedEngraveCut ? null : BuildCadPreviewGeometry(snapDoc, projection);
                 var cadEngravePreviewGeometry = BuildCadPreviewGeometry(snapDoc, projection, EngraveCutProcessComposer.EngraveKind);
@@ -668,7 +641,7 @@ namespace DACDT_2026
                     snapConnected,
                     snapRobotRawX,
                     snapRobotRawY);
-                return new { doc = snapDoc, rows, cadPreviewGeometry, cadEngravePreviewGeometry, cadCutPreviewGeometry, cadPathHitIndex, limitAreas, axisLines, axisLabels, trackingPoints };
+                return new { doc = snapDoc, cadPreviewGeometry, cadEngravePreviewGeometry, cadCutPreviewGeometry, cadPathHitIndex, limitAreas, axisLines, axisLabels, trackingPoints };
             });
 
             await RunOnUiAsync(() =>
@@ -708,7 +681,11 @@ namespace DACDT_2026
                 }
                 ui.SelectedPointKey = snapPointKey;
 
-                ui.SetProcessRows(model.rows, snapActiveProgramIndex);
+                ui.SetProcessRows(
+                    snapRowsSource.Length,
+                    snapHasEngraveCut,
+                    processRowWindowLoader,
+                    snapActiveProgramIndex);
                 ui.CadPreviewGeometry = model.cadPreviewGeometry;
                 ui.CadEngravePreviewGeometry = model.cadEngravePreviewGeometry;
                 ui.CadCutPreviewGeometry = model.cadCutPreviewGeometry;
@@ -733,23 +710,38 @@ namespace DACDT_2026
 
             double snapWorkspaceWidth = workspaceWidth;
             double snapWorkspaceHeight = workspaceHeight;
+            double snapOffsetX = offsetX;
+            double snapOffsetY = offsetY;
+            double[] snapWcsOffsetX = wcsOffsetX.ToArray();
+            double[] snapWcsOffsetY = wcsOffsetY.ToArray();
             var preview = await Task.Run(() =>
             {
                 cancellationToken.ThrowIfCancellationRequested();
+                CadDocumentService.CadLoadResult displayDocument =
+                    CadDisplayDocumentBuilder.Build(
+                        selectedDocument,
+                        isGcodeKind: false,
+                        dxfOffsetX: snapOffsetX,
+                        dxfOffsetY: snapOffsetY,
+                        displayWcsOffsetX: snapWcsOffsetX,
+                        displayWcsOffsetY: snapWcsOffsetY,
+                        cancellationToken: cancellationToken);
                 var projection = CreateCadProjection(
-                    selectedDocument,
+                    displayDocument,
                     snapWorkspaceWidth,
                     snapWorkspaceHeight);
                 cancellationToken.ThrowIfCancellationRequested();
                 var engrave = BuildCadPreviewGeometry(
-                    selectedDocument,
+                    displayDocument,
                     projection,
-                    EngraveCutProcessComposer.EngraveKind);
+                    EngraveCutProcessComposer.EngraveKind,
+                    cancellationToken);
                 cancellationToken.ThrowIfCancellationRequested();
                 var cut = BuildCadPreviewGeometry(
-                    selectedDocument,
+                    displayDocument,
                     projection,
-                    EngraveCutProcessComposer.CutKind);
+                    EngraveCutProcessComposer.CutKind,
+                    cancellationToken);
                 cancellationToken.ThrowIfCancellationRequested();
                 return new
                 {
@@ -813,9 +805,7 @@ namespace DACDT_2026
                 Primitives = doc.Primitives == null
                     ? new List<CadDocumentService.CadPrimitiveData>()
                     : doc.Primitives.Select(CloneCadPrimitiveForUi).ToList(),
-                Points = doc.Points == null
-                    ? new List<CadDocumentService.CadPointData>()
-                    : doc.Points.Select(CloneCadPointForUi).ToList()
+                Points = new List<CadDocumentService.CadPointData>()
             };
         }
 
@@ -858,8 +848,7 @@ namespace DACDT_2026
                 }
             }
 
-            displayDoc.Points = RebuildPointRowsForDisplay(displayDoc.Primitives);
-            displayDoc.Bounds = BuildDisplayBounds(displayDoc.Primitives, displayDoc.Points);
+            displayDoc.Bounds = BuildDisplayBounds(displayDoc.Primitives);
             return displayDoc;
         }
 
@@ -905,69 +894,8 @@ namespace DACDT_2026
             point.Y += oy;
         }
 
-        private static List<CadDocumentService.CadPointData> RebuildPointRowsForDisplay(
-            IList<CadDocumentService.CadPrimitiveData> primitives)
-        {
-            var rows = new List<CadDocumentService.CadPointData>();
-            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-            if (primitives == null)
-                return rows;
-
-            foreach (var primitive in primitives)
-            {
-                if (primitive?.Points == null || primitive.Points.Count == 0)
-                    continue;
-
-                string sourceType = primitive.SourceType ?? "Point";
-                string lower = sourceType.ToLowerInvariant();
-                bool sampledCurve = lower.Contains("arc") || lower.Contains("circle");
-
-                if (sampledCurve)
-                {
-                    AddDisplayPointRow(rows, seen, primitive.Points[0], sourceType);
-                    AddDisplayPointRow(rows, seen, primitive.Points[primitive.Points.Count - 1], sourceType);
-                    AddDisplayPointRow(rows, seen, primitive.Center, sourceType + " center");
-                    continue;
-                }
-
-                foreach (var point in primitive.Points)
-                    AddDisplayPointRow(rows, seen, point, sourceType);
-            }
-
-            return rows;
-        }
-
-        private static void AddDisplayPointRow(
-            List<CadDocumentService.CadPointData> rows,
-            HashSet<string> seen,
-            CadDocumentService.CadCoordinate point,
-            string lineType)
-        {
-            if (point == null)
-                return;
-
-            string key = MakeGeometryPointKey(point.X, point.Y, point.Z);
-            if (!seen.Add(key))
-                return;
-
-            rows.Add(new CadDocumentService.CadPointData
-            {
-                Index = rows.Count + 1,
-                LineType = lineType,
-                X = point.X,
-                Y = point.Y,
-                Z = point.Z,
-                XDisplay = FormatGeometryNumber(point.X),
-                YDisplay = FormatGeometryNumber(point.Y),
-                ZDisplay = FormatGeometryNumber(point.Z),
-                Key = key
-            });
-        }
-
         private static CadDocumentService.CadBounds BuildDisplayBounds(
-            List<CadDocumentService.CadPrimitiveData> primitives,
-            List<CadDocumentService.CadPointData> points)
+            List<CadDocumentService.CadPrimitiveData> primitives)
         {
             double minX = double.MaxValue;
             double minY = double.MaxValue;
@@ -996,12 +924,6 @@ namespace DACDT_2026
                     if (primitive.Center != null)
                         IncludePoint(primitive.Center.X, primitive.Center.Y, primitive.Center.Z);
                 }
-            }
-
-            if (minX == double.MaxValue && points != null)
-            {
-                foreach (var point in points)
-                    IncludePoint(point.X, point.Y, point.Z);
             }
 
             if (minX == double.MaxValue)
@@ -1064,70 +986,91 @@ namespace DACDT_2026
             };
         }
 
-        private static CadDocumentService.CadPointData CloneCadPointForUi(CadDocumentService.CadPointData point)
-        {
-            if (point == null) return null;
-
-            return new CadDocumentService.CadPointData
-            {
-                Index = point.Index,
-                LineType = point.LineType,
-                X = point.X,
-                Y = point.Y,
-                Z = point.Z,
-                XDisplay = point.XDisplay,
-                YDisplay = point.YDisplay,
-                ZDisplay = point.ZDisplay,
-                Key = point.Key
-            };
-        }
-
         private static CadDocumentService.CadCoordinate CloneCadCoordinateForUi(CadDocumentService.CadCoordinate point)
             => point == null ? null : new CadDocumentService.CadCoordinate(point.X, point.Y, point.Z);
 
-        private static ProcessRow CloneProcessRowForUi(ProcessRow row)
+        private static IReadOnlyList<ProcessRowViewModel> BuildProcessRowViewModelWindow(
+            ProcessRow[] rows,
+            int start,
+            int count,
+            bool isGcodeKind,
+            double dxfOffsetX,
+            double dxfOffsetY,
+            double[] displayWcsOffsetX,
+            double[] displayWcsOffsetY)
         {
-            if (row == null) return null;
+            var result = new List<ProcessRowViewModel>();
+            if (rows == null || rows.Length == 0 || count <= 0)
+                return result;
 
-            return new ProcessRow
+            int first = Math.Max(0, start);
+            int limit = Math.Min(rows.Length, first + count);
+            result.Capacity = Math.Max(0, limit - first);
+            for (int rowIndex = first; rowIndex < limit; rowIndex++)
             {
-                Key = row.Key,
-                MotionType = row.MotionType,
-                MCodeValue = row.MCodeValue,
-                Dwell = row.Dwell,
-                Speed = row.Speed,
-                ProcessKind = row.ProcessKind,
-                LaserPower = row.LaserPower,
-                EndCoordinate = row.EndCoordinate,
-                CenterCoordinate = row.CenterCoordinate,
-                EndXMm = row.EndXMm,
-                EndYMm = row.EndYMm,
-                CenterXMm = row.CenterXMm,
-                CenterYMm = row.CenterYMm,
-                EndZ = row.EndZ,
-                WcsIndex = row.WcsIndex
-            };
+                ProcessRow row = rows[rowIndex];
+                if (row == null)
+                    continue;
+
+                double rowOffsetX;
+                double rowOffsetY;
+                if (row.MCodeValue == "0" && string.Equals(row.EndCoordinate, "0;0"))
+                {
+                    rowOffsetX = 0.0;
+                    rowOffsetY = 0.0;
+                }
+                else if (isGcodeKind)
+                {
+                    int wcsIndex = Math.Max(0, Math.Min(5, row.WcsIndex));
+                    rowOffsetX = displayWcsOffsetX != null && displayWcsOffsetX.Length > wcsIndex
+                        ? displayWcsOffsetX[wcsIndex]
+                        : 0.0;
+                    rowOffsetY = displayWcsOffsetY != null && displayWcsOffsetY.Length > wcsIndex
+                        ? displayWcsOffsetY[wcsIndex]
+                        : 0.0;
+                }
+                else
+                {
+                    rowOffsetX = dxfOffsetX;
+                    rowOffsetY = dxfOffsetY;
+                }
+
+                result.Add(new ProcessRowViewModel
+                {
+                    Index = rowIndex + 1,
+                    Key = row.Key,
+                    MotionType = row.MotionType,
+                    MCodeValue = row.MCodeValue ?? string.Empty,
+                    Dwell = row.Dwell ?? string.Empty,
+                    Speed = row.Speed ?? string.Empty,
+                    ProcessKind = row.ProcessKind ?? string.Empty,
+                    LaserPower = row.LaserPower ?? string.Empty,
+                    EndCoordinate = ApplyOffsetToCoord(row.EndCoordinate, rowOffsetX, rowOffsetY),
+                    CenterCoordinate = ApplyOffsetToCoord(row.CenterCoordinate, rowOffsetX, rowOffsetY),
+                    EndZ = row.EndZ.ToString("0.###", CultureInfo.InvariantCulture)
+                });
+            }
+
+            return result;
         }
-
-        private static string MakeGeometryPointKey(double x, double y, double z)
-            => string.Format(CultureInfo.InvariantCulture, "{0:0.###}|{1:0.###}|{2:0.###}", x, y, z);
-
-        private static string FormatGeometryNumber(double value)
-            => value.ToString("0.000", CultureInfo.InvariantCulture);
 
         private static System.Windows.Media.Geometry BuildCadPreviewGeometry(
             CadDocumentService.CadLoadResult doc,
             CadProjection projection,
-            string processKind = null)
+            string processKind = null,
+            CancellationToken cancellationToken = default(CancellationToken))
         {
+            cancellationToken.ThrowIfCancellationRequested();
             if (doc?.Primitives == null || doc.Primitives.Count == 0 || projection == null)
                 return null;
 
             var geometry = new StreamGeometry { FillRule = FillRule.EvenOdd };
             using (var context = geometry.Open())
             {
-                foreach (var primitive in doc.Primitives)
+                for (int primitiveIndex = 0; primitiveIndex < doc.Primitives.Count; primitiveIndex++)
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    var primitive = doc.Primitives[primitiveIndex];
                     if (primitive?.Points == null || primitive.Points.Count < 2)
                         continue;
                     if (!string.IsNullOrWhiteSpace(processKind)
@@ -1140,6 +1083,8 @@ namespace DACDT_2026
                     var points = new List<System.Windows.Point>(primitive.Points.Count - 1);
                     for (int i = 1; i < primitive.Points.Count; i++)
                     {
+                        if ((i & 2047) == 0)
+                            cancellationToken.ThrowIfCancellationRequested();
                         var pt = primitive.Points[i];
                         points.Add(projection.Project(pt.X, pt.Y));
                     }

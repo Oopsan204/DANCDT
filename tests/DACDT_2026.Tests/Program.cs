@@ -66,6 +66,9 @@ namespace DACDT_2026.Tests
                 ZHeightCommandUsesD110ThenPulsesM212();
                 LargeCadPreviewKeepsFullSourceAndCapsPreviewPoints();
                 LargeCadPreviewSamplesOneHugePolyline();
+                CadDisplayPreviewAppliesOffsetWithoutChangingSource();
+                CadDisplayPreviewHonorsCancellation();
+                CadOverlaySamplingKeepsEndpointsAndCapsPointCount();
                 LargeCadProcessPathDoesNotCloneSourceCoordinates();
                 LargeCadPreviewAvoidsHiddenCoordinateRowsAndUsesCombinedGeometry();
                 DxfRunViewRemovesProcessTableButKeepsPlcProcessData();
@@ -1721,6 +1724,8 @@ namespace DACDT_2026.Tests
 
             AssertTrue(source.Primitives.Count == 1, "source primitive count must remain unchanged");
             AssertTrue(source.Primitives[0].Points.Count == 500000, "source CAD data must remain complete");
+            AssertTrue(preview.Points.Count == 0,
+                "preview must not duplicate hidden coordinate rows");
             AssertTrue(preview.Primitives.Sum(p => p.Points.Count)
                 <= CadPreviewBuilder.DefaultLimits.MaxPreviewPoints,
                 "preview must be capped");
@@ -1744,6 +1749,78 @@ namespace DACDT_2026.Tests
                 "preview must keep the last point");
         }
 
+        private static void CadDisplayPreviewAppliesOffsetWithoutChangingSource()
+        {
+            CadDocumentService.CadLoadResult source = NewCadDocumentWithPrimitive(1000);
+            double sourceFirstX = source.Primitives[0].Points[0].X;
+            double sourceFirstY = source.Primitives[0].Points[0].Y;
+
+            CadDocumentService.CadLoadResult display = CadDisplayDocumentBuilder.Build(
+                source,
+                isGcodeKind: false,
+                dxfOffsetX: 12.5,
+                dxfOffsetY: -7.25,
+                displayWcsOffsetX: null,
+                displayWcsOffsetY: null,
+                cancellationToken: CancellationToken.None);
+
+            AssertEqual(
+                (sourceFirstX + 12.5).ToString(CultureInfo.InvariantCulture),
+                display.Primitives[0].Points[0].X.ToString(CultureInfo.InvariantCulture),
+                "display preview must apply the DXF X offset");
+            AssertEqual(
+                (sourceFirstY - 7.25).ToString(CultureInfo.InvariantCulture),
+                display.Primitives[0].Points[0].Y.ToString(CultureInfo.InvariantCulture),
+                "display preview must apply the DXF Y offset");
+            AssertEqual(
+                sourceFirstX.ToString(CultureInfo.InvariantCulture),
+                source.Primitives[0].Points[0].X.ToString(CultureInfo.InvariantCulture),
+                "display preview must not mutate source CAD coordinates");
+            AssertTrue(display.Points.Count == 0,
+                "display preview must not recreate hidden coordinate rows");
+        }
+
+        private static void CadDisplayPreviewHonorsCancellation()
+        {
+            var cancellation = new CancellationTokenSource();
+            cancellation.Cancel();
+
+            bool cancelled = false;
+            try
+            {
+                CadDisplayDocumentBuilder.Build(
+                    NewCadDocumentWithPrimitive(1000),
+                    isGcodeKind: false,
+                    dxfOffsetX: 0,
+                    dxfOffsetY: 0,
+                    displayWcsOffsetX: null,
+                    displayWcsOffsetY: null,
+                    cancellationToken: cancellation.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                cancelled = true;
+            }
+
+            AssertTrue(cancelled, "display preview build must honor cancellation");
+        }
+
+        private static void CadOverlaySamplingKeepsEndpointsAndCapsPointCount()
+        {
+            var points = new List<System.Windows.Point>();
+            for (int i = 0; i < 100000; i++)
+                points.Add(new System.Windows.Point(i, i % 100));
+
+            IReadOnlyList<System.Windows.Point> sampled =
+                CadPathPointSampler.Sample(points, 10000);
+
+            AssertTrue(sampled.Count <= 10000, "selection overlay must cap its point count");
+            AssertEqual("0", sampled[0].X.ToString(CultureInfo.InvariantCulture),
+                "selection overlay must keep the first point");
+            AssertEqual("99999", sampled[sampled.Count - 1].X.ToString(CultureInfo.InvariantCulture),
+                "selection overlay must keep the last point");
+        }
+
         private static void LargeCadProcessPathDoesNotCloneSourceCoordinates()
         {
             string source = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Form1.DxfHandler.cs"));
@@ -1765,6 +1842,17 @@ namespace DACDT_2026.Tests
             AssertTrue(!publisher.Contains("CadPointViewModel"), "large CAD publication must not create hidden coordinate view-model rows.");
             AssertTrue(!publisher.Contains("SetCadPointRows("), "large CAD publication must not publish hidden coordinate rows.");
             AssertTrue(!publisher.Contains("BuildCadPreviewImage("), "large CAD publication must not build an unused duplicate preview image.");
+            AssertTrue(!publisher.Contains("doc.Points.Select(CloneCadPointForUi)"),
+                "CAD display documents must not clone hidden point rows.");
+            AssertTrue(!publisher.Contains("displayDoc.Points = RebuildPointRowsForDisplay"),
+                "offset preview publication must not rebuild hidden point rows.");
+            int displayBuildCount = publisher
+                .Split(new[] { "CadDisplayDocumentBuilder.Build(" }, StringSplitOptions.None)
+                .Length - 1;
+            AssertTrue(displayBuildCount >= 2,
+                "initial and selection-refresh previews must share the same offset-aware display builder.");
+            AssertTrue(publisher.Contains("CancellationToken cancellationToken = default(CancellationToken)"),
+                "combined preview geometry must accept cancellation.");
             AssertTrue(dxfRun.Contains("Data=\"{Binding CadPreviewGeometry}\""), "DXF view must render the combined preview geometry.");
             AssertTrue(dxfRun.Contains("Data=\"{Binding CadEngravePreviewGeometry}\""), "DXF view must render combined engrave geometry.");
             AssertTrue(dxfRun.Contains("Data=\"{Binding CadCutPreviewGeometry}\""), "DXF view must render combined cut geometry.");
@@ -1783,6 +1871,8 @@ namespace DACDT_2026.Tests
             string dxfRun = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Views", "DxfRunView.xaml"));
             string dxfRunCode = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Views", "DxfRunView.xaml.cs"));
             string dxfHandler = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Form1.DxfHandler.cs"));
+            string publisher = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Form1.StatePublisher.cs"));
+            string state = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "WpfUiState.cs"));
 
             AssertTrue(!dxfRun.Contains("Process Table"), "DxfRunView must not show the Process Table panel.");
             AssertTrue(!dxfRun.Contains("ProcessTableGrid"), "DxfRunView must not declare the Process Table grid.");
@@ -1790,6 +1880,14 @@ namespace DACDT_2026.Tests
             AssertTrue(dxfHandler.Contains("private List<ProcessRow> BuildDxfProcessRows("),
                 "DXF process rows must remain available for PLC processing.");
             AssertTrue(dxfHandler.Contains("processRows"), "PLC process data must remain in the application state.");
+            AssertTrue(!publisher.Contains("snapRowsSource.Select(CloneProcessRowForUi)"),
+                "DXF publication must not clone every PLC row into hidden UI rows.");
+            AssertTrue(publisher.Contains("BuildProcessRowViewModelWindow"),
+                "Dashboard and Monitor must materialize only the requested process-row window.");
+            AssertTrue(!state.Contains("allProcessRows"),
+                "WPF state must not retain a second full process-row table.");
+            AssertTrue(state.Contains("processRowWindowLoader"),
+                "WPF state must load process rows in bounded windows.");
         }
 
         private static void OfflineRuntimeDoesNotStartMqttOrWebRtc()
@@ -1984,8 +2082,8 @@ namespace DACDT_2026.Tests
                 "publish must guard active document reference, DXF kind, and requested version");
             AssertTrue(publish > documentGuard && publish > kindGuard && publish > versionGuard,
                 "all stale-result guards must run before atomic publication");
-            AssertTrue(mutateRows > publish,
-                "processRows must mutate only after the current version wins publication");
+            AssertTrue(mutateRows >= 0 && mutateRows < publish,
+                "processRows must be installed before the version is committed as published");
             AssertTrue(compile.Contains("await RunOnUiAsync"),
                 "active documents and processRows must publish on the UI thread");
             AssertTrue(compile.Contains("await RefreshCadSelectionPreviewAsync(document,"),
@@ -2051,12 +2149,16 @@ namespace DACDT_2026.Tests
             string export = ExtractMethodBody(dxf, "private async Task HandleExportQD75Async");
 
             int mixedEnsure = mixedRun.IndexOf("await EnsureCadProgramCurrentAsync()", StringComparison.Ordinal);
+            int mixedSync = mixedRun.IndexOf("bool settingsChanged = SyncEngraveCutSettingsFromUi()", StringComparison.Ordinal);
+            int mixedDirty = mixedRun.IndexOf("cadProgramCompilationState.MarkDirty()", StringComparison.Ordinal);
             int mixedRead = mixedRun.IndexOf("processRows.ToList()", StringComparison.Ordinal);
             int sendEnsure = send.IndexOf("await EnsureCadProgramCurrentAsync()", StringComparison.Ordinal);
             int sendRead = send.IndexOf("processRows.Count", StringComparison.Ordinal);
             int exportEnsure = export.IndexOf("await EnsureCadProgramCurrentAsync()", StringComparison.Ordinal);
             int exportRead = export.IndexOf("processRows == null", StringComparison.Ordinal);
 
+            AssertTrue(mixedSync >= 0 && mixedDirty > mixedSync && mixedEnsure > mixedDirty,
+                "mixed RUN must dirty compiled rows when live engrave/cut settings changed");
             AssertTrue(mixedEnsure >= 0 && mixedEnsure < mixedRead,
                 "mixed RUN must ensure latest CAD rows before taking its PLC snapshot");
             AssertTrue(sendEnsure >= 0 && sendEnsure < sendRead,

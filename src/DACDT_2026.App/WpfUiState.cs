@@ -74,6 +74,7 @@ namespace DACDT_2026
 
     public sealed class WpfUiState : ObservableState
     {
+        private const int MaxCadSelectionOverlayPoints = 10000;
         private const int LazyTableBatchSize = 100;
 
         private string currentView = "control";
@@ -146,7 +147,9 @@ namespace DACDT_2026
         private string cameraRecordingCompletedText = "MP4 recording stopped";
         private readonly List<CadPointViewModel> allCadPoints = new List<CadPointViewModel>();
         private readonly List<GeometryRowViewModel> allGeometryRows = new List<GeometryRowViewModel>();
-        private readonly List<ProcessRowViewModel> allProcessRows = new List<ProcessRowViewModel>();
+        private Func<int, int, IReadOnlyList<ProcessRowViewModel>> processRowWindowLoader;
+        private int processRowCount;
+        private bool hasEngraveCutProgram;
 
         public WpfUiState()
         {
@@ -731,15 +734,13 @@ namespace DACDT_2026
             }
         }
 
-        public bool IsPauseContinueEnabled => allProcessRows.Count > 0 && ActiveProgramIndex > 0 && ActiveProgramIndex <= allProcessRows.Count;
+        public bool IsPauseContinueEnabled => processRowCount > 0 && ActiveProgramIndex > 0 && ActiveProgramIndex <= processRowCount;
 
         public string ActiveProgramText => ActiveProgramIndex > 0
             ? "Active data no: " + ActiveProgramIndex
             : "Waiting for PLC data no.";
 
-        private bool HasEngraveCutProgram => allProcessRows.Any(row =>
-            string.Equals(row.ProcessKind, EngraveCutProcessComposer.EngraveKind, StringComparison.OrdinalIgnoreCase)
-            || string.Equals(row.ProcessKind, EngraveCutProcessComposer.CutKind, StringComparison.OrdinalIgnoreCase));
+        private bool HasEngraveCutProgram => hasEngraveCutProgram;
 
         public bool RunProgressVisible
         {
@@ -751,7 +752,7 @@ namespace DACDT_2026
         {
             get
             {
-                int total = allProcessRows.Count;
+                int total = processRowCount;
                 if (!HasEngraveCutProgram || total <= 0 || ActiveProgramIndex <= 0)
                     return 0;
 
@@ -764,7 +765,7 @@ namespace DACDT_2026
         {
             get
             {
-                int total = allProcessRows.Count;
+                int total = processRowCount;
                 if (total <= 0)
                     return "No program loaded";
 
@@ -808,14 +809,18 @@ namespace DACDT_2026
             ReplaceVisibleRows(GeometryRows, allGeometryRows, GetInitialVisibleCount(allGeometryRows.Count, 0));
         }
 
-        public void SetProcessRows(IEnumerable<ProcessRowViewModel> rows, int activeIndex)
+        public void SetProcessRows(
+            int totalCount,
+            bool hasEngraveCut,
+            Func<int, int, IReadOnlyList<ProcessRowViewModel>> windowLoader,
+            int activeIndex)
         {
-            ReplaceList(allProcessRows, rows);
+            processRowCount = Math.Max(0, totalCount);
+            hasEngraveCutProgram = hasEngraveCut;
+            processRowWindowLoader = windowLoader;
             lastHighlightedProgramIndex = 0;
-            foreach (var row in allProcessRows)
-                row.IsActive = activeIndex > 0 && row.Index == activeIndex;
 
-            ReplaceVisibleRows(ProcessRows, allProcessRows, GetInitialVisibleCount(allProcessRows.Count, 0));
+            ProcessRows.ReplaceWith(LoadProcessRowWindow(0, LazyTableBatchSize));
             ReplaceProgramRowsWindow(activeIndex);
             lastHighlightedProgramIndex = activeIndex;
             OnPropertyChanged(nameof(RunProgressVisible));
@@ -837,12 +842,14 @@ namespace DACDT_2026
                 return;
             }
 
+            IReadOnlyList<System.Windows.Point> overlayPoints =
+                CadPathPointSampler.Sample(points, MaxCadSelectionOverlayPoints);
             var geometry = new StreamGeometry();
             using (StreamGeometryContext context = geometry.Open())
             {
-                context.BeginFigure(points[0], isFilled: false, isClosed: false);
-                for (int i = 1; i < points.Count; i++)
-                    context.LineTo(points[i], isStroked: true, isSmoothJoin: true);
+                context.BeginFigure(overlayPoints[0], isFilled: false, isClosed: false);
+                for (int i = 1; i < overlayPoints.Count; i++)
+                    context.LineTo(overlayPoints[i], isStroked: true, isSmoothJoin: true);
             }
             geometry.Freeze();
 
@@ -863,7 +870,10 @@ namespace DACDT_2026
             => AppendNextRows(GeometryRows, allGeometryRows);
 
         public bool LoadMoreProcessRows()
-            => AppendNextRows(ProcessRows, allProcessRows);
+        {
+            int start = ProcessRows.Count == 0 ? 0 : ProcessRows[ProcessRows.Count - 1].Index;
+            return AppendProcessRows(ProcessRows, start);
+        }
 
         public bool LoadMoreProgramRows()
         {
@@ -874,16 +884,13 @@ namespace DACDT_2026
                 start = Math.Max(0, lastIndex);
             }
 
-            int limit = Math.Min(start + LazyTableBatchSize, allProcessRows.Count);
+            int limit = Math.Min(start + LazyTableBatchSize, processRowCount);
             if (start >= limit)
                 return false;
 
-            var rows = new List<ProcessRowViewModel>();
-            for (int i = start; i < limit; i++)
-                rows.Add(allProcessRows[i]);
-
+            List<ProcessRowViewModel> rows = LoadProcessRowWindow(start, limit - start);
             ProgramRows.AddRange(rows);
-            return true;
+            return rows.Count > 0;
         }
 
         public void UpdateCadTrackingPoint(CadTrackingPointViewModel point)
@@ -932,7 +939,7 @@ namespace DACDT_2026
 
         private bool EnsureProgramRowVisible(int rowIndex)
         {
-            if (rowIndex <= 0 || allProcessRows.Count == 0)
+            if (rowIndex <= 0 || processRowCount == 0)
                 return false;
 
             foreach (var row in ProgramRows)
@@ -951,15 +958,51 @@ namespace DACDT_2026
             if (focusIndex > 0)
                 start = ((focusIndex - 1) / LazyTableBatchSize) * LazyTableBatchSize;
 
-            if (start >= allProcessRows.Count)
-                start = Math.Max(0, allProcessRows.Count - LazyTableBatchSize);
+            if (start >= processRowCount)
+                start = Math.Max(0, processRowCount - LazyTableBatchSize);
 
-            var visible = new List<ProcessRowViewModel>();
-            int limit = Math.Min(start + LazyTableBatchSize, allProcessRows.Count);
-            for (int i = start; i < limit; i++)
-                visible.Add(allProcessRows[i]);
-
+            List<ProcessRowViewModel> visible =
+                LoadProcessRowWindow(start, LazyTableBatchSize);
             ProgramRows.ReplaceWith(visible);
+        }
+
+        private bool AppendProcessRows(
+            BulkObservableCollection<ProcessRowViewModel> target,
+            int start)
+        {
+            List<ProcessRowViewModel> rows =
+                LoadProcessRowWindow(start, LazyTableBatchSize);
+            if (rows.Count == 0)
+                return false;
+
+            target.AddRange(rows);
+            return true;
+        }
+
+        private List<ProcessRowViewModel> LoadProcessRowWindow(int start, int count)
+        {
+            start = Math.Max(0, start);
+            int available = Math.Max(0, processRowCount - start);
+            int requested = Math.Min(Math.Max(0, count), available);
+            var result = new List<ProcessRowViewModel>(requested);
+            if (requested == 0 || processRowWindowLoader == null)
+                return result;
+
+            IReadOnlyList<ProcessRowViewModel> loaded =
+                processRowWindowLoader(start, requested);
+            if (loaded == null)
+                return result;
+
+            for (int i = 0; i < loaded.Count && result.Count < requested; i++)
+            {
+                ProcessRowViewModel row = loaded[i];
+                if (row == null)
+                    continue;
+                row.IsActive = ActiveProgramIndex > 0 && row.Index == ActiveProgramIndex;
+                result.Add(row);
+            }
+
+            return result;
         }
 
         private static void ReplaceList<T>(List<T> target, IEnumerable<T> source)
@@ -1022,9 +1065,23 @@ namespace DACDT_2026
             if (index <= 0)
                 return;
 
-            ProcessRowViewModel row = GetIndexedRow(allProcessRows, index);
-            if (row != null)
-                row.IsActive = isActive;
+            SetProcessRowActive(ProcessRows, index, isActive);
+            SetProcessRowActive(ProgramRows, index, isActive);
+        }
+
+        private static void SetProcessRowActive(
+            IEnumerable<ProcessRowViewModel> rows,
+            int index,
+            bool isActive)
+        {
+            foreach (ProcessRowViewModel row in rows)
+            {
+                if (row.Index == index)
+                {
+                    row.IsActive = isActive;
+                    return;
+                }
+            }
         }
 
         private void SetCadPointActive(int index, bool isActive)
@@ -1035,21 +1092,6 @@ namespace DACDT_2026
             CadPointViewModel point = GetIndexedRow(allCadPoints, index);
             if (point != null)
                 point.IsActive = isActive;
-        }
-
-        private static ProcessRowViewModel GetIndexedRow(List<ProcessRowViewModel> rows, int index)
-        {
-            int offset = index - 1;
-            if (offset >= 0 && offset < rows.Count && rows[offset].Index == index)
-                return rows[offset];
-
-            foreach (var row in rows)
-            {
-                if (row.Index == index)
-                    return row;
-            }
-
-            return null;
         }
 
         private static CadPointViewModel GetIndexedRow(List<CadPointViewModel> rows, int index)

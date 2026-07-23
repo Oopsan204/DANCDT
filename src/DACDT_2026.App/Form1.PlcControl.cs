@@ -536,6 +536,9 @@ namespace DACDT_2026
         // ── Jog Speed ────────────────────────────────────────────────────────────
         private async Task HandleMixedEngraveCutStartAsync()
         {
+            bool settingsChanged = SyncEngraveCutSettingsFromUi();
+            if (settingsChanged)
+                cadProgramCompilationState.MarkDirty();
             await EnsureCadProgramCurrentAsync();
 
             var allRows = processRows.ToList();
@@ -544,8 +547,6 @@ namespace DACDT_2026
                 await NotifyAsync("info", "Start", "No points to send.");
                 return;
             }
-
-            SyncEngraveCutSettingsFromUi();
 
             bool hasEngraveRows = allRows.Any(row => string.Equals(row.ProcessKind, EngraveCutProcessComposer.EngraveKind, StringComparison.OrdinalIgnoreCase));
             bool hasCutRows = allRows.Any(row => string.Equals(row.ProcessKind, EngraveCutProcessComposer.CutKind, StringComparison.OrdinalIgnoreCase));

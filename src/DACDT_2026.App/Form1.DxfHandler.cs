@@ -320,8 +320,13 @@ namespace DACDT_2026
             }
         }
 
-        private void SyncEngraveCutSettingsFromUi()
+        private bool SyncEngraveCutSettingsFromUi()
         {
+            string previousEngraveSpeed = engraveSpeed;
+            string previousEngravePower = engravePower;
+            string previousCutSpeed = cutSpeed;
+            string previousCutPower = cutPower;
+
             if (!string.IsNullOrWhiteSpace(ui.EngraveSpeedInput))
                 engraveSpeed = ui.EngraveSpeedInput;
             if (!string.IsNullOrWhiteSpace(ui.EngravePowerInput))
@@ -330,6 +335,11 @@ namespace DACDT_2026
                 cutSpeed = ui.CutSpeedInput;
             if (!string.IsNullOrWhiteSpace(ui.CutPowerInput))
                 cutPower = ui.CutPowerInput;
+
+            return !string.Equals(previousEngraveSpeed, engraveSpeed, StringComparison.Ordinal)
+                || !string.Equals(previousEngravePower, engravePower, StringComparison.Ordinal)
+                || !string.Equals(previousCutSpeed, cutSpeed, StringComparison.Ordinal)
+                || !string.Equals(previousCutPower, cutPower, StringComparison.Ordinal);
         }
 
         private void NormalizeCadDocumentPaths(CadDocumentService.CadLoadResult document, bool isGcode)
@@ -571,9 +581,6 @@ namespace DACDT_2026
                     return;
                 }
 
-                if (!cadProgramCompilationState.TryPublish(version))
-                    return;
-
                 try
                 {
                     activeEngraveCadDocument = build.EngraveDocument;
@@ -583,6 +590,11 @@ namespace DACDT_2026
                     isMixedEngraveCutProgram = activeCadDocument != null;
                     selectedCadPointKey = activeCadDocument?.Points?.FirstOrDefault()?.Key;
                     ui.IsStartActionEnabled = processRows.Count > 0;
+                    if (!cadProgramCompilationState.TryPublish(version))
+                    {
+                        cadProgramPublishedDocument = null;
+                        return;
+                    }
                     cadProgramPublishedDocument = document;
                     published = true;
                 }

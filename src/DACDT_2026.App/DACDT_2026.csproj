@@ -137,9 +137,11 @@
   <ItemGroup>
     <Compile Include="CadDocumentService.cs" />
     <Compile Include="CadPreviewBuilder.cs" />
+    <Compile Include="CadDisplayDocumentBuilder.cs" />
     <Compile Include="OfflineRuntimePolicy.cs" />
     <Compile Include="CadPathSelection.cs" />
     <Compile Include="CadPathHitIndex.cs" />
+    <Compile Include="CadPathPointSampler.cs" />
     <Compile Include="CadProgramCompilationState.cs" />
     <Compile Include="CadTouchGestureSession.cs" />
     <Compile Include="CameraDeviceSelection.cs" />
