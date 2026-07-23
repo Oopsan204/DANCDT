@@ -125,8 +125,8 @@
                             PreviewTouchMove="CadViewport_PreviewTouchMove"
                             PreviewTouchUp="CadViewport_PreviewTouchUp"
                             LostTouchCapture="CadViewport_LostTouchCapture">
-                        <Viewbox x:Name="CadPreviewViewbox" Stretch="Uniform">
-                            <Canvas x:Name="CadSurface" Width="1000" Height="620" ClipToBounds="True">
+                        <Viewbox x:Name="CadPreviewViewbox" Stretch="Uniform" ClipToBounds="False">
+                            <Canvas x:Name="CadSurface" Width="1000" Height="620" ClipToBounds="False">
                                 <Rectangle Width="1000" Height="620" Fill="{DynamicResource CadCanvasBrush}"/>
                                 <Canvas x:Name="CadContent">
                                     <Canvas.RenderTransform>

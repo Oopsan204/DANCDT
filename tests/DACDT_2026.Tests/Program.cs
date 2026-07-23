@@ -117,6 +117,7 @@ namespace DACDT_2026.Tests
                 ViewsExposeSharedStylesToXamlDesigner();
                 ViewsDeclareConvertersUsedByXamlDesigner();
                 WpfXamlUsesValidResourceAndGridSyntax();
+                CadPreviewClipsOnlyAtOuterViewport();
                 GeometryDataTableIsRemovedWithoutRemovingCadAndGcodeViews();
                 AntigravityUiWorkflowIsGuarded();
                 HelpViewContainsVietnameseOperationalGuide();
@@ -1592,6 +1593,28 @@ namespace DACDT_2026.Tests
             AssertTrue(!sidebar.Contains("<Grid.ColumnDefinition "), "Sidebar must use ColumnDefinition children inside Grid.ColumnDefinitions.");
             string normalizedDxfRun = dxfRun.Replace("\r\n", "\n");
             AssertTrue(normalizedDxfRun.Contains("<UserControl.Resources>\n        <ResourceDictionary>\n            <ResourceDictionary.MergedDictionaries>"), "DxfRunView resources must wrap merged dictionaries in ResourceDictionary.");
+        }
+
+        private static void CadPreviewClipsOnlyAtOuterViewport()
+        {
+            string xaml = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Views", "DxfRunView.xaml"));
+            int viewportStart = xaml.IndexOf("<Border x:Name=\"CadViewport\"", StringComparison.Ordinal);
+            int viewportEnd = xaml.IndexOf('>', viewportStart);
+            int viewboxStart = xaml.IndexOf("<Viewbox x:Name=\"CadPreviewViewbox\"", StringComparison.Ordinal);
+            int viewboxEnd = xaml.IndexOf('>', viewboxStart);
+            int surfaceStart = xaml.IndexOf("<Canvas x:Name=\"CadSurface\"", StringComparison.Ordinal);
+            int surfaceEnd = xaml.IndexOf('>', surfaceStart);
+
+            AssertTrue(viewportStart >= 0 && viewportEnd > viewportStart,
+                "CAD preview must declare its outer viewport.");
+            AssertTrue(xaml.Substring(viewportStart, viewportEnd - viewportStart).Contains("ClipToBounds=\"True\""),
+                "CAD preview must clip at its outer viewport.");
+            AssertTrue(viewboxStart >= 0 && viewboxEnd > viewboxStart
+                && xaml.Substring(viewboxStart, viewboxEnd - viewboxStart).Contains("ClipToBounds=\"False\""),
+                "CAD Viewbox must allow panned content to render into letterbox space.");
+            AssertTrue(surfaceStart >= 0 && surfaceEnd > surfaceStart
+                && xaml.Substring(surfaceStart, surfaceEnd - surfaceStart).Contains("ClipToBounds=\"False\""),
+                "CAD surface must not clip content before it reaches the outer viewport.");
         }
 
         private static void GeometryDataTableIsRemovedWithoutRemovingCadAndGcodeViews()
