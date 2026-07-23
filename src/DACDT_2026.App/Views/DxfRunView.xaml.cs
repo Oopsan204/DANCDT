@@ -112,7 +112,7 @@ namespace DACDT_2026.Views
 
         private void CadViewport_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
         {
-            if (e.StylusDevice != null || touchSession.IsTouchActive)
+            if (e.StylusDevice != null || isCadPanning || touchSession.IsTouchActive)
             {
                 e.Handled = true;
                 return;
@@ -148,7 +148,7 @@ namespace DACDT_2026.Views
             if (CadSurface == null || e.TouchDevice == null)
                 return;
 
-            BeginCadInteractionRendering();
+            EndCadPan();
             Point position = e.GetTouchPoint(CadSurface).Position;
             touchSession.BeginTouch(e.TouchDevice.Id, position);
 
@@ -189,7 +189,10 @@ namespace DACDT_2026.Views
                 if (touchPanExceededThreshold
                     || Distance(touchStartPoint, current) >= TouchPanThreshold)
                 {
+                    bool startedPan = !touchPanExceededThreshold;
                     touchPanExceededThreshold = true;
+                    if (startedPan)
+                        BeginCadInteractionRendering();
                     CadPanTransform.X += delta.X;
                     CadPanTransform.Y += delta.Y;
                 }
@@ -334,7 +337,6 @@ namespace DACDT_2026.Views
                 return;
             }
 
-            BeginCadInteractionRendering();
             isCadPanning = true;
             mousePanExceededThreshold = false;
             cadPanStartPoint = e.GetPosition(CadSurface);
@@ -360,7 +362,10 @@ namespace DACDT_2026.Views
             if (mousePanExceededThreshold
                 || Distance(cadPanStartPoint, current) >= TouchPanThreshold)
             {
+                bool startedPan = !mousePanExceededThreshold;
                 mousePanExceededThreshold = true;
+                if (startedPan)
+                    BeginCadInteractionRendering();
                 CadPanTransform.X = cadPanStartX + current.X - cadPanStartPoint.X;
                 CadPanTransform.Y = cadPanStartY + current.Y - cadPanStartPoint.Y;
             }
@@ -422,6 +427,9 @@ namespace DACDT_2026.Views
 
         private void CadWheelIdleTimer_Tick(object sender, EventArgs e)
         {
+            if (isCadPanning || touchSession.IsTouchActive)
+                return;
+
             cadWheelIdleTimer.Stop();
             EndCadInteractionRendering();
         }

@@ -1364,6 +1364,19 @@ namespace DACDT_2026.Tests
         private static void CadInteractionUsesTemporaryBitmapCacheOnlyWhileInteracting()
         {
             string codeSource = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Views", "DxfRunView.xaml.cs"));
+            string wheelHandler = ExtractMethodBody(codeSource, "private void CadViewport_PreviewMouseWheel");
+            string touchDownHandler = ExtractMethodBody(codeSource, "private void CadViewport_PreviewTouchDown");
+            string touchMoveHandler = ExtractMethodBody(codeSource, "private void CadViewport_PreviewTouchMove");
+            string touchUpHandler = ExtractMethodBody(codeSource, "private void CadViewport_PreviewTouchUp");
+            string mouseDownHandler = ExtractMethodBody(codeSource, "private void CadViewport_MouseLeftButtonDown");
+            string mouseMoveHandler = ExtractMethodBody(codeSource, "private void CadViewport_MouseMove");
+            string mouseUpHandler = ExtractMethodBody(codeSource, "private void CadViewport_MouseLeftButtonUp");
+            string endPanHandler = ExtractMethodBody(codeSource, "private void EndCadPan");
+            string resetTouchHandler = ExtractMethodBody(codeSource, "private void ResetTouchGesture");
+            string resetViewHandler = ExtractMethodBody(codeSource, "private void ResetCadView");
+            string wheelTickHandler = ExtractMethodBody(codeSource, "private void CadWheelIdleTimer_Tick");
+            string lostMouseHandler = ExtractMethodBody(codeSource, "private void CadViewport_LostMouseCapture");
+            string lostTouchHandler = ExtractMethodBody(codeSource, "private void CadViewport_LostTouchCapture");
 
             AssertTrue(codeSource.Contains("private readonly BitmapCache cadInteractionCache"),
                 "CAD interaction must reuse one BitmapCache instance.");
@@ -1389,10 +1402,50 @@ namespace DACDT_2026.Tests
             AssertTrue(codeSource.Contains("BeginCadInteractionRendering();")
                 && codeSource.Contains("EndCadInteractionRendering();"),
                 "CAD pan, pinch, wheel, reset, and capture-loss paths must use cache lifecycle methods.");
-            AssertTrue(codeSource.Contains("CadViewport_LostMouseCapture"),
+
+            AssertTrue(touchDownHandler.Contains("EndCadPan();")
+                && touchDownHandler.IndexOf("EndCadPan();", StringComparison.Ordinal)
+                    < touchDownHandler.IndexOf("touchSession.BeginTouch", StringComparison.Ordinal),
+                "Valid touch down must cancel an active mouse pan before touch state starts.");
+            AssertTrue(!touchDownHandler.Contains("BeginCadInteractionRendering();"),
+                "A simple touch press must not enable the bitmap cache.");
+            AssertTrue(!mouseDownHandler.Contains("BeginCadInteractionRendering();"),
+                "A simple mouse press must not enable the bitmap cache.");
+
+            int mouseThreshold = mouseMoveHandler.IndexOf("mousePanExceededThreshold = true;", StringComparison.Ordinal);
+            int mouseBegin = mouseMoveHandler.IndexOf("BeginCadInteractionRendering();", StringComparison.Ordinal);
+            AssertTrue(mouseThreshold >= 0 && mouseBegin > mouseThreshold
+                && CountOccurrences(mouseMoveHandler, "BeginCadInteractionRendering();") == 1,
+                "Mouse pan must enable the cache once at threshold transition.");
+
+            int touchThreshold = touchMoveHandler.IndexOf("touchPanExceededThreshold = true;", StringComparison.Ordinal);
+            int touchBegin = touchMoveHandler.IndexOf("BeginCadInteractionRendering();", StringComparison.Ordinal);
+            AssertTrue(touchThreshold >= 0 && touchBegin > touchThreshold
+                && CountOccurrences(touchMoveHandler, "BeginCadInteractionRendering();") == 1,
+                "Touch pan must enable the cache once at threshold transition.");
+
+            AssertTrue(wheelHandler.Contains("isCadPanning")
+                && wheelHandler.Contains("touchSession.IsTouchActive"),
+                "Mouse wheel must reject active mouse pan and touch gestures.");
+            AssertTrue(wheelHandler.Contains("cadWheelIdleTimer.Stop();")
+                && wheelHandler.Contains("cadWheelIdleTimer.Start();"),
+                "Each accepted mouse-wheel event must restart the reusable idle timer.");
+            AssertTrue(wheelTickHandler.Contains("isCadPanning")
+                && wheelTickHandler.Contains("touchSession.IsTouchActive")
+                && wheelTickHandler.Contains("return;"),
+                "Wheel idle expiry must not clear the cache while pan or touch is active.");
+
+            AssertTrue(mouseUpHandler.Contains("EndCadPan();") && endPanHandler.Contains("EndCadInteractionRendering();"),
+                "Mouse release must end CAD interaction rendering.");
+            AssertTrue(touchUpHandler.Contains("ResetTouchGesture();") && resetTouchHandler.Contains("EndCadInteractionRendering();"),
+                "Touch completion must end CAD interaction rendering.");
+            AssertTrue(resetViewHandler.Contains("EndCadInteractionRendering();"),
+                "Double-click/reset must end CAD interaction rendering.");
+            AssertTrue(lostMouseHandler.Contains("EndCadPan();")
+                && lostMouseHandler.Contains("EndCadInteractionRendering();"),
                 "Mouse capture loss must end CAD interaction rendering.");
-            AssertTrue(codeSource.Contains("CadViewport_LostTouchCapture"),
-                "Touch capture loss must end CAD interaction rendering.");
+            AssertTrue(lostTouchHandler.Contains("ResetTouchGesture();"),
+                "Touch capture loss must reset and end CAD interaction rendering.");
         }
 
         private static void SettingsViewUsesApprovedEnglishContract()
@@ -1772,6 +1825,43 @@ namespace DACDT_2026.Tests
                     Key = index.ToString()
                 }).ToList()
             };
+        }
+
+        private static string ExtractMethodBody(string source, string signature)
+        {
+            int signatureStart = source.IndexOf(signature, StringComparison.Ordinal);
+            AssertTrue(signatureStart >= 0, "source contract method is missing: " + signature);
+
+            int openingBrace = source.IndexOf('{', signatureStart);
+            AssertTrue(openingBrace >= 0, "source contract method has no body: " + signature);
+
+            int depth = 0;
+            for (int index = openingBrace; index < source.Length; index++)
+            {
+                if (source[index] == '{')
+                    depth++;
+                else if (source[index] == '}' && --depth == 0)
+                    return source.Substring(openingBrace, index - openingBrace + 1);
+            }
+
+            throw new Exception("source contract method body is not balanced: " + signature);
+        }
+
+        private static int CountOccurrences(string source, string value)
+        {
+            int count = 0;
+            int offset = 0;
+            while (offset >= 0 && offset < source.Length)
+            {
+                int match = source.IndexOf(value, offset, StringComparison.Ordinal);
+                if (match < 0)
+                    break;
+
+                count++;
+                offset = match + value.Length;
+            }
+
+            return count;
         }
 
         private static void AssertEqual(string expected, string actual, string message)
