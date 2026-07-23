@@ -86,6 +86,9 @@
     <Compile Include="..\..\src\DACDT_2026.App\CadPathHitIndex.cs">
       <Link>CadPathHitIndex.cs</Link>
     </Compile>
+    <Compile Include="..\..\src\DACDT_2026.App\CadProgramCompilationState.cs">
+      <Link>CadProgramCompilationState.cs</Link>
+    </Compile>
     <Compile Include="..\..\src\DACDT_2026.App\CadTouchGestureSession.cs">
       <Link>CadTouchGestureSession.cs</Link>
     </Compile>

@@ -140,6 +140,7 @@
     <Compile Include="OfflineRuntimePolicy.cs" />
     <Compile Include="CadPathSelection.cs" />
     <Compile Include="CadPathHitIndex.cs" />
+    <Compile Include="CadProgramCompilationState.cs" />
     <Compile Include="CadTouchGestureSession.cs" />
     <Compile Include="CameraDeviceSelection.cs" />
     <Compile Include="ConfigurationFilePathStore.cs" />

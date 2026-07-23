@@ -90,6 +90,11 @@ namespace DACDT_2026.Tests
                 CadPathHitIndexKeepsTheTrulyNearestPathDespiteTinyDistanceDifference();
                 CadPathHitIndexFindsOnlyTheNearbyPathInALargeSet();
                 CadPathSelectionUpdatesImmediatelyAndExplainsRunLock();
+                CadProgramCompilationStartsAtVersionZero();
+                CadProgramCompilationMarksDirtyWithoutPublishing();
+                CadProgramCompilationPublishesCurrentVersion();
+                CadProgramCompilationRejectsStaleVersionAfterNewerRequest();
+                CadProgramCompilationPreservesPublishedVersionWhenRejecting();
                 CadInteractionAvoidsExpensiveHitTestingAndFullStateRebuild();
                 CadInteractionUsesTemporaryBitmapCacheOnlyWhileInteracting();
                 SettingsViewUsesApprovedEnglishContract();
@@ -1813,6 +1818,65 @@ namespace DACDT_2026.Tests
             AssertTrue(!installer.Contains("docs\\index.html"), "installer must not package the web dashboard");
             AssertTrue(installer.Contains("Excludes: \"MQTTnet.dll\""), "installer must not package MQTT runtime DLL");
             AssertTrue(!File.Exists(GetRepositoryPath("src", "WebRtcCameraService", "Program.cs")), "WebRTC service source must be removed");
+        }
+
+        private static void CadProgramCompilationStartsAtVersionZero()
+        {
+            var state = new CadProgramCompilationState();
+
+            AssertTrue(state.RequestedVersion == 0, "compilation requested version must start at zero");
+            AssertTrue(state.PublishedVersion == 0, "compilation published version must start at zero");
+            AssertTrue(state.IsCurrent(0), "version zero must initially be current");
+        }
+
+        private static void CadProgramCompilationMarksDirtyWithoutPublishing()
+        {
+            var state = new CadProgramCompilationState();
+
+            int requestedVersion = state.MarkDirty();
+
+            AssertTrue(requestedVersion == 1, "first dirty mark must request version one");
+            AssertTrue(state.RequestedVersion == requestedVersion, "dirty mark must advance requested version");
+            AssertTrue(state.PublishedVersion == 0, "dirty mark must not publish rows");
+            AssertTrue(!state.IsCurrent(requestedVersion), "dirty version must not be current before publication");
+            AssertTrue(!state.IsCurrent(0), "previous published version must become stale after a dirty mark");
+        }
+
+        private static void CadProgramCompilationPublishesCurrentVersion()
+        {
+            var state = new CadProgramCompilationState();
+            int requestedVersion = state.MarkDirty();
+
+            AssertTrue(state.TryPublish(requestedVersion), "current compilation version must publish successfully");
+            AssertTrue(state.PublishedVersion == requestedVersion, "published version must match the compiled request");
+            AssertTrue(state.IsCurrent(requestedVersion), "published current version must be current");
+        }
+
+        private static void CadProgramCompilationRejectsStaleVersionAfterNewerRequest()
+        {
+            var state = new CadProgramCompilationState();
+            int staleVersion = state.MarkDirty();
+            int currentVersion = state.MarkDirty();
+
+            AssertTrue(!state.TryPublish(staleVersion), "stale compilation result must be rejected");
+            AssertTrue(state.PublishedVersion == 0, "stale result must not advance published version");
+            AssertTrue(state.TryPublish(currentVersion), "newest compilation result must publish");
+            AssertTrue(state.IsCurrent(currentVersion), "newest published result must be current");
+        }
+
+        private static void CadProgramCompilationPreservesPublishedVersionWhenRejecting()
+        {
+            var state = new CadProgramCompilationState();
+            int firstVersion = state.MarkDirty();
+
+            AssertTrue(state.TryPublish(firstVersion), "first compilation version must publish");
+            int publishedVersion = state.PublishedVersion;
+            int secondVersion = state.MarkDirty();
+
+            AssertTrue(!state.TryPublish(firstVersion), "previously published version must not publish again after a newer request");
+            AssertTrue(state.PublishedVersion == publishedVersion, "rejected result must preserve the last published version");
+            AssertTrue(!state.IsCurrent(publishedVersion), "last published version must be non-current while a newer request is pending");
+            AssertTrue(state.RequestedVersion == secondVersion, "newer request must remain the requested version");
         }
 
         private static CadDocumentService.CadLoadResult NewCadDocumentWithPrimitive(int pointCount)
