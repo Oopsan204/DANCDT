@@ -187,6 +187,28 @@
                                         </ItemsControl.ItemTemplate>
                                     </ItemsControl>
 
+                                    <Path Data="{Binding CadPreviewGeometry}"
+                                          Stroke="DeepSkyBlue"
+                                          StrokeThickness="0.65"
+                                          StrokeLineJoin="Round"
+                                          StrokeStartLineCap="Round"
+                                          StrokeEndLineCap="Round"
+                                          IsHitTestVisible="False"/>
+                                    <Path Data="{Binding CadEngravePreviewGeometry}"
+                                          Stroke="DodgerBlue"
+                                          StrokeThickness="0.65"
+                                          StrokeLineJoin="Round"
+                                          StrokeStartLineCap="Round"
+                                          StrokeEndLineCap="Round"
+                                          IsHitTestVisible="False"/>
+                                    <Path Data="{Binding CadCutPreviewGeometry}"
+                                          Stroke="OrangeRed"
+                                          StrokeThickness="0.65"
+                                          StrokeLineJoin="Round"
+                                          StrokeStartLineCap="Round"
+                                          StrokeEndLineCap="Round"
+                                          IsHitTestVisible="False"/>
+
                                     <ItemsControl ItemsSource="{Binding CadPrimitives}">
                                         <ItemsControl.ItemsPanel>
                                             <ItemsPanelTemplate>
@@ -206,19 +228,6 @@
                                                         <Polyline.StrokeThickness>
                                                             <MultiBinding Converter="{StaticResource InverseZoomStrokeThicknessConverter}">
                                                                 <Binding Source="24"/>
-                                                                <Binding RelativeSource="{RelativeSource AncestorType={x:Type UserControl}}" Path="CadDisplayZoom"/>
-                                                            </MultiBinding>
-                                                        </Polyline.StrokeThickness>
-                                                    </Polyline>
-                                                    <Polyline Points="{Binding Points}"
-                                                              Stroke="{Binding Stroke}"
-                                                              StrokeLineJoin="Round"
-                                                              StrokeStartLineCap="Round"
-                                                              StrokeEndLineCap="Round"
-                                                              IsHitTestVisible="False">
-                                                        <Polyline.StrokeThickness>
-                                                            <MultiBinding Converter="{StaticResource InverseZoomStrokeThicknessConverter}">
-                                                                <Binding Path="StrokeThickness"/>
                                                                 <Binding RelativeSource="{RelativeSource AncestorType={x:Type UserControl}}" Path="CadDisplayZoom"/>
                                                             </MultiBinding>
                                                         </Polyline.StrokeThickness>

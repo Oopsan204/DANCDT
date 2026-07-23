@@ -615,19 +615,6 @@ namespace DACDT_2026
                     snapWcsOffsetY);
                 var snapRows = snapRowsSource.Select(CloneProcessRowForUi).Where(row => row != null).ToList();
 
-                var points = snapDoc == null
-                    ? new List<CadPointViewModel>()
-                    : snapDoc.Points.Select(pt => new CadPointViewModel
-                    {
-                        Index = pt.Index,
-                        LineType = pt.LineType,
-                        X = Math.Round(pt.X, 3).ToString("0.###", CultureInfo.InvariantCulture),
-                        Y = Math.Round(pt.Y, 3).ToString("0.###", CultureInfo.InvariantCulture),
-                        Z = Math.Round(pt.Z, 3).ToString("0.###", CultureInfo.InvariantCulture),
-                        Key = pt.Key,
-                        IsActive = snapActiveProgramIndex > 0 && pt.Index == snapActiveProgramIndex
-                    }).ToList();
-
                 var rows = snapRows.Select((row, rowIndex) =>
                 {
                     double rowOx;
@@ -667,7 +654,6 @@ namespace DACDT_2026
                 }).ToList();
 
                 var projection = CreateCadProjection(snapDoc, snapWorkspaceWidth, snapWorkspaceHeight);
-                var cadPreviewImage = BuildCadPreviewImage(snapDoc, projection);
                 var cadPreviewGeometry = snapMixedEngraveCut ? null : BuildCadPreviewGeometry(snapDoc, projection);
                 var cadEngravePreviewGeometry = BuildCadPreviewGeometry(snapDoc, projection, EngraveCutProcessComposer.EngraveKind);
                 var cadCutPreviewGeometry = BuildCadPreviewGeometry(snapDoc, projection, EngraveCutProcessComposer.CutKind);
@@ -682,7 +668,7 @@ namespace DACDT_2026
                     snapConnected,
                     snapRobotRawX,
                     snapRobotRawY);
-                return new { doc = snapDoc, points, rows, cadPreviewImage, cadPreviewGeometry, cadEngravePreviewGeometry, cadCutPreviewGeometry, cadPrimitiveLines, limitAreas, axisLines, axisLabels, trackingPoints };
+                return new { doc = snapDoc, rows, cadPreviewGeometry, cadEngravePreviewGeometry, cadCutPreviewGeometry, cadPrimitiveLines, limitAreas, axisLines, axisLabels, trackingPoints };
             });
 
             await RunOnUiAsync(() =>
@@ -722,9 +708,7 @@ namespace DACDT_2026
                 }
                 ui.SelectedPointKey = snapPointKey;
 
-                ui.SetCadPointRows(model.points, snapActiveProgramIndex);
                 ui.SetProcessRows(model.rows, snapActiveProgramIndex);
-                ui.CadPreviewImage = model.cadPreviewImage;
                 ui.CadPreviewGeometry = model.cadPreviewGeometry;
                 ui.CadEngravePreviewGeometry = model.cadEngravePreviewGeometry;
                 ui.CadCutPreviewGeometry = model.cadCutPreviewGeometry;
@@ -1105,54 +1089,6 @@ namespace DACDT_2026
             }
             geometry.Freeze();
             return geometry;
-        }
-
-        private static ImageSource BuildCadPreviewImage(CadDocumentService.CadLoadResult doc, CadProjection projection)
-        {
-            if (doc?.Primitives == null || doc.Primitives.Count == 0 || projection == null)
-                return null;
-
-            var geometry = new StreamGeometry { FillRule = FillRule.EvenOdd };
-            using (var context = geometry.Open())
-            {
-                foreach (var primitive in doc.Primitives)
-                {
-                    if (primitive?.Points == null || primitive.Points.Count < 2)
-                        continue;
-                    if (IsRapidPrimitive(primitive))
-                        continue;
-
-                    var start = projection.Project(primitive.Points[0].X, primitive.Points[0].Y);
-                    var points = new List<System.Windows.Point>(primitive.Points.Count - 1);
-                    for (int i = 1; i < primitive.Points.Count; i++)
-                    {
-                        var pt = primitive.Points[i];
-                        points.Add(projection.Project(pt.X, pt.Y));
-                    }
-
-                    context.BeginFigure(start, isFilled: false, isClosed: false);
-                    context.PolyLineTo(points, isStroked: true, isSmoothJoin: true);
-                }
-            }
-            geometry.Freeze();
-
-            var group = new DrawingGroup();
-            using (var context = group.Open())
-            {
-                context.DrawRectangle(
-                    Brushes.Transparent,
-                    null,
-                    new System.Windows.Rect(0.0, 0.0, CadProjection.CanvasWidth, CadProjection.CanvasHeight));
-
-                var pen = new Pen(Brushes.DeepSkyBlue, 0.65);
-                pen.Freeze();
-                context.DrawGeometry(null, pen, geometry);
-            }
-            group.Freeze();
-
-            var image = new DrawingImage(group);
-            image.Freeze();
-            return image;
         }
 
         private static List<CadPrimitiveViewModel> BuildCadPrimitiveLines(CadDocumentService.CadLoadResult doc, CadProjection projection)

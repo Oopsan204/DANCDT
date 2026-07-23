@@ -66,6 +66,7 @@ namespace DACDT_2026.Tests
                 LargeCadPreviewKeepsFullSourceAndCapsPreviewPoints();
                 LargeCadPreviewSamplesOneHugePolyline();
                 LargeCadProcessPathDoesNotCloneSourceCoordinates();
+                LargeCadPreviewAvoidsHiddenCoordinateRowsAndUsesCombinedGeometry();
                 OfflineRuntimeDoesNotStartMqttOrWebRtc();
                 WpfThemeManagerAppliesLightAndDarkPalettes();
                 EngraveCutComposerKeepsOneOrderedProcessListWithPerRowParameters();
@@ -1442,6 +1443,22 @@ namespace DACDT_2026.Tests
             AssertTrue(processPath.Contains("Points = source.Points"), "process subsets must reuse source point rows");
             AssertTrue(!processPath.Contains("CloneCadPrimitiveForUi"), "process subsets must not deep-clone CAD coordinates");
             AssertTrue(!processPath.Contains("RebuildPointRowsForDisplay"), "process subsets must not rebuild a second full point table");
+        }
+
+        private static void LargeCadPreviewAvoidsHiddenCoordinateRowsAndUsesCombinedGeometry()
+        {
+            string publisher = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Form1.StatePublisher.cs"));
+            string dxfRun = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Views", "DxfRunView.xaml"));
+
+            AssertTrue(!publisher.Contains("CadPointViewModel"), "large CAD publication must not create hidden coordinate view-model rows.");
+            AssertTrue(!publisher.Contains("SetCadPointRows("), "large CAD publication must not publish hidden coordinate rows.");
+            AssertTrue(!publisher.Contains("BuildCadPreviewImage("), "large CAD publication must not build an unused duplicate preview image.");
+            AssertTrue(dxfRun.Contains("Data=\"{Binding CadPreviewGeometry}\""), "DXF view must render the combined preview geometry.");
+            AssertTrue(dxfRun.Contains("Data=\"{Binding CadEngravePreviewGeometry}\""), "DXF view must render combined engrave geometry.");
+            AssertTrue(dxfRun.Contains("Data=\"{Binding CadCutPreviewGeometry}\""), "DXF view must render combined cut geometry.");
+            int polylineCount = dxfRun.Split(new[] { "<Polyline Points=" }, StringSplitOptions.None).Length - 1;
+            AssertEqual("1", polylineCount.ToString(CultureInfo.InvariantCulture),
+                "DXF view must keep only the transparent selectable polyline layer.");
         }
 
         private static void OfflineRuntimeDoesNotStartMqttOrWebRtc()
