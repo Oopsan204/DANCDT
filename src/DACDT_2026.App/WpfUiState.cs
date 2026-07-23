@@ -129,6 +129,9 @@ namespace DACDT_2026
         private System.Windows.Media.Geometry cadPreviewGeometry;
         private System.Windows.Media.Geometry cadEngravePreviewGeometry;
         private System.Windows.Media.Geometry cadCutPreviewGeometry;
+        private System.Windows.Media.Geometry cadSelectionOverlayGeometry;
+        private Brush cadSelectionOverlayStroke = Brushes.Transparent;
+        private CadPathHitIndex cadPathHitIndex;
         private double cadPreviewStrokeThickness = 0.65;
         private ImageSource cameraFrame;
         private CameraDeviceViewModel selectedCamera;
@@ -159,6 +162,7 @@ namespace DACDT_2026
         public BulkObservableCollection<GeometryRowViewModel> GeometryRows { get; } = new BulkObservableCollection<GeometryRowViewModel>();
         public BulkObservableCollection<ProcessRowViewModel> ProcessRows { get; } = new BulkObservableCollection<ProcessRowViewModel>();
         public BulkObservableCollection<ProcessRowViewModel> ProgramRows { get; } = new BulkObservableCollection<ProcessRowViewModel>();
+        // Kept empty for the existing document-reset path; the CAD view never binds or populates it.
         public BulkObservableCollection<CadPrimitiveViewModel> CadPrimitives { get; } = new BulkObservableCollection<CadPrimitiveViewModel>();
         public BulkObservableCollection<CadLimitAreaViewModel> CadLimitAreas { get; } = new BulkObservableCollection<CadLimitAreaViewModel>();
         public BulkObservableCollection<CadAxisLineViewModel> CadAxisLines { get; } = new BulkObservableCollection<CadAxisLineViewModel>();
@@ -589,6 +593,24 @@ namespace DACDT_2026
             set => SetProperty(ref cadCutPreviewGeometry, value);
         }
 
+        public System.Windows.Media.Geometry CadSelectionOverlayGeometry
+        {
+            get => cadSelectionOverlayGeometry;
+            private set => SetProperty(ref cadSelectionOverlayGeometry, value);
+        }
+
+        public Brush CadSelectionOverlayStroke
+        {
+            get => cadSelectionOverlayStroke;
+            private set => SetProperty(ref cadSelectionOverlayStroke, value);
+        }
+
+        public CadPathHitIndex CadPathHitIndex
+        {
+            get => cadPathHitIndex;
+            set => SetProperty(ref cadPathHitIndex, value);
+        }
+
         public double CadPreviewStrokeThickness
         {
             get => cadPreviewStrokeThickness;
@@ -805,11 +827,33 @@ namespace DACDT_2026
         public void UpdateCadPathStroke(int pathId, bool isCut)
         {
             Brush stroke = isCut ? Brushes.OrangeRed : Brushes.DodgerBlue;
-            foreach (CadPrimitiveViewModel primitive in CadPrimitives)
+            IReadOnlyList<System.Windows.Point> points;
+            if (CadPathHitIndex == null
+                || !CadPathHitIndex.TryGetPathPoints(pathId, out points)
+                || points == null
+                || points.Count < 2)
             {
-                if (primitive.PathId == pathId)
-                    primitive.Stroke = stroke;
+                ClearCadSelectionOverlay();
+                return;
             }
+
+            var geometry = new StreamGeometry();
+            using (StreamGeometryContext context = geometry.Open())
+            {
+                context.BeginFigure(points[0], isFilled: false, isClosed: false);
+                for (int i = 1; i < points.Count; i++)
+                    context.LineTo(points[i], isStroked: true, isSmoothJoin: true);
+            }
+            geometry.Freeze();
+
+            CadSelectionOverlayStroke = stroke;
+            CadSelectionOverlayGeometry = geometry;
+        }
+
+        public void ClearCadSelectionOverlay()
+        {
+            CadSelectionOverlayGeometry = null;
+            CadSelectionOverlayStroke = Brushes.Transparent;
         }
 
         public bool LoadMoreCadPoints()

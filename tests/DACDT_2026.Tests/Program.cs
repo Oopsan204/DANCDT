@@ -740,13 +740,14 @@ namespace DACDT_2026.Tests
             AssertTrue(xaml.Contains("PreviewTouchDown=\"CadViewport_PreviewTouchDown\""), "CAD viewport must receive the first touch point before it becomes a mouse event.");
             AssertTrue(xaml.Contains("PreviewTouchMove=\"CadViewport_PreviewTouchMove\""), "CAD viewport must track touch movement for pinch zoom.");
             AssertTrue(xaml.Contains("PreviewTouchUp=\"CadViewport_PreviewTouchUp\""), "CAD viewport must finish touch selection and release captures.");
-            AssertTrue(xaml.Contains("<Binding Source=\"24\"/>"), "Tablet CAD hit targets must use a 24 DIP stroke.");
+            AssertTrue(!xaml.Contains("<Binding Source=\"24\"/>"), "Tablet CAD selection must not create per-path 24 DIP hit-test strokes.");
             AssertTrue(code.Contains("CadTouchGestureSession"), "CAD touch handling must use one deterministic touch session.");
             AssertTrue(code.Contains("CompositionTarget.Rendering"), "Pinch transforms must be coalesced to render cadence.");
             AssertTrue(code.Contains("touchSession.IsPinchTouch"), "Only a released pinch finger may end the active pinch session.");
             AssertTrue(code.Contains("e.StylusDevice != null"), "Promoted touch mouse events must not trigger CAD mouse commands.");
             AssertTrue(code.Contains("ApplyCadPinchTransform"), "Pinch movement must update zoom around the two-finger midpoint.");
-            AssertTrue(code.Contains("ToggleCadPathCommand.Execute(item.PathId)"), "A one-finger tap must preserve direct CAD path selection.");
+            AssertTrue(code.Contains("TryFindNearest"), "A one-finger tap must query the spatial CAD path index.");
+            AssertTrue(code.Contains("ToggleCadPathCommand.Execute(pathId)"), "A one-finger tap must preserve direct CAD path selection.");
             AssertTrue(code.Contains("TouchDevice.Capture(CadViewport)"), "Touch points must stay captured while the finger moves across the CAD viewport.");
         }
 
@@ -1318,10 +1319,30 @@ namespace DACDT_2026.Tests
             string viewSource = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Views", "DxfRunView.xaml"));
             string codeSource = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Views", "DxfRunView.xaml.cs"));
             string handlerSource = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Form1.DxfHandler.cs"));
+            string stateSource = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "WpfUiState.cs"));
+            string publisherSource = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Form1.StatePublisher.cs"));
 
-            AssertTrue(viewSource.Contains("x:Name=\"CadSelectionLayer\""), "CAD selection layer must be addressable so pan can disable its expensive hit-testing.");
-            AssertTrue(codeSource.Contains("SetCadSelectionHitTesting(false);"), "CAD pan must disable path hit-testing while dragging.");
-            AssertTrue(codeSource.Contains("SetCadSelectionHitTesting(true);"), "CAD path hit-testing must be restored after dragging.");
+            AssertTrue(!viewSource.Contains("CadSelectionLayer"), "DXF view must remove the per-path selection ItemsControl.");
+            AssertTrue(!viewSource.Contains("SelectableCadPath_MouseLeftButtonDown"), "DXF view must not attach per-path mouse handlers.");
+            AssertTrue(viewSource.Contains("x:Name=\"CadPreviewViewbox\""), "DXF view must name the Viewbox for screen-DIP hit radius conversion.");
+            AssertTrue(viewSource.Contains("Data=\"{Binding CadSelectionOverlayGeometry}\""), "DXF view must render the one temporary selection overlay.");
+            AssertTrue(viewSource.Contains("Stroke=\"{Binding CadSelectionOverlayStroke}\""), "DXF selection overlay must use the immediate selection stroke.");
+
+            AssertTrue(codeSource.Contains("TryFindNearest"), "CAD taps must use the spatial hit index.");
+            AssertTrue(codeSource.Contains("e.GetPosition(CadContent)"), "Mouse selection must query content coordinates directly.");
+            AssertTrue(codeSource.Contains("GetTouchPoint(CadContent)"), "Touch selection must query content coordinates directly.");
+            AssertTrue(codeSource.Contains("12.0 / Math.Max(GetCadViewboxScale() * cadZoom"), "CAD hit radius must remain about 12 screen DIPs as zoom changes.");
+            AssertTrue(codeSource.Contains("Distance(cadPanStartPoint, current) >= TouchPanThreshold"), "Small mouse movement must remain a tap instead of panning before selection.");
+            AssertTrue(!codeSource.Contains("OriginalSource"), "CAD selection must not walk the visual tree.");
+            AssertTrue(!codeSource.Contains("FindCadPrimitive"), "CAD selection must not discover a path through WPF elements.");
+            AssertTrue(!codeSource.Contains("SelectableCadPath_MouseLeftButtonDown"), "CAD selection must not keep the old per-path handler.");
+            AssertTrue(!codeSource.Contains("SetCadSelectionHitTesting"), "CAD interaction must not manage a hidden per-path hit-test layer.");
+
+            AssertTrue(stateSource.Contains("public CadPathHitIndex CadPathHitIndex"), "UI state must expose the immutable CAD hit index.");
+            AssertTrue(stateSource.Contains("CadSelectionOverlayGeometry"), "UI state must expose one selection overlay geometry.");
+            AssertTrue(stateSource.Contains("CadSelectionOverlayStroke"), "UI state must expose the selection overlay stroke.");
+            AssertTrue(stateSource.Contains("TryGetPathPoints"), "Immediate selection feedback must read one path from the spatial index.");
+            AssertTrue(publisherSource.Contains("ClearCadSelectionOverlay"), "Refresh of combined CAD geometry must clear the temporary selection overlay.");
 
             int refreshStart = handlerSource.IndexOf("private async Task ScheduleCadPathSelectionRefreshAsync", StringComparison.Ordinal);
             int refreshEnd = handlerSource.IndexOf("private static void DropEngraveHomeRowBeforeCut", refreshStart, StringComparison.Ordinal);
@@ -1618,9 +1639,14 @@ namespace DACDT_2026.Tests
             AssertTrue(dxfRun.Contains("Data=\"{Binding CadPreviewGeometry}\""), "DXF view must render the combined preview geometry.");
             AssertTrue(dxfRun.Contains("Data=\"{Binding CadEngravePreviewGeometry}\""), "DXF view must render combined engrave geometry.");
             AssertTrue(dxfRun.Contains("Data=\"{Binding CadCutPreviewGeometry}\""), "DXF view must render combined cut geometry.");
-            int polylineCount = dxfRun.Split(new[] { "<Polyline Points=" }, StringSplitOptions.None).Length - 1;
-            AssertEqual("1", polylineCount.ToString(CultureInfo.InvariantCulture),
-                "DXF view must keep only the transparent selectable polyline layer.");
+            AssertTrue(!publisher.Contains("BuildCadPrimitiveLines"),
+                "CAD publication must not create per-path WPF selection view models.");
+            AssertTrue(publisher.Contains("BuildCadPathHitIndex"),
+                "CAD publication must build the immutable spatial hit index.");
+            AssertTrue(publisher.Contains("CadPathHitIndex.Build"),
+                "CAD publication must publish spatial hit data instead of visual hit targets.");
+            AssertTrue(!dxfRun.Contains("<Polyline Points="),
+                "DXF view must not create one transparent Polyline for every CAD path.");
         }
 
         private static void DxfRunViewRemovesProcessTableButKeepsPlcProcessData()

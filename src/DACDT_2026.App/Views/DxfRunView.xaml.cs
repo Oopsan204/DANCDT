@@ -28,7 +28,6 @@ namespace DACDT_2026.Views
         private double cadPanStartY;
         private double cadZoom = 1.0;
         private readonly CadTouchGestureSession touchSession = new CadTouchGestureSession();
-        private CadPrimitiveViewModel touchStartCadItem;
         private Point touchStartPoint;
         private Point touchLastPoint;
         private bool isCadPinchRenderSubscribed;
@@ -135,13 +134,11 @@ namespace DACDT_2026.Views
             if (touchSession.IsPinching)
             {
                 isCadPanning = false;
-                touchStartCadItem = null;
                 CadViewport.ReleaseMouseCapture();
                 StartCadPinchRenderLoop();
             }
             else
             {
-                touchStartCadItem = FindCadPrimitive(e.OriginalSource as DependencyObject);
                 touchStartPoint = position;
                 touchLastPoint = position;
             }
@@ -192,7 +189,7 @@ namespace DACDT_2026.Views
                 StopCadPinchRenderLoop();
 
             if (shouldSelect)
-                SelectCadPrimitive(touchStartCadItem);
+                SelectCadPathAt(e.GetTouchPoint(CadContent).Position);
 
             if (!touchSession.IsTouchActive)
                 ResetTouchGesture();
@@ -260,35 +257,38 @@ namespace DACDT_2026.Views
             return new Point((first.X + second.X) / 2.0, (first.Y + second.Y) / 2.0);
         }
 
-        private static CadPrimitiveViewModel FindCadPrimitive(DependencyObject source)
-        {
-            DependencyObject current = source;
-            while (current != null)
-            {
-                if (current is FrameworkElement element && element.DataContext is CadPrimitiveViewModel item)
-                    return item;
-
-                current = VisualTreeHelper.GetParent(current);
-            }
-
-            return null;
-        }
-
-        private void SelectCadPrimitive(CadPrimitiveViewModel item)
+        private void SelectCadPathAt(Point contentPoint)
         {
             var state = DataContext as WpfUiState;
-            if (item == null || state?.ToggleCadPathCommand == null)
+            if (state?.CadPathHitIndex == null || state.ToggleCadPathCommand == null)
                 return;
 
-            if (state.ToggleCadPathCommand.CanExecute(item.PathId))
-                state.ToggleCadPathCommand.Execute(item.PathId);
+            double contentRadius = 12.0 / Math.Max(GetCadViewboxScale() * cadZoom, 0.0001);
+            int pathId;
+            if (state.CadPathHitIndex.TryFindNearest(contentPoint, contentRadius, out pathId)
+                && state.ToggleCadPathCommand.CanExecute(pathId))
+            {
+                state.ToggleCadPathCommand.Execute(pathId);
+            }
+        }
+
+        private double GetCadViewboxScale()
+        {
+            if (CadPreviewViewbox == null || CadSurface == null
+                || CadSurface.Width <= 0.0 || CadSurface.Height <= 0.0)
+            {
+                return 1.0;
+            }
+
+            double scaleX = CadPreviewViewbox.ActualWidth / CadSurface.Width;
+            double scaleY = CadPreviewViewbox.ActualHeight / CadSurface.Height;
+            return Math.Max(0.0001, Math.Min(scaleX, scaleY));
         }
 
         private void ResetTouchGesture()
         {
             StopCadPinchRenderLoop();
             touchSession.Reset();
-            touchStartCadItem = null;
         }
 
         private void CadViewport_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -315,35 +315,6 @@ namespace DACDT_2026.Views
             e.Handled = true;
         }
 
-        private void SelectableCadPath_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-        {
-            if (e.StylusDevice != null || touchSession.IsTouchActive)
-            {
-                e.Handled = true;
-                return;
-            }
-
-            if (e.ClickCount >= 2)
-            {
-                ResetCadView();
-                e.Handled = true;
-                return;
-            }
-
-            var item = (sender as FrameworkElement)?.DataContext as CadPrimitiveViewModel;
-            var state = DataContext as WpfUiState;
-            if (item == null || state?.ToggleCadPathCommand == null)
-            {
-                e.Handled = true;
-                return;
-            }
-
-            if (state.ToggleCadPathCommand.CanExecute(item.PathId))
-                state.ToggleCadPathCommand.Execute(item.PathId);
-
-            e.Handled = true;
-        }
-
         private void CadViewport_MouseMove(object sender, MouseEventArgs e)
         {
             if (e.StylusDevice != null || touchSession.IsTouchActive)
@@ -356,8 +327,11 @@ namespace DACDT_2026.Views
                 return;
 
             Point current = e.GetPosition(CadSurface);
-            CadPanTransform.X = cadPanStartX + current.X - cadPanStartPoint.X;
-            CadPanTransform.Y = cadPanStartY + current.Y - cadPanStartPoint.Y;
+            if (Distance(cadPanStartPoint, current) >= TouchPanThreshold)
+            {
+                CadPanTransform.X = cadPanStartX + current.X - cadPanStartPoint.X;
+                CadPanTransform.Y = cadPanStartY + current.Y - cadPanStartPoint.Y;
+            }
             e.Handled = true;
         }
 
@@ -369,7 +343,12 @@ namespace DACDT_2026.Views
                 return;
             }
 
+            bool shouldSelect = isCadPanning
+                && Distance(cadPanStartPoint, e.GetPosition(CadSurface)) < TouchPanThreshold;
+            Point contentPoint = e.GetPosition(CadContent);
             EndCadPan();
+            if (shouldSelect)
+                SelectCadPathAt(contentPoint);
             e.Handled = true;
         }
 

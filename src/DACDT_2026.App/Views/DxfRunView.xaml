@@ -125,7 +125,7 @@
                             PreviewTouchMove="CadViewport_PreviewTouchMove"
                             PreviewTouchUp="CadViewport_PreviewTouchUp"
                             LostTouchCapture="CadViewport_LostTouchCapture">
-                        <Viewbox Stretch="Uniform">
+                        <Viewbox x:Name="CadPreviewViewbox" Stretch="Uniform">
                             <Canvas x:Name="CadSurface" Width="1000" Height="620" ClipToBounds="True">
                                 <Rectangle Width="1000" Height="620" Fill="{DynamicResource CadCanvasBrush}"/>
                                 <Canvas x:Name="CadContent">
@@ -207,34 +207,13 @@
                                           StrokeStartLineCap="Round"
                                           StrokeEndLineCap="Round"
                                           IsHitTestVisible="False"/>
-
-                                    <ItemsControl ItemsSource="{Binding CadPrimitives}">
-                                        <ItemsControl.ItemsPanel>
-                                            <ItemsPanelTemplate>
-                                                <Canvas/>
-                                            </ItemsPanelTemplate>
-                                        </ItemsControl.ItemsPanel>
-                                        <ItemsControl.ItemTemplate>
-                                            <DataTemplate>
-                                                <Grid>
-                                                    <Polyline Points="{Binding Points}"
-                                                              Stroke="Transparent"
-                                                              StrokeLineJoin="Round"
-                                                              StrokeStartLineCap="Round"
-                                                              StrokeEndLineCap="Round"
-                                                              Cursor="Hand"
-                                                              MouseLeftButtonDown="SelectableCadPath_MouseLeftButtonDown">
-                                                        <Polyline.StrokeThickness>
-                                                            <MultiBinding Converter="{StaticResource InverseZoomStrokeThicknessConverter}">
-                                                                <Binding Source="24"/>
-                                                                <Binding RelativeSource="{RelativeSource AncestorType={x:Type UserControl}}" Path="CadDisplayZoom"/>
-                                                            </MultiBinding>
-                                                        </Polyline.StrokeThickness>
-                                                    </Polyline>
-                                                </Grid>
-                                            </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
-                                    </ItemsControl>
+                                    <Path Data="{Binding CadSelectionOverlayGeometry}"
+                                          Stroke="{Binding CadSelectionOverlayStroke}"
+                                          StrokeThickness="1.6"
+                                          StrokeLineJoin="Round"
+                                          StrokeStartLineCap="Round"
+                                          StrokeEndLineCap="Round"
+                                          IsHitTestVisible="False"/>
 
                                     <ItemsControl ItemsSource="{Binding CadAxisLabels}" IsHitTestVisible="False">
                                         <ItemsControl.ItemsPanel>

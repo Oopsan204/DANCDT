@@ -657,7 +657,7 @@ namespace DACDT_2026
                 var cadPreviewGeometry = snapMixedEngraveCut ? null : BuildCadPreviewGeometry(snapDoc, projection);
                 var cadEngravePreviewGeometry = BuildCadPreviewGeometry(snapDoc, projection, EngraveCutProcessComposer.EngraveKind);
                 var cadCutPreviewGeometry = BuildCadPreviewGeometry(snapDoc, projection, EngraveCutProcessComposer.CutKind);
-                var cadPrimitiveLines = BuildCadPrimitiveLines(snapDoc, projection);
+                var cadPathHitIndex = BuildCadPathHitIndex(snapDoc, projection);
                 var limitAreas = BuildCadLimitAreas(snapWorkspaceWidth, snapWorkspaceHeight, projection);
                 var axisLines = BuildCadAxisLines(snapDoc, projection);
                 var axisLabels = BuildCadAxisLabels(snapDoc, projection);
@@ -668,7 +668,7 @@ namespace DACDT_2026
                     snapConnected,
                     snapRobotRawX,
                     snapRobotRawY);
-                return new { doc = snapDoc, rows, cadPreviewGeometry, cadEngravePreviewGeometry, cadCutPreviewGeometry, cadPrimitiveLines, limitAreas, axisLines, axisLabels, trackingPoints };
+                return new { doc = snapDoc, rows, cadPreviewGeometry, cadEngravePreviewGeometry, cadCutPreviewGeometry, cadPathHitIndex, limitAreas, axisLines, axisLabels, trackingPoints };
             });
 
             await RunOnUiAsync(() =>
@@ -712,13 +712,59 @@ namespace DACDT_2026
                 ui.CadPreviewGeometry = model.cadPreviewGeometry;
                 ui.CadEngravePreviewGeometry = model.cadEngravePreviewGeometry;
                 ui.CadCutPreviewGeometry = model.cadCutPreviewGeometry;
-                ReplaceCollection(ui.CadPrimitives, model.cadPrimitiveLines);
+                ui.CadPathHitIndex = model.cadPathHitIndex;
+                ui.ClearCadSelectionOverlay();
                 ReplaceCollection(ui.CadLimitAreas, model.limitAreas);
                 ReplaceCollection(ui.CadAxisLines, model.axisLines);
                 ReplaceCollection(ui.CadAxisLabels, model.axisLabels);
                 ReplaceCollection(ui.CadTrackingPoints, model.trackingPoints);
             });
 
+        }
+
+        private async Task RefreshCadSelectionPreviewAsync(
+            CadDocumentService.CadLoadResult selectedDocument)
+        {
+            if (selectedDocument?.Primitives == null || selectedDocument.Primitives.Count == 0)
+                return;
+
+            double snapWorkspaceWidth = workspaceWidth;
+            double snapWorkspaceHeight = workspaceHeight;
+            var preview = await Task.Run(() =>
+            {
+                var projection = CreateCadProjection(
+                    selectedDocument,
+                    snapWorkspaceWidth,
+                    snapWorkspaceHeight);
+                return new
+                {
+                    Engrave = BuildCadPreviewGeometry(
+                        selectedDocument,
+                        projection,
+                        EngraveCutProcessComposer.EngraveKind),
+                    Cut = BuildCadPreviewGeometry(
+                        selectedDocument,
+                        projection,
+                        EngraveCutProcessComposer.CutKind)
+                };
+            });
+
+            if (!ReferenceEquals(activeCadDocument, selectedDocument)
+                || !string.Equals(activeDocumentKind, "DXF", StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            await RunOnUiAsync(() =>
+            {
+                if (ReferenceEquals(activeCadDocument, selectedDocument)
+                    && string.Equals(activeDocumentKind, "DXF", StringComparison.OrdinalIgnoreCase))
+                {
+                    ui.CadEngravePreviewGeometry = preview.Engrave;
+                    ui.CadCutPreviewGeometry = preview.Cut;
+                    ui.ClearCadSelectionOverlay();
+                }
+            });
         }
 
         private static void UpdateActiveProgramHighlight(WpfUiState state, int activeIndex)
@@ -1091,11 +1137,11 @@ namespace DACDT_2026
             return geometry;
         }
 
-        private static List<CadPrimitiveViewModel> BuildCadPrimitiveLines(CadDocumentService.CadLoadResult doc, CadProjection projection)
+        private static CadPathHitIndex BuildCadPathHitIndex(CadDocumentService.CadLoadResult doc, CadProjection projection)
         {
-            var lines = new List<CadPrimitiveViewModel>();
+            var paths = new List<CadHitPath>();
             if (doc?.Primitives == null || doc.Primitives.Count == 0 || projection == null)
-                return lines;
+                return CadPathHitIndex.Build(paths, 32.0);
 
             var groups = doc.Primitives
                 .Take(50000)
@@ -1113,30 +1159,17 @@ namespace DACDT_2026
 
             foreach (var group in groups)
             {
-                var pointCollection = new PointCollection();
+                var points = new List<System.Windows.Point>();
                 foreach (var item in group)
                 {
                     foreach (var point in item.Primitive.Points)
-                        pointCollection.Add(projection.Project(point.X, point.Y));
+                        points.Add(projection.Project(point.X, point.Y));
                 }
-                pointCollection.Freeze();
 
-                bool isCut = group.Any(item =>
-                    string.Equals(
-                        item.Primitive.ProcessKind,
-                        EngraveCutProcessComposer.CutKind,
-                        StringComparison.OrdinalIgnoreCase));
-
-                lines.Add(new CadPrimitiveViewModel
-                {
-                    PathId = group.Key,
-                    Points = pointCollection,
-                    Stroke = isCut ? Brushes.OrangeRed : Brushes.DodgerBlue,
-                    StrokeThickness = 0.95
-                });
+                paths.Add(new CadHitPath(group.Key, points));
             }
 
-            return lines;
+            return CadPathHitIndex.Build(paths, 32.0);
         }
 
         private static bool IsRapidPrimitive(CadDocumentService.CadPrimitiveData primitive)
