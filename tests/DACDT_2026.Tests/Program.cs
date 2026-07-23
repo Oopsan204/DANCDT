@@ -83,7 +83,12 @@ namespace DACDT_2026.Tests
                 CadPathSelectionDoesNotReverseSourceCoordinates();
                 CadPathSelectionTogglesEveryPrimitiveInSelectedPath();
                 CadPathSelectionToggleTwiceRestoresEngrave();
+                CadPathHitIndexFindsNearestHorizontalSegment();
+                CadPathHitIndexRejectsMissOutsideRadius();
+                CadPathHitIndexUsesPathIdForDeterministicTies();
+                CadPathHitIndexFindsOnlyTheNearbyPathInALargeSet();
                 CadPathSelectionUpdatesImmediatelyAndExplainsRunLock();
+                CadInteractionAvoidsExpensiveHitTestingAndFullStateRebuild();
                 SettingsViewUsesApprovedEnglishContract();
                 NonHelpViewsDoNotUseKnownVietnameseOperatorLabels();
                 SettingsViewExposesSaveSettingsCommand();
@@ -1167,6 +1172,113 @@ namespace DACDT_2026.Tests
             AssertTrue(handler.Contains("Stop the active program before changing cut paths."), "A running program must explain why cut-path selection is locked.");
         }
 
+        private static void CadPathHitIndexFindsNearestHorizontalSegment()
+        {
+            var pathPoints = new[]
+            {
+                new System.Windows.Point(0, 0),
+                new System.Windows.Point(100, 0)
+            };
+            var index = CadPathHitIndex.Build(
+                new[] { new CadHitPath(7, pathPoints) },
+                10);
+
+            int pathId;
+            AssertTrue(index.TryFindNearest(new System.Windows.Point(40, 4), 5, out pathId),
+                "spatial index should find a segment within the hit radius");
+            AssertEqual("7", pathId.ToString(CultureInfo.InvariantCulture),
+                "spatial index should return the nearest path id");
+
+            IReadOnlyList<System.Windows.Point> returnedPoints;
+            AssertTrue(index.TryGetPathPoints(7, out returnedPoints),
+                "spatial index should return points for the selected path");
+            AssertEqual("2", returnedPoints.Count.ToString(CultureInfo.InvariantCulture),
+                "selected path should retain its projected points");
+        }
+
+        private static void CadPathHitIndexRejectsMissOutsideRadius()
+        {
+            var index = CadPathHitIndex.Build(
+                new[]
+                {
+                    new CadHitPath(1, new[]
+                    {
+                        new System.Windows.Point(0, 0),
+                        new System.Windows.Point(100, 0)
+                    })
+                },
+                10);
+
+            int pathId;
+            AssertTrue(!index.TryFindNearest(new System.Windows.Point(40, 5.1), 5, out pathId),
+                "spatial index should reject a point outside the hit radius");
+        }
+
+        private static void CadPathHitIndexUsesPathIdForDeterministicTies()
+        {
+            var index = CadPathHitIndex.Build(
+                new[]
+                {
+                    new CadHitPath(20, new[]
+                    {
+                        new System.Windows.Point(0, 0),
+                        new System.Windows.Point(100, 0)
+                    }),
+                    new CadHitPath(3, new[]
+                    {
+                        new System.Windows.Point(0, 10),
+                        new System.Windows.Point(100, 10)
+                    })
+                },
+                10);
+
+            int pathId;
+            AssertTrue(index.TryFindNearest(new System.Windows.Point(40, 5), 5, out pathId),
+                "spatial index should accept an exact tie at the hit radius");
+            AssertEqual("3", pathId.ToString(CultureInfo.InvariantCulture),
+                "equal-distance paths should be resolved by the smaller path id");
+        }
+
+        private static void CadPathHitIndexFindsOnlyTheNearbyPathInALargeSet()
+        {
+            const int pathCount = 5000;
+            var paths = new List<CadHitPath>(pathCount);
+            for (int i = 0; i < pathCount; i++)
+            {
+                double x = i * 100;
+                paths.Add(new CadHitPath(i, new[]
+                {
+                    new System.Windows.Point(x, 0),
+                    new System.Windows.Point(x + 50, 0)
+                }));
+            }
+
+            var index = CadPathHitIndex.Build(paths, 16);
+            int pathId;
+            AssertTrue(index.TryFindNearest(new System.Windows.Point(4321 * 100 + 25, 2), 3, out pathId),
+                "spatial index should find the nearby path in a large path set");
+            AssertEqual("4321", pathId.ToString(CultureInfo.InvariantCulture),
+                "spatial index should not return a distant path from a large set");
+        }
+
+        private static void CadInteractionAvoidsExpensiveHitTestingAndFullStateRebuild()
+        {
+            string viewSource = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Views", "DxfRunView.xaml"));
+            string codeSource = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Views", "DxfRunView.xaml.cs"));
+            string handlerSource = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Form1.DxfHandler.cs"));
+
+            AssertTrue(viewSource.Contains("x:Name=\"CadSelectionLayer\""), "CAD selection layer must be addressable so pan can disable its expensive hit-testing.");
+            AssertTrue(codeSource.Contains("SetCadSelectionHitTesting(false);"), "CAD pan must disable path hit-testing while dragging.");
+            AssertTrue(codeSource.Contains("SetCadSelectionHitTesting(true);"), "CAD path hit-testing must be restored after dragging.");
+
+            int refreshStart = handlerSource.IndexOf("private async Task ScheduleCadPathSelectionRefreshAsync", StringComparison.Ordinal);
+            int refreshEnd = handlerSource.IndexOf("private static void DropEngraveHomeRowBeforeCut", refreshStart, StringComparison.Ordinal);
+            AssertTrue(refreshStart >= 0 && refreshEnd > refreshStart, "CAD path selection refresh handler must exist.");
+            string refresh = handlerSource.Substring(refreshStart, refreshEnd - refreshStart);
+            AssertTrue(refresh.Contains("RefreshCadSelectionPreviewAsync"), "Path selection must use a lightweight preview refresh.");
+            AssertTrue(!refresh.Contains("await PushDxfStateAsync();"), "Selecting a path must not rebuild the complete UI state.");
+        }
+
         private static void SettingsViewUsesApprovedEnglishContract()
         {
             string source = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Views", "SettingsView.xaml"));
@@ -1468,7 +1580,7 @@ namespace DACDT_2026.Tests
             AssertTrue(!dxfRun.Contains("Process Table"), "DxfRunView must not show the Process Table panel.");
             AssertTrue(!dxfRun.Contains("ProcessTableGrid"), "DxfRunView must not declare the Process Table grid.");
             AssertTrue(!dxfRunCode.Contains("LazyTable_ScrollChanged"), "DxfRunView must not keep the removed table scroll handler.");
-            AssertTrue(dxfHandler.Contains("private List<ProcessRow> BuildDxfProcessRows()"),
+            AssertTrue(dxfHandler.Contains("private List<ProcessRow> BuildDxfProcessRows("),
                 "DXF process rows must remain available for PLC processing.");
             AssertTrue(dxfHandler.Contains("processRows"), "PLC process data must remain in the application state.");
         }
