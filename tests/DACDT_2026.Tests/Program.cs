@@ -88,6 +88,7 @@ namespace DACDT_2026.Tests
                 ViewsExposeSharedStylesToXamlDesigner();
                 ViewsDeclareConvertersUsedByXamlDesigner();
                 WpfXamlUsesValidResourceAndGridSyntax();
+                GeometryDataTableIsRemovedWithoutRemovingCadAndGcodeViews();
                 AntigravityUiWorkflowIsGuarded();
                 HelpViewContainsVietnameseOperationalGuide();
                 TelemetryFeatureIsRemoved();
@@ -1271,6 +1272,22 @@ namespace DACDT_2026.Tests
             AssertTrue(!sidebar.Contains("<Grid.ColumnDefinition "), "Sidebar must use ColumnDefinition children inside Grid.ColumnDefinitions.");
             string normalizedDxfRun = dxfRun.Replace("\r\n", "\n");
             AssertTrue(normalizedDxfRun.Contains("<UserControl.Resources>\n        <ResourceDictionary>\n            <ResourceDictionary.MergedDictionaries>"), "DxfRunView resources must wrap merged dictionaries in ResourceDictionary.");
+        }
+
+        private static void GeometryDataTableIsRemovedWithoutRemovingCadAndGcodeViews()
+        {
+            string dxfRun = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Views", "DxfRunView.xaml"));
+            string viewCode = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Views", "DxfRunView.xaml.cs"));
+            string publisher = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Form1.StatePublisher.cs"));
+
+            AssertTrue(!dxfRun.Contains("Geometry Data"), "DxfRunView must not show the Geometry Data panel.");
+            AssertTrue(!dxfRun.Contains("GeometryDataGrid"), "DxfRunView must not declare the Geometry Data grid.");
+            AssertTrue(!viewCode.Contains("LoadMoreGeometryRows"), "DxfRunView must not lazy-load coordinate rows.");
+            AssertTrue(!publisher.Contains("BuildGeometryRows("), "CAD state publication must not build coordinate rows.");
+            AssertTrue(!publisher.Contains("SetGeometryRows("), "CAD state publication must not publish coordinate rows.");
+            AssertTrue(dxfRun.Contains("CAD Preview"), "DxfRunView must keep CAD Preview.");
+            AssertTrue(dxfRun.Contains("G-code Editor"), "DxfRunView must keep G-code Editor.");
+            AssertTrue(dxfRun.Contains("Process Table"), "DxfRunView must keep Process Table.");
         }
 
         private static void TelemetryFeatureIsRemoved()

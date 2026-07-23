@@ -628,8 +628,6 @@ namespace DACDT_2026
                         IsActive = snapActiveProgramIndex > 0 && pt.Index == snapActiveProgramIndex
                     }).ToList();
 
-                var geometryRows = BuildGeometryRows(snapDoc);
-
                 var rows = snapRows.Select((row, rowIndex) =>
                 {
                     double rowOx;
@@ -684,7 +682,7 @@ namespace DACDT_2026
                     snapConnected,
                     snapRobotRawX,
                     snapRobotRawY);
-                return new { doc = snapDoc, points, geometryRows, rows, cadPreviewImage, cadPreviewGeometry, cadEngravePreviewGeometry, cadCutPreviewGeometry, cadPrimitiveLines, limitAreas, axisLines, axisLabels, trackingPoints };
+                return new { doc = snapDoc, points, rows, cadPreviewImage, cadPreviewGeometry, cadEngravePreviewGeometry, cadCutPreviewGeometry, cadPrimitiveLines, limitAreas, axisLines, axisLabels, trackingPoints };
             });
 
             await RunOnUiAsync(() =>
@@ -725,7 +723,6 @@ namespace DACDT_2026
                 ui.SelectedPointKey = snapPointKey;
 
                 ui.SetCadPointRows(model.points, snapActiveProgramIndex);
-                ui.SetGeometryRows(model.geometryRows);
                 ui.SetProcessRows(model.rows, snapActiveProgramIndex);
                 ui.CadPreviewImage = model.cadPreviewImage;
                 ui.CadPreviewGeometry = model.cadPreviewGeometry;
@@ -1065,111 +1062,6 @@ namespace DACDT_2026
                 EndZ = row.EndZ,
                 WcsIndex = row.WcsIndex
             };
-        }
-
-        private static List<GeometryRowViewModel> BuildGeometryRows(CadDocumentService.CadLoadResult doc)
-        {
-            var rows = new List<GeometryRowViewModel>();
-            if (doc?.Primitives == null || doc.Primitives.Count == 0)
-                return rows;
-
-            var pointMap = new Dictionary<string, CadDocumentService.CadPointData>(StringComparer.OrdinalIgnoreCase);
-            if (doc.Points != null)
-            {
-                foreach (var point in doc.Points)
-                {
-                    string key = MakeGeometryPointKey(point.X, point.Y, point.Z);
-                    if (!pointMap.ContainsKey(key))
-                        pointMap.Add(key, point);
-                }
-            }
-
-            const int MaxGeometryRows = 100000;
-            int fallbackIndex = 1;
-
-            foreach (var primitive in doc.Primitives)
-            {
-                if (primitive?.Points == null || primitive.Points.Count < 2)
-                    continue;
-
-                string lineType = GetGeometryLineType(primitive);
-                bool isLinearSegments = string.Equals(lineType, "Line", StringComparison.OrdinalIgnoreCase)
-                    || string.Equals(lineType, "Rapid (G0)", StringComparison.OrdinalIgnoreCase);
-
-                if (isLinearSegments)
-                {
-                    for (int i = 0; i < primitive.Points.Count - 1; i++)
-                    {
-                        if (rows.Count >= MaxGeometryRows)
-                            return rows;
-
-                        var start = primitive.Points[i];
-                        var end = primitive.Points[i + 1];
-                        rows.Add(CreateGeometryRow(rows.Count + 1, lineType, start, end, null, pointMap, ref fallbackIndex));
-                    }
-                }
-                else
-                {
-                    if (rows.Count >= MaxGeometryRows)
-                        return rows;
-
-                    rows.Add(CreateGeometryRow(
-                        rows.Count + 1,
-                        lineType,
-                        primitive.Points[0],
-                        primitive.Points[primitive.Points.Count - 1],
-                        primitive.Center,
-                        pointMap,
-                        ref fallbackIndex));
-                }
-            }
-
-            return rows;
-        }
-
-        private static GeometryRowViewModel CreateGeometryRow(
-            int displayIndex,
-            string lineType,
-            CadDocumentService.CadCoordinate start,
-            CadDocumentService.CadCoordinate end,
-            CadDocumentService.CadCoordinate center,
-            Dictionary<string, CadDocumentService.CadPointData> pointMap,
-            ref int fallbackIndex)
-        {
-            CadDocumentService.CadPointData found = null;
-            string key = MakeGeometryPointKey(start.X, start.Y, start.Z);
-            bool hasPointIndex = pointMap != null && pointMap.TryGetValue(key, out found);
-
-            return new GeometryRowViewModel
-            {
-                Index = hasPointIndex ? found.Index : fallbackIndex++,
-                LineType = lineType,
-                StartX = FormatGeometryNumber(start.X),
-                StartY = FormatGeometryNumber(start.Y),
-                StartZ = FormatGeometryNumber(start.Z),
-                EndX = FormatGeometryNumber(end.X),
-                EndY = FormatGeometryNumber(end.Y),
-                EndZ = FormatGeometryNumber(end.Z),
-                CenterX = center != null ? FormatGeometryNumber(center.X) : string.Empty,
-                CenterY = center != null ? FormatGeometryNumber(center.Y) : string.Empty,
-                CenterZ = center != null ? FormatGeometryNumber(center.Z) : string.Empty,
-                Key = hasPointIndex ? found.Key : string.Empty
-            };
-        }
-
-        private static string GetGeometryLineType(CadDocumentService.CadPrimitiveData primitive)
-        {
-            string sourceType = primitive?.SourceType ?? string.Empty;
-            string normalized = sourceType.ToLowerInvariant();
-
-            if (normalized.Contains("arc"))
-                return "Arc";
-            if (normalized.Contains("circle"))
-                return "Circle";
-            if (normalized.Contains("g0") || normalized.Contains("rapid"))
-                return "Rapid (G0)";
-
-            return "Line";
         }
 
         private static string MakeGeometryPointKey(double x, double y, double z)

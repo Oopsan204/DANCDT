@@ -418,8 +418,6 @@ namespace DACDT_2026.Views
 
             if (ReferenceEquals(sender, ProcessTableGrid))
                 state.LoadMoreProcessRows();
-            else if (ReferenceEquals(sender, GeometryDataGrid))
-                state.LoadMoreGeometryRows();
         }
 
         private static bool IsNearScrollEnd(ScrollChangedEventArgs e)

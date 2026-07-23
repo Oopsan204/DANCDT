@@ -335,7 +335,7 @@
                 </Grid>
             </Border>
 
-            <Border Grid.Row="1" Grid.Column="0" Style="{StaticResource PanelBorderStyle}">
+            <Border Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" Style="{StaticResource PanelBorderStyle}">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
@@ -383,37 +383,6 @@
                 </Grid>
             </Border>
 
-            <Border Grid.Row="1" Grid.Column="1" Style="{StaticResource PanelBorderStyle}">
-                <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
-                    </Grid.RowDefinitions>
-                    <TextBlock Text="Geometry Data" Style="{StaticResource PanelTitleStyle}"/>
-                    <DataGrid x:Name="GeometryDataGrid"
-                              Grid.Row="1"
-                              ItemsSource="{Binding GeometryRows}"
-                              AutoGenerateColumns="False"
-                              IsReadOnly="True"
-                              EnableRowVirtualization="True"
-                              EnableColumnVirtualization="True"
-                              ScrollViewer.CanContentScroll="True"
-                              ScrollViewer.ScrollChanged="LazyTable_ScrollChanged"
-                              HorizontalScrollBarVisibility="Auto"
-                              Margin="0,8,0,0">
-                        <DataGrid.Columns>
-                            <DataGridTextColumn Header="No." Binding="{Binding Index}" Width="60"/>
-                            <DataGridTextColumn Header="Line type" Binding="{Binding LineType}" Width="105"/>
-                            <DataGridTextColumn Header="Start X" Binding="{Binding StartX}" Width="85"/>
-                            <DataGridTextColumn Header="Start Y" Binding="{Binding StartY}" Width="85"/>
-                            <DataGridTextColumn Header="End X" Binding="{Binding EndX}" Width="85"/>
-                            <DataGridTextColumn Header="End Y" Binding="{Binding EndY}" Width="85"/>
-                            <DataGridTextColumn Header="Center X" Binding="{Binding CenterX}" Width="85"/>
-                            <DataGridTextColumn Header="Center Y" Binding="{Binding CenterY}" Width="85"/>
-                        </DataGrid.Columns>
-                    </DataGrid>
-                </Grid>
-            </Border>
         </Grid>
     </Grid>
 </UserControl>
