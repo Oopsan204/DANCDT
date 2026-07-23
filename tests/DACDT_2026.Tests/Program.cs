@@ -1719,6 +1719,8 @@ namespace DACDT_2026.Tests
         {
             AssertEqual("1000000", CadPreviewBuilder.DefaultLimits.MaxPreviewPoints.ToString(CultureInfo.InvariantCulture),
                 "large CAD preview must support up to 1,000,000 points");
+            AssertEqual("100000", CadPreviewBuilder.DefaultLimits.MaxPreviewPrimitives.ToString(CultureInfo.InvariantCulture),
+                "DXF preview must retain every primitive allowed by the CAD loader");
 
             CadDocumentService.CadLoadResult source = NewCadDocumentWithPrimitive(500000);
             CadDocumentService.CadLoadResult preview = CadPreviewBuilder.Build(
@@ -1966,6 +1968,11 @@ namespace DACDT_2026.Tests
                 "CAD publication must build the immutable spatial hit index.");
             AssertTrue(publisher.Contains("CadPathHitIndex.Build"),
                 "CAD publication must publish spatial hit data instead of visual hit targets.");
+            string hitIndexBuilder = ExtractMethodBody(
+                publisher,
+                "private static CadPathHitIndex BuildCadPathHitIndex");
+            AssertTrue(!hitIndexBuilder.Contains(".Take(50000)"),
+                "every primitive retained by preview must remain selectable.");
             AssertTrue(!dxfRun.Contains("<Polyline Points="),
                 "DXF view must not create one transparent Polyline for every CAD path.");
         }

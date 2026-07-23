@@ -1156,7 +1156,6 @@ namespace DACDT_2026
                 return CadPathHitIndex.Build(paths, 32.0);
 
             var groups = doc.Primitives
-                .Take(50000)
                 .Where(primitive => primitive != null
                     && primitive.Points != null
                     && primitive.Points.Count >= 2

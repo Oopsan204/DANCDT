@@ -23,7 +23,7 @@ namespace DACDT_2026
             public int MaxPreviewPrimitives { get; private set; }
         }
 
-        public static readonly Limits DefaultLimits = new Limits(1000000, 500000);
+        public static readonly Limits DefaultLimits = new Limits(1000000, 100000);
 
         public static CadDocumentService.CadLoadResult Build(
             CadDocumentService.CadLoadResult source,
