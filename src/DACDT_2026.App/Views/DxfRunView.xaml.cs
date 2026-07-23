@@ -148,7 +148,12 @@ namespace DACDT_2026.Views
             if (CadSurface == null || e.TouchDevice == null)
                 return;
 
-            EndCadPan();
+            if (!touchSession.IsTouchActive)
+            {
+                if (isCadPanning || CadViewport.IsMouseCaptured)
+                    EndCadPan();
+                CancelPendingWheelInteraction();
+            }
             Point position = e.GetTouchPoint(CadSurface).Position;
             touchSession.BeginTouch(e.TouchDevice.Id, position);
 
@@ -330,6 +335,7 @@ namespace DACDT_2026.Views
                 return;
             }
 
+            CancelPendingWheelInteraction();
             if (e.ClickCount >= 2)
             {
                 ResetCadView();
@@ -401,6 +407,9 @@ namespace DACDT_2026.Views
 
         private void EndCadPan()
         {
+            if (!isCadPanning && !CadViewport.IsMouseCaptured)
+                return;
+
             isCadPanning = false;
             mousePanExceededThreshold = false;
             if (CadViewport.IsMouseCaptured)
@@ -427,16 +436,22 @@ namespace DACDT_2026.Views
 
         private void CadWheelIdleTimer_Tick(object sender, EventArgs e)
         {
+            cadWheelIdleTimer.Stop();
             if (isCadPanning || touchSession.IsTouchActive)
                 return;
 
-            cadWheelIdleTimer.Stop();
             EndCadInteractionRendering();
         }
 
         private void CadViewport_LostMouseCapture(object sender, MouseEventArgs e)
         {
             EndCadPan();
+            EndCadInteractionRendering();
+        }
+
+        private void CancelPendingWheelInteraction()
+        {
+            cadWheelIdleTimer.Stop();
             EndCadInteractionRendering();
         }
 

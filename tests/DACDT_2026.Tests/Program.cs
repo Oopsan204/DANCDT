@@ -1377,6 +1377,7 @@ namespace DACDT_2026.Tests
             string wheelTickHandler = ExtractMethodBody(codeSource, "private void CadWheelIdleTimer_Tick");
             string lostMouseHandler = ExtractMethodBody(codeSource, "private void CadViewport_LostMouseCapture");
             string lostTouchHandler = ExtractMethodBody(codeSource, "private void CadViewport_LostTouchCapture");
+            string cancelWheelHandler = ExtractMethodBody(codeSource, "private void CancelPendingWheelInteraction");
 
             AssertTrue(codeSource.Contains("private readonly BitmapCache cadInteractionCache"),
                 "CAD interaction must reuse one BitmapCache instance.");
@@ -1407,10 +1408,25 @@ namespace DACDT_2026.Tests
                 && touchDownHandler.IndexOf("EndCadPan();", StringComparison.Ordinal)
                     < touchDownHandler.IndexOf("touchSession.BeginTouch", StringComparison.Ordinal),
                 "Valid touch down must cancel an active mouse pan before touch state starts.");
+            int mouseGuard = touchDownHandler.IndexOf("if (isCadPanning || CadViewport.IsMouseCaptured)", StringComparison.Ordinal);
+            int guardedEndPan = touchDownHandler.IndexOf("EndCadPan();", StringComparison.Ordinal);
+            AssertTrue(mouseGuard >= 0 && guardedEndPan > mouseGuard,
+                "A third touch during pinch must not call EndCadPan unconditionally.");
+            AssertTrue(endPanHandler.Contains("if (!isCadPanning && !CadViewport.IsMouseCaptured)")
+                && endPanHandler.Contains("return;"),
+                "EndCadPan must be a no-op when no mouse pan or capture is active.");
             AssertTrue(!touchDownHandler.Contains("BeginCadInteractionRendering();"),
                 "A simple touch press must not enable the bitmap cache.");
             AssertTrue(!mouseDownHandler.Contains("BeginCadInteractionRendering();"),
                 "A simple mouse press must not enable the bitmap cache.");
+            AssertTrue(touchDownHandler.Contains("if (!touchSession.IsTouchActive)")
+                && touchDownHandler.Contains("CancelPendingWheelInteraction();"),
+                "Only the first touch must cancel pending wheel rendering.");
+            AssertTrue(mouseDownHandler.Contains("CancelPendingWheelInteraction();"),
+                "The first mouse press must cancel pending wheel rendering.");
+            AssertTrue(cancelWheelHandler.Contains("cadWheelIdleTimer.Stop();")
+                && cancelWheelHandler.Contains("EndCadInteractionRendering();"),
+                "Cancelling pending wheel rendering must stop its timer and remove its cache.");
 
             int mouseThreshold = mouseMoveHandler.IndexOf("mousePanExceededThreshold = true;", StringComparison.Ordinal);
             int mouseBegin = mouseMoveHandler.IndexOf("BeginCadInteractionRendering();", StringComparison.Ordinal);
@@ -1434,6 +1450,10 @@ namespace DACDT_2026.Tests
                 && wheelTickHandler.Contains("touchSession.IsTouchActive")
                 && wheelTickHandler.Contains("return;"),
                 "Wheel idle expiry must not clear the cache while pan or touch is active.");
+            int tickStop = wheelTickHandler.IndexOf("cadWheelIdleTimer.Stop();", StringComparison.Ordinal);
+            int tickGuard = wheelTickHandler.IndexOf("if (isCadPanning || touchSession.IsTouchActive)", StringComparison.Ordinal);
+            AssertTrue(tickStop >= 0 && tickGuard > tickStop,
+                "Wheel idle expiry must stop the timer before an active gesture guard returns.");
 
             AssertTrue(mouseUpHandler.Contains("EndCadPan();") && endPanHandler.Contains("EndCadInteractionRendering();"),
                 "Mouse release must end CAD interaction rendering.");
