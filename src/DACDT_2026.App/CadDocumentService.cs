@@ -64,7 +64,7 @@ namespace DACDT_2026
             }
 
             // Giới hạn tổng số primitives để tránh tràn bộ nhớ với file DXF lớn
-            if (context.Primitives.Count > 100000)
+            if (context.Primitives.Count >= 100000)
             {
                 return;
             }

@@ -1944,6 +1944,7 @@ namespace DACDT_2026.Tests
         {
             string publisher = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Form1.StatePublisher.cs"));
             string dxfRun = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Views", "DxfRunView.xaml"));
+            string cadLoader = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "CadDocumentService.cs"));
 
             AssertTrue(!publisher.Contains("CadPointViewModel"), "large CAD publication must not create hidden coordinate view-model rows.");
             AssertTrue(!publisher.Contains("SetCadPointRows("), "large CAD publication must not publish hidden coordinate rows.");
@@ -1964,6 +1965,8 @@ namespace DACDT_2026.Tests
             AssertTrue(dxfRun.Contains("Data=\"{Binding CadCutPreviewGeometry}\""), "DXF view must render combined cut geometry.");
             AssertTrue(!publisher.Contains("BuildCadPrimitiveLines"),
                 "CAD publication must not create per-path WPF selection view models.");
+            AssertTrue(cadLoader.Contains("context.Primitives.Count >= 100000"),
+                "CAD loader and preview must share the exact 100,000 primitive limit.");
             AssertTrue(publisher.Contains("BuildCadPathHitIndex"),
                 "CAD publication must build the immutable spatial hit index.");
             AssertTrue(publisher.Contains("CadPathHitIndex.Build"),
