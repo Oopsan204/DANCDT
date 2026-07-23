@@ -103,7 +103,7 @@ git commit -m "test: define large CAD offline behavior"
 
 **Interfaces:**
 - `CadPreviewBuilder.Build` returns a new lightweight document and never mutates `source`.
-- `CadPreviewBuilder.DefaultLimits.MaxPreviewPoints` is `50000`.
+- `CadPreviewBuilder.DefaultLimits.MaxPreviewPoints` is `1000000`.
 - `CadPreviewBuilder.DefaultLimits.MaxPreviewPrimitives` is `50000`.
 - `OfflineRuntimePolicy.Enabled == true`, `ShouldStartMqtt == false`, and `ShouldStartWebRtc == false`.
 

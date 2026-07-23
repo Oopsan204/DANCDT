@@ -1381,6 +1381,9 @@ namespace DACDT_2026.Tests
 
         private static void LargeCadPreviewKeepsFullSourceAndCapsPreviewPoints()
         {
+            AssertEqual("1000000", CadPreviewBuilder.DefaultLimits.MaxPreviewPoints.ToString(CultureInfo.InvariantCulture),
+                "large CAD preview must support up to 1,000,000 points");
+
             CadDocumentService.CadLoadResult source = NewCadDocumentWithPrimitive(500000);
             CadDocumentService.CadLoadResult preview = CadPreviewBuilder.Build(
                 source,
