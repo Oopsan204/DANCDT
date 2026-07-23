@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Threading;
 
 namespace DACDT_2026.Views
 {
@@ -33,10 +34,21 @@ namespace DACDT_2026.Views
         private bool isCadPinchRenderSubscribed;
         private bool mousePanExceededThreshold;
         private bool touchPanExceededThreshold;
+        private readonly BitmapCache cadInteractionCache = new BitmapCache
+        {
+            EnableClearType = false,
+            RenderAtScale = 1
+        };
+        private readonly DispatcherTimer cadWheelIdleTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromMilliseconds(150)
+        };
 
         public DxfRunView()
         {
             InitializeComponent();
+            cadWheelIdleTimer.Tick += CadWheelIdleTimer_Tick;
+            CadViewport.LostMouseCapture += CadViewport_LostMouseCapture;
         }
 
         public double CadDisplayZoom
@@ -109,18 +121,24 @@ namespace DACDT_2026.Views
             if (CadSurface == null)
                 return;
 
+            BeginCadInteractionRendering();
             Point mouse = e.GetPosition(CadSurface);
             double oldZoom = cadZoom;
             double factor = e.Delta > 0 ? CadZoomStep : 1.0 / CadZoomStep;
             double nextZoom = Math.Max(MinCadZoom, Math.Min(MaxCadZoom, oldZoom * factor));
 
             if (Math.Abs(nextZoom - oldZoom) < 0.0001)
+            {
+                EndCadInteractionRendering();
                 return;
+            }
 
             double ratio = nextZoom / oldZoom;
             CadPanTransform.X = mouse.X - ((mouse.X - CadPanTransform.X) * ratio);
             CadPanTransform.Y = mouse.Y - ((mouse.Y - CadPanTransform.Y) * ratio);
             ApplyCadZoom(nextZoom);
+            cadWheelIdleTimer.Stop();
+            cadWheelIdleTimer.Start();
 
             e.Handled = true;
         }
@@ -130,6 +148,7 @@ namespace DACDT_2026.Views
             if (CadSurface == null || e.TouchDevice == null)
                 return;
 
+            BeginCadInteractionRendering();
             Point position = e.GetTouchPoint(CadSurface).Position;
             touchSession.BeginTouch(e.TouchDevice.Id, position);
 
@@ -214,6 +233,7 @@ namespace DACDT_2026.Views
             if (isCadPinchRenderSubscribed)
                 return;
 
+            BeginCadInteractionRendering();
             CompositionTarget.Rendering += ApplyPendingCadPinchFrame;
             isCadPinchRenderSubscribed = true;
         }
@@ -296,6 +316,7 @@ namespace DACDT_2026.Views
             StopCadPinchRenderLoop();
             touchSession.Reset();
             touchPanExceededThreshold = false;
+            EndCadInteractionRendering();
         }
 
         private void CadViewport_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -313,6 +334,7 @@ namespace DACDT_2026.Views
                 return;
             }
 
+            BeginCadInteractionRendering();
             isCadPanning = true;
             mousePanExceededThreshold = false;
             cadPanStartPoint = e.GetPosition(CadSurface);
@@ -374,17 +396,17 @@ namespace DACDT_2026.Views
 
         private void EndCadPan()
         {
-            if (!isCadPanning)
-                return;
-
             isCadPanning = false;
             mousePanExceededThreshold = false;
-            CadViewport.ReleaseMouseCapture();
+            if (CadViewport.IsMouseCaptured)
+                CadViewport.ReleaseMouseCapture();
             CadViewport.Cursor = Cursors.Hand;
+            EndCadInteractionRendering();
         }
 
         private void ResetCadView()
         {
+            EndCadInteractionRendering();
             ApplyCadZoom(1.0);
             CadPanTransform.X = 0.0;
             CadPanTransform.Y = 0.0;
@@ -396,6 +418,32 @@ namespace DACDT_2026.Views
             CadDisplayZoom = zoom;
             CadZoomTransform.ScaleX = zoom;
             CadZoomTransform.ScaleY = zoom;
+        }
+
+        private void CadWheelIdleTimer_Tick(object sender, EventArgs e)
+        {
+            cadWheelIdleTimer.Stop();
+            EndCadInteractionRendering();
+        }
+
+        private void CadViewport_LostMouseCapture(object sender, MouseEventArgs e)
+        {
+            EndCadPan();
+            EndCadInteractionRendering();
+        }
+
+        private void BeginCadInteractionRendering()
+        {
+            cadWheelIdleTimer.Stop();
+            if (CadContent != null)
+                CadContent.CacheMode = cadInteractionCache;
+        }
+
+        private void EndCadInteractionRendering()
+        {
+            cadWheelIdleTimer.Stop();
+            if (CadContent != null)
+                CadContent.CacheMode = null;
         }
 
     }

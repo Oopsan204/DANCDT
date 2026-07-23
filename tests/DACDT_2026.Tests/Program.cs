@@ -91,6 +91,7 @@ namespace DACDT_2026.Tests
                 CadPathHitIndexFindsOnlyTheNearbyPathInALargeSet();
                 CadPathSelectionUpdatesImmediatelyAndExplainsRunLock();
                 CadInteractionAvoidsExpensiveHitTestingAndFullStateRebuild();
+                CadInteractionUsesTemporaryBitmapCacheOnlyWhileInteracting();
                 SettingsViewUsesApprovedEnglishContract();
                 NonHelpViewsDoNotUseKnownVietnameseOperatorLabels();
                 SettingsViewExposesSaveSettingsCommand();
@@ -1358,6 +1359,40 @@ namespace DACDT_2026.Tests
             string refresh = handlerSource.Substring(refreshStart, refreshEnd - refreshStart);
             AssertTrue(refresh.Contains("RefreshCadSelectionPreviewAsync"), "Path selection must use a lightweight preview refresh.");
             AssertTrue(!refresh.Contains("await PushDxfStateAsync();"), "Selecting a path must not rebuild the complete UI state.");
+        }
+
+        private static void CadInteractionUsesTemporaryBitmapCacheOnlyWhileInteracting()
+        {
+            string codeSource = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Views", "DxfRunView.xaml.cs"));
+
+            AssertTrue(codeSource.Contains("private readonly BitmapCache cadInteractionCache"),
+                "CAD interaction must reuse one BitmapCache instance.");
+            AssertTrue(codeSource.Contains("EnableClearType = false"),
+                "CAD interaction cache must disable ClearType for fast bitmap rendering.");
+            AssertTrue(codeSource.Contains("RenderAtScale = 1"),
+                "CAD interaction cache must render at a stable scale.");
+            AssertTrue(codeSource.Contains("private void BeginCadInteractionRendering()"),
+                "CAD interaction must have an explicit cache-start lifecycle method.");
+            AssertTrue(codeSource.Contains("CadContent.CacheMode = cadInteractionCache"),
+                "CAD interaction start must cache only CadContent.");
+            AssertTrue(codeSource.Contains("private void EndCadInteractionRendering()"),
+                "CAD interaction must have an explicit cache-end lifecycle method.");
+            AssertTrue(codeSource.Contains("CadContent.CacheMode = null"),
+                "CAD interaction end must restore sharp vector rendering.");
+            AssertTrue(codeSource.Contains("private readonly DispatcherTimer cadWheelIdleTimer"),
+                "Mouse-wheel CAD zoom must use one reusable idle timer.");
+            AssertTrue(codeSource.Contains("Interval = TimeSpan.FromMilliseconds(150)"),
+                "Mouse-wheel CAD zoom must restore vectors after a short idle interval.");
+            AssertTrue(codeSource.Contains("cadWheelIdleTimer.Stop();")
+                && codeSource.Contains("cadWheelIdleTimer.Start();"),
+                "Each mouse-wheel event must restart the reusable idle timer.");
+            AssertTrue(codeSource.Contains("BeginCadInteractionRendering();")
+                && codeSource.Contains("EndCadInteractionRendering();"),
+                "CAD pan, pinch, wheel, reset, and capture-loss paths must use cache lifecycle methods.");
+            AssertTrue(codeSource.Contains("CadViewport_LostMouseCapture"),
+                "Mouse capture loss must end CAD interaction rendering.");
+            AssertTrue(codeSource.Contains("CadViewport_LostTouchCapture"),
+                "Touch capture loss must end CAD interaction rendering.");
         }
 
         private static void SettingsViewUsesApprovedEnglishContract()
