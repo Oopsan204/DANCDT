@@ -263,7 +263,6 @@ namespace DACDT_2026
             await HandleScanLimitsAsync();
             await SendProgressAsync(true, 85);
             await PushDxfStateAsync();
-            await PublishAllMqttAsync();
         }
 
         private async Task PublishCadUploadStatusAsync(string status, string message, int receivedChunks, int totalChunks, IEnumerable<int> missingChunks = null)

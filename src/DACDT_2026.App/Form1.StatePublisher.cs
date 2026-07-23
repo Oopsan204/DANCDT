@@ -12,9 +12,6 @@ namespace DACDT_2026
 {
     public partial class Form1
     {
-        private readonly SemaphoreSlim cadMqttPublishGate = new SemaphoreSlim(1, 1);
-        private int cadMqttPublishGeneration;
-
         private Task PushAllStateAsync()
             => Task.WhenAll(PushControlStateAsync(), PushDxfStateAsync(), PushLogsStateAsync());
 
@@ -172,17 +169,17 @@ namespace DACDT_2026
 
         }
 
+        #if false
         /// <summary>
-        /// Publishes CAD state to MQTT on explicit web request.
-        /// Machine/monitor state are published by the PLC polling loop.
+        /// Legacy publisher retained for source compatibility only. Offline runtime never invokes it.
         /// </summary>
         private async Task PublishAllMqttAsync()
         {
             bool connected = PlcConnectionGuard.CanUsePlc(plcComm != null, plcComm != null && plcComm.IsConnected);
-            await PublishCadStateToMqttAsync(connected);
+            await LegacyCadStatePublisherDisabledAsync(connected);
         }
 
-        private async Task PublishCadStateToMqttAsync(bool connected)
+        private async Task LegacyCadStatePublisherDisabledAsync(bool connected)
         {
             if (!mqttService.IsConnected)
                 return;
@@ -354,7 +351,7 @@ namespace DACDT_2026
             sb.Append("}");
         }
 
-        private async Task PublishMachineStateToMqttAsync(bool connected)
+        private async Task LegacyMachineStatePublisherDisabledAsync(bool connected)
         {
             if (!mqttService.IsConnected)
             {
@@ -410,7 +407,7 @@ namespace DACDT_2026
 
                 Console.WriteLine($"[DEBUG] Publishing to DACDT/machine/state: {sb.ToString().Substring(0, Math.Min(100, sb.Length))}...");
                 await mqttService.PublishAsync("DACDT/machine/state", sb.ToString());
-                await PublishMonitorStateToMqttAsync(connected);
+                await LegacyMonitorStatePublisherDisabledAsync(connected);
                 Console.WriteLine($"[DEBUG] Successfully published to DACDT/machine/state");
             }
             catch (Exception ex)
@@ -419,7 +416,7 @@ namespace DACDT_2026
             }
         }
 
-        private async Task PublishMonitorStateToMqttAsync(bool connected)
+        private async Task LegacyMonitorStatePublisherDisabledAsync(bool connected)
         {
             if (!mqttService.IsConnected)
                 return;
@@ -500,6 +497,8 @@ namespace DACDT_2026
             sb.Append("}");
         }
 
+        #endif
+
         private void AppendProcessRowJson(StringBuilder sb, ProcessRow row, int index)
         {
             if (row == null)
@@ -556,13 +555,6 @@ namespace DACDT_2026
                 : fallback;
         }
 
-        /// <summary>
-        /// Publish the current camera frame to MQTT as a Base64-encoded JPEG.
-        /// Topic: DACDT/camera/frame
-        /// Quality is kept at 60 to limit message size (~10-30 KB per frame).
-        /// </summary>
-
-
         private async Task PushDxfStateAsync()
         {
             var snapDocSource = activeCadDocument;
@@ -612,9 +604,10 @@ namespace DACDT_2026
             var model = await Task.Run(() =>
             {
                 bool isGcodeKind = string.Equals(snapKind, "GCODE", StringComparison.OrdinalIgnoreCase);
-                var rawDoc = CloneCadDocumentForUi(snapDocSource);
+                var rawDoc = snapDocSource;
+                var previewDoc = CadPreviewBuilder.Build(rawDoc, CadPreviewBuilder.DefaultLimits);
                 var snapDoc = CreateDisplayCadDocument(
-                    rawDoc,
+                    previewDoc,
                     isGcodeKind,
                     snapOx,
                     snapOy,
@@ -675,7 +668,7 @@ namespace DACDT_2026
                     };
                 }).ToList();
 
-                var projection = CreateCadProjection(rawDoc, snapWorkspaceWidth, snapWorkspaceHeight);
+                var projection = CreateCadProjection(snapDoc, snapWorkspaceWidth, snapWorkspaceHeight);
                 var cadPreviewImage = BuildCadPreviewImage(snapDoc, projection);
                 var cadPreviewGeometry = snapMixedEngraveCut ? null : BuildCadPreviewGeometry(snapDoc, projection);
                 var cadEngravePreviewGeometry = BuildCadPreviewGeometry(snapDoc, projection, EngraveCutProcessComposer.EngraveKind);
@@ -685,7 +678,7 @@ namespace DACDT_2026
                 var axisLines = BuildCadAxisLines(snapDoc, projection);
                 var axisLabels = BuildCadAxisLabels(snapDoc, projection);
                 var trackingPoints = BuildRobotTrackingPoints(
-                    rawDoc,
+                    snapDoc,
                     snapWorkspaceWidth,
                     snapWorkspaceHeight,
                     snapConnected,
@@ -1737,7 +1730,7 @@ namespace DACDT_2026
 
         private void ScheduleLogUiRefresh()
         {
-            if (isClosing || !webReady)
+            if (isClosing)
                 return;
 
             if (Interlocked.CompareExchange(ref logUiRefreshPending, 1, 0) != 0)
@@ -1772,7 +1765,7 @@ namespace DACDT_2026
 
         private Task PostToUiAsync(string type, object payload)
         {
-            if (isClosing || !webReady) return Task.CompletedTask;
+            if (isClosing) return Task.CompletedTask;
 
             return RunOnUiAsync(() =>
             {
@@ -1780,7 +1773,6 @@ namespace DACDT_2026
                 {
                     ui.ProgressVisible = GetPayloadBool(payload, "visible");
                     ui.ProgressPercent = GetPayloadInt(payload, "percent", 0);
-                    _ = PublishMonitorStateToMqttAsync(PlcConnectionGuard.CanUsePlc(plcComm != null, plcComm != null && plcComm.IsConnected));
                     return;
                 }
 

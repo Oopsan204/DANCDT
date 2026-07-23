@@ -199,7 +199,6 @@ namespace DACDT_2026
                 await HandleScanLimitsAsync();
                 await SendProgressAsync(true, 85);
                 await PushDxfStateAsync();
-                await PublishAllMqttAsync();
             }
             catch (Exception ex)
             {
@@ -308,7 +307,6 @@ namespace DACDT_2026
                 await HandleScanLimitsAsync();
                 await SendProgressAsync(true, 85);
                 await PushDxfStateAsync();
-                await PublishAllMqttAsync();
 
                 await NotifyAsync("success", "DXF", $"Imported: {loadedDoc?.FileName ?? Path.GetFileName(selectedPath)}");
             }
@@ -505,7 +503,6 @@ namespace DACDT_2026
                     return;
                 }
 
-                _ = PublishAllMqttAsync();
             }
             catch (Exception ex)
             {
@@ -688,7 +685,6 @@ namespace DACDT_2026
                 await HandleScanLimitsAsync();
                 await SendProgressAsync(true, 85);
                 await PushDxfStateAsync();
-                await PublishAllMqttAsync();
             }
             catch (Exception ex)
             {
@@ -714,7 +710,6 @@ namespace DACDT_2026
             });
 
             await PushDxfStateAsync();
-            await PublishAllMqttAsync();
             await HandleImportCadToProcessAsync();
             await NotifyAsync("info", "G-code", "Created a blank G-code document.");
         }
@@ -929,7 +924,6 @@ namespace DACDT_2026
 
             UpdateGcodeFromProcessTable();
             await PushDxfStateAsync();
-            await PublishAllMqttAsync();
             SaveSettingsToFile();
             await NotifyAsync("success", "Configuration", $"Updated {key} = {value}");
         }
@@ -1344,9 +1338,12 @@ namespace DACDT_2026
                 return;
             }
 
-            // Step 1: Collect coordinates and find min/max
-            var allX = new List<double>();
-            var allY = new List<double>();
+            // Step 1: Find min/max in one pass without duplicating every coordinate.
+            bool hasCoordinates = false;
+            double minX = double.MaxValue;
+            double maxX = double.MinValue;
+            double minY = double.MaxValue;
+            double maxY = double.MinValue;
 
             if (activeCadDocument.Primitives != null)
             {
@@ -1355,31 +1352,32 @@ namespace DACDT_2026
                     if (prim.Points == null) continue;
                     foreach (var pt in prim.Points)
                     {
-                        allX.Add(pt.X);
-                        allY.Add(pt.Y);
+                        hasCoordinates = true;
+                        minX = Math.Min(minX, pt.X);
+                        maxX = Math.Max(maxX, pt.X);
+                        minY = Math.Min(minY, pt.Y);
+                        maxY = Math.Max(maxY, pt.Y);
                     }
                 }
             }
 
-            if (allX.Count == 0 && activeCadDocument.Points != null)
+            if (!hasCoordinates && activeCadDocument.Points != null)
             {
                 foreach (var pt in activeCadDocument.Points)
                 {
-                    allX.Add(pt.X);
-                    allY.Add(pt.Y);
+                    hasCoordinates = true;
+                    minX = Math.Min(minX, pt.X);
+                    maxX = Math.Max(maxX, pt.X);
+                    minY = Math.Min(minY, pt.Y);
+                    maxY = Math.Max(maxY, pt.Y);
                 }
             }
 
-            if (allX.Count == 0)
+            if (!hasCoordinates)
             {
                 await NotifyAsync("error", "Test Area", "No coordinates found in file.");
                 return;
             }
-
-            double minX = allX.Min();
-            double maxX = allX.Max();
-            double minY = allY.Min();
-            double maxY = allY.Max();
 
             // Apply offsets and expand by 2mm in each direction
             double adjMinX = minX + offsetX - 2.0;
@@ -2438,9 +2436,12 @@ namespace DACDT_2026
 
             var scan = await Task.Run(() =>
             {
-                // ── Thu thập tất cả điểm từ primitives ──────────────────────────────
-                var allX = new List<double>();
-                var allY = new List<double>();
+                // ── Tính min/max một lượt, không nhân bản toàn bộ tọa độ ────────────
+                bool hasCoordinates = false;
+                double rawMinX = double.MaxValue;
+                double rawMaxX = double.MinValue;
+                double rawMinY = double.MaxValue;
+                double rawMaxY = double.MinValue;
 
                 if (snapDoc.Primitives != null)
                 {
@@ -2449,28 +2450,30 @@ namespace DACDT_2026
                         if (prim.Points == null) continue;
                         foreach (var pt in prim.Points)
                         {
-                            allX.Add(pt.X);
-                            allY.Add(pt.Y);
+                            hasCoordinates = true;
+                            rawMinX = Math.Min(rawMinX, pt.X);
+                            rawMaxX = Math.Max(rawMaxX, pt.X);
+                            rawMinY = Math.Min(rawMinY, pt.Y);
+                            rawMaxY = Math.Max(rawMaxY, pt.Y);
                         }
                     }
                 }
 
                 // Nếu primitives không có điểm thì lấy từ danh sách Points
-                if (allX.Count == 0 && snapDoc.Points != null)
+                if (!hasCoordinates && snapDoc.Points != null)
                 {
                     foreach (var pt in snapDoc.Points)
                     {
-                        allX.Add(pt.X);
-                        allY.Add(pt.Y);
+                        hasCoordinates = true;
+                        rawMinX = Math.Min(rawMinX, pt.X);
+                        rawMaxX = Math.Max(rawMaxX, pt.X);
+                        rawMinY = Math.Min(rawMinY, pt.Y);
+                        rawMaxY = Math.Max(rawMaxY, pt.Y);
                     }
                 }
 
-                if (allX.Count == 0)
+                if (!hasCoordinates)
                     return Tuple.Create(false, false, "No coordinates were found in the file.");
-
-                // ── Tính min / max thô (từ file) ────────────────────────────────────
-                double rawMinX = allX.Min(), rawMaxX = allX.Max();
-                double rawMinY = allY.Min(), rawMaxY = allY.Max();
 
                 // ── Áp dụng offset → toạ độ máy ─────────────────────────────────────
                 double adjMinX = rawMinX + snapOffsetX, adjMaxX = rawMaxX + snapOffsetX;

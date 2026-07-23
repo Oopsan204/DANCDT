@@ -1241,22 +1241,6 @@ namespace DACDT_2026
                 _ = Task.Run(RunSlowPlcMonitorAsync);
             }
 
-            if ((nowUtc - lastMachineMqttPublishUtc).TotalMilliseconds >= PerformanceTuning.MachineMqttPublishIntervalMs
-                && Interlocked.CompareExchange(ref machineMqttPublishInFlight, 1, 0) == 0)
-            {
-                lastMachineMqttPublishUtc = nowUtc;
-                _ = Task.Run(async () =>
-                {
-                    try
-                    {
-                        await PublishMachineStateToMqttAsync(connected: true);
-                    }
-                    finally
-                    {
-                        Interlocked.Exchange(ref machineMqttPublishInFlight, 0);
-                    }
-                });
-            }
         }
 
         private void SchedulePlcHeartbeat(DateTime nowUtc)

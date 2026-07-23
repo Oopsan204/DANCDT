@@ -34,14 +34,7 @@ namespace DACDT_2026
         private readonly IntervalGate cameraRecordingGate = new IntervalGate(PerformanceTuning.CameraRecordingFrameIntervalMs);
         private readonly SingleFlightGate cameraRecordingSaveGate = new SingleFlightGate();
         private object cameraLock = new object();
-        private DateTime lastCameraMqttPublishUtc = DateTime.MinValue;
-        private bool cameraMqttPublishInFlight;
-        private int webRtcFrameInFlight;
         private readonly IntervalGate cameraPreviewGate = new IntervalGate(PerformanceTuning.CameraPreviewIntervalMs);
-        private readonly IntervalGate webRtcFrameGate = new IntervalGate(PerformanceTuning.WebRtcFrameIntervalMs);
-        private static readonly bool EnableMqttCameraFrameFallback = false;
-        private const int CameraMqttPublishIntervalMs = 200;
-        private const long CameraMqttJpegQuality = 25L;
         private readonly JavaScriptSerializer cameraStatusSerializer = new JavaScriptSerializer();
 
         private void InitializeCameraRecordingDurationTimer()
@@ -81,19 +74,7 @@ namespace DACDT_2026
 
         private Task PublishCameraStatusAsync(bool running, string state, string message = null)
         {
-            var payload = cameraStatusSerializer.Serialize(new
-            {
-                running = running,
-                state = state,
-                message = message,
-                cameraReady = cameraSource != null && cameraSource.IsRunning,
-                webrtcReady = true, // Managed by x64 service
-                selectedCamera = ui.SelectedCamera?.DisplayName,
-                selectedCameraMoniker = ui.SelectedCameraMoniker,
-                timestampUtc = DateTime.UtcNow.ToString("o")
-            });
-
-            return mqttService.PublishAsync("DACDT/camera/status", payload, true);
+            return Task.CompletedTask;
         }
 
         /// <summary>
@@ -186,14 +167,12 @@ namespace DACDT_2026
                             bool switchCamera = CameraDeviceSelection.ShouldSwitch(activeCameraMoniker, selectedMoniker);
                             if (!forceRestart && !switchCamera)
                             {
-                                webRtcBridgeClient.Connect();
                                 _ = PublishCameraStatusAsync(true, "running", "camera already running");
                                 SetCameraRunningUiState(true, "Camera already running: " + selectedName, clearFrame: false);
                                 return;
                             }
 
                             StopCameraSourceLocked();
-                            try { webRtcBridgeClient.Disconnect(); } catch { }
                         }
                         else if (cameraSource != null)
                         {
@@ -206,15 +185,10 @@ namespace DACDT_2026
                         cameraSource = videoDevice;
                         activeCameraMoniker = selectedMoniker;
                         cameraSource.Start();
-                        webRtcBridgeClient.Connect();
                         _ = PublishCameraStatusAsync(true, "running", "camera started: " + selectedName);
 
                         recordedFrameCount = 0;
-                        lastCameraMqttPublishUtc = DateTime.MinValue;
                         cameraPreviewGate.Reset();
-                        webRtcFrameGate.Reset();
-                        cameraMqttPublishInFlight = false;
-                        Interlocked.Exchange(ref webRtcFrameInFlight, 0);
                         SetCameraRunningUiState(true, "Camera started: " + selectedName, clearFrame: true);
                     }
                 }
@@ -244,7 +218,6 @@ namespace DACDT_2026
                     lock (cameraLock)
                     {
                         StopCameraSourceLocked();
-                        webRtcBridgeClient.Disconnect();
                         _ = PublishCameraStatusAsync(false, "stopped", "camera stopped");
 
                         cameraRecordingActive = false;
@@ -254,9 +227,7 @@ namespace DACDT_2026
                         cameraVideoRecorder = null;
                         activeCameraRecordingPath = string.Empty;
                         ui.CameraRecordedFrames = 0;
-                        Interlocked.Exchange(ref webRtcFrameInFlight, 0);
                         cameraPreviewGate.Reset();
-                        webRtcFrameGate.Reset();
                         SetCameraRunningUiState(false, "Camera stopped.", clearFrame: true);
                     }
 
@@ -281,7 +252,6 @@ namespace DACDT_2026
                 lock (cameraLock)
                 {
                     StopCameraSourceLocked();
-                    try { webRtcBridgeClient.Disconnect(); } catch { }
                     _ = PublishCameraStatusAsync(false, "stopped", "camera stopped");
 
                     cameraRecordingActive = false;
@@ -293,11 +263,7 @@ namespace DACDT_2026
                     ui.IsCameraRunning = false;
                     recordedFrameCount = 0;
                     ui.CameraRecordedFrames = 0;
-                    lastCameraMqttPublishUtc = DateTime.MinValue;
                     cameraPreviewGate.Reset();
-                    webRtcFrameGate.Reset();
-                    cameraMqttPublishInFlight = false;
-                    Interlocked.Exchange(ref webRtcFrameInFlight, 0);
                 }
 
                 recorderToClose?.Complete();
@@ -568,43 +534,6 @@ namespace DACDT_2026
                     _ = Task.Run(() => SaveCameraRecordingFrame(recordingBitmap));
                 }
 
-                Bitmap mqttBitmap = null;
-                if (ShouldPublishCameraFrameToMqtt(nowUtc))
-                {
-                    mqttBitmap = (Bitmap)bitmap.Clone();
-                }
-
-                if (mqttBitmap != null)
-                {
-                    _ = Task.Run(() => PublishCameraBitmapToMqttAsync(mqttBitmap));
-                }
-
-                // Feed frame to WebRTC server for browser streaming.
-                if (webReady)
-                {
-                    if (ShouldSendFrameToWebRtc(nowUtc))
-                    {
-                        var webRtcBitmap = (Bitmap)bitmap.Clone();
-                        _ = Task.Run(() =>
-                        {
-                            try
-                            {
-                                using (var ms = new MemoryStream())
-                                {
-                                    SaveJpeg(webRtcBitmap, ms, 50L);
-                                    byte[] jpegBytes = ms.ToArray();
-                                    webRtcBridgeClient.SendFrame(jpegBytes);
-                                }
-                            }
-                            finally
-                            {
-                                webRtcBitmap.Dispose();
-                                Interlocked.Exchange(ref webRtcFrameInFlight, 0);
-                            }
-                        });
-                    }
-                }
-
                 if (ShouldUpdateCameraPreview(nowUtc))
                 {
                     var bitmapImage = CreateBitmapImage(bitmap);
@@ -633,39 +562,6 @@ namespace DACDT_2026
             {
                 bitmap?.Dispose();
             }
-        }
-
-        private bool ShouldPublishCameraFrameToMqtt(DateTime nowUtc)
-        {
-            if (!EnableMqttCameraFrameFallback)
-                return false;
-
-            if (!mqttService.IsConnected || cameraMqttPublishInFlight)
-                return false;
-
-            if ((nowUtc - lastCameraMqttPublishUtc).TotalMilliseconds < CameraMqttPublishIntervalMs)
-                return false;
-
-            lastCameraMqttPublishUtc = nowUtc;
-            cameraMqttPublishInFlight = true;
-            return true;
-        }
-
-        private bool ShouldSendFrameToWebRtc(DateTime nowUtc)
-        {
-            if (!ui.IsCameraRunning)
-                return false;
-
-            if (Interlocked.CompareExchange(ref webRtcFrameInFlight, 1, 0) != 0)
-                return false;
-
-            if (!webRtcFrameGate.TryEnter(nowUtc))
-            {
-                Interlocked.Exchange(ref webRtcFrameInFlight, 0);
-                return false;
-            }
-
-            return true;
         }
 
         private bool ShouldUpdateCameraPreview(DateTime nowUtc)
@@ -725,93 +621,6 @@ namespace DACDT_2026
             return bitmapImage;
         }
 
-        private static Bitmap ResizeBitmap(Bitmap source, int targetWidth, int targetHeight)
-        {
-            var result = new Bitmap(targetWidth, targetHeight, PixelFormat.Format24bppRgb);
-            using (var g = Graphics.FromImage(result))
-            {
-                g.CompositingMode = System.Drawing.Drawing2D.CompositingMode.SourceCopy;
-                g.CompositingQuality = System.Drawing.Drawing2D.CompositingQuality.HighSpeed;
-                g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.Low;
-                g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.HighSpeed;
-                g.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.HighSpeed;
-                g.DrawImage(source, 0, 0, targetWidth, targetHeight);
-            }
-            return result;
-        }
-
-        private async Task PublishCameraBitmapToMqttAsync(Bitmap bitmap)
-        {
-            try
-            {
-                byte[] jpegBytes = null;
-                using (bitmap)
-                {
-                    // Downsample to max width 640px for lightweight web streaming
-                    const int MaxWebWidth = 640;
-                    Bitmap processedBitmap = bitmap;
-                    bool wasResized = false;
-
-                    if (bitmap.Width > MaxWebWidth)
-                    {
-                        int targetHeight = (int)Math.Round((double)bitmap.Height * MaxWebWidth / bitmap.Width);
-                        processedBitmap = ResizeBitmap(bitmap, MaxWebWidth, targetHeight);
-                        wasResized = true;
-                    }
-
-                    try
-                    {
-                        using (var ms = new MemoryStream())
-                        {
-                            SaveJpeg(processedBitmap, ms, CameraMqttJpegQuality);
-                            jpegBytes = ms.ToArray();
-                        }
-                    }
-                    finally
-                    {
-                        if (wasResized)
-                        {
-                            processedBitmap.Dispose();
-                        }
-                    }
-                }
-
-                if (jpegBytes != null && jpegBytes.Length > 0 && mqttService.IsConnected)
-                {
-                    // Publish raw binary bytes (more efficient than Base64)
-                    await mqttService.PublishAsync("DACDT/camera/frame", jpegBytes);
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[MQTT Camera] Publish error: {ex.Message}");
-            }
-            finally
-            {
-                lock (cameraLock)
-                {
-                    cameraMqttPublishInFlight = false;
-                }
-            }
-        }
-
-        private static void SaveJpeg(Bitmap bitmap, Stream stream, long quality)
-        {
-            ImageCodecInfo jpegCodec = ImageCodecInfo.GetImageEncoders()
-                .FirstOrDefault(codec => string.Equals(codec.MimeType, "image/jpeg", StringComparison.OrdinalIgnoreCase));
-
-            if (jpegCodec == null)
-            {
-                bitmap.Save(stream, ImageFormat.Jpeg);
-                return;
-            }
-
-            using (var parameters = new EncoderParameters(1))
-            {
-                parameters.Param[0] = new EncoderParameter(System.Drawing.Imaging.Encoder.Quality, quality);
-                bitmap.Save(stream, jpegCodec, parameters);
-            }
-        }
         private void CameraSource_VideoSourceError(object sender, VideoSourceErrorEventArgs eventArgs)
         {
             try

@@ -36,7 +36,6 @@ namespace DACDT_2026.Tests
                 CameraRecordingUsesMpeg4CodecForX86Ffmpeg();
                 CameraRecordingSummaryFormatsElapsedTimeAndFileSize();
                 CameraRecordingStatusUsesDurationAndMp4Size();
-                WebRtcUsesTwoMegabitTarget();
                 CameraRecordingDoesNotRequireWebRtcForLocalFrames();
                 AxisMonitorUpdateCadenceStaysResponsive();
                 PlcMonitoringUsesOneBatchedReader();
@@ -67,13 +66,6 @@ namespace DACDT_2026.Tests
                 LargeCadPreviewKeepsFullSourceAndCapsPreviewPoints();
                 LargeCadPreviewSamplesOneHugePolyline();
                 OfflineRuntimeDoesNotStartMqttOrWebRtc();
-                WebCadUploadReassemblesChunks();
-                WebCadUploadReassemblesBinaryChunks();
-                WebCadUploadReportsMissingChunksForRetry();
-                WebCadBinaryUploadUsesRawMqttPayloads();
-                WebCadUploadRejectsUnsupportedFiles();
-                CadMqttTransferSplitsJsonItemsByUtf8Size();
-                CadMqttCadDirectionsUseChunkedProtocol();
                 WpfThemeManagerAppliesLightAndDarkPalettes();
                 EngraveCutComposerKeepsOneOrderedProcessListWithPerRowParameters();
                 LaserPowerPercentMapsToPlcRange();
@@ -438,8 +430,8 @@ namespace DACDT_2026.Tests
         {
             string cameraSource = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Form1.Camera.cs"));
 
-            AssertTrue(!cameraSource.Contains("if (isClosing || !webReady)"), "Local camera recording must not stop when WebRTC is unavailable.");
-            AssertTrue(cameraSource.Contains("if (webReady)"), "WebRTC frame forwarding must remain guarded independently.");
+            AssertTrue(!cameraSource.Contains("webRtcBridgeClient"), "Local camera must not depend on WebRTC.");
+            AssertTrue(!cameraSource.Contains("webReady"), "Local camera must not depend on web runtime state.");
         }
 
         private static void AxisMonitorUpdateCadenceStaysResponsive()
@@ -1421,16 +1413,37 @@ namespace DACDT_2026.Tests
 
         private static void OfflineRuntimeDoesNotStartMqttOrWebRtc()
         {
+            AssertTrue(OfflineRuntimePolicy.Enabled, "offline runtime must be enabled");
+            AssertTrue(!OfflineRuntimePolicy.ShouldStartMqtt, "MQTT must not start");
+            AssertTrue(!OfflineRuntimePolicy.ShouldStartWebRtc, "WebRTC service must not start");
+
             string form1 = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Form1.cs"));
             string dxf = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Form1.DxfHandler.cs"));
             string state = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Form1.StatePublisher.cs"));
             string camera = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Form1.Camera.cs"));
+            string project = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "DACDT_2026.csproj"));
+            string installer = File.ReadAllText(GetRepositoryPath("tools", "installer.iss"));
 
             AssertTrue(!form1.Contains("await InitMqttAsync();"), "startup must not initialize MQTT");
+            AssertTrue(!form1.Contains("new MqttPublishService"), "app must not instantiate MQTT");
+            AssertTrue(!form1.Contains("new WebCadUploadSession"), "app must not create web CAD upload state");
+            AssertTrue(!form1.Contains("new WebRtcBridgeClient"), "app must not create a WebRTC bridge");
+            AssertTrue(!form1.Contains("mqttService.ConnectAsync"), "app must not connect to MQTT");
+            AssertTrue(!form1.Contains("mqttService.SubscribeAsync"), "app must not subscribe to MQTT");
             AssertTrue(!form1.Contains("StartBackgroundVideoService();"), "startup must not launch WebRTC web service");
             AssertTrue(!dxf.Contains("await PublishAllMqttAsync();"), "local CAD flow must not publish to MQTT");
             AssertTrue(!state.Contains("private async Task PublishCadStateToMqttAsync"), "CAD MQTT publisher must be removed");
+            AssertTrue(!state.Contains("PublishMachineStateToMqttAsync"), "machine MQTT publisher must be removed");
             AssertTrue(!camera.Contains("webRtcBridgeClient.SendFrame"), "local camera must not send WebRTC frames");
+            AssertTrue(!camera.Contains("webRtcBridgeClient.Connect"), "local camera must not open a web bridge");
+            AssertTrue(!camera.Contains("mqttService.PublishAsync"), "local camera must not publish to MQTT");
+            AssertTrue(!project.Contains("MqttPublishService.cs"), "MQTT service must not be compiled into the app");
+            AssertTrue(!project.Contains("MQTTnet"), "app must not reference MQTTnet");
+            AssertTrue(!project.Contains("Form1.WebCadUpload.cs"), "web CAD upload handlers must not be compiled into the app");
+            AssertTrue(!project.Contains("WebRtcBridgeClient.cs"), "WebRTC bridge must not be compiled into the app");
+            AssertTrue(!installer.Contains("WebRtcCameraService.exe"), "installer must not package the WebRTC service");
+            AssertTrue(!installer.Contains("docs\\index.html"), "installer must not package the web dashboard");
+            AssertTrue(installer.Contains("Excludes: \"MQTTnet.dll\""), "installer must not package MQTT runtime DLL");
         }
 
         private static CadDocumentService.CadLoadResult NewCadDocumentWithPrimitive(int pointCount)

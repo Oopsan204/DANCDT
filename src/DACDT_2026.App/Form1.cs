@@ -47,12 +47,7 @@ namespace DACDT_2026
 
         private readonly CadDocumentService cadService = new CadDocumentService();
         private readonly GcodeCoordinateService gcodeCoordinateService = new GcodeCoordinateService();
-        private readonly MqttPublishService mqttService = new MqttPublishService();
-        private readonly WebCadUploadSession webCadUploadSession = new WebCadUploadSession();
-        private readonly SemaphoreSlim webCadUploadMessageGate = new SemaphoreSlim(1, 1);
-        private readonly WebRtcBridgeClient webRtcBridgeClient = new WebRtcBridgeClient();
         private readonly ConfigurationFilePathStore configurationFilePathStore;
-        private System.Diagnostics.Process backgroundServiceProcess;
 
         private readonly List<MonitorRow> monitorRows = new List<MonitorRow>();
         private readonly List<ProcessRow> processRows = new List<ProcessRow>();
@@ -113,13 +108,11 @@ namespace DACDT_2026
         private string rawGcodeText = string.Empty;
         private QD75RingBufferRunner activeRingRunner;
         private readonly ProgramRunCompletionTracker programRunCompletionTracker = new ProgramRunCompletionTracker();
-        private DateTime lastMachineMqttPublishUtc = DateTime.MinValue;
         private readonly IntervalGate controlUiPushGate = new IntervalGate(PerformanceTuning.ControlUiPushIntervalMs);
         private readonly IntervalGate axisMonitorUiPushGate = new IntervalGate(PerformanceTuning.ControlUiPushIntervalMs);
         private readonly IntervalGate controlTrackingUiPushGate = new IntervalGate(PerformanceTuning.ControlTrackingUiPushIntervalMs);
         private readonly IntervalGate slowPlcMonitorPollGate = new IntervalGate(PerformanceTuning.SlowPlcMonitorPollIntervalMs);
         private readonly IntervalGate plcHeartbeatGate = new IntervalGate(PerformanceTuning.PlcHeartbeatIntervalMs);
-        private int machineMqttPublishInFlight;
         private int plcConnectionChangeInFlight;
         private int slowPlcMonitorInFlight;
         private int plcHeartbeatInFlight;
@@ -141,7 +134,6 @@ namespace DACDT_2026
         }
 
         private volatile bool isProgramRunning;
-        private volatile bool webReady;
         private volatile bool isClosing;
         private volatile bool isPolling;
         private volatile bool plcStartupReady;
@@ -181,9 +173,6 @@ namespace DACDT_2026
             SyncSettingsToUi();
             currentTheme = WpfThemeManager.Apply(currentTheme, Resources, this);
             ui.CurrentTheme = currentTheme;
-            mqttService.MessageReceived += MqttService_MessageReceived;
-            mqttService.BinaryMessageReceived += MqttService_BinaryMessageReceived;
-            StartBackgroundVideoService();
 
             StateChanged += (sender, e) =>
             {
@@ -200,10 +189,6 @@ namespace DACDT_2026
                 currentTheme = WpfThemeManager.Apply(currentTheme, Resources, this);
                 ui.CurrentTheme = currentTheme;
                 WindowState = WindowState.Maximized;
-                webReady = true;
-                await InitMqttAsync();
-                // Wait a bit for MQTT to connect
-                await Task.Delay(500);
                 await PushAllStateAsync();
                 _ = RefreshCamerasAsync();
                 // Start PLC polling if not already started
@@ -837,259 +822,6 @@ namespace DACDT_2026
             }
         }
 
-        private async Task InitMqttAsync()
-        {
-            try
-            {
-                string broker = "beb7179d08fa43f79d440a9be9b95f24.s1.eu.hivemq.cloud";
-                string username = "DACDT2026";
-                string password = "trungaN123@";
-                Console.WriteLine($"[DEBUG] Starting MQTT connection to {broker}:8883...");
-                await mqttService.ConnectAsync(broker, username, password);
-                await mqttService.SubscribeAsync(
-                    "DACDT/machine/command",
-                    "DACDT/machine/comment",
-                    "DACDT/machine/coment",
-                    "DACDT/machine/request",
-                    "DACDT/web/connected",
-                    "DACDT/camera/command",
-                    "DACDT/cad/upload/start",
-                    "DACDT/cad/upload/chunk",
-                    "DACDT/cad/upload/binary/#",
-                    "DACDT/cad/upload/finish",
-                    "DACDT/cad/upload/cancel");
-                Console.WriteLine($"[DEBUG] MQTT connection completed. IsConnected={mqttService.IsConnected}");
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"MQTT init failed: {ex.Message}");
-                Console.WriteLine($"[DEBUG] MQTT IsConnected after error: {mqttService.IsConnected}");
-            }
-        }
-
-        private void MqttService_MessageReceived(string topic, string payload)
-        {
-            if (isClosing)
-                return;
-
-            try
-            {
-                string payloadForLog = string.Equals(topic, "DACDT/cad/upload/chunk", StringComparison.OrdinalIgnoreCase)
-                    ? "[CAD upload chunk omitted; bytes=" + (payload?.Length ?? 0).ToString(CultureInfo.InvariantCulture) + "]"
-                    : payload;
-                File.AppendAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "crash_log.txt"), 
-                    "[" + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff") + "] [MQTT] Topic: " + topic + ", Payload: " + payloadForLog + "\r\n");
-            }
-            catch { }
-
-
-
-            _ = HandleMqttCommandAsync(topic, payload);
-        }
-
-        private void MqttService_BinaryMessageReceived(string topic, byte[] payload)
-        {
-            if (isClosing)
-                return;
-
-            _ = HandleWebCadBinaryUploadMessageAsync(topic, payload);
-        }
-
-        private async Task HandleMqttCommandAsync(string topic, string payload)
-        {
-            if (IsWebCadUploadTopic(topic))
-            {
-                await HandleWebCadUploadMessageAsync(topic, payload);
-                return;
-            }
-
-            string command = ExtractMqttCommand(payload);
-            if (string.IsNullOrWhiteSpace(command))
-                return;
-
-            try
-            {
-                if (IsMachineCommandTopic(topic))
-                {
-                    await HandleMachineMqttCommandAsync(command);
-                }
-                else if (string.Equals(topic, "DACDT/camera/command", StringComparison.OrdinalIgnoreCase))
-                {
-                    await HandleCameraMqttCommandAsync(command);
-                }
-            }
-            catch (Exception ex)
-            {
-                await NotifyAsync("error", "MQTT Command", $"{topic}: {command} - {ex.Message}");
-            }
-        }
-
-        private async Task HandleMachineMqttCommandAsync(string command)
-        {
-            string normalized = NormalizeCommand(command);
-            switch (normalized)
-            {
-                case "RUN":
-                case "START":
-                    await PulsePlcCommandAsync(HandleStartWriteAsync);
-                    await NotifyAsync("success", "MQTT Machine", "RUN command executed.");
-                    break;
-
-                case "CONTINUE":
-                case "RESUME":
-                    await PulsePlcCommandAsync(HandleContinueWriteAsync);
-                    await NotifyAsync("success", "MQTT Machine", "CONTINUE command executed.");
-                    break;
-
-                case "PAUSE":
-                    await PulsePlcCommandAsync(HandlePauseWriteAsync);
-                    await NotifyAsync("success", "MQTT Machine", "PAUSE command executed.");
-                    break;
-
-                case "HOME":
-                case "GOHOME":
-                    await PulsePlcCommandAsync(HandleGoHomeWriteAsync);
-                    await NotifyAsync("success", "MQTT Machine", "HOME command executed.");
-                    break;
-
-                case "HOMEALL":
-                    await PulsePlcCommandAsync(HandleHomeAllWriteAsync);
-                    await NotifyAsync("success", "MQTT Machine", "HOME ALL command executed.");
-                    break;
-
-                case "RESET":
-                    await PulsePlcCommandAsync(HandleResetErrorWriteAsync);
-                    await NotifyAsync("success", "MQTT Machine", "RESET command executed.");
-                    break;
-
-                case "STOP":
-                    await HandleStopRunAsync();
-                    await NotifyAsync("error", "MQTT Machine", "STOP command executed; run buffer cleared.");
-                    break;
-
-                case "REFRESH":
-                case "GETSTATE":
-                case "REQUESTSTATE":
-                case "PUBLISHSTATE":
-                case "WEBCONNECTED":
-                    await PublishAllMqttAsync();
-                    await NotifyAsync("success", "MQTT Machine", "State request received; published machine/cad state once.");
-                    break;
-
-                case "ESTOP":
-                case "EMERGENCYSTOP":
-                    activeRingRunner?.Stop();
-                    await HandleEmergencyStopAsync();
-                    await NotifyAsync("error", "MQTT Machine", "STOP command executed via emergency stop.");
-                    break;
-
-                default:
-                    await NotifyAsync("info", "MQTT Machine", "Ignored unknown command: " + command);
-                    break;
-            }
-        }
-
-        private async Task HandleCameraMqttCommandAsync(string command)
-        {
-            string normalized = NormalizeCommand(command);
-            switch (normalized)
-            {
-                case "START":
-                case "STARTCAM":
-                case "ON":
-                    await StartCameraAsync();
-                    await NotifyAsync("success", "MQTT Camera", "START command executed.");
-                    break;
-
-                case "STOP":
-                case "STOPCAM":
-                case "OFF":
-                    await StopCameraAsync();
-                    await NotifyAsync("info", "MQTT Camera", "STOP command executed.");
-                    break;
-
-                case "STARTRECORD":
-                case "BATDAUQUAY":
-                    await StartCameraAsync();
-                    await StartCameraRecordingAsync();
-                    await NotifyAsync("success", "MQTT Camera", "Camera recording started.");
-                    break;
-
-                case "STOPRECORD":
-                case "DUNGQUAY":
-                    await StopCameraRecordingAsync();
-                    await StopCameraAsync();
-                    await NotifyAsync("info", "MQTT Camera", "Camera recording stopped.");
-                    break;
-
-                default:
-                    await NotifyAsync("info", "MQTT Camera", "Ignored unknown command: " + command);
-                    break;
-            }
-        }
-
-        private static async Task PulsePlcCommandAsync(Func<bool, Task> writeCommand)
-        {
-            await writeCommand(true);
-            await Task.Delay(150);
-            await writeCommand(false);
-        }
-
-        private static bool IsMachineCommandTopic(string topic)
-        {
-            return string.Equals(topic, "DACDT/machine/command", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(topic, "DACDT/machine/comment", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(topic, "DACDT/machine/coment", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(topic, "DACDT/machine/request", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(topic, "DACDT/web/connected", StringComparison.OrdinalIgnoreCase);
-        }
-
-        private static string NormalizeCommand(string command)
-        {
-            if (string.IsNullOrWhiteSpace(command))
-                return string.Empty;
-
-            var normalized = "";
-            foreach (char c in command.Trim())
-            {
-                if (char.IsLetterOrDigit(c))
-                    normalized += char.ToUpperInvariant(c);
-            }
-
-            return normalized;
-        }
-
-        private static string ExtractMqttCommand(string payload)
-        {
-            if (string.IsNullOrWhiteSpace(payload))
-                return string.Empty;
-
-            string text = payload.Trim();
-            try
-            {
-                var serializer = new System.Web.Script.Serialization.JavaScriptSerializer();
-                if (text.StartsWith("{", StringComparison.Ordinal) && text.EndsWith("}", StringComparison.Ordinal))
-                {
-                    var map = serializer.Deserialize<Dictionary<string, object>>(text);
-                    foreach (string key in new[] { "command", "cmd", "action", "value", "text" })
-                    {
-                        object value;
-                        if (map != null && map.TryGetValue(key, out value) && value != null)
-                            return Convert.ToString(value, CultureInfo.InvariantCulture)?.Trim() ?? string.Empty;
-                    }
-                }
-                else if (text.StartsWith("\"", StringComparison.Ordinal) && text.EndsWith("\"", StringComparison.Ordinal))
-                {
-                    return serializer.Deserialize<string>(text)?.Trim() ?? string.Empty;
-                }
-            }
-            catch
-            {
-            }
-
-            return text.Trim('"').Trim();
-        }
-
         protected override void OnClosing(CancelEventArgs e)
         {
             if (!allowClose)
@@ -1122,17 +854,9 @@ namespace DACDT_2026
             }
 
             isClosing = true;
-            webReady = false;
             SaveSelectedConfigurationOnClose();
             StopCameraCore();
             StopPlcPolling();
-            try { webRtcBridgeClient.Dispose(); } catch { }
-            StopBackgroundVideoService();
-
-            if (mqttService != null)
-            {
-                try { _ = mqttService.DisconnectAsync(); } catch { }
-            }
 
             if (plcComm != null)
             {
@@ -1222,58 +946,6 @@ namespace DACDT_2026
             });
         }
 
-        private void StartBackgroundVideoService()
-        {
-            try
-            {
-                // Force kill any orphaned background service processes to ensure we run the latest code
-                if (System.Diagnostics.Process.GetProcessesByName(System.Diagnostics.Process.GetCurrentProcess().ProcessName).Length <= 1)
-                {
-                    LogLifecycle("Stopping existing WebRTC background service processes...");
-                    StopBackgroundVideoServiceProcessForce();
-                }
-
-                if (IsWebRtcBridgeListening())
-                {
-                    LogLifecycle("Reusing existing WebRTC background service.");
-                    return;
-                }
-
-                string serviceExe = FindBackgroundVideoServiceExecutable();
-
-                if (!string.IsNullOrEmpty(serviceExe))
-                {
-                    var psi = new System.Diagnostics.ProcessStartInfo
-                    {
-                        FileName = serviceExe,
-                        UseShellExecute = false,
-                        CreateNoWindow = true,
-                        WindowStyle = System.Diagnostics.ProcessWindowStyle.Hidden,
-                        Arguments = BackgroundVideoServiceProcess.BuildParentPidArguments(System.Diagnostics.Process.GetCurrentProcess().Id),
-                        WorkingDirectory = System.IO.Path.GetDirectoryName(serviceExe)
-                    };
-                    backgroundServiceProcess = System.Diagnostics.Process.Start(psi);
-                    LogLifecycle("Started background service: " + serviceExe);
-
-                    if (!WaitForWebRtcBridge(TimeSpan.FromSeconds(5)))
-                    {
-                        LogLifecycle("WebRTC background service did not open 127.0.0.1:5080 within 5 seconds.");
-                        ui.CameraStatus = "WebRTC service is not ready. Build/run WebRtcCameraService.";
-                    }
-                }
-                else
-                {
-                    LogLifecycle("Background service executable not found. Build the solution so WebRtcCameraService.exe is copied beside DACDT_2026.exe.");
-                    ui.CameraStatus = "WebRTC service executable not found.";
-                }
-            }
-            catch (Exception ex)
-            {
-                LogLifecycle("Error starting service: " + ex.Message);
-                ui.CameraStatus = "Error starting WebRTC service: " + ex.Message;
-            }
-        }
-
         private static void LogLifecycle(string message)
         {
             try
@@ -1287,126 +959,5 @@ namespace DACDT_2026
             }
         }
 
-        private static bool WaitForWebRtcBridge(TimeSpan timeout)
-        {
-            var deadline = DateTime.UtcNow + timeout;
-            while (DateTime.UtcNow < deadline)
-            {
-                if (IsWebRtcBridgeListening())
-                    return true;
-
-                System.Threading.Thread.Sleep(100);
-            }
-
-            return IsWebRtcBridgeListening();
-        }
-
-        private static bool IsWebRtcBridgeListening()
-        {
-            try
-            {
-                return System.Net.NetworkInformation.IPGlobalProperties
-                    .GetIPGlobalProperties()
-                    .GetActiveTcpListeners()
-                    .Any(endpoint => endpoint.Port == 5080 && System.Net.IPAddress.IsLoopback(endpoint.Address));
-            }
-            catch
-            {
-                return false;
-            }
-        }
-
-        private static string FindBackgroundVideoServiceExecutable()
-        {
-            const string serviceFileName = "WebRtcCameraService.exe";
-
-            // A deployed copy can sit beside the desktop application.
-            string localCopy = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, serviceFileName);
-            if (System.IO.File.Exists(localCopy))
-                return localCopy;
-
-            // During development the desktop app can run from Debug, x86\Debug,
-            // or x64\Debug. Walk upward instead of relying on a fixed number of
-            // ".." segments so all of those output layouts find the shared service.
-            var directory = new System.IO.DirectoryInfo(AppDomain.CurrentDomain.BaseDirectory);
-            while (directory != null)
-            {
-                foreach (string configuration in new[] { "Debug", "Release" })
-                {
-                    string candidate = System.IO.Path.Combine(
-                        directory.FullName,
-                        "WebRtcCameraService",
-                        "bin",
-                        configuration,
-                        serviceFileName);
-
-                    if (System.IO.File.Exists(candidate))
-                        return candidate;
-                }
-
-                foreach (string platform in new[] { "x64", "Any CPU", "AnyCPU" })
-                {
-                    foreach (string configuration in new[] { "Debug", "Release" })
-                    {
-                        string candidate = System.IO.Path.Combine(
-                            directory.FullName,
-                            "WebRtcCameraService",
-                            "bin",
-                            platform,
-                            configuration,
-                            serviceFileName);
-
-                        if (System.IO.File.Exists(candidate))
-                            return candidate;
-                    }
-                }
-
-                directory = directory.Parent;
-            }
-
-            return null;
-        }
-
-        private void StopBackgroundVideoService()
-        {
-            try
-            {
-                // Another dashboard can still be using the shared WebRTC service.
-                if (System.Diagnostics.Process.GetProcessesByName(System.Diagnostics.Process.GetCurrentProcess().ProcessName).Length > 1)
-                    return;
-
-                if (backgroundServiceProcess != null && !backgroundServiceProcess.HasExited)
-                {
-                    backgroundServiceProcess.Kill();
-                    backgroundServiceProcess.WaitForExit(3000);
-                    backgroundServiceProcess.Dispose();
-                    backgroundServiceProcess = null;
-                    System.IO.File.AppendAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "crash_log.txt"), 
-                        "[" + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff") + "] [Lifecycle] Stopped background service.\r\n");
-                }
-
-                // Also force stop to clean up any orphaned or reused instances
-                StopBackgroundVideoServiceProcessForce();
-            }
-            catch { }
-        }
-
-        private static void StopBackgroundVideoServiceProcessForce()
-        {
-            try
-            {
-                foreach (var p in System.Diagnostics.Process.GetProcessesByName("WebRtcCameraService"))
-                {
-                    try
-                    {
-                        p.Kill();
-                        p.WaitForExit(3000);
-                        p.Dispose();
-                    }
-                    catch { }
-                }
-            }
-            catch { }
-        }
     }
 }

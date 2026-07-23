@@ -40,17 +40,10 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 Source: "{#BuildDir}\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#BuildDir}\{#MyAppExeName}.config"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#RepoRoot}\src\DACDT_2026.App\app_icon.ico"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#BuildDir}\WebRtcCameraService.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#BuildDir}\WebRtcCameraService.exe.config"; DestDir: "{app}"; Flags: ignoreversion
 
 ; All DLLs (both managed and native)
-Source: "{#BuildDir}\*.dll"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#BuildDir}\*.dll"; DestDir: "{app}"; Flags: ignoreversion; Excludes: "MQTTnet.dll"
 
-; UI web assets (Web SCADA)
-Source: "{#RepoRoot}\docs\index.html"; DestDir: "{app}\ui"; Flags: ignoreversion
-Source: "{#RepoRoot}\docs\assets\*"; DestDir: "{app}\ui\assets"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "{#RepoRoot}\src\DACDT_2026.App\error_codes.js"; DestDir: "{app}\ui"; Flags: ignoreversion
-Source: "{#RepoRoot}\src\DACDT_2026.App\error_codes.json"; DestDir: "{app}\ui"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\app_icon.ico"
