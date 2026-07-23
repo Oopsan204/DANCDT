@@ -723,8 +723,11 @@ namespace DACDT_2026
         }
 
         private async Task RefreshCadSelectionPreviewAsync(
-            CadDocumentService.CadLoadResult selectedDocument)
+            CadDocumentService.CadLoadResult selectedDocument,
+            int compilationVersion,
+            CancellationToken cancellationToken)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             if (selectedDocument?.Primitives == null || selectedDocument.Primitives.Count == 0)
                 return;
 
@@ -732,33 +735,45 @@ namespace DACDT_2026
             double snapWorkspaceHeight = workspaceHeight;
             var preview = await Task.Run(() =>
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 var projection = CreateCadProjection(
                     selectedDocument,
                     snapWorkspaceWidth,
                     snapWorkspaceHeight);
+                cancellationToken.ThrowIfCancellationRequested();
+                var engrave = BuildCadPreviewGeometry(
+                    selectedDocument,
+                    projection,
+                    EngraveCutProcessComposer.EngraveKind);
+                cancellationToken.ThrowIfCancellationRequested();
+                var cut = BuildCadPreviewGeometry(
+                    selectedDocument,
+                    projection,
+                    EngraveCutProcessComposer.CutKind);
+                cancellationToken.ThrowIfCancellationRequested();
                 return new
                 {
-                    Engrave = BuildCadPreviewGeometry(
-                        selectedDocument,
-                        projection,
-                        EngraveCutProcessComposer.EngraveKind),
-                    Cut = BuildCadPreviewGeometry(
-                        selectedDocument,
-                        projection,
-                        EngraveCutProcessComposer.CutKind)
+                    Engrave = engrave,
+                    Cut = cut
                 };
-            });
+            }, cancellationToken);
 
+            cancellationToken.ThrowIfCancellationRequested();
             if (!ReferenceEquals(activeCadDocument, selectedDocument)
-                || !string.Equals(activeDocumentKind, "DXF", StringComparison.OrdinalIgnoreCase))
+                || !ReferenceEquals(cadProgramPublishedDocument, selectedDocument)
+                || !string.Equals(activeDocumentKind, "DXF", StringComparison.OrdinalIgnoreCase)
+                || !cadProgramCompilationState.IsCurrent(compilationVersion))
             {
                 return;
             }
 
             await RunOnUiAsync(() =>
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 if (ReferenceEquals(activeCadDocument, selectedDocument)
-                    && string.Equals(activeDocumentKind, "DXF", StringComparison.OrdinalIgnoreCase))
+                    && ReferenceEquals(cadProgramPublishedDocument, selectedDocument)
+                    && string.Equals(activeDocumentKind, "DXF", StringComparison.OrdinalIgnoreCase)
+                    && cadProgramCompilationState.IsCurrent(compilationVersion))
                 {
                     ui.CadEngravePreviewGeometry = preview.Engrave;
                     ui.CadCutPreviewGeometry = preview.Cut;

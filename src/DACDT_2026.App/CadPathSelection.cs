@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Threading;
 
 namespace DACDT_2026
 {
@@ -9,8 +10,10 @@ namespace DACDT_2026
     {
         public static List<List<CadDocumentService.CadPrimitiveData>> GroupConnectedPaths(
             List<CadDocumentService.CadPrimitiveData> primitives,
-            bool isGcode = false)
+            bool isGcode = false,
+            CancellationToken cancellationToken = default(CancellationToken))
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var paths = new List<List<CadDocumentService.CadPrimitiveData>>();
             if (primitives == null || primitives.Count == 0)
                 return paths;
@@ -25,6 +28,7 @@ namespace DACDT_2026
 
             for (int i = 0; i < primitives.Count; i++)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 var primitive = primitives[i];
                 if (primitive.Points == null || primitive.Points.Count == 0)
                 {
@@ -53,9 +57,11 @@ namespace DACDT_2026
             int searchFrom = 0;
             while (true)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 int seed = -1;
                 for (int i = searchFrom; i < primitives.Count; i++)
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
                     if (!assigned[i])
                     {
                         seed = i;
@@ -75,6 +81,7 @@ namespace DACDT_2026
                 bool grew = true;
                 while (grew)
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
                     grew = false;
                     var tail = currentPath[currentPath.Count - 1];
                     if (tail.Points == null || tail.Points.Count == 0)
@@ -85,6 +92,7 @@ namespace DACDT_2026
                     {
                         foreach (int candidateIndex in candidateStarts)
                         {
+                            cancellationToken.ThrowIfCancellationRequested();
                             if (assigned[candidateIndex])
                                 continue;
                             currentPath.Add(primitives[candidateIndex]);
@@ -100,6 +108,7 @@ namespace DACDT_2026
                     {
                         foreach (int candidateIndex in candidateEnds)
                         {
+                            cancellationToken.ThrowIfCancellationRequested();
                             if (assigned[candidateIndex])
                                 continue;
                             var candidate = ReversePrimitiveForPath(primitives[candidateIndex]);
@@ -114,6 +123,7 @@ namespace DACDT_2026
                 grew = true;
                 while (grew)
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
                     grew = false;
                     var head = currentPath[0];
                     if (head.Points == null || head.Points.Count == 0)
@@ -124,6 +134,7 @@ namespace DACDT_2026
                     {
                         foreach (int candidateIndex in candidateEnds)
                         {
+                            cancellationToken.ThrowIfCancellationRequested();
                             if (assigned[candidateIndex])
                                 continue;
                             currentPath.Insert(0, primitives[candidateIndex]);
@@ -139,6 +150,7 @@ namespace DACDT_2026
                     {
                         foreach (int candidateIndex in candidateStarts)
                         {
+                            cancellationToken.ThrowIfCancellationRequested();
                             if (assigned[candidateIndex])
                                 continue;
                             var candidate = ReversePrimitiveForPath(primitives[candidateIndex]);

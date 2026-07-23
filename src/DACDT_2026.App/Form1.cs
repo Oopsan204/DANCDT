@@ -37,6 +37,7 @@ namespace DACDT_2026
         private const string ContinueRegister = "M211";
         private const string PauseRegister = "M210";
         private const int PlcPollIntervalMs = PerformanceTuning.PlcPollIntervalMs;
+        private const int CadProgramCompilationDebounceMs = 350;
 
         private readonly WpfUiState ui = new WpfUiState();
         private readonly SemaphoreSlim cadLoadGate = new SemaphoreSlim(1, 1);
@@ -44,6 +45,9 @@ namespace DACDT_2026
         private readonly SemaphoreSlim programCommandGate = new SemaphoreSlim(1, 1);
         private readonly SemaphoreSlim plcDeviceWriteGate = new SemaphoreSlim(1, 1);
         private readonly object plcPollSync = new object();
+        private readonly object cadProgramCompilationLock = new object();
+        private readonly CadProgramCompilationState cadProgramCompilationState =
+            new CadProgramCompilationState();
 
         private readonly CadDocumentService cadService = new CadDocumentService();
         private readonly GcodeCoordinateService gcodeCoordinateService = new GcodeCoordinateService();
@@ -79,6 +83,13 @@ namespace DACDT_2026
         private CadDocumentService.CadLoadResult activeCadDocument;
         private CadDocumentService.CadLoadResult activeEngraveCadDocument;
         private CadDocumentService.CadLoadResult activeCutCadDocument;
+        private CadDocumentService.CadLoadResult cadProgramPublishedDocument;
+        private CadDocumentService.CadLoadResult cadProgramCompilationDocument;
+        private CancellationTokenSource cadProgramCompilationCts;
+        private Task cadProgramCompilationTask = Task.CompletedTask;
+        private int cadProgramCompilationVersion;
+        private bool cadProgramCompilationDelayed;
+        private bool cadProgramCompilationPropagatesFailures;
         private string selectedCadPointKey;
         private string activeDocumentKind = "DXF";
         private bool isMixedEngraveCutProgram;
@@ -854,6 +865,7 @@ namespace DACDT_2026
             }
 
             isClosing = true;
+            CancelCadProgramCompilation();
             SaveSelectedConfigurationOnClose();
             StopCameraCore();
             StopPlcPolling();

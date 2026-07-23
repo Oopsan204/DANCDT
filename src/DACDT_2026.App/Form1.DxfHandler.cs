@@ -19,9 +19,6 @@ namespace DACDT_2026
     /// </summary>
     public partial class Form1
     {
-        private const int CadPathSelectionRefreshDelayMs = 120;
-        private int cadPathSelectionVersion;
-
         // ── Open DXF ────────────────────────────────────────────────────────────
 
         private string ShowOpenFileDialog()
@@ -213,6 +210,8 @@ namespace DACDT_2026
 
         private void ClearLoadedFileState()
         {
+            CancelCadProgramCompilation();
+            cadProgramPublishedDocument = null;
             activeCadDocument = null;
             activeEngraveCadDocument = null;
             activeCutCadDocument = null;
@@ -359,17 +358,27 @@ namespace DACDT_2026
 
         private CadDocumentService.CadLoadResult CreateProcessDocumentForKind(
             CadDocumentService.CadLoadResult source,
-            string processKind)
+            string processKind,
+            CancellationToken cancellationToken)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             if (source?.Primitives == null)
                 return null;
 
-            var primitives = source.Primitives
-                .Where(primitive => primitive != null
-                    && string.Equals(primitive.ProcessKind, processKind, StringComparison.OrdinalIgnoreCase))
-                .Select(CloneCadPrimitiveForProcess)
-                .Where(primitive => primitive != null)
-                .ToList();
+            var primitives = new List<CadDocumentService.CadPrimitiveData>();
+            foreach (var primitive in source.Primitives)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (primitive == null
+                    || !string.Equals(primitive.ProcessKind, processKind, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                var clone = CloneCadPrimitiveForProcess(primitive);
+                if (clone != null)
+                    primitives.Add(clone);
+            }
             if (primitives.Count == 0)
                 return null;
 
@@ -409,49 +418,329 @@ namespace DACDT_2026
             };
         }
 
+        private sealed class MixedEngraveCutBuildResult
+        {
+            public CadDocumentService.CadLoadResult EngraveDocument { get; set; }
+            public CadDocumentService.CadLoadResult CutDocument { get; set; }
+            public List<ProcessRow> Rows { get; set; }
+        }
+
         private async Task RebuildMixedEngraveCutProgramAsync()
         {
             SyncEngraveCutSettingsFromUi();
+            cadProgramCompilationState.MarkDirty();
+            await EnsureCadProgramCurrentAsync();
+        }
 
-            activeEngraveCadDocument = CreateProcessDocumentForKind(
-                activeCadDocument,
-                EngraveCutProcessComposer.EngraveKind);
-            activeCutCadDocument = CreateProcessDocumentForKind(
-                activeCadDocument,
-                EngraveCutProcessComposer.CutKind);
+        private void InvalidateCadProgramCompilation()
+        {
+            cadProgramCompilationState.MarkDirty();
+            cadProgramPublishedDocument = null;
+            CancelCadProgramCompilation();
+        }
 
+        private void ScheduleCadProgramCompilation(
+            CadDocumentService.CadLoadResult document,
+            int version)
+        {
+            _ = StartCadProgramCompilation(
+                document,
+                version,
+                delay: true,
+                propagateFailures: false);
+        }
+
+        private Task StartCadProgramCompilation(
+            CadDocumentService.CadLoadResult document,
+            int version,
+            bool delay,
+            bool propagateFailures)
+        {
+            var cancellation = new CancellationTokenSource();
+            lock (cadProgramCompilationLock)
+            {
+                if (isClosing)
+                {
+                    cancellation.Dispose();
+                    return Task.CompletedTask;
+                }
+
+                if (!delay
+                    && ReferenceEquals(cadProgramCompilationDocument, document)
+                    && cadProgramCompilationVersion == version
+                    && !cadProgramCompilationDelayed
+                    && cadProgramCompilationPropagatesFailures
+                    && cadProgramCompilationCts != null
+                    && !cadProgramCompilationCts.IsCancellationRequested)
+                {
+                    cancellation.Dispose();
+                    return cadProgramCompilationTask;
+                }
+
+                CancelCadProgramCompilationLocked();
+                cadProgramCompilationCts = cancellation;
+                cadProgramCompilationDocument = document;
+                cadProgramCompilationVersion = version;
+                cadProgramCompilationDelayed = delay;
+                cadProgramCompilationPropagatesFailures = propagateFailures;
+                cadProgramCompilationTask = Task.Run(() => RunCadProgramCompilationAsync(
+                    document,
+                    version,
+                    delay,
+                    propagateFailures,
+                    cancellation));
+                return cadProgramCompilationTask;
+            }
+        }
+
+        private async Task RunCadProgramCompilationAsync(
+            CadDocumentService.CadLoadResult document,
+            int version,
+            bool delay,
+            bool propagateFailures,
+            CancellationTokenSource cancellation)
+        {
+            CancellationToken cancellationToken = cancellation.Token;
+            try
+            {
+                if (delay)
+                {
+                    await Task.Delay(CadProgramCompilationDebounceMs, cancellationToken);
+                    lock (cadProgramCompilationLock)
+                    {
+                        if (ReferenceEquals(cadProgramCompilationCts, cancellation))
+                            cadProgramCompilationDelayed = false;
+                    }
+                }
+
+                cancellationToken.ThrowIfCancellationRequested();
+                await CompileCadProgramAsync(document, version, cancellationToken);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+            }
+            catch (Exception ex)
+            {
+                try
+                {
+                    await LogUIAsync("DXF", "CAD program compilation failed: " + ex.Message);
+                }
+                catch
+                {
+                }
+
+                if (propagateFailures)
+                    throw;
+            }
+            finally
+            {
+                lock (cadProgramCompilationLock)
+                {
+                    if (ReferenceEquals(cadProgramCompilationCts, cancellation))
+                    {
+                        cadProgramCompilationCts = null;
+                        cadProgramCompilationDocument = null;
+                        cadProgramCompilationVersion = 0;
+                        cadProgramCompilationDelayed = false;
+                        cadProgramCompilationPropagatesFailures = false;
+                        cadProgramCompilationTask = Task.CompletedTask;
+                    }
+                }
+                cancellation.Dispose();
+            }
+        }
+
+        private async Task CompileCadProgramAsync(
+            CadDocumentService.CadLoadResult document,
+            int version,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            MixedEngraveCutBuildResult build =
+                BuildMixedEngraveCutProgram(document, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+
+            bool published = false;
+            await RunOnUiAsync(() =>
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (!ReferenceEquals(activeCadDocument, document)
+                    || !string.Equals(activeDocumentKind, "DXF", StringComparison.OrdinalIgnoreCase)
+                    || version != cadProgramCompilationState.RequestedVersion)
+                {
+                    return;
+                }
+
+                if (!cadProgramCompilationState.TryPublish(version))
+                    return;
+
+                try
+                {
+                    activeEngraveCadDocument = build.EngraveDocument;
+                    activeCutCadDocument = build.CutDocument;
+                    processRows.Clear();
+                    processRows.AddRange(build.Rows);
+                    isMixedEngraveCutProgram = activeCadDocument != null;
+                    selectedCadPointKey = activeCadDocument?.Points?.FirstOrDefault()?.Key;
+                    ui.IsStartActionEnabled = processRows.Count > 0;
+                    cadProgramPublishedDocument = document;
+                    published = true;
+                }
+                catch
+                {
+                    cadProgramPublishedDocument = null;
+                    cadProgramCompilationState.MarkDirty();
+                    throw;
+                }
+            });
+
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!published
+                || !ReferenceEquals(activeCadDocument, document)
+                || !ReferenceEquals(cadProgramPublishedDocument, document)
+                || !cadProgramCompilationState.IsCurrent(version))
+            {
+                return;
+            }
+
+            await RefreshCadSelectionPreviewAsync(document, version, cancellationToken);
+            if (cadProgramCompilationState.IsCurrent(version)
+                && ReferenceEquals(cadProgramPublishedDocument, document))
+            {
+                await LogUIAsync(
+                    "DXF",
+                    $"Compiled {build.Rows.Count} engrave/cut commands into one process table.");
+            }
+        }
+
+        private async Task EnsureCadProgramCurrentAsync()
+        {
+            while (true)
+            {
+                if (isClosing)
+                    return;
+
+                CadDocumentService.CadLoadResult document = activeCadDocument;
+                if (document == null
+                    || !string.Equals(activeDocumentKind, "DXF", StringComparison.OrdinalIgnoreCase))
+                {
+                    return;
+                }
+
+                int version = cadProgramCompilationState.RequestedVersion;
+                if (cadProgramCompilationState.IsCurrent(version)
+                    && ReferenceEquals(cadProgramPublishedDocument, document))
+                {
+                    return;
+                }
+
+                Task compilation = StartCadProgramCompilation(
+                    document,
+                    version,
+                    delay: false,
+                    propagateFailures: true);
+                await compilation;
+
+                if (isClosing)
+                    return;
+
+                if (ReferenceEquals(activeCadDocument, document)
+                    && string.Equals(activeDocumentKind, "DXF", StringComparison.OrdinalIgnoreCase)
+                    && cadProgramCompilationState.IsCurrent(version)
+                    && ReferenceEquals(cadProgramPublishedDocument, document))
+                {
+                    return;
+                }
+            }
+        }
+
+        private void CancelCadProgramCompilation()
+        {
+            lock (cadProgramCompilationLock)
+            {
+                CancelCadProgramCompilationLocked();
+                cadProgramCompilationCts = null;
+                cadProgramCompilationDocument = null;
+                cadProgramCompilationVersion = 0;
+                cadProgramCompilationDelayed = false;
+                cadProgramCompilationPropagatesFailures = false;
+                cadProgramCompilationTask = Task.CompletedTask;
+            }
+        }
+
+        private void CancelCadProgramCompilationLocked()
+        {
+            var cancellation = cadProgramCompilationCts;
+            if (cancellation == null)
+                return;
+
+            try
+            {
+                cancellation.Cancel();
+            }
+            catch (ObjectDisposedException)
+            {
+            }
+        }
+
+        private MixedEngraveCutBuildResult BuildMixedEngraveCutProgram(
+            CadDocumentService.CadLoadResult selectedDocument,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var engraveDocument = CreateProcessDocumentForKind(
+                selectedDocument,
+                EngraveCutProcessComposer.EngraveKind,
+                cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            var cutDocument = CreateProcessDocumentForKind(
+                selectedDocument,
+                EngraveCutProcessComposer.CutKind,
+                cancellationToken);
+
+            cancellationToken.ThrowIfCancellationRequested();
             var engraveRows = BuildDxfRowsForProcessDocument(
-                activeEngraveCadDocument,
+                engraveDocument,
                 EngraveCutProcessComposer.EngraveKind,
                 engraveSpeed,
                 engravePower,
-                globalSpeedM3);
+                globalSpeedM3,
+                cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
             var cutRows = BuildDxfRowsForProcessDocument(
-                activeCutCadDocument,
+                cutDocument,
                 EngraveCutProcessComposer.CutKind,
                 cutSpeed,
                 cutPower,
-                globalSpeedM3);
+                globalSpeedM3,
+                cancellationToken);
 
+            cancellationToken.ThrowIfCancellationRequested();
             DropEngraveHomeRowBeforeCut(engraveRows, cutRows.Count > 0);
+            var rows = new List<ProcessRow>(engraveRows.Count + cutRows.Count);
+            foreach (var row in engraveRows)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                rows.Add(row);
+            }
+            foreach (var row in cutRows)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                rows.Add(row);
+            }
+            NormalizeMixedProgramMotionTypes(rows, cancellationToken);
 
-            processRows.Clear();
-            processRows.AddRange(engraveRows);
-            processRows.AddRange(cutRows);
-            NormalizeMixedProgramMotionTypes(processRows);
-
-            activeDocumentKind = "DXF";
-            isMixedEngraveCutProgram = activeCadDocument != null;
-            selectedCadPointKey = activeCadDocument?.Points?.FirstOrDefault()?.Key;
-            currentView = "dxf";
-            ui.IsStartActionEnabled = processRows.Count > 0;
-
-            await LogUIAsync("DXF", $"Compiled {processRows.Count} engrave/cut commands into one process table.");
+            return new MixedEngraveCutBuildResult
+            {
+                EngraveDocument = engraveDocument,
+                CutDocument = cutDocument,
+                Rows = rows
+            };
         }
 
         private async Task HandleToggleCadPathAsync(int pathId)
         {
-            if (IsProgramRunning())
+            if (IsProgramRunning() || programCommandGate.CurrentCount == 0)
             {
                 await NotifyAsync("info", "Cut path", "Stop the active program before changing cut paths.");
                 return;
@@ -478,60 +767,8 @@ namespace DACDT_2026
                     StringComparison.OrdinalIgnoreCase));
             ui.UpdateCadPathStroke(pathId, isCut);
 
-            int selectionVersion = Interlocked.Increment(ref cadPathSelectionVersion);
-            _ = ScheduleCadPathSelectionRefreshAsync(selectionVersion, selectedDocument);
-        }
-
-        private async Task ScheduleCadPathSelectionRefreshAsync(
-            int selectionVersion,
-            CadDocumentService.CadLoadResult selectedDocument)
-        {
-            try
-            {
-                await Task.Delay(CadPathSelectionRefreshDelayMs);
-
-                if (selectionVersion != Volatile.Read(ref cadPathSelectionVersion)
-                    || IsProgramRunning()
-                    || !ReferenceEquals(activeCadDocument, selectedDocument)
-                    || !string.Equals(activeDocumentKind, "DXF", StringComparison.OrdinalIgnoreCase))
-                {
-                    return;
-                }
-
-                await cadLoadGate.WaitAsync();
-                try
-                {
-                    if (selectionVersion != Volatile.Read(ref cadPathSelectionVersion)
-                        || IsProgramRunning()
-                        || !ReferenceEquals(activeCadDocument, selectedDocument)
-                        || !string.Equals(activeDocumentKind, "DXF", StringComparison.OrdinalIgnoreCase))
-                    {
-                        return;
-                    }
-
-                    await RebuildMixedEngraveCutProgramAsync();
-                    await PushDxfStateAsync();
-                }
-                finally
-                {
-                    cadLoadGate.Release();
-                }
-
-                if (IsProgramRunning())
-                    return;
-
-                if (selectionVersion != Volatile.Read(ref cadPathSelectionVersion)
-                    || !ReferenceEquals(activeCadDocument, selectedDocument)
-                    || !string.Equals(activeDocumentKind, "DXF", StringComparison.OrdinalIgnoreCase))
-                {
-                    return;
-                }
-
-            }
-            catch (Exception ex)
-            {
-                await LogUIAsync("DXF", "Could not refresh the selected cut path: " + ex.Message);
-            }
+            int requestedVersion = cadProgramCompilationState.MarkDirty();
+            ScheduleCadProgramCompilation(selectedDocument, requestedVersion);
         }
 
         private static void DropEngraveHomeRowBeforeCut(List<ProcessRow> engraveRows, bool hasCutRows)
@@ -553,13 +790,17 @@ namespace DACDT_2026
             }
         }
 
-        private static void NormalizeMixedProgramMotionTypes(List<ProcessRow> rows)
+        private static void NormalizeMixedProgramMotionTypes(
+            List<ProcessRow> rows,
+            CancellationToken cancellationToken)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             if (rows == null)
                 return;
 
             for (int i = 0; i < rows.Count; i++)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 if (rows[i] == null)
                     continue;
 
@@ -574,27 +815,28 @@ namespace DACDT_2026
             string processKind,
             string speed,
             string power,
-            string nonCutSpeed)
+            string nonCutSpeed,
+            CancellationToken cancellationToken)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var rows = new List<ProcessRow>();
             if (document?.Primitives == null || document.Primitives.Count == 0)
                 return rows;
 
-            var originalDocument = activeCadDocument;
-            var originalKind = activeDocumentKind;
-            try
-            {
-                activeCadDocument = document;
-                activeDocumentKind = "DXF";
-                rows = PostProcessCompiledRows(BuildDxfProcessRows()) ?? new List<ProcessRow>();
-            }
-            finally
-            {
-                activeCadDocument = originalDocument;
-                activeDocumentKind = originalKind;
-            }
+            rows = PostProcessCompiledRows(
+                BuildDxfProcessRows(document, cancellationToken),
+                document,
+                cancellationToken) ?? new List<ProcessRow>();
 
-            ApplyProcessParameters(rows, processKind, speed, power, nonCutSpeed);
+            cancellationToken.ThrowIfCancellationRequested();
+            ApplyProcessParameters(
+                rows,
+                processKind,
+                speed,
+                power,
+                nonCutSpeed,
+                cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
             return rows;
         }
 
@@ -603,31 +845,30 @@ namespace DACDT_2026
             string processKind,
             string speed,
             string power,
-            string nonCutSpeed)
+            string nonCutSpeed,
+            CancellationToken cancellationToken)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             if (rows == null || rows.Count == 0)
                 return;
 
-            var rowData = rows.Select(row => new EngraveCutProcessComposer.ProcessRowData
-            {
-                Key = row.Key,
-                Speed = string.Empty,
-                LaserPower = string.Empty
-            }).ToList();
+            string normalizedKind = string.Equals(
+                processKind,
+                EngraveCutProcessComposer.CutKind,
+                StringComparison.OrdinalIgnoreCase)
+                    ? EngraveCutProcessComposer.CutKind
+                    : EngraveCutProcessComposer.EngraveKind;
 
-            var composed = string.Equals(processKind, EngraveCutProcessComposer.CutKind, StringComparison.OrdinalIgnoreCase)
-                ? EngraveCutProcessComposer.Compose(null, rowData, string.Empty, string.Empty, speed, power)
-                : EngraveCutProcessComposer.Compose(rowData, null, speed, power, string.Empty, string.Empty);
-
-            for (int i = 0; i < rows.Count && i < composed.Count; i++)
+            for (int i = 0; i < rows.Count; i++)
             {
-                rows[i].ProcessKind = composed[i].ProcessKind;
+                cancellationToken.ThrowIfCancellationRequested();
+                rows[i].ProcessKind = normalizedKind;
                 rows[i].Speed = EngraveCutProcessComposer.ResolveMixedRowSpeed(
                     rows[i].MCodeValue,
                     rows[i].EndCoordinate,
-                    composed[i].Speed,
+                    speed,
                     nonCutSpeed);
-                rows[i].LaserPower = IsHomeRow(rows[i]) ? string.Empty : composed[i].LaserPower;
+                rows[i].LaserPower = IsHomeRow(rows[i]) ? string.Empty : power;
             }
         }
 
@@ -1085,6 +1326,12 @@ namespace DACDT_2026
         // ── Send CAD X axis data to PLC ──────────────────────────────────────────
         private async Task<bool> HandleSendCadXAsync()
         {
+            if (activeCadDocument != null
+                && string.Equals(activeDocumentKind, "DXF", StringComparison.OrdinalIgnoreCase))
+            {
+                await EnsureCadProgramCurrentAsync();
+            }
+
             ui.IsStartActionEnabled = false;
 
             if (activeRingRunner != null)
@@ -1530,6 +1777,7 @@ namespace DACDT_2026
                     pIndex++;
                 }
 
+                InvalidateCadProgramCompilation();
                 await PushDxfStateAsync();
 
                 // Clear active M-codes in PLC registers (D104, D114, D124) to 0
@@ -1578,6 +1826,12 @@ namespace DACDT_2026
         // ── Export QD75 Positioning Data ──────────────────────────────────────────
         private async Task HandleExportQD75Async()
         {
+            if (activeCadDocument != null
+                && string.Equals(activeDocumentKind, "DXF", StringComparison.OrdinalIgnoreCase))
+            {
+                await EnsureCadProgramCurrentAsync();
+            }
+
             if (processRows == null || processRows.Count == 0)
             {
                 await NotifyAsync("info", "Export", "There is no table data to export.");
@@ -1863,8 +2117,12 @@ namespace DACDT_2026
             }
         }
 
-        private List<ProcessRow> PostProcessCompiledRows(List<ProcessRow> builtRows)
+        private List<ProcessRow> PostProcessCompiledRows(
+            List<ProcessRow> builtRows,
+            CadDocumentService.CadLoadResult sourceDocument = null,
+            CancellationToken cancellationToken = default(CancellationToken))
         {
+            cancellationToken.ThrowIfCancellationRequested();
             if (builtRows == null || builtRows.Count == 0)
                 return builtRows;
 
@@ -1874,22 +2132,24 @@ namespace DACDT_2026
 
             string glueStartCoord = null;
             string glueEndCoord   = null;
-            if (activeCadDocument != null)
+            var glueDocument = sourceDocument ?? activeCadDocument;
+            if (glueDocument != null)
             {
                 if (assignedPointKeys.TryGetValue("glueStart", out string gStartKey))
                 {
-                    var pt = activeCadDocument.Points.FirstOrDefault(p => p.Key == gStartKey);
+                    var pt = FindCadPointByKey(glueDocument.Points, gStartKey, cancellationToken);
                     if (pt != null) glueStartCoord = FormatPoint(pt);
                 }
                 if (assignedPointKeys.TryGetValue("glueEnd", out string gEndKey))
                 {
-                    var pt = activeCadDocument.Points.FirstOrDefault(p => p.Key == gEndKey);
+                    var pt = FindCadPointByKey(glueDocument.Points, gEndKey, cancellationToken);
                     if (pt != null) glueEndCoord = FormatPoint(pt);
                 }
             }
 
             foreach (var row in builtRows)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 if (glueStartCoord != null && string.Equals(row.EndCoordinate, glueStartCoord))
                     row.MCodeValue = "1";
                 if (glueEndCoord != null && string.Equals(row.EndCoordinate, glueEndCoord))
@@ -1919,6 +2179,25 @@ namespace DACDT_2026
             return builtRows;
         }
 
+        private static CadDocumentService.CadPointData FindCadPointByKey(
+            IList<CadDocumentService.CadPointData> points,
+            string key,
+            CancellationToken cancellationToken)
+        {
+            if (points == null)
+                return null;
+
+            for (int index = 0; index < points.Count; index++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var point = points[index];
+                if (point != null && string.Equals(point.Key, key, StringComparison.Ordinal))
+                    return point;
+            }
+
+            return null;
+        }
+
         // ── Build ProcessRow list from connected CAD paths ───────────────────────
         private List<ProcessRow> BuildConnectedPathsFromCad()
         {
@@ -1944,10 +2223,14 @@ namespace DACDT_2026
         ///   - Line liên tiếp cùng Da.2 → Continuous Path
         ///   - Dòng cuối chương trình → END
         /// </summary>
-        private List<ProcessRow> BuildDxfProcessRows()
+        private List<ProcessRow> BuildDxfProcessRows(
+            CadDocumentService.CadLoadResult sourceDocument = null,
+            CancellationToken cancellationToken = default(CancellationToken))
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var result = new List<ProcessRow>();
-            if (activeCadDocument?.Primitives == null) return result;
+            var document = sourceDocument ?? activeCadDocument;
+            if (document?.Primitives == null) return result;
 
             // Parse globalZStart/Down/Safe
             double zStart = 0.0;
@@ -1962,16 +2245,21 @@ namespace DACDT_2026
             // Nếu không Z → dùng Line/Arc 2-axis như bình thường.
             // Lý do: tránh chuyển 2↔3 axis trong cùng chuỗi (Lỗi 524 theo manual SH-080058).
 
-            var paths = GetConnectedPathsFromCad(activeCadDocument.Primitives, isGcode: false);
+            var paths = GetConnectedPathsFromCad(
+                document.Primitives,
+                isGcode: false,
+                cancellationToken: cancellationToken);
 
             for (int pathIdx = 0; pathIdx < paths.Count; pathIdx++)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 var path = paths[pathIdx];
                 bool isLastPath = (pathIdx == paths.Count - 1);
                 bool isFirstPath = (pathIdx == 0);
 
                 for (int pIdx = 0; pIdx < path.Count; pIdx++)
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
                     var prim = path[pIdx];
                     if (prim.Points == null || prim.Points.Count < 2) continue;
 
@@ -2025,6 +2313,7 @@ namespace DACDT_2026
                     {
                         for (int i = 1; i < prim.Points.Count; i++)
                         {
+                            cancellationToken.ThrowIfCancellationRequested();
                             bool isLastInPrim = (i == prim.Points.Count - 1);
                             string currentSuffix = (isLastInPrim && isLastInPath) ? suffix : " (Continuous Path)";
                             var pt = prim.Points[i];
@@ -2103,6 +2392,7 @@ namespace DACDT_2026
             // ── Thêm điểm cuối có toạ độ 0 0 và Mcode = 0 ─────────────────────────────
             if (result.Count > 0)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 // Thay đổi điểm cuối trước đó từ (End) thành (Continuous Positioning)
                 var prevLast = result[result.Count - 1];
                 prevLast.MotionType = prevLast.MotionType
@@ -2134,6 +2424,7 @@ namespace DACDT_2026
             //   3. Chuyển Line↔Arc trong file 2-axis → Continuous Positioning
             for (int i = 0; i < result.Count; i++)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 string mtLower = result[i].MotionType.ToLowerInvariant();
                 // 3-axis bao gồm Linear3 và Helical (Arc 3-axis)
                 bool curr3Axis = mtLower.Contains("linear3") || mtLower.Contains("helical");
@@ -2192,6 +2483,7 @@ namespace DACDT_2026
             string snapDwellM4 = globalDwellM4;
             for (int i = 0; i < result.Count; i++)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 if (!string.IsNullOrEmpty(result[i].MCodeValue))
                 {
                     // Đổi thành Continuous Positioning (dừng có tăng/giảm tốc)
@@ -2381,8 +2673,10 @@ namespace DACDT_2026
         /// Với 5000 primitive: ~5000 lookup thay vì ~25 triệu phép so sánh.
         /// </summary>
         private List<List<CadDocumentService.CadPrimitiveData>> GetConnectedPathsFromCad(
-            List<CadDocumentService.CadPrimitiveData> primitives, bool isGcode = false)
-            => CadPathSelection.GroupConnectedPaths(primitives, isGcode);
+            List<CadDocumentService.CadPrimitiveData> primitives,
+            bool isGcode = false,
+            CancellationToken cancellationToken = default(CancellationToken))
+            => CadPathSelection.GroupConnectedPaths(primitives, isGcode, cancellationToken);
 
         private bool IsClosedPath(List<CadDocumentService.CadPrimitiveData> path, bool isGcode = false)
         {

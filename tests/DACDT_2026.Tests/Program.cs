@@ -6,6 +6,7 @@ using System.Drawing.Imaging;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using DACDT_2026;
 
@@ -95,6 +96,13 @@ namespace DACDT_2026.Tests
                 CadProgramCompilationPublishesCurrentVersion();
                 CadProgramCompilationRejectsStaleVersionAfterNewerRequest();
                 CadProgramCompilationPreservesPublishedVersionWhenRejecting();
+                CadPathGroupingObservesPreCancelledToken();
+                CadSelectionSchedulesLatestCompilationWithoutAwaitingRows();
+                CadCompilationUsesExactDebounceAndPublicationGuards();
+                CadCompilationChecksCancellationThroughoutLargeLoops();
+                CadExecutionConsumersEnsureCurrentRows();
+                TestAreaInvalidatesCadRowsWithoutSchedulingCompilation();
+                CadCompilationIsCancelledWhenDocumentClearsOrAppCloses();
                 CadInteractionAvoidsExpensiveHitTestingAndFullStateRebuild();
                 CadInteractionUsesTemporaryBitmapCacheOnlyWhileInteracting();
                 SettingsViewUsesApprovedEnglishContract();
@@ -1065,13 +1073,15 @@ namespace DACDT_2026.Tests
             AssertTrue(start >= 0 && end > start, "The mixed engrave/cut RUN handler must exist.");
 
             string handler = source.Substring(start, end - start);
-            int rebuildIndex = handler.IndexOf("await RebuildMixedEngraveCutProgramAsync();", StringComparison.Ordinal);
+            int rebuildIndex = handler.IndexOf("await EnsureCadProgramCurrentAsync();", StringComparison.Ordinal);
             int snapshotIndex = handler.IndexOf("var allRows = processRows.ToList();", StringComparison.Ordinal);
             int sendIndex = handler.IndexOf("await HandleSendCadXAsync();", StringComparison.Ordinal);
 
-            AssertTrue(rebuildIndex >= 0, "Mixed DXF RUN must rebuild the selected contour after Test Area replaced the process rows.");
-            AssertTrue(rebuildIndex < snapshotIndex, "Mixed DXF RUN must rebuild the selected contour before snapshotting process rows.");
-            AssertTrue(snapshotIndex < sendIndex, "Mixed DXF RUN must snapshot the rebuilt contour before writing it to the PLC.");
+            AssertTrue(rebuildIndex >= 0, "Mixed DXF RUN must ensure the selected contour is current after Test Area replaced the process rows.");
+            AssertTrue(rebuildIndex < snapshotIndex, "Mixed DXF RUN must ensure current rows before snapshotting process rows.");
+            AssertTrue(snapshotIndex < sendIndex, "Mixed DXF RUN must snapshot the current contour before writing it to the PLC.");
+            AssertTrue(!handler.Contains("await RebuildMixedEngraveCutProgramAsync();"),
+                "Mixed DXF RUN must not unconditionally rebuild rows when the current version is already published.");
         }
 
         private static void MixedRunPreservesCurrentViewWhileRefreshingRows()
@@ -1082,14 +1092,12 @@ namespace DACDT_2026.Tests
             AssertTrue(start >= 0 && end > start, "The mixed engrave/cut RUN handler must exist.");
 
             string handler = source.Substring(start, end - start);
-            int saveViewIndex = handler.IndexOf("string viewBeforeRun = currentView;", StringComparison.Ordinal);
-            int rebuildIndex = handler.IndexOf("await RebuildMixedEngraveCutProgramAsync();", StringComparison.Ordinal);
-            int restoreViewIndex = handler.IndexOf("currentView = viewBeforeRun;", StringComparison.Ordinal);
-            int pushIndex = handler.IndexOf("await PushDxfStateAsync();", StringComparison.Ordinal);
-
-            AssertTrue(saveViewIndex >= 0, "Mixed DXF RUN must remember the current view before rebuilding rows.");
-            AssertTrue(saveViewIndex < rebuildIndex, "Mixed DXF RUN must remember the current view before the DXF rebuild changes it.");
-            AssertTrue(rebuildIndex < restoreViewIndex && restoreViewIndex < pushIndex, "Mixed DXF RUN must restore the current view before refreshing the process table.");
+            AssertTrue(handler.Contains("await EnsureCadProgramCurrentAsync();"),
+                "Mixed DXF RUN must wait for the latest requested CAD program.");
+            AssertTrue(!handler.Contains("currentView ="),
+                "Ensuring current PLC rows during RUN must not change the operator's current view.");
+            AssertTrue(!handler.Contains("await PushDxfStateAsync();"),
+                "RUN must not rebuild the removed Process Table UI.");
         }
 
         private static void CadPathSelectionGroupsConnectedLineSegments()
@@ -1165,20 +1173,21 @@ namespace DACDT_2026.Tests
         {
             string source = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Form1.DxfHandler.cs"));
             string stateSource = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "WpfUiState.cs"));
-            int start = source.IndexOf("private async Task HandleToggleCadPathAsync", StringComparison.Ordinal);
-            int end = source.IndexOf("private static void DropEngraveHomeRowBeforeCut", start, StringComparison.Ordinal);
-            AssertTrue(start >= 0 && end > start, "DXF path toggle handler must exist.");
-
-            string handler = source.Substring(start, end - start);
+            string handler = ExtractMethodBody(source, "private async Task HandleToggleCadPathAsync");
             AssertTrue(stateSource.Contains("public void UpdateCadPathStroke(int pathId, bool isCut)"), "The UI state must update one selected CAD path without rebuilding the canvas.");
-            AssertTrue(handler.Contains("Interlocked.Increment(ref cadPathSelectionVersion)"), "Each CAD tap must invalidate an older deferred refresh.");
-            AssertTrue(handler.Contains("await Task.Delay(CadPathSelectionRefreshDelayMs)"), "Repeated taps must be coalesced before rebuilding process rows.");
+            AssertTrue(handler.Contains("cadProgramCompilationState.MarkDirty()"), "Each CAD tap must request a new program version.");
+            AssertTrue(handler.Contains("ScheduleCadProgramCompilation(selectedDocument"), "Each CAD tap must schedule only the latest deferred compile.");
             AssertTrue(!handler.Contains("await PublishAllMqttAsync();"), "A path tap must not wait for MQTT publication.");
-            int toggleEnd = handler.IndexOf("private async Task ScheduleCadPathSelectionRefreshAsync", StringComparison.Ordinal);
-            AssertTrue(toggleEnd > 0, "The immediate CAD path toggle must schedule a deferred refresh.");
-            string toggleHandler = handler.Substring(0, toggleEnd);
-            AssertTrue(!toggleHandler.Contains("cadLoadGate.WaitAsync"), "A CAD tap must not wait for the import gate before changing its local color.");
+            AssertTrue(source.Contains("private void ScheduleCadProgramCompilation"),
+                "The immediate CAD path toggle must schedule latest-wins compilation.");
+            AssertTrue(!handler.Contains("cadLoadGate.WaitAsync"), "A CAD tap must not wait for the import gate before changing its local color.");
             AssertTrue(handler.Contains("Stop the active program before changing cut paths."), "A running program must explain why cut-path selection is locked.");
+            AssertTrue(handler.Contains("programCommandGate.CurrentCount == 0"),
+                "CAD path selection must be rejected while RUN or Test Area owns the program command gate.");
+            AssertTrue(!handler.Contains("await RebuildMixedEngraveCutProgramAsync"),
+                "A CAD tap must not await the expensive PLC row rebuild.");
+            AssertTrue(!handler.Contains("PushDxfStateAsync"),
+                "A CAD tap must not rebuild the removed Process Table UI.");
         }
 
         private static void CadPathHitIndexFindsNearestHorizontalSegment()
@@ -1358,10 +1367,9 @@ namespace DACDT_2026.Tests
             AssertTrue(stateSource.Contains("TryGetPathPoints"), "Immediate selection feedback must read one path from the spatial index.");
             AssertTrue(publisherSource.Contains("ClearCadSelectionOverlay"), "Refresh of combined CAD geometry must clear the temporary selection overlay.");
 
-            int refreshStart = handlerSource.IndexOf("private async Task ScheduleCadPathSelectionRefreshAsync", StringComparison.Ordinal);
-            int refreshEnd = handlerSource.IndexOf("private static void DropEngraveHomeRowBeforeCut", refreshStart, StringComparison.Ordinal);
-            AssertTrue(refreshStart >= 0 && refreshEnd > refreshStart, "CAD path selection refresh handler must exist.");
-            string refresh = handlerSource.Substring(refreshStart, refreshEnd - refreshStart);
+            string refresh = ExtractMethodBody(
+                handlerSource,
+                "private async Task CompileCadProgramAsync");
             AssertTrue(refresh.Contains("RefreshCadSelectionPreviewAsync"), "Path selection must use a lightweight preview refresh.");
             AssertTrue(!refresh.Contains("await PushDxfStateAsync();"), "Selecting a path must not rebuild the complete UI state.");
         }
@@ -1877,6 +1885,224 @@ namespace DACDT_2026.Tests
             AssertTrue(state.PublishedVersion == publishedVersion, "rejected result must preserve the last published version");
             AssertTrue(!state.IsCurrent(publishedVersion), "last published version must be non-current while a newer request is pending");
             AssertTrue(state.RequestedVersion == secondVersion, "newer request must remain the requested version");
+        }
+
+        private static void CadPathGroupingObservesPreCancelledToken()
+        {
+            var first = NewCadLine(0, 0, 10, 0);
+            var second = NewCadLine(10, 0, 20, 0);
+            var cancellation = new CancellationTokenSource();
+            cancellation.Cancel();
+
+            var cancellableOverload = typeof(CadPathSelection).GetMethod(
+                "GroupConnectedPaths",
+                new[]
+                {
+                    typeof(List<CadDocumentService.CadPrimitiveData>),
+                    typeof(bool),
+                    typeof(CancellationToken)
+                });
+            AssertTrue(cancellableOverload != null,
+                "connected-path grouping must expose an optional CancellationToken overload");
+
+            bool cancelled = false;
+            try
+            {
+                cancellableOverload.Invoke(
+                    null,
+                    new object[]
+                    {
+                        new List<CadDocumentService.CadPrimitiveData> { first, second },
+                        false,
+                        cancellation.Token
+                    });
+            }
+            catch (System.Reflection.TargetInvocationException ex)
+                when (ex.InnerException is OperationCanceledException)
+            {
+                cancelled = true;
+            }
+            finally
+            {
+                cancellation.Dispose();
+            }
+
+            AssertTrue(cancelled, "connected-path grouping must stop immediately for an already-cancelled build");
+
+            var defaultPaths = CadPathSelection.GroupConnectedPaths(
+                new List<CadDocumentService.CadPrimitiveData> { first, second });
+            AssertEqual("1", defaultPaths.Count.ToString(),
+                "existing callers that omit the cancellation token must keep their current behavior");
+        }
+
+        private static void CadSelectionSchedulesLatestCompilationWithoutAwaitingRows()
+        {
+            string source = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Form1.DxfHandler.cs"));
+            string toggle = ExtractMethodBody(source, "private async Task HandleToggleCadPathAsync");
+
+            AssertTrue(toggle.Contains("cadProgramCompilationState.MarkDirty()"),
+                "a selected contour must mark PLC rows dirty immediately");
+            AssertTrue(toggle.Contains("ScheduleCadProgramCompilation(selectedDocument"),
+                "a selected contour must schedule latest-wins background compilation");
+            AssertTrue(!toggle.Contains("await RebuildMixedEngraveCutProgramAsync"),
+                "selection must not await row rebuilding");
+            AssertTrue(!toggle.Contains("await EnsureCadProgramCurrentAsync"),
+                "selection must not force an immediate compile");
+            AssertTrue(!toggle.Contains("PushDxfStateAsync"),
+                "selection must not rebuild the removed Process Table UI");
+        }
+
+        private static void CadCompilationUsesExactDebounceAndPublicationGuards()
+        {
+            string form = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Form1.cs"));
+            string source = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Form1.DxfHandler.cs"));
+            string schedule = ExtractMethodBody(source, "private void ScheduleCadProgramCompilation");
+            string start = ExtractMethodBody(source, "private Task StartCadProgramCompilation");
+            string runner = ExtractMethodBody(source, "private async Task RunCadProgramCompilationAsync");
+            string compile = ExtractMethodBody(source, "private async Task CompileCadProgramAsync");
+            string ensure = ExtractMethodBody(source, "private async Task EnsureCadProgramCurrentAsync");
+            string rebuild = ExtractMethodBody(source, "private async Task RebuildMixedEngraveCutProgramAsync");
+
+            AssertTrue(form.Contains("private const int CadProgramCompilationDebounceMs = 350;"),
+                "selection compilation debounce must be exactly 350 ms");
+            AssertTrue(schedule.Contains("delay: true")
+                && runner.Contains("Task.Delay(CadProgramCompilationDebounceMs, cancellationToken)"),
+                "normal selection compilation must use the exact debounce constant");
+            AssertTrue(start.Contains("CancelCadProgramCompilationLocked"),
+                "a newer scheduled compile must cancel the older delay or build");
+            AssertTrue(form.Contains("cadProgramCompilationPropagatesFailures")
+                && start.Contains("cadProgramCompilationPropagatesFailures"),
+                "EnsureCurrent must not reuse a fire-and-forget build that swallowed a real compilation failure");
+
+            int documentGuard = compile.IndexOf("ReferenceEquals(activeCadDocument, document)", StringComparison.Ordinal);
+            int kindGuard = compile.IndexOf("activeDocumentKind", StringComparison.Ordinal);
+            int versionGuard = compile.IndexOf("cadProgramCompilationState.RequestedVersion", StringComparison.Ordinal);
+            int publish = compile.IndexOf("cadProgramCompilationState.TryPublish(version)", StringComparison.Ordinal);
+            int mutateRows = compile.IndexOf("processRows.Clear()", StringComparison.Ordinal);
+
+            AssertTrue(documentGuard >= 0 && kindGuard >= 0 && versionGuard >= 0,
+                "publish must guard active document reference, DXF kind, and requested version");
+            AssertTrue(publish > documentGuard && publish > kindGuard && publish > versionGuard,
+                "all stale-result guards must run before atomic publication");
+            AssertTrue(mutateRows > publish,
+                "processRows must mutate only after the current version wins publication");
+            AssertTrue(compile.Contains("await RunOnUiAsync"),
+                "active documents and processRows must publish on the UI thread");
+            AssertTrue(compile.Contains("await RefreshCadSelectionPreviewAsync(document,"),
+                "successful publication must refresh only engrave/cut preview geometries");
+            AssertTrue(!compile.Contains("PushDxfStateAsync"),
+                "successful selection compilation must not rebuild full DXF UI state");
+
+            AssertTrue(ensure.Contains("while (true)"),
+                "EnsureCurrent must retry when a newer selection arrives during an awaited build");
+            AssertTrue(ensure.Contains("delay: false"),
+                "EnsureCurrent must cancel debounce and force immediate compilation");
+            AssertTrue(ensure.Contains("cadProgramCompilationState.IsCurrent"),
+                "EnsureCurrent may return only for the requested and published version");
+            AssertTrue(ensure.Contains("ReferenceEquals(cadProgramPublishedDocument, document)"),
+                "EnsureCurrent must require rows published for the same active DXF document");
+            AssertTrue(ensure.Contains("if (isClosing)"),
+                "an EnsureCurrent loop cancelled by app shutdown must not restart compilation");
+
+            AssertTrue(rebuild.Contains("cadProgramCompilationState.MarkDirty()"),
+                "legacy rebuild callers must invalidate their previous rows");
+            AssertTrue(rebuild.Contains("await EnsureCadProgramCurrentAsync()"),
+                "legacy rebuild callers must use the new immediate safety gate");
+        }
+
+        private static void CadCompilationChecksCancellationThroughoutLargeLoops()
+        {
+            string source = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Form1.DxfHandler.cs"));
+            string selection = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "CadPathSelection.cs"));
+
+            string create = ExtractMethodBody(source, "private CadDocumentService.CadLoadResult CreateProcessDocumentForKind");
+            string mixed = ExtractMethodBody(source, "private MixedEngraveCutBuildResult BuildMixedEngraveCutProgram");
+            string buildRows = ExtractMethodBody(source, "private List<ProcessRow> BuildDxfRowsForProcessDocument");
+            string processRowsBuilder = ExtractMethodBody(source, "private List<ProcessRow> BuildDxfProcessRows");
+            string postProcess = ExtractMethodBody(source, "private List<ProcessRow> PostProcessCompiledRows");
+            string applyParameters = ExtractMethodBody(source, "private static void ApplyProcessParameters");
+            string normalize = ExtractMethodBody(source, "private static void NormalizeMixedProgramMotionTypes");
+            string groupPaths = ExtractMethodBody(selection, "public static List<List<CadDocumentService.CadPrimitiveData>> GroupConnectedPaths");
+
+            AssertTrue(create.Contains("cancellationToken.ThrowIfCancellationRequested()"),
+                "primitive filtering must be cancellable");
+            AssertTrue(CountOccurrences(mixed, "cancellationToken.ThrowIfCancellationRequested()") >= 3,
+                "mixed compilation must check cancellation between major phases");
+            AssertTrue(CountOccurrences(buildRows, "cancellationToken.ThrowIfCancellationRequested()") >= 2,
+                "DXF row pipeline phases must be cancellable");
+            AssertTrue(CountOccurrences(processRowsBuilder, "cancellationToken.ThrowIfCancellationRequested()") >= 5,
+                "million-point primitive, point, and post-processing loops must stop stale builds promptly");
+            AssertTrue(postProcess.Contains("cancellationToken.ThrowIfCancellationRequested()"),
+                "row post-processing must be cancellable");
+            AssertTrue(applyParameters.Contains("cancellationToken.ThrowIfCancellationRequested()"),
+                "process-parameter loops must be cancellable");
+            AssertTrue(normalize.Contains("cancellationToken.ThrowIfCancellationRequested()"),
+                "mixed motion normalization must be cancellable");
+            AssertTrue(CountOccurrences(groupPaths, "cancellationToken.ThrowIfCancellationRequested()") >= 5,
+                "connected-path primitive and candidate loops must stop stale builds promptly");
+        }
+
+        private static void CadExecutionConsumersEnsureCurrentRows()
+        {
+            string dxf = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Form1.DxfHandler.cs"));
+            string plc = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Form1.PlcControl.cs"));
+            string mixedRun = ExtractMethodBody(plc, "private async Task HandleMixedEngraveCutStartAsync");
+            string send = ExtractMethodBody(dxf, "private async Task<bool> HandleSendCadXAsync");
+            string export = ExtractMethodBody(dxf, "private async Task HandleExportQD75Async");
+
+            int mixedEnsure = mixedRun.IndexOf("await EnsureCadProgramCurrentAsync()", StringComparison.Ordinal);
+            int mixedRead = mixedRun.IndexOf("processRows.ToList()", StringComparison.Ordinal);
+            int sendEnsure = send.IndexOf("await EnsureCadProgramCurrentAsync()", StringComparison.Ordinal);
+            int sendRead = send.IndexOf("processRows.Count", StringComparison.Ordinal);
+            int exportEnsure = export.IndexOf("await EnsureCadProgramCurrentAsync()", StringComparison.Ordinal);
+            int exportRead = export.IndexOf("processRows == null", StringComparison.Ordinal);
+
+            AssertTrue(mixedEnsure >= 0 && mixedEnsure < mixedRead,
+                "mixed RUN must ensure latest CAD rows before taking its PLC snapshot");
+            AssertTrue(sendEnsure >= 0 && sendEnsure < sendRead,
+                "Send CAD must ensure latest DXF rows before inspecting processRows");
+            AssertTrue(exportEnsure >= 0 && exportEnsure < exportRead,
+                "QD75 export must ensure latest DXF rows before inspecting processRows");
+            AssertTrue(!mixedRun.Contains("await RebuildMixedEngraveCutProgramAsync"),
+                "RUN must not mark an already-current program dirty");
+            AssertTrue(!mixedRun.Contains("PushDxfStateAsync"),
+                "RUN must not trigger a duplicate full DXF refresh");
+        }
+
+        private static void TestAreaInvalidatesCadRowsWithoutSchedulingCompilation()
+        {
+            string source = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Form1.DxfHandler.cs"));
+            string testArea = ExtractMethodBody(source, "private async Task HandleTestEngraveAreaAsync");
+            string invalidate = ExtractMethodBody(source, "private void InvalidateCadProgramCompilation");
+
+            int installRows = testArea.IndexOf("processRows.Add(new ProcessRow", StringComparison.Ordinal);
+            int invalidateRows = testArea.IndexOf("InvalidateCadProgramCompilation()", StringComparison.Ordinal);
+            int publishUi = testArea.IndexOf("await PushDxfStateAsync()", StringComparison.Ordinal);
+
+            AssertTrue(installRows >= 0 && invalidateRows > installRows,
+                "Test Area must invalidate CAD compilation immediately after installing temporary rows");
+            AssertTrue(publishUi < 0 || invalidateRows < publishUi,
+                "temporary Test Area rows must be marked as non-CAD before other awaited work");
+            AssertTrue(!testArea.Contains("ScheduleCadProgramCompilation"),
+                "Test Area must not start a background CAD build while its rows are running");
+            AssertTrue(!testArea.Contains("EnsureCadProgramCurrentAsync"),
+                "Test Area must retain its temporary rows until a later CAD consumer requests current rows");
+            AssertTrue(invalidate.Contains("cadProgramCompilationState.MarkDirty()")
+                && invalidate.Contains("CancelCadProgramCompilation()"),
+                "Test Area invalidation must both dirty the CAD version and cancel stale work");
+        }
+
+        private static void CadCompilationIsCancelledWhenDocumentClearsOrAppCloses()
+        {
+            string dxf = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Form1.DxfHandler.cs"));
+            string form = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Form1.cs"));
+            string clear = ExtractMethodBody(dxf, "private void ClearLoadedFileState");
+            string close = ExtractMethodBody(form, "protected override void OnClosing");
+
+            AssertTrue(clear.Contains("CancelCadProgramCompilation()"),
+                "clearing a loaded file must prevent its stale background result from publishing");
+            AssertTrue(close.Contains("CancelCadProgramCompilation()"),
+                "closing the app must cancel delayed or active CAD compilation");
         }
 
         private static CadDocumentService.CadLoadResult NewCadDocumentWithPrimitive(int pointCount)

@@ -536,10 +536,7 @@ namespace DACDT_2026
         // ── Jog Speed ────────────────────────────────────────────────────────────
         private async Task HandleMixedEngraveCutStartAsync()
         {
-            string viewBeforeRun = currentView;
-            await RebuildMixedEngraveCutProgramAsync();
-            currentView = viewBeforeRun;
-            await PushDxfStateAsync();
+            await EnsureCadProgramCurrentAsync();
 
             var allRows = processRows.ToList();
             if (allRows.Count == 0)
