@@ -86,8 +86,7 @@
 
         <Grid Grid.Row="1">
             <Grid.RowDefinitions>
-                <RowDefinition Height="3*"/>
-                <RowDefinition Height="1.12*"/>
+                <RowDefinition Height="*"/>
             </Grid.RowDefinitions>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="1.35*"/>
@@ -341,54 +340,6 @@
                         <Button Content="Preview" Command="{Binding PreviewGcodeCommand}" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,6,0"/>
                         <Button Content="Save G-code" Command="{Binding SaveGcodeCommand}" Style="{StaticResource PrimaryButtonStyle}"/>
                     </StackPanel>
-                </Grid>
-            </Border>
-
-            <Border Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" Style="{StaticResource PanelBorderStyle}">
-                <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
-                    </Grid.RowDefinitions>
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-                        <StackPanel>
-                            <TextBlock Text="Process Table" Style="{StaticResource PanelTitleStyle}"/>
-                            <TextBlock Text="{Binding RunProgressText}" Foreground="{DynamicResource MutedBrush}" Visibility="{Binding RunProgressVisible, Converter={StaticResource BoolToVisibilityConverter}}" Margin="0,2,0,0"/>
-                            <ProgressBar Height="8" Maximum="100" Value="{Binding RunProgressPercent, Mode=OneWay}" Visibility="{Binding RunProgressVisible, Converter={StaticResource BoolToVisibilityConverter}}" Margin="0,5,0,0"/>
-                        </StackPanel>
-                        <StackPanel Grid.Column="1" Orientation="Horizontal">
-                            <ProgressBar Width="150" Height="10" Value="{Binding ProgressPercent}" Maximum="100" Visibility="{Binding ProgressVisible, Converter={StaticResource BoolToVisibilityConverter}}" Margin="0,0,8,0"/>
-                            <TextBlock Text="{Binding ProgressText}" Foreground="{DynamicResource MutedBrush}" VerticalAlignment="Center"/>
-                        </StackPanel>
-                    </Grid>
-
-                    <DataGrid x:Name="ProcessTableGrid"
-                              Grid.Row="1"
-                              ItemsSource="{Binding ProcessRows}"
-                              AutoGenerateColumns="False"
-                              IsReadOnly="True"
-                              EnableRowVirtualization="True"
-                              EnableColumnVirtualization="True"
-                              ScrollViewer.CanContentScroll="True"
-                              ScrollViewer.ScrollChanged="LazyTable_ScrollChanged"
-                              HorizontalScrollBarVisibility="Auto"
-                              Margin="0,8,0,0">
-                        <DataGrid.Columns>
-                            <DataGridTextColumn Header="No." Binding="{Binding Index}" Width="60"/>
-                            <DataGridTextColumn Header="Type" Binding="{Binding ProcessKindLabel}" Width="70"/>
-                            <DataGridTextColumn Header="Motion type" Binding="{Binding MotionType}" Width="*"/>
-                            <DataGridTextColumn Header="M" Binding="{Binding MCodeValue}" Width="55"/>
-                            <DataGridTextColumn Header="Dwell" Binding="{Binding Dwell}" Width="75"/>
-                            <DataGridTextColumn Header="Speed" Binding="{Binding Speed}" Width="85"/>
-                            <DataGridTextColumn Header="Power" Binding="{Binding LaserPower}" Width="70"/>
-                            <DataGridTextColumn Header="End X;Y" Binding="{Binding EndCoordinate}" Width="140"/>
-                            <DataGridTextColumn Header="Center X;Y" Binding="{Binding CenterCoordinate}" Width="140"/>
-                        </DataGrid.Columns>
-                    </DataGrid>
                 </Grid>
             </Border>
 

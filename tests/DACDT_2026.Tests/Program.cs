@@ -67,6 +67,7 @@ namespace DACDT_2026.Tests
                 LargeCadPreviewSamplesOneHugePolyline();
                 LargeCadProcessPathDoesNotCloneSourceCoordinates();
                 LargeCadPreviewAvoidsHiddenCoordinateRowsAndUsesCombinedGeometry();
+                DxfRunViewRemovesProcessTableButKeepsPlcProcessData();
                 OfflineRuntimeDoesNotStartMqttOrWebRtc();
                 WpfThemeManagerAppliesLightAndDarkPalettes();
                 EngraveCutComposerKeepsOneOrderedProcessListWithPerRowParameters();
@@ -608,13 +609,11 @@ namespace DACDT_2026.Tests
         private static void RunProgressIsLimitedToEngraveAndCutPrograms()
         {
             string stateSource = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "WpfUiState.cs"));
-            string dxfRunView = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Views", "DxfRunView.xaml"));
             string dashboardView = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Views", "DashboardView.xaml"));
             string monitorView = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Views", "MonitorView.xaml"));
 
             AssertTrue(stateSource.Contains("RunProgressVisible"), "Run progress should expose a dedicated visibility state.");
             AssertTrue(stateSource.Contains("EngraveCutProcessComposer.EngraveKind") && stateSource.Contains("EngraveCutProcessComposer.CutKind"), "Run progress should recognize only engrave and cut rows.");
-            AssertTrue(dxfRunView.Contains("Visibility=\"{Binding RunProgressVisible"), "DXF view should hide run progress for non-engrave/cut operations.");
             AssertTrue(dashboardView.Contains("Visibility=\"{Binding RunProgressVisible"), "Dashboard should hide run progress for non-engrave/cut operations.");
             AssertTrue(monitorView.Contains("Visibility=\"{Binding RunProgressVisible"), "Monitor should hide run progress for non-engrave/cut operations.");
         }
@@ -1288,7 +1287,6 @@ namespace DACDT_2026.Tests
             AssertTrue(!publisher.Contains("SetGeometryRows("), "CAD state publication must not publish coordinate rows.");
             AssertTrue(dxfRun.Contains("CAD Preview"), "DxfRunView must keep CAD Preview.");
             AssertTrue(dxfRun.Contains("G-code Editor"), "DxfRunView must keep G-code Editor.");
-            AssertTrue(dxfRun.Contains("Process Table"), "DxfRunView must keep Process Table.");
         }
 
         private static void TelemetryFeatureIsRemoved()
@@ -1459,6 +1457,20 @@ namespace DACDT_2026.Tests
             int polylineCount = dxfRun.Split(new[] { "<Polyline Points=" }, StringSplitOptions.None).Length - 1;
             AssertEqual("1", polylineCount.ToString(CultureInfo.InvariantCulture),
                 "DXF view must keep only the transparent selectable polyline layer.");
+        }
+
+        private static void DxfRunViewRemovesProcessTableButKeepsPlcProcessData()
+        {
+            string dxfRun = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Views", "DxfRunView.xaml"));
+            string dxfRunCode = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Views", "DxfRunView.xaml.cs"));
+            string dxfHandler = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Form1.DxfHandler.cs"));
+
+            AssertTrue(!dxfRun.Contains("Process Table"), "DxfRunView must not show the Process Table panel.");
+            AssertTrue(!dxfRun.Contains("ProcessTableGrid"), "DxfRunView must not declare the Process Table grid.");
+            AssertTrue(!dxfRunCode.Contains("LazyTable_ScrollChanged"), "DxfRunView must not keep the removed table scroll handler.");
+            AssertTrue(dxfHandler.Contains("private List<ProcessRow> BuildDxfProcessRows()"),
+                "DXF process rows must remain available for PLC processing.");
+            AssertTrue(dxfHandler.Contains("processRows"), "PLC process data must remain in the application state.");
         }
 
         private static void OfflineRuntimeDoesNotStartMqttOrWebRtc()

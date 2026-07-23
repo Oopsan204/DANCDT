@@ -407,25 +407,5 @@ namespace DACDT_2026.Views
             CadZoomTransform.ScaleY = zoom;
         }
 
-        private void LazyTable_ScrollChanged(object sender, ScrollChangedEventArgs e)
-        {
-            if (!IsNearScrollEnd(e))
-                return;
-
-            var state = DataContext as WpfUiState;
-            if (state == null)
-                return;
-
-            if (ReferenceEquals(sender, ProcessTableGrid))
-                state.LoadMoreProcessRows();
-        }
-
-        private static bool IsNearScrollEnd(ScrollChangedEventArgs e)
-        {
-            if (e.ExtentHeight <= 0.0 || e.ViewportHeight <= 0.0)
-                return false;
-
-            return e.VerticalOffset + e.ViewportHeight >= e.ExtentHeight - 8.0;
-        }
     }
 }
