@@ -23,7 +23,7 @@ namespace DACDT_2026
             public int MaxPreviewPrimitives { get; private set; }
         }
 
-        public static readonly Limits DefaultLimits = new Limits(1000000, 50000);
+        public static readonly Limits DefaultLimits = new Limits(1000000, 500000);
 
         public static CadDocumentService.CadLoadResult Build(
             CadDocumentService.CadLoadResult source,
@@ -49,14 +49,18 @@ namespace DACDT_2026
             if (source.Primitives == null || source.Primitives.Count == 0)
                 return preview;
 
-            int primitiveLimit = Math.Min(limits.MaxPreviewPrimitives, source.Primitives.Count);
+            int maximumRetainedPrimitives = Math.Min(
+                limits.MaxPreviewPrimitives,
+                limits.MaxPreviewPoints / 2);
+            List<int> primitiveIndices = SelectPrimitiveIndices(
+                source.Primitives,
+                maximumRetainedPrimitives,
+                cancellationToken);
             long totalSourcePoints = 0;
-            for (int i = 0; i < primitiveLimit; i++)
+            for (int i = 0; i < primitiveIndices.Count; i++)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                IList<CadDocumentService.CadCoordinate> points = source.Primitives[i]?.Points;
-                if (points != null && points.Count > 1)
-                    totalSourcePoints += points.Count;
+                totalSourcePoints += source.Primitives[primitiveIndices[i]].Points.Count;
             }
 
             if (totalSourcePoints == 0)
@@ -65,20 +69,18 @@ namespace DACDT_2026
             int remainingPoints = limits.MaxPreviewPoints;
             long remainingSourcePoints = totalSourcePoints;
 
-            for (int i = 0; i < primitiveLimit && remainingPoints >= 2; i++)
+            for (int i = 0; i < primitiveIndices.Count; i++)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                CadDocumentService.CadPrimitiveData sourcePrimitive = source.Primitives[i];
-                if (sourcePrimitive?.Points == null || sourcePrimitive.Points.Count < 2)
-                    continue;
+                CadDocumentService.CadPrimitiveData sourcePrimitive =
+                    source.Primitives[primitiveIndices[i]];
 
                 int allowedPoints = CalculatePointBudget(
                     sourcePrimitive.Points.Count,
                     remainingSourcePoints,
-                    remainingPoints);
+                    remainingPoints,
+                    primitiveIndices.Count - i);
                 remainingSourcePoints -= sourcePrimitive.Points.Count;
-                if (allowedPoints < 2)
-                    break;
 
                 var previewPoints = SamplePoints(
                     sourcePrimitive.Points,
@@ -105,17 +107,57 @@ namespace DACDT_2026
             return preview;
         }
 
-        private static int CalculatePointBudget(int sourceCount, long totalSourcePoints, int remainingPoints)
+        private static List<int> SelectPrimitiveIndices(
+            IList<CadDocumentService.CadPrimitiveData> primitives,
+            int maximumCount,
+            CancellationToken cancellationToken)
         {
+            var drawableIndices = new List<int>();
+            for (int i = 0; i < primitives.Count; i++)
+            {
+                if ((i & 2047) == 0)
+                    cancellationToken.ThrowIfCancellationRequested();
+                CadDocumentService.CadPrimitiveData primitive = primitives[i];
+                if (primitive?.Points != null && primitive.Points.Count >= 2)
+                    drawableIndices.Add(i);
+            }
+
+            if (drawableIndices.Count <= maximumCount)
+                return drawableIndices;
+            if (maximumCount <= 1)
+                return new List<int> { drawableIndices[0] };
+
+            var selected = new List<int>(maximumCount);
+            long denominator = maximumCount - 1L;
+            long lastDrawableIndex = drawableIndices.Count - 1L;
+            for (int i = 0; i < maximumCount; i++)
+            {
+                if ((i & 2047) == 0)
+                    cancellationToken.ThrowIfCancellationRequested();
+                int sourceIndex =
+                    (int)((i * lastDrawableIndex + denominator / 2L) / denominator);
+                selected.Add(drawableIndices[sourceIndex]);
+            }
+
+            return selected;
+        }
+
+        private static int CalculatePointBudget(
+            int sourceCount,
+            long totalSourcePoints,
+            int remainingPoints,
+            int remainingPrimitiveCount)
+        {
+            int reservedForLater = Math.Max(0, remainingPrimitiveCount - 1) * 2;
+            int maximumForCurrent = Math.Max(2, remainingPoints - reservedForLater);
             if (totalSourcePoints <= remainingPoints)
-                return sourceCount;
+                return Math.Min(sourceCount, maximumForCurrent);
 
             long proportional = ((long)sourceCount * remainingPoints + totalSourcePoints - 1)
                 / totalSourcePoints;
             int budget = (int)Math.Min(sourceCount, proportional);
-            if (budget < 2 && remainingPoints >= 2)
-                budget = 2;
-            return Math.Min(budget, remainingPoints);
+            budget = Math.Max(2, budget);
+            return Math.Min(budget, maximumForCurrent);
         }
 
         private static List<CadDocumentService.CadCoordinate> SamplePoints(

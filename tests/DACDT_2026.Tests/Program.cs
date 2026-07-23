@@ -67,6 +67,8 @@ namespace DACDT_2026.Tests
                 LargeCadPreviewKeepsFullSourceAndCapsPreviewPoints();
                 LargeCadPreviewSamplesOneHugePolyline();
                 CadPreviewSamplesEveryPrimitiveWhenBudgetIsCapped();
+                CadPreviewReservesPointsForTrailingPrimitives();
+                CadPreviewSamplesAcrossPrimitiveCap();
                 CadDisplayPreviewAppliesOffsetWithoutChangingSource();
                 CadDisplayPreviewHonorsCancellation();
                 CadOverlaySamplingKeepsEndpointsAndCapsPointCount();
@@ -1817,6 +1819,69 @@ namespace DACDT_2026.Tests
                 "every drawable primitive must remain represented");
             AssertTrue(preview.Primitives.Sum(primitive => primitive.Points.Count) <= 1000,
                 "whole-drawing sampling must honor the point budget");
+        }
+
+        private static void CadPreviewReservesPointsForTrailingPrimitives()
+        {
+            var primitives = new List<CadDocumentService.CadPrimitiveData>();
+            primitives.Add(NewCadPrimitiveWithPoints(100000, 0));
+            primitives.Add(NewCadPrimitiveWithPoints(10, 200000));
+            primitives.Add(NewCadPrimitiveWithPoints(10, 300000));
+            primitives.Add(NewCadPrimitiveWithPoints(10, 400000));
+
+            var source = new CadDocumentService.CadLoadResult
+            {
+                Bounds = new CadDocumentService.CadBounds(),
+                Primitives = primitives,
+                Points = new List<CadDocumentService.CadPointData>()
+            };
+            CadDocumentService.CadLoadResult preview = CadPreviewBuilder.Build(
+                source,
+                new CadPreviewBuilder.Limits(1000, 10));
+
+            AssertEqual("4", preview.Primitives.Count.ToString(CultureInfo.InvariantCulture),
+                "one huge primitive must not consume the budget reserved for trailing paths");
+            AssertTrue(preview.Primitives.All(primitive => primitive.Points.Count >= 2),
+                "every retained path must keep at least two drawable points");
+        }
+
+        private static void CadPreviewSamplesAcrossPrimitiveCap()
+        {
+            var primitives = new List<CadDocumentService.CadPrimitiveData>();
+            for (int i = 0; i < 6; i++)
+                primitives.Add(NewCadPrimitiveWithPoints(2, i * 100));
+
+            var source = new CadDocumentService.CadLoadResult
+            {
+                Bounds = new CadDocumentService.CadBounds(),
+                Primitives = primitives,
+                Points = new List<CadDocumentService.CadPointData>()
+            };
+            CadDocumentService.CadLoadResult preview = CadPreviewBuilder.Build(
+                source,
+                new CadPreviewBuilder.Limits(100, 3));
+
+            AssertEqual("3", preview.Primitives.Count.ToString(CultureInfo.InvariantCulture),
+                "primitive cap must be honored");
+            AssertEqual("0", preview.Primitives[0].Points[0].X.ToString(CultureInfo.InvariantCulture),
+                "primitive sampling must keep the beginning of the drawing");
+            AssertEqual("500", preview.Primitives[preview.Primitives.Count - 1].Points[0].X.ToString(CultureInfo.InvariantCulture),
+                "primitive sampling must keep the end of the drawing");
+        }
+
+        private static CadDocumentService.CadPrimitiveData NewCadPrimitiveWithPoints(
+            int pointCount,
+            double startX)
+        {
+            var points = new List<CadDocumentService.CadCoordinate>(pointCount);
+            for (int i = 0; i < pointCount; i++)
+                points.Add(new CadDocumentService.CadCoordinate(startX + i, i % 10));
+
+            return new CadDocumentService.CadPrimitiveData
+            {
+                SourceType = "Polyline",
+                Points = points
+            };
         }
 
         private static void CadDisplayPreviewHonorsCancellation()
