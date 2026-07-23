@@ -162,7 +162,14 @@ git commit -m "feat: add bounded CAD preview and offline policy"
 
 - [ ] **Step 1: Add a regression assertion that full PLC source remains unchanged**
 
-After building process rows from a 500.000-point primitive, assert the source primitive count and point count are unchanged while preview count stays within `MaxPreviewPoints`.
+Extend `LargeCadPreviewKeepsFullSourceAndCapsPreviewPoints()` with these exact assertions after the preview call:
+
+```csharp
+Assert(source.Primitives.Count == 1, "source primitive count must remain unchanged");
+Assert(source.Primitives[0].Points.Count == 500000, "source points must remain unchanged");
+Assert(preview.Primitives.Sum(p => p.Points.Count) <= CadPreviewBuilder.DefaultLimits.MaxPreviewPoints,
+    "preview point count must stay bounded");
+```
 
 - [ ] **Step 2: Run the regression test and confirm it fails against the current full-clone path**
 
@@ -218,7 +225,24 @@ git commit -m "perf: bound large CAD UI preview"
 
 - [ ] **Step 1: Add failing offline runtime integration assertions**
 
-Add source-level/runtime assertions that the startup path does not call `InitMqttAsync` or `StartBackgroundVideoService`, and that CAD open paths do not call `PublishAllMqttAsync`.
+Add this source-level test to `Program.cs`; it reads the repository source without starting the WPF window:
+
+```csharp
+private static void OfflineRuntimeDoesNotStartMqttOrWebRtc()
+{
+    string root = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, @"..\..\..\.."));
+    string form1 = File.ReadAllText(Path.Combine(root, @"src\DACDT_2026.App\Form1.cs"));
+    string dxf = File.ReadAllText(Path.Combine(root, @"src\DACDT_2026.App\Form1.DxfHandler.cs"));
+    string state = File.ReadAllText(Path.Combine(root, @"src\DACDT_2026.App\Form1.StatePublisher.cs"));
+    string camera = File.ReadAllText(Path.Combine(root, @"src\DACDT_2026.App\Form1.Camera.cs"));
+
+    Assert(!form1.Contains("await InitMqttAsync();"), "startup must not initialize MQTT");
+    Assert(!form1.Contains("StartBackgroundVideoService();"), "startup must not launch WebRTC web service");
+    Assert(!dxf.Contains("await PublishAllMqttAsync();"), "local CAD flow must not publish to MQTT");
+    Assert(!state.Contains("private async Task PublishCadStateToMqttAsync"), "CAD MQTT publisher must be removed");
+    Assert(!camera.Contains("webRtcBridgeClient.SendFrame"), "local camera must not send WebRTC frames");
+}
+```
 
 - [ ] **Step 2: Run the assertions and confirm RED**
 
@@ -302,4 +326,3 @@ git status --short
 git add tools\installer.iss src\DACDT_2026.App\Properties\AssemblyInfo.cs
 git commit -m "build: prepare offline CAD release"
 ```
-
