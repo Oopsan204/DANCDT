@@ -51,7 +51,7 @@ namespace DACDT_2026
             long totalSourcePoints = 0;
             for (int i = 0; i < primitiveLimit; i++)
             {
-                List<CadDocumentService.CadCoordinate> points = source.Primitives[i]?.Points;
+                IList<CadDocumentService.CadCoordinate> points = source.Primitives[i]?.Points;
                 if (points != null && points.Count > 1)
                     totalSourcePoints += points.Count;
             }
@@ -133,7 +133,7 @@ namespace DACDT_2026
         }
 
         private static List<CadDocumentService.CadCoordinate> SamplePoints(
-            List<CadDocumentService.CadCoordinate> source,
+            IList<CadDocumentService.CadCoordinate> source,
             int count)
         {
             if (count >= source.Count)

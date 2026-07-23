@@ -102,10 +102,7 @@ namespace DACDT_2026
                         {
                             if (assigned[candidateIndex])
                                 continue;
-                            var candidate = primitives[candidateIndex];
-                            candidate.Points.Reverse();
-                            if (candidate.SourceType != null && candidate.SourceType.Contains("Arc"))
-                                candidate.IsCw = !candidate.IsCw;
+                            var candidate = ReversePrimitiveForPath(primitives[candidateIndex]);
                             currentPath.Add(candidate);
                             assigned[candidateIndex] = true;
                             grew = true;
@@ -144,10 +141,7 @@ namespace DACDT_2026
                         {
                             if (assigned[candidateIndex])
                                 continue;
-                            var candidate = primitives[candidateIndex];
-                            candidate.Points.Reverse();
-                            if (candidate.SourceType != null && candidate.SourceType.Contains("Arc"))
-                                candidate.IsCw = !candidate.IsCw;
+                            var candidate = ReversePrimitiveForPath(primitives[candidateIndex]);
                             currentPath.Insert(0, candidate);
                             assigned[candidateIndex] = true;
                             grew = true;
@@ -160,6 +154,35 @@ namespace DACDT_2026
             }
 
             return paths;
+        }
+
+        private static CadDocumentService.CadPrimitiveData ReversePrimitiveForPath(
+            CadDocumentService.CadPrimitiveData source)
+        {
+            if (source == null)
+                return null;
+
+            var reversed = new CadDocumentService.CadPrimitiveData
+            {
+                SourceType = source.SourceType,
+                Points = source.Points == null
+                    ? null
+                    : new CadDocumentService.ReversedCadCoordinateList(source.Points),
+                Center = source.Center,
+                IsCw = source.IsCw,
+                IsCircle = source.IsCircle,
+                MCodeValue = source.MCodeValue,
+                Speed = source.Speed,
+                Dwell = source.Dwell,
+                ProcessKind = source.ProcessKind,
+                PathId = source.PathId,
+                WcsIndex = source.WcsIndex
+            };
+
+            if (reversed.SourceType != null && reversed.SourceType.Contains("Arc"))
+                reversed.IsCw = !reversed.IsCw;
+
+            return reversed;
         }
 
         public static int AssignPathIds(

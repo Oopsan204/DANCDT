@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Globalization;
@@ -278,7 +279,7 @@ namespace DACDT_2026
         public sealed class CadPrimitiveData
         {
             public string SourceType { get; set; }
-            public List<CadCoordinate> Points { get; set; }
+            public IList<CadCoordinate> Points { get; set; }
             public CadCoordinate Center { get; set; }
             public bool IsCw { get; set; }
             public bool IsCircle { get; set; }
@@ -288,6 +289,57 @@ namespace DACDT_2026
             public string ProcessKind { get; set; }
             public int PathId { get; set; } = -1;
             public int WcsIndex { get; set; } // 0=G54, 1=G55, ..., 5=G59. -1=no WCS (DXF)
+        }
+
+        public sealed class ReversedCadCoordinateList : IList<CadCoordinate>
+        {
+            private readonly IList<CadCoordinate> source;
+
+            public ReversedCadCoordinateList(IList<CadCoordinate> source)
+            {
+                this.source = source ?? throw new ArgumentNullException(nameof(source));
+            }
+
+            public CadCoordinate this[int index]
+            {
+                get { return source[source.Count - 1 - index]; }
+                set { source[source.Count - 1 - index] = value; }
+            }
+
+            public int Count { get { return source.Count; } }
+            public bool IsReadOnly { get { return false; } }
+
+            public int IndexOf(CadCoordinate item)
+            {
+                for (int i = 0; i < Count; i++)
+                {
+                    if (Equals(this[i], item))
+                        return i;
+                }
+                return -1;
+            }
+
+            public bool Contains(CadCoordinate item) { return IndexOf(item) >= 0; }
+
+            public void CopyTo(CadCoordinate[] array, int arrayIndex)
+            {
+                for (int i = 0; i < Count; i++)
+                    array[arrayIndex + i] = this[i];
+            }
+
+            public IEnumerator<CadCoordinate> GetEnumerator()
+            {
+                for (int i = 0; i < Count; i++)
+                    yield return this[i];
+            }
+
+            IEnumerator IEnumerable.GetEnumerator() { return GetEnumerator(); }
+
+            public void Add(CadCoordinate item) { throw new NotSupportedException(); }
+            public void Clear() { throw new NotSupportedException(); }
+            public void Insert(int index, CadCoordinate item) { throw new NotSupportedException(); }
+            public bool Remove(CadCoordinate item) { throw new NotSupportedException(); }
+            public void RemoveAt(int index) { throw new NotSupportedException(); }
         }
 
         public sealed class CadPointData

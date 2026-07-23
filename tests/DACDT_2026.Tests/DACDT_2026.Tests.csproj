@@ -50,9 +50,6 @@
     <Compile Include="..\..\src\DACDT_2026.App\PerformanceTuning.cs">
       <Link>PerformanceTuning.cs</Link>
     </Compile>
-    <Compile Include="..\..\src\DACDT_2026.App\BackgroundVideoServiceProcess.cs">
-      <Link>BackgroundVideoServiceProcess.cs</Link>
-    </Compile>
     <Compile Include="..\..\src\DACDT_2026.App\ExitShutdownPolicy.cs">
       <Link>ExitShutdownPolicy.cs</Link>
     </Compile>
@@ -97,12 +94,6 @@
     </Compile>
     <Compile Include="..\..\src\DACDT_2026.App\NcGcodeCleaner.cs">
       <Link>NcGcodeCleaner.cs</Link>
-    </Compile>
-    <Compile Include="..\..\src\DACDT_2026.App\WebCadUploadSession.cs">
-      <Link>WebCadUploadSession.cs</Link>
-    </Compile>
-    <Compile Include="..\..\src\DACDT_2026.App\CadMqttTransfer.cs">
-      <Link>CadMqttTransfer.cs</Link>
     </Compile>
     <Compile Include="..\..\src\DACDT_2026.App\WpfThemeManager.cs">
       <Link>WpfThemeManager.cs</Link>

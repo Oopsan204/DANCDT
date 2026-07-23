@@ -41,15 +41,12 @@ $forbiddenLogicPaths = @(
     "src/DACDT_2026.App/Form1.DxfHandler.cs",
     "src/DACDT_2026.App/Form1.Camera.cs",
     "src/DACDT_2026.App/Form1.StatePublisher.cs",
-    "src/DACDT_2026.App/Form1.WebCadUpload.cs",
     "src/DACDT_2026.App/PLCCommunication.cs",
     "src/DACDT_2026.App/QD75BufferWriter.cs",
     "src/DACDT_2026.App/QD75RingBufferRunner.cs",
     "src/DACDT_2026.App/EngraveCutProcessComposer.cs",
     "src/DACDT_2026.App/CadDocumentService.cs",
     "src/DACDT_2026.App/CadPathSelection.cs",
-    "src/DACDT_2026.App/WebRtcCameraServer.cs",
-    "src/DACDT_2026.App/WebRtcBridgeClient.cs",
     "tests/**"
 )
 

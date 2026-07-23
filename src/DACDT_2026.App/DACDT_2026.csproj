@@ -154,7 +154,6 @@
     <Compile Include="GcodeCoordinateService.cs" />
     <Compile Include="GcodeDocumentService.cs" />
     <Compile Include="GcodeLineSanitizer.cs" />
-    <Compile Include="BackgroundVideoServiceProcess.cs" />
     <Compile Include="NcGcodeCleaner.cs" />
     <Compile Include="PerformanceTuning.cs" />
     <Compile Include="PlcConnectionGuard.cs" />

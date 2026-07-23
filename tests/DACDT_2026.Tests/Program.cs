@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Imaging;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -41,7 +42,6 @@ namespace DACDT_2026.Tests
                 PlcMonitoringUsesOneBatchedReader();
                 FastPlcUiUpdatesUseRenderPriority();
                 CadTrackingMarkerMovesWithoutInvalidatingCanvasLayout();
-                BackgroundVideoServiceArgumentsIncludeParentPid();
                 ExitShutdownSendsM210WheneverPlcIsConnected();
                 ConfigurationFilePathIsRememberedAndMissingFilesNeedSelection();
                 PortableConfigurationIsLoadedSavedAndRecoveredAtStartup();
@@ -65,6 +65,7 @@ namespace DACDT_2026.Tests
                 ZHeightCommandUsesD110ThenPulsesM212();
                 LargeCadPreviewKeepsFullSourceAndCapsPreviewPoints();
                 LargeCadPreviewSamplesOneHugePolyline();
+                LargeCadProcessPathDoesNotCloneSourceCoordinates();
                 OfflineRuntimeDoesNotStartMqttOrWebRtc();
                 WpfThemeManagerAppliesLightAndDarkPalettes();
                 EngraveCutComposerKeepsOneOrderedProcessListWithPerRowParameters();
@@ -77,6 +78,7 @@ namespace DACDT_2026.Tests
                 MixedRunRebuildsSelectedDxfAfterTestArea();
                 MixedRunPreservesCurrentViewWhileRefreshingRows();
                 CadPathSelectionGroupsConnectedLineSegments();
+                CadPathSelectionDoesNotReverseSourceCoordinates();
                 CadPathSelectionTogglesEveryPrimitiveInSelectedPath();
                 CadPathSelectionToggleTwiceRestoresEngrave();
                 CadPathSelectionUpdatesImmediatelyAndExplainsRunLock();
@@ -336,7 +338,6 @@ namespace DACDT_2026.Tests
         private static void CameraRecordingFrameIntervalIsThrottled()
         {
             AssertEqual("42", PerformanceTuning.CameraRecordingFrameIntervalMs.ToString(), "Camera recording should target approximately 24 fps.");
-            AssertEqual("42", PerformanceTuning.WebRtcFrameIntervalMs.ToString(), "WebRTC camera forwarding should target approximately 24 fps.");
         }
 
         private static void CameraRecordingPathAndCommandsAreBound()
@@ -419,13 +420,6 @@ namespace DACDT_2026.Tests
             AssertTrue(cameraSource.Contains("new FileInfo(recordingPath).Length"), "MP4 size must be read after recording completes.");
         }
 
-        private static void WebRtcUsesTwoMegabitTarget()
-        {
-            string webRtcSource = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "WebRtcCameraServer.cs"));
-
-            AssertTrue(webRtcSource.Contains("TargetWebRtcKbps = 4000"), "WebRTC should use a 4 Mbps target bitrate for sharper camera video.");
-        }
-
         private static void CameraRecordingDoesNotRequireWebRtcForLocalFrames()
         {
             string cameraSource = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Form1.Camera.cs"));
@@ -441,8 +435,6 @@ namespace DACDT_2026.Tests
             AssertEqual("16", PerformanceTuning.ControlUiPushIntervalMs.ToString(), "Axis monitor UI should target smooth local display cadence without waiting for MQTT.");
             AssertEqual("16", PerformanceTuning.ControlTrackingUiPushIntervalMs.ToString(), "CAD tracking marker should update at the smooth local display cadence.");
             AssertEqual("1000", PerformanceTuning.SlowPlcMonitorPollIntervalMs.ToString(), "Non-axis PLC monitor rows should not block the fast axis path.");
-            AssertEqual("1000", PerformanceTuning.MachineMqttPublishIntervalMs.ToString(), "MQTT/web publish must stay secondary to the local PLC monitor path.");
-            AssertTrue(PerformanceTuning.MachineMqttPublishIntervalMs >= PerformanceTuning.PlcPollIntervalMs * 100, "MQTT cadence should be at least 100x slower than PLC polling.");
         }
 
         private static void PlcMonitoringUsesOneBatchedReader()
@@ -488,15 +480,6 @@ namespace DACDT_2026.Tests
             string markerLayer = source.Substring(start, end - start);
             AssertTrue(markerLayer.IndexOf("Canvas.Left\" Value=\"{Binding X}", StringComparison.Ordinal) < 0, "Tracking marker movement must not invalidate the CAD canvas layout.");
             AssertTrue(markerLayer.IndexOf("<TranslateTransform X=\"{Binding X}\" Y=\"{Binding Y}\"/>", StringComparison.Ordinal) >= 0, "Tracking marker must move with a render transform.");
-        }
-
-        private static void BackgroundVideoServiceArgumentsIncludeParentPid()
-        {
-            string args = BackgroundVideoServiceProcess.BuildParentPidArguments(12345);
-
-            AssertEqual("--parent-pid 12345", args, "WebRTC service should receive the owning app process id.");
-            AssertEqual("12345", BackgroundVideoServiceProcess.TryGetParentPid(new[] { "--parent-pid", "12345" }).ToString(), "WebRTC service should parse parent pid arguments.");
-            AssertEqual("0", BackgroundVideoServiceProcess.TryGetParentPid(new[] { "--parent-pid", "abc" }).ToString(), "Invalid parent pid should be ignored.");
         }
 
         private static void ExitShutdownSendsM210WheneverPlcIsConnected()
@@ -812,6 +795,7 @@ namespace DACDT_2026.Tests
             AssertTrue(d110Index >= 0 && m212OnIndex > d110Index && m212OffIndex > m212OnIndex, "Z height command must write D110 before pulsing M212 on then off.");
         }
 
+        #if false
         private static void WebCadUploadReassemblesChunks()
         {
             var upload = new WebCadUploadSession();
@@ -902,6 +886,8 @@ namespace DACDT_2026.Tests
             AssertTrue(web.Contains("const chunkSize = 128 * 1024;"), "Web-to-app CAD must use larger upload chunks.");
             AssertTrue(web.Contains("handleCadTransferMessage"), "Web must reassemble app-to-web CAD transfers before rendering.");
         }
+
+        #endif
 
         private static void WpfThemeManagerAppliesLightAndDarkPalettes()
         {
@@ -1105,6 +1091,20 @@ namespace DACDT_2026.Tests
             AssertEqual("0", first.PathId.ToString(), "The first chain should receive path id zero.");
             AssertEqual("0", second.PathId.ToString(), "Connected segments should share a path id.");
             AssertEqual("1", separate.PathId.ToString(), "Disconnected geometry should receive a different path id.");
+        }
+
+        private static void CadPathSelectionDoesNotReverseSourceCoordinates()
+        {
+            var first = NewCadLine(0, 0, 10, 0);
+            var reversedCandidate = NewCadLine(20, 0, 10, 0);
+
+            var paths = CadPathSelection.GroupConnectedPaths(
+                new List<CadDocumentService.CadPrimitiveData> { first, reversedCandidate });
+
+            AssertEqual("10", paths[0][1].Points[0].X.ToString(CultureInfo.InvariantCulture),
+                "The process path should expose the reversed orientation.");
+            AssertEqual("20", reversedCandidate.Points[0].X.ToString(CultureInfo.InvariantCulture),
+                "Source primitive coordinates must not be reversed in place.");
         }
 
         private static void CadPathSelectionTogglesEveryPrimitiveInSelectedPath()
@@ -1411,6 +1411,19 @@ namespace DACDT_2026.Tests
                 "preview must keep the last point");
         }
 
+        private static void LargeCadProcessPathDoesNotCloneSourceCoordinates()
+        {
+            string source = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Form1.DxfHandler.cs"));
+            int start = source.IndexOf("private CadDocumentService.CadLoadResult CreateProcessDocumentForKind", StringComparison.Ordinal);
+            int end = source.IndexOf("private static CadDocumentService.CadPrimitiveData CloneCadPrimitiveForProcess", start, StringComparison.Ordinal);
+            AssertTrue(start >= 0 && end > start, "large CAD process document path must be present");
+
+            string processPath = source.Substring(start, end - start);
+            AssertTrue(processPath.Contains("Points = source.Points"), "process subsets must reuse source point rows");
+            AssertTrue(!processPath.Contains("CloneCadPrimitiveForUi"), "process subsets must not deep-clone CAD coordinates");
+            AssertTrue(!processPath.Contains("RebuildPointRowsForDisplay"), "process subsets must not rebuild a second full point table");
+        }
+
         private static void OfflineRuntimeDoesNotStartMqttOrWebRtc()
         {
             AssertTrue(OfflineRuntimePolicy.Enabled, "offline runtime must be enabled");
@@ -1444,6 +1457,7 @@ namespace DACDT_2026.Tests
             AssertTrue(!installer.Contains("WebRtcCameraService.exe"), "installer must not package the WebRTC service");
             AssertTrue(!installer.Contains("docs\\index.html"), "installer must not package the web dashboard");
             AssertTrue(installer.Contains("Excludes: \"MQTTnet.dll\""), "installer must not package MQTT runtime DLL");
+            AssertTrue(!File.Exists(GetRepositoryPath("src", "WebRtcCameraService", "Program.cs")), "WebRTC service source must be removed");
         }
 
         private static CadDocumentService.CadLoadResult NewCadDocumentWithPrimitive(int pointCount)

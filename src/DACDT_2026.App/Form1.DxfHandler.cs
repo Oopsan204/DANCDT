@@ -367,21 +367,45 @@ namespace DACDT_2026
             var primitives = source.Primitives
                 .Where(primitive => primitive != null
                     && string.Equals(primitive.ProcessKind, processKind, StringComparison.OrdinalIgnoreCase))
-                .Select(CloneCadPrimitiveForUi)
+                .Select(CloneCadPrimitiveForProcess)
                 .Where(primitive => primitive != null)
                 .ToList();
             if (primitives.Count == 0)
                 return null;
 
-            var points = RebuildPointRowsForDisplay(primitives);
             return new CadDocumentService.CadLoadResult
             {
                 FilePath = source.FilePath,
                 DirectoryPath = source.DirectoryPath,
                 FileName = source.FileName,
                 Primitives = primitives,
-                Points = points,
-                Bounds = BuildDisplayBounds(primitives, points)
+                // Process compilation reads primitive geometry directly. Reuse the
+                // source point rows instead of cloning every coordinate for each
+                // engrave/cut subset.
+                Points = source.Points,
+                Bounds = source.Bounds
+            };
+        }
+
+        private static CadDocumentService.CadPrimitiveData CloneCadPrimitiveForProcess(
+            CadDocumentService.CadPrimitiveData primitive)
+        {
+            if (primitive == null)
+                return null;
+
+            return new CadDocumentService.CadPrimitiveData
+            {
+                SourceType = primitive.SourceType,
+                Points = primitive.Points,
+                Center = primitive.Center,
+                IsCw = primitive.IsCw,
+                IsCircle = primitive.IsCircle,
+                MCodeValue = primitive.MCodeValue,
+                Speed = primitive.Speed,
+                Dwell = primitive.Dwell,
+                ProcessKind = primitive.ProcessKind,
+                PathId = primitive.PathId,
+                WcsIndex = primitive.WcsIndex
             };
         }
 

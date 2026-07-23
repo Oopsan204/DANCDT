@@ -847,7 +847,7 @@ namespace DACDT_2026
             }
         }
 
-        private static void OffsetCoordinateList(List<CadDocumentService.CadCoordinate> points, double ox, double oy)
+        private static void OffsetCoordinateList(IList<CadDocumentService.CadCoordinate> points, double ox, double oy)
         {
             if (points == null || (Math.Abs(ox) < 1e-9 && Math.Abs(oy) < 1e-9))
                 return;
@@ -864,7 +864,7 @@ namespace DACDT_2026
         }
 
         private static List<CadDocumentService.CadPointData> RebuildPointRowsForDisplay(
-            List<CadDocumentService.CadPrimitiveData> primitives)
+            IList<CadDocumentService.CadPrimitiveData> primitives)
         {
             var rows = new List<CadDocumentService.CadPointData>();
             var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);

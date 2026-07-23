@@ -11,10 +11,8 @@ namespace DACDT_2026
         public const int SlowPlcMonitorPollIntervalMs = 1000;
         public const int CameraPreviewIntervalMs = 100;
         public const int CameraRecordingFrameIntervalMs = 42;
-        public const int WebRtcFrameIntervalMs = 42;
         public const int ControlUiPushIntervalMs = 16;
         public const int ControlTrackingUiPushIntervalMs = 16;
-        public const int MachineMqttPublishIntervalMs = 1000;
         public const int ExitStopPulseMs = 100;
         public const int ExitStopDelayMs = 100;
         public const int ExitHomePulseMs = 100;
