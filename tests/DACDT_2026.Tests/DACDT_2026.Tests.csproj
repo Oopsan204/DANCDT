@@ -77,6 +77,12 @@
     <Compile Include="..\..\src\DACDT_2026.App\CadDocumentService.cs">
       <Link>CadDocumentService.cs</Link>
     </Compile>
+    <Compile Include="..\..\src\DACDT_2026.App\CadPreviewBuilder.cs">
+      <Link>CadPreviewBuilder.cs</Link>
+    </Compile>
+    <Compile Include="..\..\src\DACDT_2026.App\OfflineRuntimePolicy.cs">
+      <Link>OfflineRuntimePolicy.cs</Link>
+    </Compile>
     <Compile Include="..\..\src\DACDT_2026.App\CadPathSelection.cs">
       <Link>CadPathSelection.cs</Link>
     </Compile>

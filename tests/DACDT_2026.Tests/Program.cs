@@ -64,6 +64,9 @@ namespace DACDT_2026.Tests
                 DecimalJogSpeedInputAcceptsDotAndComma();
                 ZHeightConversionUsesTenThousandScale();
                 ZHeightCommandUsesD110ThenPulsesM212();
+                LargeCadPreviewKeepsFullSourceAndCapsPreviewPoints();
+                LargeCadPreviewSamplesOneHugePolyline();
+                OfflineRuntimeDoesNotStartMqttOrWebRtc();
                 WebCadUploadReassemblesChunks();
                 WebCadUploadReassemblesBinaryChunks();
                 WebCadUploadReportsMissingChunksForRetry();
@@ -1381,6 +1384,84 @@ namespace DACDT_2026.Tests
                 },
                 ProcessKind = EngraveCutProcessComposer.EngraveKind,
                 PathId = -1
+            };
+        }
+
+        private static void LargeCadPreviewKeepsFullSourceAndCapsPreviewPoints()
+        {
+            CadDocumentService.CadLoadResult source = NewCadDocumentWithPrimitive(500000);
+            CadDocumentService.CadLoadResult preview = CadPreviewBuilder.Build(
+                source,
+                CadPreviewBuilder.DefaultLimits);
+
+            AssertTrue(source.Primitives.Count == 1, "source primitive count must remain unchanged");
+            AssertTrue(source.Primitives[0].Points.Count == 500000, "source CAD data must remain complete");
+            AssertTrue(preview.Primitives.Sum(p => p.Points.Count)
+                <= CadPreviewBuilder.DefaultLimits.MaxPreviewPoints,
+                "preview must be capped");
+        }
+
+        private static void LargeCadPreviewSamplesOneHugePolyline()
+        {
+            CadDocumentService.CadLoadResult source = NewCadDocumentWithPrimitive(500000);
+            CadDocumentService.CadLoadResult preview = CadPreviewBuilder.Build(
+                source,
+                CadPreviewBuilder.DefaultLimits);
+
+            AssertTrue(preview.Primitives.Count == 1, "preview must keep the path as one primitive");
+            AssertTrue(preview.Primitives[0].Points.Count >= 2, "preview path must remain drawable");
+            AssertTrue(preview.Primitives[0].Points[0].X == source.Primitives[0].Points[0].X,
+                "preview must keep the first point");
+
+            int lastPreviewIndex = preview.Primitives[0].Points.Count - 1;
+            AssertTrue(preview.Primitives[0].Points[lastPreviewIndex].X
+                == source.Primitives[0].Points[source.Primitives[0].Points.Count - 1].X,
+                "preview must keep the last point");
+        }
+
+        private static void OfflineRuntimeDoesNotStartMqttOrWebRtc()
+        {
+            string form1 = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Form1.cs"));
+            string dxf = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Form1.DxfHandler.cs"));
+            string state = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Form1.StatePublisher.cs"));
+            string camera = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Form1.Camera.cs"));
+
+            AssertTrue(!form1.Contains("await InitMqttAsync();"), "startup must not initialize MQTT");
+            AssertTrue(!form1.Contains("StartBackgroundVideoService();"), "startup must not launch WebRTC web service");
+            AssertTrue(!dxf.Contains("await PublishAllMqttAsync();"), "local CAD flow must not publish to MQTT");
+            AssertTrue(!state.Contains("private async Task PublishCadStateToMqttAsync"), "CAD MQTT publisher must be removed");
+            AssertTrue(!camera.Contains("webRtcBridgeClient.SendFrame"), "local camera must not send WebRTC frames");
+        }
+
+        private static CadDocumentService.CadLoadResult NewCadDocumentWithPrimitive(int pointCount)
+        {
+            var points = new List<CadDocumentService.CadCoordinate>(pointCount);
+            for (int i = 0; i < pointCount; i++)
+                points.Add(new CadDocumentService.CadCoordinate(i, i % 1000));
+
+            return new CadDocumentService.CadLoadResult
+            {
+                FileName = "large-test.dxf",
+                FilePath = "large-test.dxf",
+                Primitives = new List<CadDocumentService.CadPrimitiveData>
+                {
+                    new CadDocumentService.CadPrimitiveData
+                    {
+                        SourceType = "Polyline2D",
+                        Points = points,
+                        ProcessKind = EngraveCutProcessComposer.EngraveKind,
+                        PathId = 1
+                    }
+                },
+                Points = points.Select((point, index) => new CadDocumentService.CadPointData
+                {
+                    Index = index + 1,
+                    LineType = "Polyline vertex",
+                    X = point.X,
+                    Y = point.Y,
+                    Z = point.Z,
+                    Key = index.ToString()
+                }).ToList()
             };
         }
 
