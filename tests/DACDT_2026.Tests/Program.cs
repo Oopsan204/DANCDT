@@ -1333,6 +1333,14 @@ namespace DACDT_2026.Tests
             AssertTrue(codeSource.Contains("GetTouchPoint(CadContent)"), "Touch selection must query content coordinates directly.");
             AssertTrue(codeSource.Contains("12.0 / Math.Max(GetCadViewboxScale() * cadZoom"), "CAD hit radius must remain about 12 screen DIPs as zoom changes.");
             AssertTrue(codeSource.Contains("Distance(cadPanStartPoint, current) >= TouchPanThreshold"), "Small mouse movement must remain a tap instead of panning before selection.");
+            AssertTrue(codeSource.Contains("private bool mousePanExceededThreshold;"), "CAD mouse gestures must retain whether the pan threshold was crossed.");
+            AssertTrue(codeSource.Contains("private bool touchPanExceededThreshold;"), "CAD touch gestures must retain whether the pan threshold was crossed.");
+            AssertTrue(codeSource.Contains("mousePanExceededThreshold = false;"), "A new mouse gesture must reset its sticky pan state.");
+            AssertTrue(codeSource.Contains("mousePanExceededThreshold = true;"), "A mouse drag crossing the threshold must become a pan permanently for that gesture.");
+            AssertTrue(codeSource.Contains("&& !mousePanExceededThreshold"), "Mouse release must not select after a drag has become a pan.");
+            AssertTrue(codeSource.Contains("touchPanExceededThreshold = false;"), "A new or reset touch gesture must clear its sticky pan state.");
+            AssertTrue(codeSource.Contains("touchPanExceededThreshold = true;"), "A touch drag crossing the threshold must become a pan permanently for that gesture.");
+            AssertTrue(codeSource.Contains("!touchPanExceededThreshold && Distance(touchStartPoint, position) < TouchPanThreshold"), "Touch release must not select after a drag has become a pan.");
             AssertTrue(!codeSource.Contains("OriginalSource"), "CAD selection must not walk the visual tree.");
             AssertTrue(!codeSource.Contains("FindCadPrimitive"), "CAD selection must not discover a path through WPF elements.");
             AssertTrue(!codeSource.Contains("SelectableCadPath_MouseLeftButtonDown"), "CAD selection must not keep the old per-path handler.");

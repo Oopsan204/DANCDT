@@ -31,6 +31,8 @@ namespace DACDT_2026.Views
         private Point touchStartPoint;
         private Point touchLastPoint;
         private bool isCadPinchRenderSubscribed;
+        private bool mousePanExceededThreshold;
+        private bool touchPanExceededThreshold;
 
         public DxfRunView()
         {
@@ -134,11 +136,13 @@ namespace DACDT_2026.Views
             if (touchSession.IsPinching)
             {
                 isCadPanning = false;
+                touchPanExceededThreshold = true;
                 CadViewport.ReleaseMouseCapture();
                 StartCadPinchRenderLoop();
             }
             else
             {
+                touchPanExceededThreshold = false;
                 touchStartPoint = position;
                 touchLastPoint = position;
             }
@@ -163,8 +167,10 @@ namespace DACDT_2026.Views
             if (touchSession.IsTouchActive)
             {
                 Vector delta = current - touchLastPoint;
-                if (Distance(touchStartPoint, current) >= TouchPanThreshold)
+                if (touchPanExceededThreshold
+                    || Distance(touchStartPoint, current) >= TouchPanThreshold)
                 {
+                    touchPanExceededThreshold = true;
                     CadPanTransform.X += delta.X;
                     CadPanTransform.Y += delta.Y;
                 }
@@ -182,7 +188,7 @@ namespace DACDT_2026.Views
             Point position = e.GetTouchPoint(CadSurface).Position;
             bool endedPinch = touchSession.IsPinching && touchSession.IsPinchTouch(e.TouchDevice.Id);
             bool wasPinching = touchSession.IsPinching;
-            bool shouldSelect = !wasPinching && Distance(touchStartPoint, position) < TouchPanThreshold;
+            bool shouldSelect = !wasPinching && !touchPanExceededThreshold && Distance(touchStartPoint, position) < TouchPanThreshold;
             touchSession.EndTouch(e.TouchDevice.Id);
 
             if (endedPinch)
@@ -289,6 +295,7 @@ namespace DACDT_2026.Views
         {
             StopCadPinchRenderLoop();
             touchSession.Reset();
+            touchPanExceededThreshold = false;
         }
 
         private void CadViewport_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -307,6 +314,7 @@ namespace DACDT_2026.Views
             }
 
             isCadPanning = true;
+            mousePanExceededThreshold = false;
             cadPanStartPoint = e.GetPosition(CadSurface);
             cadPanStartX = CadPanTransform.X;
             cadPanStartY = CadPanTransform.Y;
@@ -327,8 +335,10 @@ namespace DACDT_2026.Views
                 return;
 
             Point current = e.GetPosition(CadSurface);
-            if (Distance(cadPanStartPoint, current) >= TouchPanThreshold)
+            if (mousePanExceededThreshold
+                || Distance(cadPanStartPoint, current) >= TouchPanThreshold)
             {
+                mousePanExceededThreshold = true;
                 CadPanTransform.X = cadPanStartX + current.X - cadPanStartPoint.X;
                 CadPanTransform.Y = cadPanStartY + current.Y - cadPanStartPoint.Y;
             }
@@ -344,6 +354,7 @@ namespace DACDT_2026.Views
             }
 
             bool shouldSelect = isCadPanning
+                && !mousePanExceededThreshold
                 && Distance(cadPanStartPoint, e.GetPosition(CadSurface)) < TouchPanThreshold;
             Point contentPoint = e.GetPosition(CadContent);
             EndCadPan();
@@ -367,6 +378,7 @@ namespace DACDT_2026.Views
                 return;
 
             isCadPanning = false;
+            mousePanExceededThreshold = false;
             CadViewport.ReleaseMouseCapture();
             CadViewport.Cursor = Cursors.Hand;
         }
