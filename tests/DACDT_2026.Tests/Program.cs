@@ -66,6 +66,7 @@ namespace DACDT_2026.Tests
                 ZHeightCommandUsesD110ThenPulsesM212();
                 LargeCadPreviewKeepsFullSourceAndCapsPreviewPoints();
                 LargeCadPreviewSamplesOneHugePolyline();
+                CadPreviewSamplesEveryPrimitiveWhenBudgetIsCapped();
                 CadDisplayPreviewAppliesOffsetWithoutChangingSource();
                 CadDisplayPreviewHonorsCancellation();
                 CadOverlaySamplingKeepsEndpointsAndCapsPointCount();
@@ -1780,6 +1781,44 @@ namespace DACDT_2026.Tests
                 "display preview must not recreate hidden coordinate rows");
         }
 
+        private static void CadPreviewSamplesEveryPrimitiveWhenBudgetIsCapped()
+        {
+            var primitives = new List<CadDocumentService.CadPrimitiveData>();
+            for (int primitiveIndex = 0; primitiveIndex < 4; primitiveIndex++)
+            {
+                var points = new List<CadDocumentService.CadCoordinate>();
+                for (int pointIndex = 0; pointIndex < 500; pointIndex++)
+                {
+                    points.Add(new CadDocumentService.CadCoordinate(
+                        primitiveIndex * 1000 + pointIndex,
+                        primitiveIndex));
+                }
+
+                primitives.Add(new CadDocumentService.CadPrimitiveData
+                {
+                    SourceType = "Polyline",
+                    Points = points
+                });
+            }
+
+            var source = new CadDocumentService.CadLoadResult
+            {
+                Bounds = new CadDocumentService.CadBounds(),
+                Primitives = primitives,
+                Points = new List<CadDocumentService.CadPointData>()
+            };
+            CadDocumentService.CadLoadResult preview = CadPreviewBuilder.Build(
+                source,
+                new CadPreviewBuilder.Limits(1000, 10));
+
+            AssertEqual("4", preview.Primitives.Count.ToString(CultureInfo.InvariantCulture),
+                "preview budget must sample the whole drawing instead of dropping trailing primitives");
+            AssertTrue(preview.Primitives.All(primitive => primitive.Points.Count >= 2),
+                "every drawable primitive must remain represented");
+            AssertTrue(preview.Primitives.Sum(primitive => primitive.Points.Count) <= 1000,
+                "whole-drawing sampling must honor the point budget");
+        }
+
         private static void CadDisplayPreviewHonorsCancellation()
         {
             var cancellation = new CancellationTokenSource();
@@ -1888,6 +1927,17 @@ namespace DACDT_2026.Tests
                 "WPF state must not retain a second full process-row table.");
             AssertTrue(state.Contains("processRowWindowLoader"),
                 "WPF state must load process rows in bounded windows.");
+            int viewCheck = publisher.IndexOf(
+                "if (!string.Equals(snapCurrentView, \"dxf\"",
+                StringComparison.Ordinal);
+            int rowSnapshot = publisher.IndexOf(
+                "var snapRowsSource = processRows.ToArray()",
+                StringComparison.Ordinal);
+            AssertTrue(viewCheck >= 0 && rowSnapshot > viewCheck,
+                "non-DXF views must return before copying a million PLC rows.");
+            AssertTrue(publisher.Contains("Interlocked.Increment(ref dxfStatePushVersion)")
+                && publisher.Contains("Volatile.Read(ref dxfStatePushVersion)"),
+                "older DXF state builds must not overwrite a newer preview.");
         }
 
         private static void OfflineRuntimeDoesNotStartMqttOrWebRtc()
@@ -2077,6 +2127,7 @@ namespace DACDT_2026.Tests
             int versionGuard = compile.IndexOf("cadProgramCompilationState.RequestedVersion", StringComparison.Ordinal);
             int publish = compile.IndexOf("cadProgramCompilationState.TryPublish(version)", StringComparison.Ordinal);
             int mutateRows = compile.IndexOf("processRows.Clear()", StringComparison.Ordinal);
+            int publishWindow = compile.IndexOf("PublishProcessRowWindowState(", StringComparison.Ordinal);
 
             AssertTrue(documentGuard >= 0 && kindGuard >= 0 && versionGuard >= 0,
                 "publish must guard active document reference, DXF kind, and requested version");
@@ -2084,6 +2135,8 @@ namespace DACDT_2026.Tests
                 "all stale-result guards must run before atomic publication");
             AssertTrue(mutateRows >= 0 && mutateRows < publish,
                 "processRows must be installed before the version is committed as published");
+            AssertTrue(publishWindow > mutateRows && publishWindow < publish,
+                "the paged Dashboard/Monitor provider must update before the version is committed");
             AssertTrue(compile.Contains("await RunOnUiAsync"),
                 "active documents and processRows must publish on the UI thread");
             AssertTrue(compile.Contains("await RefreshCadSelectionPreviewAsync(document,"),

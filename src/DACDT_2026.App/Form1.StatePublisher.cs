@@ -557,13 +557,10 @@ namespace DACDT_2026
 
         private async Task PushDxfStateAsync()
         {
+            int pushVersion = Interlocked.Increment(ref dxfStatePushVersion);
             var snapDocSource = activeCadDocument;
-            var snapRowsSource = processRows.ToArray();
             var snapKind = activeDocumentKind;
             bool snapIsGcodeKind = string.Equals(snapKind, "GCODE", StringComparison.OrdinalIgnoreCase);
-            bool snapHasEngraveCut = snapRowsSource.Any(row =>
-                string.Equals(row?.ProcessKind, EngraveCutProcessComposer.EngraveKind, StringComparison.OrdinalIgnoreCase)
-                || string.Equals(row?.ProcessKind, EngraveCutProcessComposer.CutKind, StringComparison.OrdinalIgnoreCase));
             var snapRawText = snapKind == "GCODE" ? rawGcodeText : string.Empty;
             var snapPointKey = selectedCadPointKey ?? string.Empty;
             var snapOx = offsetX;
@@ -590,21 +587,19 @@ namespace DACDT_2026
             var snapGlobalDwellM4 = globalDwellM4;
             var snapActiveWcs = activeWcs;
             var snapMixedEngraveCut = isMixedEngraveCutProgram;
-            Func<int, int, IReadOnlyList<ProcessRowViewModel>> processRowWindowLoader =
-                (start, count) => BuildProcessRowViewModelWindow(
-                    snapRowsSource,
-                    start,
-                    count,
-                    snapIsGcodeKind,
-                    snapOx,
-                    snapOy,
-                    snapWcsOffsetX,
-                    snapWcsOffsetY);
 
             if (!string.Equals(snapCurrentView, "dxf", StringComparison.OrdinalIgnoreCase))
             {
                 await RunOnUiAsync(() =>
                 {
+                    if (!IsCurrentDxfStatePush(
+                        pushVersion,
+                        snapDocSource,
+                        snapCurrentView))
+                    {
+                        return;
+                    }
+
                     ui.CurrentView = snapCurrentView;
                     ui.CurrentTheme = snapCurrentTheme;
                     ui.FileKind = snapKind ?? string.Empty;
@@ -615,6 +610,7 @@ namespace DACDT_2026
                 return;
             }
 
+            var snapRowsSource = processRows.ToArray();
             var model = await Task.Run(() =>
             {
                 var rawDoc = snapDocSource;
@@ -641,11 +637,20 @@ namespace DACDT_2026
                     snapConnected,
                     snapRobotRawX,
                     snapRobotRawY);
-                return new { doc = snapDoc, cadPreviewGeometry, cadEngravePreviewGeometry, cadCutPreviewGeometry, cadPathHitIndex, limitAreas, axisLines, axisLabels, trackingPoints };
+                bool hasEngraveCut = snapRowsSource.Any(row =>
+                    string.Equals(row?.ProcessKind, EngraveCutProcessComposer.EngraveKind, StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(row?.ProcessKind, EngraveCutProcessComposer.CutKind, StringComparison.OrdinalIgnoreCase));
+                return new { doc = snapDoc, hasEngraveCut, cadPreviewGeometry, cadEngravePreviewGeometry, cadCutPreviewGeometry, cadPathHitIndex, limitAreas, axisLines, axisLabels, trackingPoints };
             });
+
+            if (!IsCurrentDxfStatePush(pushVersion, snapDocSource, snapCurrentView))
+                return;
 
             await RunOnUiAsync(() =>
             {
+                if (!IsCurrentDxfStatePush(pushVersion, snapDocSource, snapCurrentView))
+                    return;
+
                 ui.CurrentView = snapCurrentView;
                 ui.CurrentTheme = snapCurrentTheme;
                 ui.FileKind = snapKind ?? string.Empty;
@@ -681,11 +686,15 @@ namespace DACDT_2026
                 }
                 ui.SelectedPointKey = snapPointKey;
 
-                ui.SetProcessRows(
-                    snapRowsSource.Length,
-                    snapHasEngraveCut,
-                    processRowWindowLoader,
-                    snapActiveProgramIndex);
+                PublishProcessRowWindowState(
+                    snapRowsSource,
+                    model.hasEngraveCut,
+                    snapKind,
+                    snapActiveProgramIndex,
+                    snapOx,
+                    snapOy,
+                    snapWcsOffsetX,
+                    snapWcsOffsetY);
                 ui.CadPreviewGeometry = model.cadPreviewGeometry;
                 ui.CadEngravePreviewGeometry = model.cadEngravePreviewGeometry;
                 ui.CadCutPreviewGeometry = model.cadCutPreviewGeometry;
@@ -697,6 +706,16 @@ namespace DACDT_2026
                 ReplaceCollection(ui.CadTrackingPoints, model.trackingPoints);
             });
 
+        }
+
+        private bool IsCurrentDxfStatePush(
+            int pushVersion,
+            CadDocumentService.CadLoadResult document,
+            string view)
+        {
+            return pushVersion == Volatile.Read(ref dxfStatePushVersion)
+                && ReferenceEquals(activeCadDocument, document)
+                && string.Equals(currentView, view, StringComparison.OrdinalIgnoreCase);
         }
 
         private async Task RefreshCadSelectionPreviewAsync(
@@ -988,6 +1007,39 @@ namespace DACDT_2026
 
         private static CadDocumentService.CadCoordinate CloneCadCoordinateForUi(CadDocumentService.CadCoordinate point)
             => point == null ? null : new CadDocumentService.CadCoordinate(point.X, point.Y, point.Z);
+
+        private void PublishProcessRowWindowState(
+            ProcessRow[] rows,
+            bool hasEngraveCut,
+            string documentKind,
+            int activeIndex,
+            double dxfOffsetX,
+            double dxfOffsetY,
+            double[] displayWcsOffsetX,
+            double[] displayWcsOffsetY)
+        {
+            ProcessRow[] source = rows ?? Array.Empty<ProcessRow>();
+            bool isGcodeKind = string.Equals(
+                documentKind,
+                "GCODE",
+                StringComparison.OrdinalIgnoreCase);
+            Func<int, int, IReadOnlyList<ProcessRowViewModel>> windowLoader =
+                (start, count) => BuildProcessRowViewModelWindow(
+                    source,
+                    start,
+                    count,
+                    isGcodeKind,
+                    dxfOffsetX,
+                    dxfOffsetY,
+                    displayWcsOffsetX,
+                    displayWcsOffsetY);
+
+            ui.SetProcessRows(
+                source.Length,
+                hasEngraveCut,
+                windowLoader,
+                activeIndex);
+        }
 
         private static IReadOnlyList<ProcessRowViewModel> BuildProcessRowViewModelWindow(
             ProcessRow[] rows,

@@ -63,6 +63,7 @@ namespace DACDT_2026
                 return preview;
 
             int remainingPoints = limits.MaxPreviewPoints;
+            long remainingSourcePoints = totalSourcePoints;
 
             for (int i = 0; i < primitiveLimit && remainingPoints >= 2; i++)
             {
@@ -73,8 +74,9 @@ namespace DACDT_2026
 
                 int allowedPoints = CalculatePointBudget(
                     sourcePrimitive.Points.Count,
-                    totalSourcePoints,
+                    remainingSourcePoints,
                     remainingPoints);
+                remainingSourcePoints -= sourcePrimitive.Points.Count;
                 if (allowedPoints < 2)
                     break;
 
@@ -105,7 +107,7 @@ namespace DACDT_2026
 
         private static int CalculatePointBudget(int sourceCount, long totalSourcePoints, int remainingPoints)
         {
-            if (sourceCount <= remainingPoints)
+            if (totalSourcePoints <= remainingPoints)
                 return sourceCount;
 
             long proportional = ((long)sourceCount * remainingPoints + totalSourcePoints - 1)

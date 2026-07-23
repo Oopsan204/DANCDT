@@ -153,6 +153,7 @@ namespace DACDT_2026
         
         private string currentView = "control";
         private int navigationRefreshVersion;
+        private int dxfStatePushVersion;
         private string currentTheme = "dark";
         private string plcIpAddress = "192.168.3.39";
         private int plcPort = 3000;

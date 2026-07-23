@@ -569,6 +569,10 @@ namespace DACDT_2026
             MixedEngraveCutBuildResult build =
                 BuildMixedEngraveCutProgram(document, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
+            ProcessRow[] publishedRowsSnapshot = build.Rows.ToArray();
+            bool publishedHasEngraveCut = publishedRowsSnapshot.Any(row =>
+                string.Equals(row?.ProcessKind, EngraveCutProcessComposer.EngraveKind, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(row?.ProcessKind, EngraveCutProcessComposer.CutKind, StringComparison.OrdinalIgnoreCase));
 
             bool published = false;
             await RunOnUiAsync(() =>
@@ -590,6 +594,16 @@ namespace DACDT_2026
                     isMixedEngraveCutProgram = activeCadDocument != null;
                     selectedCadPointKey = activeCadDocument?.Points?.FirstOrDefault()?.Key;
                     ui.IsStartActionEnabled = processRows.Count > 0;
+                    Interlocked.Increment(ref dxfStatePushVersion);
+                    PublishProcessRowWindowState(
+                        publishedRowsSnapshot,
+                        publishedHasEngraveCut,
+                        activeDocumentKind,
+                        GetActiveProgramIndex(),
+                        offsetX,
+                        offsetY,
+                        wcsOffsetX.ToArray(),
+                        wcsOffsetY.ToArray());
                     if (!cadProgramCompilationState.TryPublish(version))
                     {
                         cadProgramPublishedDocument = null;
