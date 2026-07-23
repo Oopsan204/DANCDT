@@ -66,6 +66,7 @@ namespace DACDT_2026.Tests
                 ZHeightCommandUsesD110ThenPulsesM212();
                 WebCadUploadReassemblesChunks();
                 WebCadUploadReassemblesBinaryChunks();
+                WebCadUploadReportsMissingChunksForRetry();
                 WebCadBinaryUploadUsesRawMqttPayloads();
                 WebCadUploadRejectsUnsupportedFiles();
                 CadMqttTransferSplitsJsonItemsByUtf8Size();
@@ -842,6 +843,16 @@ namespace DACDT_2026.Tests
             AssertEqual("G1 X10 Y10", System.Text.Encoding.UTF8.GetString(upload.Assemble()), "Binary upload chunks should reassemble in index order.");
         }
 
+        private static void WebCadUploadReportsMissingChunksForRetry()
+        {
+            var upload = new WebCadUploadSession();
+            upload.Begin("job-missing", "part.nc", totalChunks: 3, totalBytes: 6);
+            upload.AddBinaryChunk("job-missing", 0, new byte[] { 1, 2 });
+            upload.AddBinaryChunk("job-missing", 2, new byte[] { 5, 6 });
+
+            AssertEqual("1", string.Join(",", upload.GetMissingChunkIndexes()), "Upload should report missing chunk indexes for retry.");
+        }
+
         private static void WebCadBinaryUploadUsesRawMqttPayloads()
         {
             string webSource = File.ReadAllText(GetRepositoryPath("docs", "index.html"));
@@ -851,9 +862,12 @@ namespace DACDT_2026.Tests
 
             AssertTrue(webSource.Contains("new Paho.MQTT.Message(bytes)"), "Web CAD upload should construct raw MQTT binary messages.");
             AssertTrue(webSource.Contains("DACDT/cad/upload/binary/"), "Web CAD binary chunks should carry job and index in the topic.");
+            int binaryMethodIndex = webSource.IndexOf("publishBinaryCadChunk", StringComparison.Ordinal);
+            AssertTrue(binaryMethodIndex >= 0 && webSource.IndexOf("msg.qos = 0;", binaryMethodIndex, StringComparison.Ordinal) >= 0, "Binary CAD chunks should use QoS 0 for continuous transfer.");
             AssertTrue(mqttSource.Contains("BinaryMessageReceived"), "MQTT service should expose raw binary upload messages.");
             AssertTrue(formSource.Contains("DACDT/cad/upload/binary/#"), "App should subscribe to binary CAD upload chunks.");
             AssertTrue(uploadSource.Contains("AddBinaryChunk"), "App upload handler should assemble raw binary chunks.");
+            AssertTrue(uploadSource.Contains("GetMissingChunkIndexes"), "App upload handler should report missing chunks for retry.");
         }
 
         private static void WebCadUploadRejectsUnsupportedFiles()

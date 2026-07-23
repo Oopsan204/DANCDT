@@ -59,7 +59,7 @@ namespace DACDT_2026
             }
             catch (Exception ex)
             {
-                await PublishCadUploadStatusAsync("error", ex.Message, webCadUploadSession.ReceivedChunks, webCadUploadSession.ExpectedChunks);
+                await PublishCadUploadStatusAsync("error", ex.Message, webCadUploadSession.ReceivedChunks, webCadUploadSession.ExpectedChunks, webCadUploadSession.GetMissingChunkIndexes());
                 await NotifyAsync("error", "Web CAD Upload", ex.Message);
             }
             finally
@@ -131,7 +131,7 @@ namespace DACDT_2026
             }
             catch (Exception ex)
             {
-                await PublishCadUploadStatusAsync("error", ex.Message, webCadUploadSession.ReceivedChunks, webCadUploadSession.ExpectedChunks);
+                await PublishCadUploadStatusAsync("error", ex.Message, webCadUploadSession.ReceivedChunks, webCadUploadSession.ExpectedChunks, webCadUploadSession.GetMissingChunkIndexes());
                 await NotifyAsync("error", "Web CAD Upload", ex.Message);
             }
         }
@@ -266,21 +266,26 @@ namespace DACDT_2026
             await PublishAllMqttAsync();
         }
 
-        private async Task PublishCadUploadStatusAsync(string status, string message, int receivedChunks, int totalChunks)
+        private async Task PublishCadUploadStatusAsync(string status, string message, int receivedChunks, int totalChunks, IEnumerable<int> missingChunks = null)
         {
             if (mqttService == null || !mqttService.IsConnected)
                 return;
 
             var serializer = new JavaScriptSerializer();
-            string payload = serializer.Serialize(new Dictionary<string, object>
+            var statusData = new Dictionary<string, object>
             {
+                { "jobId", webCadUploadSession.JobId ?? "" },
                 { "status", status },
                 { "message", message },
                 { "fileName", webCadUploadSession.FileName ?? "" },
                 { "receivedChunks", receivedChunks },
                 { "totalChunks", totalChunks },
                 { "ts", DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture) }
-            });
+            };
+            if (missingChunks != null)
+                statusData["missingChunks"] = missingChunks.ToArray();
+
+            string payload = serializer.Serialize(statusData);
             await mqttService.PublishAsync("DACDT/cad/upload/status", payload);
         }
 

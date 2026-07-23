@@ -383,7 +383,7 @@ namespace DACDT_2026
         public void WriteDeviceValue(string deviceName, int value)
         {
             if (!isConnected) throw new InvalidOperationException("Chưa kết nối PLC");
-
+             
             int result = WriteInt32ToDevicePath(deviceName, value, out string method);
             if (result != 0)
             {
