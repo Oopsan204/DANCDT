@@ -4,6 +4,7 @@ using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Threading;
 
 namespace DACDT_2026.Views
 {
@@ -12,10 +13,17 @@ namespace DACDT_2026.Views
         private string activeHold;
         private Button activeHoldButton;
         private WpfUiState observedState;
+        private readonly DispatcherTimer activeProgramScrollTimer;
+        private bool activeProgramScrollPending;
 
         public DashboardView()
         {
             InitializeComponent();
+            activeProgramScrollTimer = new DispatcherTimer(DispatcherPriority.Background)
+            {
+                Interval = TimeSpan.FromMilliseconds(100)
+            };
+            activeProgramScrollTimer.Tick += ActiveProgramScrollTimer_Tick;
             DataContextChanged += DashboardView_DataContextChanged;
         }
 
@@ -74,6 +82,9 @@ namespace DACDT_2026.Views
 
         private void DashboardView_DataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
         {
+            activeProgramScrollTimer.Stop();
+            activeProgramScrollPending = false;
+
             if (observedState != null)
             {
                 observedState.PropertyChanged -= ObservedState_PropertyChanged;
@@ -87,17 +98,34 @@ namespace DACDT_2026.Views
                 observedState.ProgramRows.CollectionChanged += ProgramRows_CollectionChanged;
             }
 
-            ScrollActiveProgramRow();
+            QueueActiveProgramScroll();
         }
 
         private void ObservedState_PropertyChanged(object sender, PropertyChangedEventArgs e)
         {
             if (e.PropertyName == nameof(WpfUiState.ActiveProgramIndex))
-                ScrollActiveProgramRow();
+                QueueActiveProgramScroll();
         }
 
         private void ProgramRows_CollectionChanged(object sender, NotifyCollectionChangedEventArgs e)
         {
+            QueueActiveProgramScroll();
+        }
+
+        private void QueueActiveProgramScroll()
+        {
+            activeProgramScrollPending = true;
+            if (!activeProgramScrollTimer.IsEnabled)
+                activeProgramScrollTimer.Start();
+        }
+
+        private void ActiveProgramScrollTimer_Tick(object sender, EventArgs e)
+        {
+            activeProgramScrollTimer.Stop();
+            if (!activeProgramScrollPending)
+                return;
+
+            activeProgramScrollPending = false;
             ScrollActiveProgramRow();
         }
 
@@ -121,7 +149,7 @@ namespace DACDT_2026.Views
             if (activeRow == null)
                 return;
 
-            Dispatcher.BeginInvoke(new Action(() => ProgramGrid.ScrollIntoView(activeRow)));
+            ProgramGrid.ScrollIntoView(activeRow);
         }
 
         private void ProgramGrid_ScrollChanged(object sender, ScrollChangedEventArgs e)

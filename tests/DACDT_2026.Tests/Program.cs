@@ -110,6 +110,7 @@ namespace DACDT_2026.Tests
                 TestAreaInvalidatesCadRowsWithoutSchedulingCompilation();
                 CadCompilationIsCancelledWhenDocumentClearsOrAppCloses();
                 LargeRingBufferRunsPlcIoOutsideUiThread();
+                ProgramMonitorAutoScrollIsLatestOnlyAndThrottled();
                 CadInteractionAvoidsExpensiveHitTestingAndFullStateRebuild();
                 CadInteractionUsesTemporaryBitmapCacheOnlyWhileInteracting();
                 SettingsViewUsesApprovedEnglishContract();
@@ -1414,6 +1415,34 @@ namespace DACDT_2026.Tests
                 "The send workflow must await ring initialisation and reject failure.");
             AssertTrue(enableRun > rejectFailure,
                 "RUN must only be enabled after ring initialisation succeeds.");
+        }
+
+        private static void ProgramMonitorAutoScrollIsLatestOnlyAndThrottled()
+        {
+            string[] files = { "DashboardView.xaml.cs", "MonitorView.xaml.cs" };
+            foreach (string file in files)
+            {
+                string source = File.ReadAllText(GetRepositoryPath(
+                    "src", "DACDT_2026.App", "Views", file));
+                string propertyChanged = ExtractMethodBody(
+                    source, "private void ObservedState_PropertyChanged");
+                string rowsChanged = ExtractMethodBody(
+                    source, "private void ProgramRows_CollectionChanged");
+
+                AssertTrue(source.Contains("DispatcherTimer activeProgramScrollTimer"),
+                    file + " must use one reusable auto-scroll timer.");
+                AssertTrue(source.Contains("TimeSpan.FromMilliseconds(100)"),
+                    file + " must limit auto-scroll work to 10 updates per second.");
+                AssertTrue(propertyChanged.Contains("QueueActiveProgramScroll();")
+                    && rowsChanged.Contains("QueueActiveProgramScroll();"),
+                    file + " must coalesce active-row and row-window changes.");
+                AssertTrue(source.Contains("activeProgramScrollTimer.Stop();")
+                    && source.Contains("activeProgramScrollPending = false;"),
+                    file + " must consume only the latest pending scroll.");
+                AssertTrue(!source.Contains(
+                        "Dispatcher.BeginInvoke(new Action(() => ProgramGrid.ScrollIntoView(activeRow)))"),
+                    file + " must not queue one Dispatcher operation per active row.");
+            }
         }
 
         private static void CadInteractionUsesTemporaryBitmapCacheOnlyWhileInteracting()
