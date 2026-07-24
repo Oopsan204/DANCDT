@@ -1531,8 +1531,14 @@ namespace DACDT_2026
                         _ = SendProgressAsync(false, 0);
                     };
 
-                    // Start ring buffer (load points 1-599 + JUMP at 600, then cross-write by Md.44)
-                    _ = ringRunner.StartAsync(); // Fire-and-forget — runs while QD75 executes
+                    // Load points 1-599 + JUMP at 600 in the background before enabling RUN.
+                    bool ringReady = await ringRunner.StartAsync();
+                    if (!ringReady)
+                    {
+                        if (ReferenceEquals(activeRingRunner, ringRunner))
+                            activeRingRunner = null;
+                        return false;
+                    }
 
                     ui.IsStartActionEnabled = true;
 

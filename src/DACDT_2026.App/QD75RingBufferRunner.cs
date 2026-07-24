@@ -44,10 +44,10 @@ namespace DACDT_2026
             this.allRows = allRows ?? new List<QD75BufferWriter.PositioningDataRow>();
         }
 
-        public async Task StartAsync()
+        public async Task<bool> StartAsync()
         {
             if (IsRunning)
-                return;
+                return true;
 
             IsRunning = true;
             completionRaised = false;
@@ -59,16 +59,41 @@ namespace DACDT_2026
 
                 if (allRows.Count <= BufferSize)
                 {
-                    Log($"Ring buffer not required for {allRows.Count} points.");
-                    WriteBufferRange(CloneRows(allRows), Zone1Offset);
-                    totalPointsLoaded = allRows.Count;
-                    OnProgress?.Invoke(totalPointsLoaded, allRows.Count);
-                    RaiseCompleteOnce();
-                    return;
+                    await Task.Run(() =>
+                    {
+                        Log($"Ring buffer not required for {allRows.Count} points.");
+                        WriteBufferRange(CloneRows(allRows), Zone1Offset);
+                        totalPointsLoaded = allRows.Count;
+                        OnProgress?.Invoke(totalPointsLoaded, allRows.Count);
+                        RaiseCompleteOnce();
+                    }, cts.Token).ConfigureAwait(false);
+                    IsRunning = false;
+                    return true;
                 }
 
-                LoadInitialBuffer();
-                await MonitorMd44AndRefillAsync(cts.Token);
+                await Task.Run(() => LoadInitialBuffer(), cts.Token).ConfigureAwait(false);
+                _ = Task.Run(() => MonitorAndFinalizeAsync());
+                return true;
+            }
+            catch (OperationCanceledException)
+            {
+                Log("Ring buffer stopped.");
+                IsRunning = false;
+                return false;
+            }
+            catch (Exception ex)
+            {
+                OnError?.Invoke(ex.Message);
+                IsRunning = false;
+                return false;
+            }
+        }
+
+        private async Task MonitorAndFinalizeAsync()
+        {
+            try
+            {
+                await MonitorMd44AndRefillAsync(cts.Token).ConfigureAwait(false);
             }
             catch (OperationCanceledException)
             {
@@ -157,7 +182,7 @@ namespace DACDT_2026
                     }
                 }
 
-                await Task.Delay(PollIntervalMs, ct);
+                await Task.Delay(PollIntervalMs, ct).ConfigureAwait(false);
             }
         }
 

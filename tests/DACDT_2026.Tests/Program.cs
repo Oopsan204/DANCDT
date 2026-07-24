@@ -109,6 +109,7 @@ namespace DACDT_2026.Tests
                 CadExecutionConsumersEnsureCurrentRows();
                 TestAreaInvalidatesCadRowsWithoutSchedulingCompilation();
                 CadCompilationIsCancelledWhenDocumentClearsOrAppCloses();
+                LargeRingBufferRunsPlcIoOutsideUiThread();
                 CadInteractionAvoidsExpensiveHitTestingAndFullStateRebuild();
                 CadInteractionUsesTemporaryBitmapCacheOnlyWhileInteracting();
                 SettingsViewUsesApprovedEnglishContract();
@@ -1379,6 +1380,40 @@ namespace DACDT_2026.Tests
                 "private async Task CompileCadProgramAsync");
             AssertTrue(refresh.Contains("RefreshCadSelectionPreviewAsync"), "Path selection must use a lightweight preview refresh.");
             AssertTrue(!refresh.Contains("await PushDxfStateAsync();"), "Selecting a path must not rebuild the complete UI state.");
+        }
+
+        private static void LargeRingBufferRunsPlcIoOutsideUiThread()
+        {
+            string runner = File.ReadAllText(GetRepositoryPath(
+                "src", "DACDT_2026.App", "QD75RingBufferRunner.cs"));
+            string handler = File.ReadAllText(GetRepositoryPath(
+                "src", "DACDT_2026.App", "Form1.DxfHandler.cs"));
+            string monitor = ExtractMethodBody(
+                runner, "private async Task MonitorMd44AndRefillAsync");
+            string send = ExtractMethodBody(
+                handler, "private async Task<bool> HandleSendCadXAsync");
+
+            AssertTrue(runner.Contains(
+                    "await Task.Run(() => LoadInitialBuffer(), cts.Token).ConfigureAwait(false);"),
+                "Ring initial PLC writes must run outside the UI thread.");
+            AssertTrue(runner.Contains("_ = Task.Run(() => MonitorAndFinalizeAsync());"),
+                "Ring monitoring and refill must be launched on the thread pool.");
+            AssertTrue(monitor.Contains(
+                    "await Task.Delay(PollIntervalMs, ct).ConfigureAwait(false);"),
+                "Ring polling continuations must not capture the WPF UI context.");
+
+            int awaitReady = send.IndexOf(
+                "bool ringReady = await ringRunner.StartAsync();",
+                StringComparison.Ordinal);
+            int rejectFailure = send.IndexOf("if (!ringReady)", awaitReady, StringComparison.Ordinal);
+            int enableRun = send.IndexOf(
+                "ui.IsStartActionEnabled = true;",
+                Math.Max(0, awaitReady),
+                StringComparison.Ordinal);
+            AssertTrue(awaitReady >= 0 && rejectFailure > awaitReady,
+                "The send workflow must await ring initialisation and reject failure.");
+            AssertTrue(enableRun > rejectFailure,
+                "RUN must only be enabled after ring initialisation succeeds.");
         }
 
         private static void CadInteractionUsesTemporaryBitmapCacheOnlyWhileInteracting()
