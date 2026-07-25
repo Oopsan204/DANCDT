@@ -100,11 +100,8 @@ namespace DACDT_2026
         private string fileKind = "";
         private string filePath = "";
         private string fileName = "";
-        private string rawGcodeText = "";
         private string globalSpeedInput = "1000";
         private string globalSpeedM3Input = "10000";
-        private string gcodeSpeedM3Input = "10000";
-        private string rapidSpeedInput = "10000";
         private string testEngraveSpeedInput = "10000";
         private string engraveSpeedInput = "1200";
         private string engravePowerInput = "35";
@@ -116,9 +113,6 @@ namespace DACDT_2026
         private double offsetYInput;
         private double workspaceWidthInput = 170.0;
         private double workspaceHeightInput = 170.0;
-        private string activeWcs = "G54";
-        private double wcsOffsetXInput;
-        private double wcsOffsetYInput;
         private string configurationFilePathInput = "";
         private string writeAddressInput = "D100";
         private int writeValueInput = 12345;
@@ -171,7 +165,6 @@ namespace DACDT_2026
         public BulkObservableCollection<CadAxisLineViewModel> CadAxisLines { get; } = new BulkObservableCollection<CadAxisLineViewModel>();
         public BulkObservableCollection<CadAxisLabelViewModel> CadAxisLabels { get; } = new BulkObservableCollection<CadAxisLabelViewModel>();
         public BulkObservableCollection<CadTrackingPointViewModel> CadTrackingPoints { get; } = new BulkObservableCollection<CadTrackingPointViewModel>();
-        public BulkObservableCollection<WcsOffsetViewModel> WcsOffsets { get; } = new BulkObservableCollection<WcsOffsetViewModel>();
 
         public ICommand SwitchViewCommand { get; set; }
         public ICommand ToggleThemeCommand { get; set; }
@@ -206,8 +199,6 @@ namespace DACDT_2026
         public ICommand SaveSettingsCommand { get; set; }
         public ICommand BrowseConfigurationFileCommand { get; set; }
         public ICommand SetWorkspaceCommand { get; set; }
-        public ICommand SelectWcsCommand { get; set; }
-        public ICommand SetWcsCommand { get; set; }
         public ICommand ApplyPlcConnectionCommand { get; set; }
         public ICommand RefreshCamerasCommand { get; set; }
         public ICommand StartCameraCommand { get; set; }
@@ -423,12 +414,6 @@ namespace DACDT_2026
             }
         }
 
-        public string RawGcodeText
-        {
-            get => rawGcodeText;
-            set => SetProperty(ref rawGcodeText, value);
-        }
-
         public string GlobalSpeedInput
         {
             get => globalSpeedInput;
@@ -439,18 +424,6 @@ namespace DACDT_2026
         {
             get => globalSpeedM3Input;
             set => SetProperty(ref globalSpeedM3Input, value);
-        }
-
-        public string GcodeSpeedM3Input
-        {
-            get => gcodeSpeedM3Input;
-            set => SetProperty(ref gcodeSpeedM3Input, value);
-        }
-
-        public string RapidSpeedInput
-        {
-            get => rapidSpeedInput;
-            set => SetProperty(ref rapidSpeedInput, value);
         }
 
         public string TestEngraveSpeedInput
@@ -517,24 +490,6 @@ namespace DACDT_2026
         {
             get => workspaceHeightInput;
             set => SetProperty(ref workspaceHeightInput, value);
-        }
-
-        public string ActiveWcs
-        {
-            get => activeWcs;
-            set => SetProperty(ref activeWcs, value);
-        }
-
-        public double WcsOffsetXInput
-        {
-            get => wcsOffsetXInput;
-            set => SetProperty(ref wcsOffsetXInput, value);
-        }
-
-        public double WcsOffsetYInput
-        {
-            get => wcsOffsetYInput;
-            set => SetProperty(ref wcsOffsetYInput, value);
         }
 
         public string ConfigurationFilePathInput
@@ -1267,31 +1222,6 @@ namespace DACDT_2026
             }
         }
         public string ActiveMarker => IsActive ? "RUN" : string.Empty;
-    }
-
-    public sealed class WcsOffsetViewModel : ObservableState
-    {
-        private string name;
-        private double offsetX;
-        private double offsetY;
-
-        public string Name
-        {
-            get => name;
-            set => SetProperty(ref name, value);
-        }
-
-        public double OffsetX
-        {
-            get => offsetX;
-            set => SetProperty(ref offsetX, value);
-        }
-
-        public double OffsetY
-        {
-            get => offsetY;
-            set => SetProperty(ref offsetY, value);
-        }
     }
 
     public sealed class CadPrimitiveViewModel : ObservableState

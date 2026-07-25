@@ -104,12 +104,6 @@
     <Compile Include="..\..\src\DACDT_2026.App\SimpleDxfParser.cs">
       <Link>SimpleDxfParser.cs</Link>
     </Compile>
-    <Compile Include="..\..\src\DACDT_2026.App\GcodeLineSanitizer.cs">
-      <Link>GcodeLineSanitizer.cs</Link>
-    </Compile>
-    <Compile Include="..\..\src\DACDT_2026.App\NcGcodeCleaner.cs">
-      <Link>NcGcodeCleaner.cs</Link>
-    </Compile>
     <Compile Include="..\..\src\DACDT_2026.App\WpfThemeManager.cs">
       <Link>WpfThemeManager.cs</Link>
     </Compile>

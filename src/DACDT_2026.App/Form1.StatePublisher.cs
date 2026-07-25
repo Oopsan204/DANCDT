@@ -191,15 +191,11 @@ namespace DACDT_2026
                 if (generation != Volatile.Read(ref cadMqttPublishGeneration))
                     return;
 
-                bool isGcodeKind = string.Equals(activeDocumentKind, "GCODE", StringComparison.OrdinalIgnoreCase);
                 var rawDoc = CloneCadDocumentForUi(activeCadDocument);
                 var displayDoc = CreateDisplayCadDocument(
                     rawDoc,
-                    isGcodeKind,
                     offsetX,
-                    offsetY,
-                    wcsOffsetX.ToArray(),
-                    wcsOffsetY.ToArray());
+                    offsetY);
                 var viewBounds = BuildCadViewBounds(rawDoc, workspaceWidth, workspaceHeight);
 
                 var primitiveItems = new List<string>();
@@ -297,7 +293,6 @@ namespace DACDT_2026
             sb.AppendFormat("\"sourceType\":\"{0}\"", EscapeJson(prim.SourceType ?? string.Empty));
             sb.AppendFormat(",\"isCw\":{0}", prim.IsCw ? "true" : "false");
             sb.AppendFormat(",\"isCircle\":{0}", prim.IsCircle ? "true" : "false");
-            sb.AppendFormat(",\"wcsIndex\":{0}", prim.WcsIndex);
             sb.AppendFormat(",\"mCode\":\"{0}\"", EscapeJson(prim.MCodeValue ?? string.Empty));
             sb.AppendFormat(",\"speed\":\"{0}\"", EscapeJson(prim.Speed ?? string.Empty));
             sb.AppendFormat(",\"dwell\":\"{0}\"", EscapeJson(prim.Dwell ?? string.Empty));
@@ -514,12 +509,6 @@ namespace DACDT_2026
                 rowOx = 0.0;
                 rowOy = 0.0;
             }
-            else if (string.Equals(activeDocumentKind, "GCODE", StringComparison.OrdinalIgnoreCase))
-            {
-                int wIdx = Math.Max(0, Math.Min(5, row.WcsIndex));
-                rowOx = wcsOffsetX[wIdx];
-                rowOy = wcsOffsetY[wIdx];
-            }
             else
             {
                 rowOx = offsetX;
@@ -560,15 +549,11 @@ namespace DACDT_2026
             int pushVersion = Interlocked.Increment(ref dxfStatePushVersion);
             var snapDocSource = activeCadDocument;
             var snapKind = activeDocumentKind;
-            bool snapIsGcodeKind = string.Equals(snapKind, "GCODE", StringComparison.OrdinalIgnoreCase);
-            var snapRawText = snapKind == "GCODE" ? rawGcodeText : string.Empty;
             var snapPointKey = selectedCadPointKey ?? string.Empty;
             var snapOx = offsetX;
             var snapOy = offsetY;
             var snapWorkspaceWidth = workspaceWidth;
             var snapWorkspaceHeight = workspaceHeight;
-            var snapWcsOffsetX = wcsOffsetX.ToArray();
-            var snapWcsOffsetY = wcsOffsetY.ToArray();
             var snapConnected = PlcConnectionGuard.CanUsePlc(plcComm != null, plcComm != null && plcComm.IsConnected);
             var snapRobotRawX = axCurrentPos[0];
             var snapRobotRawY = axCurrentPos[1];
@@ -577,15 +562,12 @@ namespace DACDT_2026
             var snapCurrentTheme = currentTheme;
             var snapGlobalSpeed = globalSpeed;
             var snapGlobalSpeedM3 = globalSpeedM3;
-            var snapGcodeSpeedM3 = gcodeSpeedM3;
-            var snapRapidSpeed = rapidSpeed;
             var snapEngraveSpeed = engraveSpeed;
             var snapEngravePower = engravePower;
             var snapCutSpeed = cutSpeed;
             var snapCutPower = cutPower;
             var snapGlobalDwellM3 = globalDwellM3;
             var snapGlobalDwellM4 = globalDwellM4;
-            var snapActiveWcs = activeWcs;
             var snapMixedEngraveCut = isMixedEngraveCutProgram;
 
             if (!string.Equals(snapCurrentView, "dxf", StringComparison.OrdinalIgnoreCase))
@@ -605,7 +587,6 @@ namespace DACDT_2026
                     ui.FileKind = snapKind ?? string.Empty;
                     ui.FilePath = snapDocSource?.FilePath ?? string.Empty;
                     ui.FileName = snapDocSource?.FileName ?? string.Empty;
-                    ui.ActiveWcs = snapActiveWcs;
                 });
                 return;
             }
@@ -616,11 +597,8 @@ namespace DACDT_2026
                 var rawDoc = snapDocSource;
                 var snapDoc = CadDisplayDocumentBuilder.Build(
                     rawDoc,
-                    snapIsGcodeKind,
                     snapOx,
                     snapOy,
-                    snapWcsOffsetX,
-                    snapWcsOffsetY,
                     CancellationToken.None);
                 var projection = CreateCadProjection(snapDoc, snapWorkspaceWidth, snapWorkspaceHeight);
                 var cadPreviewGeometry = snapMixedEngraveCut ? null : BuildCadPreviewGeometry(snapDoc, projection);
@@ -656,15 +634,10 @@ namespace DACDT_2026
                 ui.FileKind = snapKind ?? string.Empty;
                 ui.FilePath = model.doc?.FilePath ?? string.Empty;
                 ui.FileName = model.doc?.FileName ?? string.Empty;
-                ui.RawGcodeText = snapRawText != null && snapRawText.Length > 200000
-                    ? snapRawText.Substring(0, 200000) + "\n... [TRUNCATED FOR UI]"
-                    : snapRawText ?? string.Empty;
                 if (!string.Equals(snapCurrentView, "settings", StringComparison.OrdinalIgnoreCase))
                 {
                     ui.GlobalSpeedInput = snapGlobalSpeed;
                     ui.GlobalSpeedM3Input = snapGlobalSpeedM3;
-                    ui.GcodeSpeedM3Input = snapGcodeSpeedM3;
-                    ui.RapidSpeedInput = snapRapidSpeed;
                     ui.EngraveSpeedInput = snapEngraveSpeed;
                     ui.EngravePowerInput = snapEngravePower;
                     ui.CutSpeedInput = snapCutSpeed;
@@ -676,25 +649,15 @@ namespace DACDT_2026
                     ui.WorkspaceWidthInput = snapWorkspaceWidth;
                     ui.WorkspaceHeightInput = snapWorkspaceHeight;
                 }
-                ui.ActiveWcs = snapActiveWcs;
                 ui.ActiveProgramIndex = snapActiveProgramIndex;
-                int wIdx = GetWcsIndex(snapActiveWcs);
-                if (!string.Equals(snapCurrentView, "settings", StringComparison.OrdinalIgnoreCase))
-                {
-                    ui.WcsOffsetXInput = snapWcsOffsetX[wIdx];
-                    ui.WcsOffsetYInput = snapWcsOffsetY[wIdx];
-                }
                 ui.SelectedPointKey = snapPointKey;
 
                 PublishProcessRowWindowState(
                     snapRowsSource,
                     model.hasEngraveCut,
-                    snapKind,
                     snapActiveProgramIndex,
                     snapOx,
-                    snapOy,
-                    snapWcsOffsetX,
-                    snapWcsOffsetY);
+                    snapOy);
                 ui.CadPreviewGeometry = model.cadPreviewGeometry;
                 ui.CadEngravePreviewGeometry = model.cadEngravePreviewGeometry;
                 ui.CadCutPreviewGeometry = model.cadCutPreviewGeometry;
@@ -731,19 +694,14 @@ namespace DACDT_2026
             double snapWorkspaceHeight = workspaceHeight;
             double snapOffsetX = offsetX;
             double snapOffsetY = offsetY;
-            double[] snapWcsOffsetX = wcsOffsetX.ToArray();
-            double[] snapWcsOffsetY = wcsOffsetY.ToArray();
             var preview = await Task.Run(() =>
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 CadDocumentService.CadLoadResult displayDocument =
                     CadDisplayDocumentBuilder.Build(
                         selectedDocument,
-                        isGcodeKind: false,
-                        dxfOffsetX: snapOffsetX,
-                        dxfOffsetY: snapOffsetY,
-                        displayWcsOffsetX: snapWcsOffsetX,
-                        displayWcsOffsetY: snapWcsOffsetY,
+                        offsetX: snapOffsetX,
+                        offsetY: snapOffsetY,
                         cancellationToken: cancellationToken);
                 var projection = CreateCadProjection(
                     displayDocument,
@@ -830,20 +788,15 @@ namespace DACDT_2026
 
         private static CadDocumentService.CadLoadResult CreateDisplayCadDocument(
             CadDocumentService.CadLoadResult rawDoc,
-            bool isGcodeKind,
-            double dxfOffsetX,
-            double dxfOffsetY,
-            double[] displayWcsOffsetX,
-            double[] displayWcsOffsetY)
+            double offsetX,
+            double offsetY)
         {
             if (rawDoc == null) return null;
 
             var displayDoc = CloneCadDocumentForUi(rawDoc);
             if (displayDoc == null) return null;
 
-            bool anyOffset = isGcodeKind
-                ? HasAnyOffset(displayWcsOffsetX) || HasAnyOffset(displayWcsOffsetY)
-                : Math.Abs(dxfOffsetX) > 1e-9 || Math.Abs(dxfOffsetY) > 1e-9;
+            bool anyOffset = Math.Abs(offsetX) > 1e-9 || Math.Abs(offsetY) > 1e-9;
 
             if (!anyOffset)
                 return displayDoc;
@@ -852,49 +805,13 @@ namespace DACDT_2026
             {
                 foreach (var primitive in displayDoc.Primitives)
                 {
-                    GetDisplayOffsetForPrimitive(
-                        primitive,
-                        isGcodeKind,
-                        dxfOffsetX,
-                        dxfOffsetY,
-                        displayWcsOffsetX,
-                        displayWcsOffsetY,
-                        out double ox,
-                        out double oy);
-
-                    OffsetCoordinateList(primitive.Points, ox, oy);
-                    OffsetCoordinate(primitive.Center, ox, oy);
+                    OffsetCoordinateList(primitive.Points, offsetX, offsetY);
+                    OffsetCoordinate(primitive.Center, offsetX, offsetY);
                 }
             }
 
             displayDoc.Bounds = BuildDisplayBounds(displayDoc.Primitives);
             return displayDoc;
-        }
-
-        private static bool HasAnyOffset(double[] values)
-            => values != null && values.Any(value => Math.Abs(value) > 1e-9);
-
-        private static void GetDisplayOffsetForPrimitive(
-            CadDocumentService.CadPrimitiveData primitive,
-            bool isGcodeKind,
-            double dxfOffsetX,
-            double dxfOffsetY,
-            double[] displayWcsOffsetX,
-            double[] displayWcsOffsetY,
-            out double ox,
-            out double oy)
-        {
-            if (isGcodeKind)
-            {
-                int wIdx = Math.Max(0, Math.Min(5, primitive?.WcsIndex ?? 0));
-                ox = displayWcsOffsetX != null && displayWcsOffsetX.Length > wIdx ? displayWcsOffsetX[wIdx] : 0.0;
-                oy = displayWcsOffsetY != null && displayWcsOffsetY.Length > wIdx ? displayWcsOffsetY[wIdx] : 0.0;
-            }
-            else
-            {
-                ox = dxfOffsetX;
-                oy = dxfOffsetY;
-            }
         }
 
         private static void OffsetCoordinateList(IList<CadDocumentService.CadCoordinate> points, double ox, double oy)
@@ -1000,8 +917,7 @@ namespace DACDT_2026
                 Speed = primitive.Speed,
                 Dwell = primitive.Dwell,
                 ProcessKind = primitive.ProcessKind,
-                PathId = primitive.PathId,
-                WcsIndex = primitive.WcsIndex
+                PathId = primitive.PathId
             };
         }
 
@@ -1011,28 +927,18 @@ namespace DACDT_2026
         private void PublishProcessRowWindowState(
             ProcessRow[] rows,
             bool hasEngraveCut,
-            string documentKind,
             int activeIndex,
-            double dxfOffsetX,
-            double dxfOffsetY,
-            double[] displayWcsOffsetX,
-            double[] displayWcsOffsetY)
+            double offsetX,
+            double offsetY)
         {
             ProcessRow[] source = rows ?? Array.Empty<ProcessRow>();
-            bool isGcodeKind = string.Equals(
-                documentKind,
-                "GCODE",
-                StringComparison.OrdinalIgnoreCase);
             Func<int, int, IReadOnlyList<ProcessRowViewModel>> windowLoader =
                 (start, count) => BuildProcessRowViewModelWindow(
                     source,
                     start,
                     count,
-                    isGcodeKind,
-                    dxfOffsetX,
-                    dxfOffsetY,
-                    displayWcsOffsetX,
-                    displayWcsOffsetY);
+                    offsetX,
+                    offsetY);
 
             ui.SetProcessRows(
                 source.Length,
@@ -1045,11 +951,8 @@ namespace DACDT_2026
             ProcessRow[] rows,
             int start,
             int count,
-            bool isGcodeKind,
-            double dxfOffsetX,
-            double dxfOffsetY,
-            double[] displayWcsOffsetX,
-            double[] displayWcsOffsetY)
+            double offsetX,
+            double offsetY)
         {
             var result = new List<ProcessRowViewModel>();
             if (rows == null || rows.Length == 0 || count <= 0)
@@ -1071,20 +974,10 @@ namespace DACDT_2026
                     rowOffsetX = 0.0;
                     rowOffsetY = 0.0;
                 }
-                else if (isGcodeKind)
-                {
-                    int wcsIndex = Math.Max(0, Math.Min(5, row.WcsIndex));
-                    rowOffsetX = displayWcsOffsetX != null && displayWcsOffsetX.Length > wcsIndex
-                        ? displayWcsOffsetX[wcsIndex]
-                        : 0.0;
-                    rowOffsetY = displayWcsOffsetY != null && displayWcsOffsetY.Length > wcsIndex
-                        ? displayWcsOffsetY[wcsIndex]
-                        : 0.0;
-                }
                 else
                 {
-                    rowOffsetX = dxfOffsetX;
-                    rowOffsetY = dxfOffsetY;
+                    rowOffsetX = offsetX;
+                    rowOffsetY = offsetY;
                 }
 
                 result.Add(new ProcessRowViewModel

@@ -8,11 +8,8 @@ namespace DACDT_2026
     {
         public static CadDocumentService.CadLoadResult Build(
             CadDocumentService.CadLoadResult source,
-            bool isGcodeKind,
-            double dxfOffsetX,
-            double dxfOffsetY,
-            double[] displayWcsOffsetX,
-            double[] displayWcsOffsetY,
+            double offsetX,
+            double offsetY,
             CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -21,9 +18,7 @@ namespace DACDT_2026
             if (display == null)
                 return null;
 
-            bool anyOffset = isGcodeKind
-                ? HasAnyOffset(displayWcsOffsetX) || HasAnyOffset(displayWcsOffsetY)
-                : Math.Abs(dxfOffsetX) > 1e-9 || Math.Abs(dxfOffsetY) > 1e-9;
+            bool anyOffset = Math.Abs(offsetX) > 1e-9 || Math.Abs(offsetY) > 1e-9;
             if (!anyOffset)
                 return display;
 
@@ -41,15 +36,6 @@ namespace DACDT_2026
                 {
                     cancellationToken.ThrowIfCancellationRequested();
                     CadDocumentService.CadPrimitiveData primitive = primitives[primitiveIndex];
-                    GetDisplayOffset(
-                        primitive,
-                        isGcodeKind,
-                        dxfOffsetX,
-                        dxfOffsetY,
-                        displayWcsOffsetX,
-                        displayWcsOffsetY,
-                        out double ox,
-                        out double oy);
 
                     IList<CadDocumentService.CadCoordinate> points = primitive?.Points;
                     if (points != null)
@@ -63,8 +49,8 @@ namespace DACDT_2026
                             if (point == null)
                                 continue;
 
-                            point.X += ox;
-                            point.Y += oy;
+                            point.X += offsetX;
+                            point.Y += offsetY;
                             Include(
                                 point.X,
                                 point.Y,
@@ -80,8 +66,8 @@ namespace DACDT_2026
 
                     if (primitive?.Center != null)
                     {
-                        primitive.Center.X += ox;
-                        primitive.Center.Y += oy;
+                        primitive.Center.X += offsetX;
+                        primitive.Center.Y += offsetY;
                         Include(
                             primitive.Center.X,
                             primitive.Center.Y,
@@ -98,46 +84,6 @@ namespace DACDT_2026
 
             display.Bounds = BuildBounds(minX, minY, maxX, maxY, minZ, maxZ);
             return display;
-        }
-
-        private static bool HasAnyOffset(double[] values)
-        {
-            if (values == null)
-                return false;
-
-            for (int i = 0; i < values.Length; i++)
-            {
-                if (Math.Abs(values[i]) > 1e-9)
-                    return true;
-            }
-
-            return false;
-        }
-
-        private static void GetDisplayOffset(
-            CadDocumentService.CadPrimitiveData primitive,
-            bool isGcodeKind,
-            double dxfOffsetX,
-            double dxfOffsetY,
-            double[] displayWcsOffsetX,
-            double[] displayWcsOffsetY,
-            out double ox,
-            out double oy)
-        {
-            if (!isGcodeKind)
-            {
-                ox = dxfOffsetX;
-                oy = dxfOffsetY;
-                return;
-            }
-
-            int wcsIndex = Math.Max(0, Math.Min(5, primitive?.WcsIndex ?? 0));
-            ox = displayWcsOffsetX != null && displayWcsOffsetX.Length > wcsIndex
-                ? displayWcsOffsetX[wcsIndex]
-                : 0.0;
-            oy = displayWcsOffsetY != null && displayWcsOffsetY.Length > wcsIndex
-                ? displayWcsOffsetY[wcsIndex]
-                : 0.0;
         }
 
         private static void Include(

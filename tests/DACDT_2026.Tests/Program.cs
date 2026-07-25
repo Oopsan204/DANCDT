@@ -18,15 +18,6 @@ namespace DACDT_2026.Tests
         {
             try
             {
-                CleansMastercamNcAndNormalizesLaserCommands();
-                SplitsMastercamModalCodesFromMotionLine();
-                GcodeLineSanitizerAcceptsTrailingDecimalPoint();
-                PreservesLeadingDecimalArcOffsets();
-                DropsZOnlyMovesFromMastercamNc();
-                MovesLaserOnFromRapidToFirstCutMove();
-                ConvertsCutterCompLeadInToRapidPositioning();
-                ConvertsCutterCompLeadOutToRapidPositioning();
-                PreservesSupportedArcAndMotionCommands();
                 CameraSelectionUsesFriendlyNameAndDetectsSwitch();
                 CameraReconnectDelayIsOneSecond();
                 IntervalGateThrottlesRepeatedWork();
@@ -125,6 +116,7 @@ namespace DACDT_2026.Tests
                 DxfRunViewShowsVirtualizedPointMonitor();
                 DxfOnlyViewsRemoveGcodeAndWcsControls();
                 DxfRuntimeHasNoGcodeEntryPoints();
+                ApplicationProjectContainsNoGcodeImplementation();
                 AntigravityUiWorkflowIsGuarded();
                 HelpViewContainsVietnameseOperationalGuide();
                 TelemetryFeatureIsRemoved();
@@ -136,199 +128,6 @@ namespace DACDT_2026.Tests
                 Console.Error.WriteLine(ex.Message);
                 return 1;
             }
-        }
-
-        private static void CleansMastercamNcAndNormalizesLaserCommands()
-        {
-            string input = string.Join(Environment.NewLine, new[]
-            {
-                "%",
-                "O0001 (MASTER CAM FILE)",
-                "N10 G17 G21 G90 G54",
-                "N20 T1 M6",
-                "N30 G43 H1 Z15.",
-                "N40 M8",
-                "N50 G0 X10. Y20.",
-                "N60 M3 S12000",
-                "N70 G1 X30. Y20. F800.",
-                "N80 M5",
-                "N90 M9",
-                "N100 G0 X0. Y0.",
-                "N110 M30",
-                "%"
-            });
-
-            NcGcodeCleaner.CleanResult result = NcGcodeCleaner.Clean(input);
-
-            string expected = string.Join(Environment.NewLine, new[]
-            {
-                "G21 G90 G54",
-                "G0 X10. Y20.",
-                "M3",
-                "G1 X30. Y20. F800.",
-                "M4",
-                "G0 X0. Y0.",
-                "M30"
-            });
-
-            AssertEqual(expected, result.Text.Trim(), "Mastercam NC should be filtered to safe laser G-code.");
-            AssertTrue(result.RemovedLineCount >= 5, "Cleaner should report removed unsupported/header lines.");
-            AssertTrue(result.Warnings.Count > 0, "Cleaner should report warnings for removed or normalized lines.");
-        }
-
-        private static void PreservesSupportedArcAndMotionCommands()
-        {
-            string input = string.Join(Environment.NewLine, new[]
-            {
-                "G21",
-                "G90",
-                "G0 X0 Y0",
-                "M3",
-                "G2 X10 Y0 I5 J0 F600",
-                "G3 X0 Y0 R5",
-                "M4"
-            });
-
-            NcGcodeCleaner.CleanResult result = NcGcodeCleaner.Clean(input);
-
-            AssertEqual(input, result.Text.Trim(), "Cleaner should preserve supported G0/G1/G2/G3 commands.");
-            AssertEqual("0", result.RemovedLineCount.ToString(), "Supported file should not remove lines.");
-        }
-
-        private static void SplitsMastercamModalCodesFromMotionLine()
-        {
-            string input = "N124 G00 G90 G17 G54 X90.5 Y13.9 S4000 M03";
-
-            NcGcodeCleaner.CleanResult result = NcGcodeCleaner.Clean(input);
-
-            string expected = string.Join(Environment.NewLine, new[]
-            {
-                "G90",
-                "G54",
-                "G0 X90.5 Y13.9"
-            });
-
-            AssertEqual(expected, result.Text.Trim(), "Mastercam modal setup G-codes should be split away from the motion line and M3 should not stay on a rapid G0 move.");
-        }
-
-        private static void GcodeLineSanitizerAcceptsTrailingDecimalPoint()
-        {
-            string normalized = GcodeLineSanitizer.NormalizeForParser("N150 G02 X4.9 Y20. I0. J5.1");
-
-            AssertEqual("N150 G02 X4.9 Y20. I0. J5.1", normalized, "NC numbers ending with a decimal point, such as Y20., are valid and must not drop the whole line.");
-            AssertEqual(string.Empty, GcodeLineSanitizer.NormalizeForParser("G01 X-"), "Clearly incomplete numeric input should still be rejected.");
-        }
-
-        private static void PreservesLeadingDecimalArcOffsets()
-        {
-            string input = "N134 G03 X90. Y14.9 I-.5 J0.";
-
-            NcGcodeCleaner.CleanResult result = NcGcodeCleaner.Clean(input);
-
-            AssertEqual("G3 X90. Y14.9 I-.5 J0.", result.Text.Trim(), "NC arc offsets like I-.5 are valid and must be preserved.");
-        }
-
-        private static void DropsZOnlyMovesFromMastercamNc()
-        {
-            string input = string.Join(Environment.NewLine, new[]
-            {
-                "N126 G43 H10 Z25. M08",
-                "N128 Z2.2",
-                "N130 G01 Z-5. F2000.",
-                "N132 G41 D10 Y14.4 F1500.",
-                "G91 Z0.",
-                "N188 G91 G28 Z0.",
-                "N190 G91 G28 X0. Y0."
-            });
-
-            NcGcodeCleaner.CleanResult result = NcGcodeCleaner.Clean(input);
-
-            string expected = string.Join(Environment.NewLine, new[]
-            {
-                "G1",
-                "G0 Y14.4"
-            });
-
-            AssertEqual(expected, result.Text.Trim(), "Z-only CNC setup/plunge/retract moves should be removed for 2D laser cutting.");
-        }
-
-        private static void MovesLaserOnFromRapidToFirstCutMove()
-        {
-            string input = string.Join(Environment.NewLine, new[]
-            {
-                "N124 G00 G90 G17 G54 X90.5 Y13.9 S4000 M03",
-                "N130 G01 Z-5. F2000.",
-                "N134 G03 X90. Y14.9 I-.5 J0."
-            });
-
-            NcGcodeCleaner.CleanResult result = NcGcodeCleaner.Clean(input);
-
-            string expected = string.Join(Environment.NewLine, new[]
-            {
-                "G90",
-                "G54",
-                "G0 X90.5 Y13.9",
-                "G1",
-                "G3 X90. Y14.9 I-.5 J0. M3"
-            });
-
-            AssertEqual(expected, result.Text.Trim(), "M3 on a rapid G0 approach should move to the first real cut move to avoid an unwanted lead-in burn line.");
-        }
-
-        private static void ConvertsCutterCompLeadInToRapidPositioning()
-        {
-            string input = string.Join(Environment.NewLine, new[]
-            {
-                "N124 G00 G90 G17 G54 X90.5 Y13.9 S4000 M03",
-                "N130 G01 Z-5. F2000.",
-                "N132 G41 D10 Y14.4 F1500.",
-                "N134 G03 X90. Y14.9 I-.5 J0.",
-                "N136 G01 X84.213"
-            });
-
-            NcGcodeCleaner.CleanResult result = NcGcodeCleaner.Clean(input);
-
-            string expected = string.Join(Environment.NewLine, new[]
-            {
-                "G90",
-                "G54",
-                "G0 X90.5 Y13.9",
-                "G1",
-                "G0 Y14.4",
-                "G0 X90. Y14.9",
-                "G1 X84.213 M3"
-            });
-
-            AssertEqual(expected, result.Text.Trim(), "Cutter-comp lead-in moves should become rapid positioning so they do not create a burned/visible entry line.");
-        }
-
-        private static void ConvertsCutterCompLeadOutToRapidPositioning()
-        {
-            string input = string.Join(Environment.NewLine, new[]
-            {
-                "N170 G02 X95.1 Y40. I0. J-5.1",
-                "N172 G01 Y20.",
-                "N174 G02 X90. Y14.9 I-5.1 J0.",
-                "N176 G01 X89.5",
-                "N178 G03 X89. Y14.4 I0. J-.5",
-                "N180 G01 G40 Y13.9",
-                "N186 M05"
-            });
-
-            NcGcodeCleaner.CleanResult result = NcGcodeCleaner.Clean(input);
-
-            string expected = string.Join(Environment.NewLine, new[]
-            {
-                "G2 X95.1 Y40. I0. J-5.1",
-                "G1 Y20.",
-                "G2 X90. Y14.9 I-5.1 J0. M4",
-                "G0 X89.5",
-                "G0 X89. Y14.4",
-                "G0 Y13.9",
-                "M4"
-            });
-
-            AssertEqual(expected, result.Text.Trim(), "Cutter-comp lead-out moves should become rapid positioning and laser should turn off before exiting the contour.");
         }
 
         private static void CameraSelectionUsesFriendlyNameAndDetectsSwitch()
@@ -1830,6 +1629,44 @@ namespace DACDT_2026.Tests
                 "The runtime must not recognize CNC/G-code extensions.");
         }
 
+        private static void ApplicationProjectContainsNoGcodeImplementation()
+        {
+            string appRoot = GetRepositoryPath("src", "DACDT_2026.App");
+            string[] extensions = { ".cs", ".xaml", ".csproj", ".config" };
+            string[] prohibited = { "Gcode", "GCODE", "G-code", "Gcode.Utils" };
+
+            foreach (string file in Directory.GetFiles(appRoot, "*", SearchOption.AllDirectories))
+            {
+                if (file.Contains(Path.DirectorySeparatorChar + "bin" + Path.DirectorySeparatorChar)
+                    || file.Contains(Path.DirectorySeparatorChar + "obj" + Path.DirectorySeparatorChar)
+                    || !extensions.Contains(Path.GetExtension(file), StringComparer.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                string source = File.ReadAllText(file);
+                foreach (string token in prohibited)
+                {
+                    AssertTrue(!source.Contains(token),
+                        Path.GetFileName(file) + " must not contain removed G-code token " + token);
+                }
+            }
+
+            string[] removedFiles =
+            {
+                "GcodeCoordinateService.cs",
+                "GcodeDocumentService.cs",
+                "GcodeLineSanitizer.cs",
+                "NcGcodeCleaner.cs"
+            };
+
+            foreach (string file in removedFiles)
+            {
+                AssertTrue(!File.Exists(Path.Combine(appRoot, file)),
+                    file + " must be removed from the DXF-only app.");
+            }
+        }
+
         private static void TelemetryFeatureIsRemoved()
         {
             string appRoot = GetRepositoryPath("src", "DACDT_2026.App");
@@ -1986,11 +1823,8 @@ namespace DACDT_2026.Tests
 
             CadDocumentService.CadLoadResult display = CadDisplayDocumentBuilder.Build(
                 source,
-                isGcodeKind: false,
-                dxfOffsetX: 12.5,
-                dxfOffsetY: -7.25,
-                displayWcsOffsetX: null,
-                displayWcsOffsetY: null,
+                offsetX: 12.5,
+                offsetY: -7.25,
                 cancellationToken: CancellationToken.None);
 
             AssertEqual(
@@ -2120,11 +1954,8 @@ namespace DACDT_2026.Tests
             {
                 CadDisplayDocumentBuilder.Build(
                     NewCadDocumentWithPrimitive(1000),
-                    isGcodeKind: false,
-                    dxfOffsetX: 0,
-                    dxfOffsetY: 0,
-                    displayWcsOffsetX: null,
-                    displayWcsOffsetY: null,
+                    offsetX: 0,
+                    offsetY: 0,
                     cancellationToken: cancellation.Token);
             }
             catch (OperationCanceledException)
@@ -2346,7 +2177,6 @@ namespace DACDT_2026.Tests
                 new[]
                 {
                     typeof(List<CadDocumentService.CadPrimitiveData>),
-                    typeof(bool),
                     typeof(CancellationToken)
                 });
             AssertTrue(cancellableOverload != null,
@@ -2360,7 +2190,6 @@ namespace DACDT_2026.Tests
                     new object[]
                     {
                         new List<CadDocumentService.CadPrimitiveData> { first, second },
-                        false,
                         cancellation.Token
                     });
             }

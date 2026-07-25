@@ -10,7 +10,6 @@ namespace DACDT_2026
     {
         public static List<List<CadDocumentService.CadPrimitiveData>> GroupConnectedPaths(
             List<CadDocumentService.CadPrimitiveData> primitives,
-            bool isGcode = false,
             CancellationToken cancellationToken = default(CancellationToken))
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -18,9 +17,12 @@ namespace DACDT_2026
             if (primitives == null || primitives.Count == 0)
                 return paths;
 
-            string KeyOf(CadDocumentService.CadCoordinate point) => isGcode
-                ? string.Format(CultureInfo.InvariantCulture, "{0:0.000}|{1:0.000}|{2:0.000}", point.X, point.Y, point.Z)
-                : string.Format(CultureInfo.InvariantCulture, "{0:0.000}|{1:0.000}", point.X, point.Y);
+            string KeyOf(CadDocumentService.CadCoordinate point)
+                => string.Format(
+                    CultureInfo.InvariantCulture,
+                    "{0:0.000}|{1:0.000}",
+                    point.X,
+                    point.Y);
 
             var startMap = new Dictionary<string, List<int>>(primitives.Count);
             var endMap = new Dictionary<string, List<int>>(primitives.Count);
@@ -187,8 +189,7 @@ namespace DACDT_2026
                 Speed = source.Speed,
                 Dwell = source.Dwell,
                 ProcessKind = source.ProcessKind,
-                PathId = source.PathId,
-                WcsIndex = source.WcsIndex
+                PathId = source.PathId
             };
 
             if (reversed.SourceType != null && reversed.SourceType.Contains("Arc"))

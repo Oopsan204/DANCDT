@@ -76,9 +76,6 @@
     <Reference Include="Accord.Video.FFMPEG">
       <HintPath>..\..\packages\Accord.Video.FFMPEG.3.8.0\lib\net462\Accord.Video.FFMPEG.dll</HintPath>
     </Reference>
-    <Reference Include="Gcode.Utils, Version=0.2.0.9, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\..\packages\Gcode.Utils.0.2.9\lib\netstandard2.0\Gcode.Utils.dll</HintPath>
-    </Reference>
     <Reference Include="LibBase, Version=1.0.4.0, Culture=neutral, processorArchitecture=MSIL">
       <HintPath>..\..\packages\LibBase.1.0.4\lib\netstandard2.0\LibBase.dll</HintPath>
     </Reference>
@@ -157,10 +154,6 @@
     <Compile Include="EngraveCutProcessComposer.cs" />
     <Compile Include="ExitShutdownPolicy.cs" />
     <Compile Include="Form1.Camera.cs" />
-    <Compile Include="GcodeCoordinateService.cs" />
-    <Compile Include="GcodeDocumentService.cs" />
-    <Compile Include="GcodeLineSanitizer.cs" />
-    <Compile Include="NcGcodeCleaner.cs" />
     <Compile Include="PerformanceTuning.cs" />
     <Compile Include="PlcConnectionGuard.cs" />
     <Compile Include="PlcFloatWordCodec.cs" />

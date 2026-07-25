@@ -278,8 +278,7 @@ namespace DACDT_2026
                 Speed = primitive.Speed,
                 Dwell = primitive.Dwell,
                 ProcessKind = primitive.ProcessKind,
-                PathId = primitive.PathId,
-                WcsIndex = primitive.WcsIndex
+                PathId = primitive.PathId
             };
         }
 
@@ -453,12 +452,9 @@ namespace DACDT_2026
                     PublishProcessRowWindowState(
                         publishedRowsSnapshot,
                         publishedHasEngraveCut,
-                        activeDocumentKind,
                         GetActiveProgramIndex(),
                         offsetX,
-                        offsetY,
-                        wcsOffsetX.ToArray(),
-                        wcsOffsetY.ToArray());
+                        offsetY);
                     if (!cadProgramCompilationState.TryPublish(version))
                     {
                         cadProgramPublishedDocument = null;
@@ -1342,8 +1338,7 @@ namespace DACDT_2026
                         Speed = r.Speed.ToString(CultureInfo.InvariantCulture),
                         EndCoordinate = r.EndCoordinate,
                         EndXMm = r.EndXMm,
-                        EndYMm = r.EndYMm,
-                        WcsIndex = -1
+                        EndYMm = r.EndYMm
                     });
                     pIndex++;
                 }
@@ -1924,8 +1919,7 @@ namespace DACDT_2026
                     CenterXMm = 0.0,
                     CenterYMm = 0.0,
                     MCodeValue = "0",
-                    EndZ = hasZ ? zSafe : 0.0,
-                    WcsIndex = -1
+                    EndZ = hasZ ? zSafe : 0.0
                 };
                 result.Add(homeRow);
             }
@@ -2029,7 +2023,7 @@ namespace DACDT_2026
         private List<List<CadDocumentService.CadPrimitiveData>> GetConnectedPathsFromCad(
             List<CadDocumentService.CadPrimitiveData> primitives,
             CancellationToken cancellationToken = default(CancellationToken))
-            => CadPathSelection.GroupConnectedPaths(primitives, false, cancellationToken);
+            => CadPathSelection.GroupConnectedPaths(primitives, cancellationToken);
 
         private bool IsClosedPath(List<CadDocumentService.CadPrimitiveData> path)
         {
@@ -2054,8 +2048,6 @@ namespace DACDT_2026
                 row.Dwell = primitive.Dwell;
             if (!string.IsNullOrWhiteSpace(primitive?.ProcessKind))
                 row.ProcessKind = primitive.ProcessKind;
-            if (primitive != null)
-                row.WcsIndex = primitive.WcsIndex;
         }
 
         private bool AreClose(

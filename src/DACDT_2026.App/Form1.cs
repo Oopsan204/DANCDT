@@ -50,7 +50,6 @@ namespace DACDT_2026
             new CadProgramCompilationState();
 
         private readonly CadDocumentService cadService = new CadDocumentService();
-        private readonly GcodeCoordinateService gcodeCoordinateService = new GcodeCoordinateService();
         private readonly ConfigurationFilePathStore configurationFilePathStore;
 
         private readonly List<MonitorRow> monitorRows = new List<MonitorRow>();
@@ -98,8 +97,6 @@ namespace DACDT_2026
         private string globalZStart = "";
         private string globalSpeed = "1000";
         private string globalSpeedM3 = "10000";
-        private string gcodeSpeedM3 = "10000";
-        private string rapidSpeed = "10000";
         private string testEngraveSpeed = "10000";
         private string engraveSpeed = "1200";
         private string engravePower = "35";
@@ -113,10 +110,6 @@ namespace DACDT_2026
         private string globalDwellM3 = "100";
         private string globalDwellM4 = "100";
         private string memberPassword = "";
-        private string activeWcs = "G54";
-        private readonly double[] wcsOffsetX = new double[6];
-        private readonly double[] wcsOffsetY = new double[6];
-        private string rawGcodeText = string.Empty;
         private QD75RingBufferRunner activeRingRunner;
         private readonly ProgramRunCompletionTracker programRunCompletionTracker = new ProgramRunCompletionTracker();
         private readonly IntervalGate controlUiPushGate = new IntervalGate(PerformanceTuning.ControlUiPushIntervalMs);
@@ -292,25 +285,6 @@ namespace DACDT_2026
             });
             ui.BrowseConfigurationFileCommand = new RelayCommand(PromptForConfigurationFileAsync);
             ui.SetWorkspaceCommand = new RelayCommand(ApplyWorkspaceSettingsAsync);
-            ui.SelectWcsCommand = new RelayCommand(async p =>
-            {
-                string selectedWcs = Convert.ToString(p, CultureInfo.InvariantCulture);
-                if (string.IsNullOrWhiteSpace(selectedWcs))
-                    return;
-
-                int wcsIdx = GetWcsIndex(selectedWcs);
-                activeWcs = "G5" + (4 + wcsIdx).ToString(CultureInfo.InvariantCulture);
-                ui.ActiveWcs = activeWcs;
-                var row = ui.WcsOffsets.FirstOrDefault(item =>
-                    string.Equals(item.Name, activeWcs, StringComparison.OrdinalIgnoreCase));
-                if (row != null)
-                {
-                    ui.WcsOffsetXInput = row.OffsetX;
-                    ui.WcsOffsetYInput = row.OffsetY;
-                }
-                await PushDxfStateAsync();
-            });
-            ui.SetWcsCommand = new RelayCommand(ApplyWcsSettingsAsync);
             ui.ApplyPlcConnectionCommand = new RelayCommand(async () =>
             {
                 plcIpAddress = ui.PlcIpAddressInput;
@@ -454,25 +428,6 @@ namespace DACDT_2026
             await PushDxfStateAsync();
         }
 
-        private async Task ApplyWcsSettingsAsync()
-        {
-            foreach (var row in ui.WcsOffsets)
-            {
-                int rowIndex = GetWcsIndex(row.Name);
-                wcsOffsetX[rowIndex] = row.OffsetX;
-                wcsOffsetY[rowIndex] = row.OffsetY;
-            }
-
-            int wcsIdx = GetWcsIndex(ui.ActiveWcs);
-            activeWcs = "G5" + (4 + wcsIdx).ToString(CultureInfo.InvariantCulture);
-            ui.ActiveWcs = activeWcs;
-            ui.WcsOffsetXInput = wcsOffsetX[wcsIdx];
-            ui.WcsOffsetYInput = wcsOffsetY[wcsIdx];
-            SaveSettingsToFile();
-            await PushDxfStateAsync();
-            await NotifyAsync("success", "WCS", $"Saved G54-G59 offsets. Active {activeWcs} X={ui.WcsOffsetXInput} Y={ui.WcsOffsetYInput}");
-        }
-
         private void SyncSettingsToUi()
         {
             ui.ConfigurationFilePathInput = configurationFilePath;
@@ -482,8 +437,6 @@ namespace DACDT_2026
             ui.SetJogSpeedInputFromPlc(currentJogSpeedD406);
             ui.GlobalSpeedInput = globalSpeed;
             ui.GlobalSpeedM3Input = globalSpeedM3;
-            ui.GcodeSpeedM3Input = gcodeSpeedM3;
-            ui.RapidSpeedInput = rapidSpeed;
             ui.TestEngraveSpeedInput = testEngraveSpeed;
             ui.EngraveSpeedInput = engraveSpeed;
             ui.EngravePowerInput = engravePower;
@@ -495,11 +448,9 @@ namespace DACDT_2026
             ui.OffsetYInput = offsetY;
             ui.WorkspaceWidthInput = workspaceWidth;
             ui.WorkspaceHeightInput = workspaceHeight;
-            ui.ActiveWcs = activeWcs;
             ui.LaserPowerInput = laserPower;
             ui.CurrentTheme = currentTheme;
             ui.CameraRecordingFolderInput = cameraRecordingDir;
-            SyncWcsOffsetsToUi();
         }
 
         private void SyncSettingsFromUiForPersistence()
@@ -509,8 +460,6 @@ namespace DACDT_2026
             plcPort = ui.PlcPortInput;
             globalSpeed = ui.GlobalSpeedInput;
             globalSpeedM3 = ui.GlobalSpeedM3Input;
-            gcodeSpeedM3 = ui.GcodeSpeedM3Input;
-            rapidSpeed = ui.RapidSpeedInput;
             testEngraveSpeed = ui.TestEngraveSpeedInput;
             engraveSpeed = ui.EngraveSpeedInput;
             engravePower = ui.EngravePowerInput;
@@ -534,36 +483,6 @@ namespace DACDT_2026
             }
             laserPower = ui.LaserPowerInput;
             currentTheme = WpfThemeManager.Normalize(ui.CurrentTheme);
-
-            int activeIndex = GetWcsIndex(ui.ActiveWcs);
-            activeWcs = "G5" + (4 + activeIndex).ToString(CultureInfo.InvariantCulture);
-            foreach (var row in ui.WcsOffsets)
-            {
-                int rowIndex = GetWcsIndex(row.Name);
-                wcsOffsetX[rowIndex] = row.OffsetX;
-                wcsOffsetY[rowIndex] = row.OffsetY;
-            }
-        }
-
-        private void SyncWcsOffsetsToUi()
-        {
-            int activeIndex = GetWcsIndex(activeWcs);
-            activeWcs = "G5" + (4 + activeIndex).ToString(CultureInfo.InvariantCulture);
-
-            ui.WcsOffsets.Clear();
-            for (int i = 0; i < 6; i++)
-            {
-                ui.WcsOffsets.Add(new WcsOffsetViewModel
-                {
-                    Name = "G5" + (4 + i).ToString(CultureInfo.InvariantCulture),
-                    OffsetX = wcsOffsetX[i],
-                    OffsetY = wcsOffsetY[i]
-                });
-            }
-
-            ui.ActiveWcs = activeWcs;
-            ui.WcsOffsetXInput = wcsOffsetX[activeIndex];
-            ui.WcsOffsetYInput = wcsOffsetY[activeIndex];
         }
 
         private bool LoadSettingsFromFile(string path = null)
@@ -584,10 +503,8 @@ namespace DACDT_2026
 
                     switch (key)
                     {
-                        case "rapidSpeed": rapidSpeed = val; break;
                         case "globalSpeed": globalSpeed = val; break;
                         case "globalSpeedM3": globalSpeedM3 = val; break;
-                        case "gcodeSpeedM3": gcodeSpeedM3 = val; break;
                         case "testEngraveSpeed": testEngraveSpeed = val; break;
                         case "engraveSpeed": engraveSpeed = val; break;
                         case "engravePower": engravePower = val; break;
@@ -606,18 +523,10 @@ namespace DACDT_2026
                         case "globalDwellM3": globalDwellM3 = val; break;
                         case "globalDwellM4": globalDwellM4 = val; break;
                         case "memberPassword": memberPassword = val; break;
-                        case "activeWcs": activeWcs = val; break;
                         case "laserPower": laserPower = val; break;
                         case "theme": currentTheme = WpfThemeManager.Normalize(val); break;
                         case "cameraRecordingDir": cameraRecordingDir = val; break;
-                        default:
-                            for (int i = 0; i < 6; i++)
-                            {
-                                string gName = "G5" + (4 + i);
-                                if (key == "wcs" + gName + "X") { double.TryParse(val, NumberStyles.Any, CultureInfo.InvariantCulture, out wcsOffsetX[i]); break; }
-                                if (key == "wcs" + gName + "Y") { double.TryParse(val, NumberStyles.Any, CultureInfo.InvariantCulture, out wcsOffsetY[i]); break; }
-                        }
-                        break;
+                        default: break;
                     }
                 }
 
@@ -645,9 +554,7 @@ namespace DACDT_2026
                 var lines = new List<string>
                 {
                     "# DACDT_2026 Settings",
-                    $"rapidSpeed={rapidSpeed}",
                     $"globalSpeed={globalSpeed}",
-                    $"gcodeSpeedM3={gcodeSpeedM3}",
                     $"workspaceWidth={workspaceWidth.ToString("0.###", CultureInfo.InvariantCulture)}",
                     $"workspaceHeight={workspaceHeight.ToString("0.###", CultureInfo.InvariantCulture)}",
                     $"offsetX={offsetX.ToString("0.###", CultureInfo.InvariantCulture)}",
@@ -667,17 +574,10 @@ namespace DACDT_2026
                     $"cutSpeed={cutSpeed}",
                     $"cutPower={cutPower}",
                     $"memberPassword={memberPassword}",
-                    $"activeWcs={activeWcs}",
                     $"laserPower={laserPower}",
                     $"theme={currentTheme}",
                     $"cameraRecordingDir={cameraRecordingDir}",
                 };
-                for (int i = 0; i < 6; i++)
-                {
-                    string gName = "G5" + (4 + i);
-                    lines.Add($"wcs{gName}X={wcsOffsetX[i].ToString("0.###", CultureInfo.InvariantCulture)}");
-                    lines.Add($"wcs{gName}Y={wcsOffsetY[i].ToString("0.###", CultureInfo.InvariantCulture)}");
-                }
                 File.WriteAllLines(path, lines);
 
                 return true;
@@ -846,19 +746,6 @@ namespace DACDT_2026
             return int.TryParse(Convert.ToString(value, CultureInfo.InvariantCulture), NumberStyles.Integer, CultureInfo.InvariantCulture, out parsed)
                 ? parsed
                 : fallback;
-        }
-
-        private static int GetWcsIndex(string wcs)
-        {
-            switch (wcs)
-            {
-                case "G55": return 1;
-                case "G56": return 2;
-                case "G57": return 3;
-                case "G58": return 4;
-                case "G59": return 5;
-                default: return 0;
-            }
         }
 
         protected override void OnClosing(CancelEventArgs e)

@@ -97,8 +97,7 @@ namespace DACDT_2026
                     Speed = sourcePrimitive.Speed,
                     Dwell = sourcePrimitive.Dwell,
                     ProcessKind = sourcePrimitive.ProcessKind,
-                    PathId = sourcePrimitive.PathId,
-                    WcsIndex = sourcePrimitive.WcsIndex
+                    PathId = sourcePrimitive.PathId
                 });
 
                 remainingPoints -= previewPoints.Count;
