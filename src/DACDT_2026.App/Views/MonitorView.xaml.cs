@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
@@ -32,14 +31,12 @@ namespace DACDT_2026.Views
             if (observedState != null)
             {
                 observedState.PropertyChanged -= ObservedState_PropertyChanged;
-                observedState.ProgramRows.CollectionChanged -= ProgramRows_CollectionChanged;
             }
 
             observedState = e.NewValue as WpfUiState;
             if (observedState != null)
             {
                 observedState.PropertyChanged += ObservedState_PropertyChanged;
-                observedState.ProgramRows.CollectionChanged += ProgramRows_CollectionChanged;
             }
 
             QueueActiveProgramScroll();
@@ -49,11 +46,6 @@ namespace DACDT_2026.Views
         {
             if (e.PropertyName == nameof(WpfUiState.ActiveProgramIndex))
                 QueueActiveProgramScroll();
-        }
-
-        private void ProgramRows_CollectionChanged(object sender, NotifyCollectionChangedEventArgs e)
-        {
-            QueueActiveProgramScroll();
         }
 
         private void QueueActiveProgramScroll()

@@ -1271,16 +1271,16 @@ namespace DACDT_2026.Tests
                     "src", "DACDT_2026.App", "Views", file));
                 string propertyChanged = ExtractMethodBody(
                     source, "private void ObservedState_PropertyChanged");
-                string rowsChanged = ExtractMethodBody(
-                    source, "private void ProgramRows_CollectionChanged");
 
                 AssertTrue(source.Contains("DispatcherTimer activeProgramScrollTimer"),
                     file + " must use one reusable auto-scroll timer.");
                 AssertTrue(source.Contains("TimeSpan.FromMilliseconds(100)"),
                     file + " must limit auto-scroll work to 10 updates per second.");
-                AssertTrue(propertyChanged.Contains("QueueActiveProgramScroll();")
-                    && rowsChanged.Contains("QueueActiveProgramScroll();"),
-                    file + " must coalesce active-row and row-window changes.");
+                AssertTrue(propertyChanged.Contains("QueueActiveProgramScroll();"),
+                    file + " must coalesce active-row changes.");
+                AssertTrue(!source.Contains("ProgramRows.CollectionChanged")
+                    && !source.Contains("ProgramRows_CollectionChanged"),
+                    file + " must not snap back to the active row when manual scrolling loads more rows.");
                 AssertTrue(source.Contains("activeProgramScrollTimer.Stop();")
                     && source.Contains("activeProgramScrollPending = false;"),
                     file + " must consume only the latest pending scroll.");
