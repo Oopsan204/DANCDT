@@ -124,6 +124,7 @@ namespace DACDT_2026.Tests
                 CadPreviewClipsOnlyAtOuterViewport();
                 DxfRunViewShowsVirtualizedPointMonitor();
                 DxfOnlyViewsRemoveGcodeAndWcsControls();
+                DxfRuntimeHasNoGcodeEntryPoints();
                 AntigravityUiWorkflowIsGuarded();
                 HelpViewContainsVietnameseOperationalGuide();
                 TelemetryFeatureIsRemoved();
@@ -1784,6 +1785,49 @@ namespace DACDT_2026.Tests
                 && !help.Contains("GCODE")
                 && !help.Contains("WCS"),
                 "The Vietnamese guide must describe DXF-only operation.");
+        }
+
+        private static void DxfRuntimeHasNoGcodeEntryPoints()
+        {
+            string form = File.ReadAllText(GetRepositoryPath(
+                "src", "DACDT_2026.App", "Form1.cs"));
+            string handler = File.ReadAllText(GetRepositoryPath(
+                "src", "DACDT_2026.App", "Form1.DxfHandler.cs"));
+            string state = File.ReadAllText(GetRepositoryPath(
+                "src", "DACDT_2026.App", "WpfUiState.cs"));
+
+            string[] removedMembers =
+            {
+                "NewGcodeCommand",
+                "SaveGcodeCommand",
+                "PreviewGcodeCommand",
+                "ApplyGcodeSettingsCommand",
+                "HandlePreviewGcodeAsync",
+                "HandleNewGcodeAsync",
+                "HandleSaveGcodeAsync",
+                "ShowSaveGcodeDialog",
+                "IsGcodeFile",
+                "BuildGcodeProcessRows",
+                "UpdateGcodeFromProcessTable",
+                "HandleOpenDxfAsync",
+                "ShowOpenFileDialog"
+            };
+
+            foreach (string member in removedMembers)
+            {
+                AssertTrue(!form.Contains(member)
+                    && !handler.Contains(member)
+                    && !state.Contains(member),
+                    "DXF-only runtime must remove member: " + member);
+            }
+
+            AssertTrue(handler.Contains("Filter = \"DXF files (*.dxf)|*.dxf\""),
+                "The only open-file filter must accept DXF.");
+            AssertTrue(!handler.Contains("*.nc")
+                && !handler.Contains("*.ngc")
+                && !handler.Contains("*.cnc")
+                && !handler.Contains("*.tap"),
+                "The runtime must not recognize CNC/G-code extensions.");
         }
 
         private static void TelemetryFeatureIsRemoved()

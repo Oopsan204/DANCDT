@@ -481,7 +481,7 @@ namespace DACDT_2026
                     return;
                 }
 
-                // Rebuild drawing process rows from active CAD/G-code document if loaded, to clear any Test Area data
+                // Rebuild drawing process rows from the active DXF document if loaded, to clear any Test Area data
                 if (activeCadDocument != null && !isMixedEngraveCutProgram)
                 {
                     var drawingRows = BuildConnectedPathsFromCad();

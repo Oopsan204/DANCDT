@@ -11,7 +11,7 @@ using System.Windows;
 namespace DACDT_2026
 {
     /// <summary>
-    /// Main WPF window. The existing PLC, DXF/G-code, logging and state logic remains
+    /// Main WPF window. The existing PLC, DXF, logging and state logic remains
     /// split across the Form1 partial files; the UI host is WPF/XAML.
     /// </summary>
     public partial class Form1 : Window
@@ -279,18 +279,13 @@ namespace DACDT_2026
                     ui.LaserPowerInput = laserPower;
                 }
             });
-            ui.OpenDxfCommand = new RelayCommand(HandleOpenDxfAsync);
             ui.ImportDxfCommand = new RelayCommand(HandleImportDxfAsync);
             ui.ToggleCadPathCommand = new RelayCommand(p => HandleToggleCadPathAsync(ToInt(p, -1)));
-            ui.NewGcodeCommand = new RelayCommand(HandleNewGcodeAsync);
-            ui.SaveGcodeCommand = new RelayCommand(() => HandleSaveGcodeAsync(ui.RawGcodeText));
-            ui.PreviewGcodeCommand = new RelayCommand(() => HandlePreviewGcodeAsync(ui.RawGcodeText));
             ui.ClearBufferCommand = new RelayCommand(HandleClearBufferAsync);
             ui.SendCadXCommand = new RelayCommand(async () => await HandleSendCadXAsync());
             ui.TestEngraveAreaCommand = new RelayCommand(HandleTestEngraveAreaAsync);
             ui.ClearLogsCommand = new RelayCommand(HandleClearLogsAsync);
             ui.ApplyDxfSettingsCommand = new RelayCommand(ApplyDxfSettingsAsync);
-            ui.ApplyGcodeSettingsCommand = new RelayCommand(ApplyGcodeSettingsAsync);
             ui.SaveSettingsCommand = new RelayCommand(async () =>
             {
                 await SaveSelectedConfigurationAsync(showSuccess: true);
@@ -457,15 +452,6 @@ namespace DACDT_2026
             SaveSettingsToFile();
             await HandleScanLimitsAsync();
             await PushDxfStateAsync();
-        }
-
-        private async Task ApplyGcodeSettingsAsync()
-        {
-            rapidSpeed = ui.RapidSpeedInput;
-            await HandleProcessValueAsync("gcodeSpeedM3", ui.GcodeSpeedM3Input);
-            SaveSettingsToFile();
-            await PushDxfStateAsync();
-            await NotifyAsync("success", "Settings", "Updated G-code motion settings.");
         }
 
         private async Task ApplyWcsSettingsAsync()

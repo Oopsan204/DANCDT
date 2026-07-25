@@ -21,50 +21,18 @@ namespace DACDT_2026
     {
         // ── Open DXF ────────────────────────────────────────────────────────────
 
-        private string ShowOpenFileDialog()
-        {
-            StopPlcPolling();
-            isPreviewingGcode = true;
-
-            string result = null;
-            try
-            {
-                var dialog = new Microsoft.Win32.OpenFileDialog
-                {
-                    Filter = "CAD / G-code files (*.dxf;*.gcode;*.g;*.gc;*.nc;*.ngc;*.cnc;*.tap)|*.dxf;*.gcode;*.g;*.gc;*.nc;*.ngc;*.cnc;*.tap|All files (*.*)|*.*",
-                    Title = "Open DXF or G-code file",
-                    CheckFileExists = true,
-                    Multiselect = false,
-                    RestoreDirectory = true
-                };
-
-                string initialDir = activeCadDocument?.DirectoryPath;
-                if (!string.IsNullOrWhiteSpace(initialDir) && Directory.Exists(initialDir))
-                    dialog.InitialDirectory = initialDir;
-
-                if (dialog.ShowDialog(this) == true)
-                    result = Path.GetFullPath(dialog.FileName);
-            }
-            finally
-            {
-                isPreviewingGcode = false;
-                if (plcComm != null && plcComm.IsConnected && !isClosing)
-                    StartPlcPolling();
-            }
-            return result;
-        }
-
         private string ShowOpenDxfFileDialog(string title)
         {
             StopPlcPolling();
-            isPreviewingGcode = true;
 
             string result = null;
             try
             {
                 var dialog = new Microsoft.Win32.OpenFileDialog
                 {
-                    Filter = "DXF files (*.dxf)|*.dxf|All files (*.*)|*.*",
+                    Filter = "DXF files (*.dxf)|*.dxf",
+                    DefaultExt = "dxf",
+                    AddExtension = true,
                     Title = title,
                     CheckFileExists = true,
                     Multiselect = false,
@@ -80,132 +48,10 @@ namespace DACDT_2026
             }
             finally
             {
-                isPreviewingGcode = false;
                 if (plcComm != null && plcComm.IsConnected && !isClosing)
                     StartPlcPolling();
             }
             return result;
-        }
-
-        private async Task HandleOpenDxfAsync()
-        {
-            if (!await cadLoadGate.WaitAsync(0))
-            {
-                await NotifyAsync("info", "DXF/G-code", "A file is still loading. Please wait before opening another file.");
-                return;
-            }
-
-            string selectedPath = null;
-            try
-            {
-                if (!Dispatcher.CheckAccess())
-                {
-                    var tcs = new System.Threading.Tasks.TaskCompletionSource<string>();
-                    _ = Dispatcher.BeginInvoke(new Action(() =>
-                    {
-                        try { tcs.SetResult(ShowOpenFileDialog()); }
-                        catch (Exception ex) { tcs.SetException(ex); }
-                    }));
-                    selectedPath = await tcs.Task;
-                }
-                else
-                {
-                    selectedPath = ShowOpenFileDialog();
-                }
-            }
-            catch (Exception ex)
-            {
-                await NotifyAsync("error", "DXF/G-code", "Open dialog error: " + ex.Message);
-                cadLoadGate.Release();
-                return;
-            }
-
-            if (string.IsNullOrEmpty(selectedPath))
-            {
-                cadLoadGate.Release();
-                return;
-            }
-
-            try
-            {
-                bool   isGcode    = IsGcodeFile(selectedPath);
-                string sourceName = isGcode ? "GCODE" : "DXF";
-                AddLogEntry(sourceName, selectedPath, "Read", "Selected", "OpenFileDialog");
-
-                ClearLoadedFileState();
-                await SendProgressAsync(true, 5);
-                await Task.Yield();
-
-                // ── Parse file trên background thread để không block UI ──────────
-                CadDocumentService.CadLoadResult loadedDoc = null;
-                string loadedGcodeText = string.Empty;
-                NcGcodeCleaner.CleanResult cleanResult = null;
-
-                var loadTask = Task.Run(() =>
-                {
-                    if (isGcode)
-                    {
-                        string originalGcodeText = File.ReadAllText(selectedPath);
-                        cleanResult = NcGcodeCleaner.Clean(originalGcodeText);
-                        loadedGcodeText = cleanResult.Text;
-                        loadedDoc = gcodeCoordinateService.LoadAsCadFromText(loadedGcodeText, selectedPath);
-                    }
-                    else
-                    {
-                        loadedDoc = cadService.Load(selectedPath);
-                    }
-
-                    NormalizeCadDocumentPaths(loadedDoc, isGcode);
-                    if (!isGcode)
-                        TagCadDocumentProcessKind(loadedDoc, EngraveCutProcessComposer.EngraveKind);
-                });
-
-                await loadTask;
-                await SendProgressAsync(true, 35);
-
-                // ── Cập nhật state trên UI thread ────────────────────────────────
-                activeCadDocument    = loadedDoc;
-                rawGcodeText         = loadedGcodeText;
-                activeDocumentKind   = isGcode ? "GCODE" : "DXF";
-                isMixedEngraveCutProgram = !isGcode && activeCadDocument != null;
-                selectedCadPointKey  = activeCadDocument?.Points?.FirstOrDefault()?.Key;
-                assignedPointKeys.Clear();
-
-                if (isGcode)
-                {
-                    var firstSpeed = activeCadDocument?.Primitives?.FirstOrDefault(p => !string.IsNullOrEmpty(p.Speed))?.Speed;
-                    if (!string.IsNullOrEmpty(firstSpeed))
-                        gcodeSpeedM3 = firstSpeed;
-                }
-
-                currentView = "dxf";
-
-                AddLogEntry(sourceName, activeCadDocument?.FilePath ?? selectedPath, "Read", "OK",
-                    $"Loaded file: {activeCadDocument?.FileName ?? Path.GetFileName(selectedPath)}");
-                await NotifyAsync("success", sourceName,
-                    $"Loaded: {activeCadDocument?.FileName ?? Path.GetFileName(selectedPath)}");
-                if (isGcode)
-                    await ReportNcCleanerResultAsync(cleanResult);
-
-                // DXF uses the single-document engrave/cut compiler; G-code keeps its existing path.
-                if (isGcode)
-                    await HandleImportCadToProcessAsync();
-                else
-                    await RebuildMixedEngraveCutProgramAsync();
-                await SendProgressAsync(true, 65);
-                await HandleScanLimitsAsync();
-                await SendProgressAsync(true, 85);
-                await PushDxfStateAsync();
-            }
-            catch (Exception ex)
-            {
-                await NotifyAsync("error", "DXF/G-code", ex.Message);
-            }
-            finally
-            {
-                _ = SendProgressAsync(false, 0);
-                cadLoadGate.Release();
-            }
         }
 
         private void ClearLoadedFileState()
@@ -219,7 +65,6 @@ namespace DACDT_2026
             isMixedEngraveCutProgram = false;
             selectedCadPointKey = null;
             assignedPointKeys.Clear();
-            rawGcodeText = string.Empty;
             processRows.Clear();
             ClearCadPrimitiveUiState();
             ui.IsStartActionEnabled = false;
@@ -278,6 +123,16 @@ namespace DACDT_2026
                 return;
             }
 
+            if (!string.Equals(
+                    Path.GetExtension(selectedPath),
+                    ".dxf",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                await NotifyAsync("error", "DXF", "Only DXF files are supported.");
+                cadLoadGate.Release();
+                return;
+            }
+
             try
             {
                 SyncEngraveCutSettingsFromUi();
@@ -290,7 +145,7 @@ namespace DACDT_2026
                 await Task.Run(() =>
                 {
                     loadedDoc = cadService.Load(selectedPath);
-                    NormalizeCadDocumentPaths(loadedDoc, isGcode: false);
+                    NormalizeCadDocumentPaths(loadedDoc);
                     TagCadDocumentProcessKind(loadedDoc, EngraveCutProcessComposer.EngraveKind);
                 });
 
@@ -342,12 +197,12 @@ namespace DACDT_2026
                 || !string.Equals(previousCutPower, cutPower, StringComparison.Ordinal);
         }
 
-        private void NormalizeCadDocumentPaths(CadDocumentService.CadLoadResult document, bool isGcode)
+        private void NormalizeCadDocumentPaths(CadDocumentService.CadLoadResult document)
         {
             if (document?.Primitives == null || document.Primitives.Count == 0)
                 return;
 
-            var paths = GetConnectedPathsFromCad(document.Primitives, isGcode);
+            var paths = GetConnectedPathsFromCad(document.Primitives);
             CadPathSelection.AssignPathIds(paths);
             document.Primitives.Clear();
             foreach (var path in paths)
@@ -903,197 +758,6 @@ namespace DACDT_2026
                && row.MCodeValue == "0"
                && string.Equals(row.EndCoordinate, "0;0", StringComparison.Ordinal);
 
-        private async Task ReportNcCleanerResultAsync(NcGcodeCleaner.CleanResult result)
-        {
-            if (result == null)
-                return;
-
-            if (result.RemovedLineCount == 0 && result.NormalizedLineCount == 0)
-                return;
-
-            string summary = $"NC Cleaner: removed {result.RemovedLineCount} line(s), normalized {result.NormalizedLineCount} line(s).";
-            AddLogEntry("GCODE", "NC Cleaner", "Filter", "OK", summary);
-
-            int maxWarnings = Math.Min(result.Warnings.Count, 20);
-            for (int i = 0; i < maxWarnings; i++)
-                AddLogEntry("GCODE", "NC Cleaner", "Filter", "Info", result.Warnings[i]);
-
-            await NotifyAsync("info", "NC Cleaner", summary + " Check logs for details.");
-        }
-
-        private bool isPreviewingGcode = false;
-        private async Task HandlePreviewGcodeAsync(string text)
-        {
-            bool wasGcodeDocument = string.Equals(activeDocumentKind, "GCODE", StringComparison.OrdinalIgnoreCase);
-            if (!wasGcodeDocument)
-                activeDocumentKind = "GCODE";
-
-            if (isPreviewingGcode) return; // Tránh concurrent preview gây crash
-            if (!await cadLoadGate.WaitAsync(0))
-            {
-                await NotifyAsync("info", "G-code", "A file operation is still running. Please wait before previewing.");
-                return;
-            }
-            isPreviewingGcode = true;
-            await SendProgressAsync(true, 5);
-            await Task.Yield();
-
-            try
-            {
-                NcGcodeCleaner.CleanResult cleanResult = NcGcodeCleaner.Clean(text);
-                rawGcodeText = cleanResult.Text;
-                string path = wasGcodeDocument ? activeCadDocument?.FilePath : null;
-                if (string.IsNullOrEmpty(path)) path = null;
-
-                CadDocumentService.CadLoadResult previewDoc = null;
-                var previewTask = Task.Run(() =>
-                {
-                    previewDoc = gcodeCoordinateService.LoadAsCadFromText(rawGcodeText, path);
-                    if (previewDoc?.Primitives != null && previewDoc.Primitives.Count > 0)
-                    {
-                        var paths = GetConnectedPathsFromCad(previewDoc.Primitives, isGcode: true);
-                        previewDoc.Primitives.Clear();
-                        foreach (var pathList in paths)
-                            previewDoc.Primitives.AddRange(pathList);
-                    }
-                });
-
-                await previewTask;
-                await SendProgressAsync(true, 35);
-
-                activeCadDocument = previewDoc;
-                activeEngraveCadDocument = null;
-                activeCutCadDocument = null;
-                isMixedEngraveCutProgram = false;
-
-                var firstSpeed = activeCadDocument?.Primitives?.FirstOrDefault(p => !string.IsNullOrEmpty(p.Speed))?.Speed;
-                if (!string.IsNullOrEmpty(firstSpeed))
-                    gcodeSpeedM3 = firstSpeed;
-
-                await ReportNcCleanerResultAsync(cleanResult);
-                await HandleImportCadToProcessAsync();
-                await SendProgressAsync(true, 65);
-                await HandleScanLimitsAsync();
-                await SendProgressAsync(true, 85);
-                await PushDxfStateAsync();
-            }
-            catch (Exception ex)
-            {
-                await NotifyAsync("error", "G-code Preview", ex.Message);
-            }
-            finally
-            {
-                _ = SendProgressAsync(false, 0);
-                isPreviewingGcode = false;
-                cadLoadGate.Release();
-            }
-        }
-
-        private async Task HandleNewGcodeAsync()
-        {
-            ClearLoadedFileState();
-            rawGcodeText     = string.Empty;
-            activeDocumentKind = "GCODE";
-
-            await Task.Run(() =>
-            {
-                activeCadDocument = gcodeCoordinateService.LoadAsCadFromText("");
-            });
-
-            await PushDxfStateAsync();
-            await HandleImportCadToProcessAsync();
-            await NotifyAsync("info", "G-code", "Created a blank G-code document.");
-        }
-
-        private async Task HandleSaveGcodeAsync(string text)
-        {
-            if (activeDocumentKind != "GCODE") return;
-            isPreviewingGcode = true;
-
-            try
-            {
-                string path = activeCadDocument?.FilePath;
-                if (string.IsNullOrEmpty(path) || path == "Untitled" || path == "")
-                {
-                    string selectedPath = null;
-                    if (!Dispatcher.CheckAccess())
-                    {
-                        Dispatcher.Invoke(new System.Action(() => { selectedPath = ShowSaveGcodeDialog(); }));
-                    }
-                    else
-                    {
-                        selectedPath = ShowSaveGcodeDialog();
-                    }
-
-                    if (string.IsNullOrEmpty(selectedPath))
-                    {
-                        isPreviewingGcode = false;
-                        return;
-                    }
-
-                    path = selectedPath;
-                    if (activeCadDocument != null)
-                    {
-                        activeCadDocument.FilePath = path;
-                        activeCadDocument.FileName = Path.GetFileName(path);
-                    }
-                }
-
-                await Task.Run(() => File.WriteAllText(path, text));
-                isPreviewingGcode = false;
-                try { await HandlePreviewGcodeAsync(text); } catch { }
-                await PushDxfStateAsync();
-                await NotifyAsync("success", "G-code", $"G-code saved to:\n{path}");
-            }
-            catch (Exception ex)
-            {
-                await NotifyAsync("error", "G-code", "Error saving G-code: " + ex.Message);
-            }
-            finally
-            {
-                isPreviewingGcode = false;
-            }
-        }
-
-        private string ShowSaveGcodeDialog()
-        {
-            StopPlcPolling();
-            isPreviewingGcode = true;
-
-            string result = null;
-            try
-            {
-                var sfd = new Microsoft.Win32.SaveFileDialog
-                {
-                    Filter = "G-code files (*.nc;*.gcode;*.txt)|*.nc;*.gcode;*.txt|All files (*.*)|*.*",
-                    Title = "Save G-code",
-                    FileName = "GCode_" + DateTime.Now.ToString("yyyyMMdd_HHmmss") + ".nc"
-                };
-
-                if (sfd.ShowDialog(this) == true)
-                    result = sfd.FileName;
-            }
-            finally
-            {
-                isPreviewingGcode = false;
-                if (plcComm != null && plcComm.IsConnected && !isClosing)
-                    StartPlcPolling();
-            }
-            return result;
-        }
-
-        private static bool IsGcodeFile(string filePath)
-        {
-            string extension = Path.GetExtension(filePath);
-            return string.Equals(extension, ".gcode", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(extension, ".g", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(extension, ".gc", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(extension, ".nc", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(extension, ".ngc", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(extension, ".cnc", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(extension, ".tap", StringComparison.OrdinalIgnoreCase);
-        }
-
         // ── Assign Point ─────────────────────────────────────────────────────────
         private async Task HandleAssignPointAsync(string slot, string pointKey)
         {
@@ -1140,18 +804,6 @@ namespace DACDT_2026
                     {
                         // DXF: MCodeValue == 3 gets globalSpeedM3, AND the home point (MCodeValue == "0" and coordinate "0;0") gets globalSpeedM3
                         if (row.MCodeValue == "3" || (row.MCodeValue == "0" && string.Equals(row.EndCoordinate, "0;0")))
-                            row.Speed = value;
-                    }
-                }
-            }
-            else if (string.Equals(key, "gcodeSpeedM3", StringComparison.OrdinalIgnoreCase))
-            {
-                gcodeSpeedM3 = value;
-                if (string.Equals(activeDocumentKind, "GCODE", StringComparison.OrdinalIgnoreCase))
-                {
-                    foreach (var row in processRows)
-                    {
-                        if (row.MCodeValue == "3")
                             row.Speed = value;
                     }
                 }
@@ -1213,7 +865,6 @@ namespace DACDT_2026
                     await HandleImportCadToProcessAsync();
             }
 
-            UpdateGcodeFromProcessTable();
             await PushDxfStateAsync();
             SaveSettingsToFile();
             await NotifyAsync("success", "Configuration", $"Updated {key} = {value}");
@@ -1228,81 +879,7 @@ namespace DACDT_2026
             else if (field == "dwell") row.Dwell = value;
             else if (field == "speed") row.Speed = value;
             
-            UpdateGcodeFromProcessTable();
             await PushDxfStateAsync();
-        }
-
-        private void UpdateGcodeFromProcessTable()
-        {
-            if (activeDocumentKind != "GCODE" || processRows == null || processRows.Count == 0) return;
-
-            StringBuilder sb = new StringBuilder();
-            sb.AppendLine("; Generated from Process Table");
-            sb.AppendLine("G90");
-            sb.AppendLine("G21");
-
-            double currentX = 0;
-            double currentY = 0;
-
-            foreach (var row in processRows)
-            {
-                if (string.IsNullOrEmpty(row.EndCoordinate)) continue;
-                string[] endCoords = row.EndCoordinate.Split(';');
-                if (endCoords.Length < 2) continue;
-
-                double nextX = 0, nextY = 0;
-                double.TryParse(endCoords[0], NumberStyles.Float, CultureInfo.InvariantCulture, out nextX);
-                double.TryParse(endCoords[1], NumberStyles.Float, CultureInfo.InvariantCulture, out nextY);
-
-                string g = "G1";
-                if (row.MotionType.StartsWith("Arc CW")) g = "G2";
-                else if (row.MotionType.StartsWith("Arc CCW")) g = "G3";
-                else if (row.MotionType.StartsWith("Circle CW")) g = "G2";
-                else if (row.MotionType.StartsWith("Circle CCW")) g = "G3";
-                else if (row.MotionType.StartsWith("Circle")) g = "G2";
-                else if (row.MotionType.Contains("Rapid") || row.MotionType.Contains("G0")) g = "G0";
-
-                string f = !string.IsNullOrEmpty(row.Speed) ? $" F{row.Speed}" : "";
-
-                if (!string.IsNullOrEmpty(row.MCodeValue))
-                {
-                    if (row.MCodeValue == "1") sb.AppendLine("M1");
-                    else if (row.MCodeValue == "2") sb.AppendLine("M2");
-                    else sb.AppendLine($"M{row.MCodeValue}");
-                }
-
-                if (g == "G1" || g == "G0")
-                {
-                    sb.AppendLine($"{g} X{nextX.ToString("0.###", CultureInfo.InvariantCulture)} Y{nextY.ToString("0.###", CultureInfo.InvariantCulture)}{f}");
-                }
-                else if (g == "G2" || g == "G3")
-                {
-                    if (!string.IsNullOrEmpty(row.CenterCoordinate))
-                    {
-                        string[] centers = row.CenterCoordinate.Split(';');
-                        if (centers.Length >= 2)
-                        {
-                            double cx = 0, cy = 0;
-                            double.TryParse(centers[0], NumberStyles.Float, CultureInfo.InvariantCulture, out cx);
-                            double.TryParse(centers[1], NumberStyles.Float, CultureInfo.InvariantCulture, out cy);
-                            
-                            double i = cx - currentX;
-                            double j = cy - currentY;
-                            
-                            sb.AppendLine($"{g} X{nextX.ToString("0.###", CultureInfo.InvariantCulture)} Y{nextY.ToString("0.###", CultureInfo.InvariantCulture)} I{i.ToString("0.###", CultureInfo.InvariantCulture)} J{j.ToString("0.###", CultureInfo.InvariantCulture)}{f}");
-                        }
-                    }
-                    else
-                    {
-                        sb.AppendLine($"{g} X{nextX.ToString("0.###", CultureInfo.InvariantCulture)} Y{nextY.ToString("0.###", CultureInfo.InvariantCulture)}{f}");
-                    }
-                }
-
-                currentX = nextX;
-                currentY = nextY;
-            }
-
-            rawGcodeText = sb.ToString();
         }
 
         // ── Import CAD → Process table ───────────────────────────────────────────
@@ -1383,29 +960,10 @@ namespace DACDT_2026
 
             // Map ProcessRow → QD75BufferWriter.PositioningDataRow (tọa độ đã cộng offset)
             var dataRows = new List<QD75BufferWriter.PositioningDataRow>();
-            string snapRapid = rapidSpeed;  // snapshot rapidSpeed cho G0
-
-            // Xác định offset áp dụng:
-            // - G-code: dùng WCS offset (G54-G59) per-row — mỗi row có WcsIndex riêng
-            // - DXF: dùng offset X/Y từ Settings
-            bool isGcodeFile = string.Equals(activeDocumentKind, "GCODE", StringComparison.OrdinalIgnoreCase);
-            string lastSpeed = globalSpeed;
-
             foreach (var row in processRows)
             {
-                // Xác định offset cho row này
-                double sendOffsetX, sendOffsetY;
-                if (isGcodeFile)
-                {
-                    int wcsIdx = Math.Max(0, Math.Min(5, row.WcsIndex));
-                    sendOffsetX = wcsOffsetX[wcsIdx];
-                    sendOffsetY = wcsOffsetY[wcsIdx];
-                }
-                else
-                {
-                    sendOffsetX = offsetX;
-                    sendOffsetY = offsetY;
-                }
+                double sendOffsetX = offsetX;
+                double sendOffsetY = offsetY;
 
                 // Nếu là điểm home (MCode = 0 và toạ độ 0;0), không cộng offset để toạ độ sau khi offset vẫn là 0 0
                 if (row.MCodeValue == "0" && string.Equals(row.EndCoordinate, "0;0"))
@@ -1414,38 +972,16 @@ namespace DACDT_2026
                     sendOffsetY = 0;
                 }
 
-                // Xác định speed thực sự gửi xuống PLC
                 string sendSpeed;
-                bool rowIsRapid = row.MotionType.Contains("Rapid3") || row.MotionType.Contains("Rapid");
-
-                if (rowIsRapid)
-                {
-                    // G0: luôn dùng rapidSpeed, không phụ thuộc vào F trong file
-                    sendSpeed = snapRapid;
-                }
+                if (isMixedEngraveCutProgram && !string.IsNullOrWhiteSpace(row.Speed))
+                    sendSpeed = row.Speed;
+                else if (isMixedEngraveCutProgram)
+                    sendSpeed = globalSpeedM3;
+                else if (row.MCodeValue == "3"
+                    || (row.MCodeValue == "0" && string.Equals(row.EndCoordinate, "0;0")))
+                    sendSpeed = globalSpeedM3;
                 else
-                {
-                    // G1/G2/G3: dùng speed từ row, fallback theo loại file.
-                    if (isGcodeFile)
-                    {
-                        if (!string.IsNullOrEmpty(row.Speed) && int.TryParse(row.Speed, out int s) && s > 0)
-                        {
-                            lastSpeed = row.Speed;
-                        }
-                        sendSpeed = lastSpeed;
-                    }
-                    else
-                    {
-                        if (isMixedEngraveCutProgram && !string.IsNullOrWhiteSpace(row.Speed))
-                            sendSpeed = row.Speed;
-                        else if (isMixedEngraveCutProgram)
-                            sendSpeed = globalSpeedM3;
-                        else if (row.MCodeValue == "3" || (row.MCodeValue == "0" && string.Equals(row.EndCoordinate, "0;0")))
-                            sendSpeed = globalSpeedM3;
-                        else
-                            sendSpeed = globalSpeed;
-                    }
-                }
+                    sendSpeed = globalSpeed;
 
                 string sendEndCoordinate = ApplyOffsetToCoordSend(row.EndCoordinate, sendOffsetX, sendOffsetY);
                 string sendCenterCoordinate = ApplyOffsetToCoordSend(row.CenterCoordinate, sendOffsetX, sendOffsetY);
@@ -1637,7 +1173,7 @@ namespace DACDT_2026
 
             if (activeCadDocument == null)
             {
-                await NotifyAsync("error", "Test Area", "DXF/G-code file not loaded.");
+                await NotifyAsync("error", "Test Area", "DXF file not loaded.");
                 return;
             }
 
@@ -1874,7 +1410,6 @@ namespace DACDT_2026
             }
 
             StopPlcPolling();
-            isPreviewingGcode = true;
 
             string filePath = null;
             char delimiter = ',';
@@ -1901,7 +1436,6 @@ namespace DACDT_2026
             }
             finally
             {
-                isPreviewingGcode = false;
                 if (plcComm != null && plcComm.IsConnected && !isClosing)
                     StartPlcPolling();
             }
@@ -1912,24 +1446,11 @@ namespace DACDT_2026
             try
             {
                 var dataRows = new List<QD75BufferWriter.PositioningDataRow>();
-                string snapRapid = rapidSpeed;
-                bool isGcodeFile = string.Equals(activeDocumentKind, "GCODE", StringComparison.OrdinalIgnoreCase);
-                string lastSpeed = globalSpeed;
 
                 foreach (var row in processRows)
                 {
-                    double sendOffsetX, sendOffsetY;
-                    if (isGcodeFile)
-                    {
-                        int wcsIdx = Math.Max(0, Math.Min(5, row.WcsIndex));
-                        sendOffsetX = wcsOffsetX[wcsIdx];
-                        sendOffsetY = wcsOffsetY[wcsIdx];
-                    }
-                    else
-                    {
-                        sendOffsetX = offsetX;
-                        sendOffsetY = offsetY;
-                    }
+                    double sendOffsetX = offsetX;
+                    double sendOffsetY = offsetY;
 
                     // Nếu là điểm home (MCode = 0 và toạ độ 0;0), không cộng offset để toạ độ sau khi offset vẫn là 0 0
                     if (row.MCodeValue == "0" && string.Equals(row.EndCoordinate, "0;0"))
@@ -1939,35 +1460,15 @@ namespace DACDT_2026
                     }
 
                     string sendSpeed;
-                    bool rowIsRapid = row.MotionType.Contains("Rapid3") || row.MotionType.Contains("Rapid");
-
-                    if (rowIsRapid)
-                    {
-                        sendSpeed = snapRapid;
-                    }
+                    if (isMixedEngraveCutProgram && !string.IsNullOrWhiteSpace(row.Speed))
+                        sendSpeed = row.Speed;
+                    else if (isMixedEngraveCutProgram)
+                        sendSpeed = globalSpeedM3;
+                    else if (row.MCodeValue == "3"
+                        || (row.MCodeValue == "0" && string.Equals(row.EndCoordinate, "0;0")))
+                        sendSpeed = globalSpeedM3;
                     else
-                    {
-                        if (isGcodeFile)
-                        {
-                            if (!string.IsNullOrEmpty(row.Speed) && int.TryParse(row.Speed, out int s) && s > 0)
-                            {
-                                lastSpeed = row.Speed;
-                            }
-                            sendSpeed = lastSpeed;
-                        }
-                        else
-                        {
-                            // Mixed Khac + Cat uses each row's prepared speed; single DXF keeps the legacy M03/M04 fallback.
-                            if (isMixedEngraveCutProgram && !string.IsNullOrWhiteSpace(row.Speed))
-                                sendSpeed = row.Speed;
-                            else if (isMixedEngraveCutProgram)
-                                sendSpeed = globalSpeedM3;
-                            else if (row.MCodeValue == "3" || (row.MCodeValue == "0" && string.Equals(row.EndCoordinate, "0;0")))
-                                sendSpeed = globalSpeedM3;
-                            else
-                                sendSpeed = globalSpeed;
-                        }
-                    }
+                        sendSpeed = globalSpeed;
 
                     string sendEndCoordinate = ApplyOffsetToCoordSend(row.EndCoordinate, sendOffsetX, sendOffsetY);
                     string sendCenterCoordinate = ApplyOffsetToCoordSend(row.CenterCoordinate, sendOffsetX, sendOffsetY);
@@ -2161,9 +1662,8 @@ namespace DACDT_2026
             if (builtRows == null || builtRows.Count == 0)
                 return builtRows;
 
-            bool isGcodeDoc = string.Equals(activeDocumentKind, "GCODE", StringComparison.OrdinalIgnoreCase);
             string snapSpeed = globalSpeed;
-            string snapSpeedM3 = isGcodeDoc ? gcodeSpeedM3 : globalSpeedM3;
+            string snapSpeedM3 = globalSpeedM3;
 
             string glueStartCoord = null;
             string glueEndCoord   = null;
@@ -2190,25 +1690,12 @@ namespace DACDT_2026
                 if (glueEndCoord != null && string.Equals(row.EndCoordinate, glueEndCoord))
                     row.MCodeValue = "2";
 
-                if (isGcodeDoc)
-                {
-                    if (string.IsNullOrEmpty(row.Speed))
-                    {
-                        if (row.MCodeValue == "3")
-                            row.Speed = snapSpeedM3;
-                        else
-                            row.Speed = snapSpeed;
-                    }
-                }
+                // M3 and the final home point use travel speed; all other rows use process speed.
+                if (row.MCodeValue == "3"
+                    || (row.MCodeValue == "0" && string.Equals(row.EndCoordinate, "0;0")))
+                    row.Speed = snapSpeedM3;
                 else
-                {
-                    // DXF: Always enforce M3 -> globalSpeedM3, others -> globalSpeed
-                    // Exception: the final home point (MCodeValue == "0" and coordinate "0;0") runs at globalSpeedM3 (M3 speed value)
-                    if (row.MCodeValue == "3" || (row.MCodeValue == "0" && string.Equals(row.EndCoordinate, "0;0")))
-                        row.Speed = snapSpeedM3;
-                    else
-                        row.Speed = snapSpeed;
-                }
+                    row.Speed = snapSpeed;
             }
 
             return builtRows;
@@ -2235,23 +1722,16 @@ namespace DACDT_2026
 
         // ── Build ProcessRow list from connected CAD paths ───────────────────────
         private List<ProcessRow> BuildConnectedPathsFromCad()
-        {
-            bool isGcodeDocument = string.Equals(activeDocumentKind, "GCODE", StringComparison.OrdinalIgnoreCase);
-            
-            if (isGcodeDocument)
-                return BuildGcodeProcessRows();
-            else
-                return BuildDxfProcessRows();
-        }
+            => BuildDxfProcessRows();
 
         // ── Build ProcessRow list for DXF files ──────────────────────────────────
         /// <summary>
         /// Build process rows cho file DXF.
-        /// Quy tắc Z (giống GCODE):
+        /// Quy tắc Z:
         ///   - Z Start: độ cao Z khi bắt đầu một quỹ đạo (path) mới — trục Z chưa hạ
         ///   - Z Down : độ cao Z khi đang gia công (đầu phun đã hạ)
         ///   - Z Safe : độ cao Z an toàn khi nhấc lên giữa 2 path
-        /// Quy tắc mã lệnh (giống GCODE):
+        /// Quy tắc mã lệnh:
         ///   - File có bất kỳ Z ≠ 0 → toàn bộ là Linear3 (3-axis), Arc convert thành chuỗi Linear3
         ///   - File không Z → Line/Arc 2-axis như bình thường
         ///   - Linear3/Rapid3 luôn Continuous Positioning (mã 5377/5376)
@@ -2282,7 +1762,6 @@ namespace DACDT_2026
 
             var paths = GetConnectedPathsFromCad(
                 document.Primitives,
-                isGcode: false,
                 cancellationToken: cancellationToken);
 
             for (int pathIdx = 0; pathIdx < paths.Count; pathIdx++)
@@ -2339,7 +1818,7 @@ namespace DACDT_2026
                             MCodeValue       = "3", // M3 = bắt đầu quỹ đạo (dispensing ON)
                             EndZ             = startZ
                         };
-                        ApplyPrimitiveExtraData(startRow, prim, isGcode: false);
+                        ApplyPrimitiveExtraData(startRow, prim);
                         result.Add(startRow);
                     }
 
@@ -2374,7 +1853,7 @@ namespace DACDT_2026
                                 MCodeValue       = string.Empty,
                                 EndZ             = endZ
                             };
-                            ApplyPrimitiveExtraData(row, prim, isGcode: false);
+                            ApplyPrimitiveExtraData(row, prim);
 
                             // M4 = kết thúc quỹ đạo (dispensing OFF) tại điểm cuối path
                             if (isLastInPrim && isLastInPath)
@@ -2413,7 +1892,7 @@ namespace DACDT_2026
                         if (prim.Center != null)
                             row.CenterCoordinate = string.Format(CultureInfo.InvariantCulture,
                                 "{0:0.###};{1:0.###}", prim.Center.X, prim.Center.Y);
-                        ApplyPrimitiveExtraData(row, prim, isGcode: false);
+                        ApplyPrimitiveExtraData(row, prim);
 
                         // M4 = kết thúc quỹ đạo (dispensing OFF) tại điểm cuối path
                         if (isLastInPath)
@@ -2541,166 +2020,6 @@ namespace DACDT_2026
             return result;
         }
 
-        // ── Build ProcessRow list for GCODE files ────────────────────────────────
-        /// <summary>
-        /// Build process rows cho file GCODE.
-        /// Logic phức tạp:
-        ///   - G0 Rapid: dùng rapidSpeed, Linear3 (3-axis), Continuous Positioning
-        ///   - G1 có Z: Linear3 (3-axis)
-        ///   - G1 không Z: Linear2 (2-axis)
-        ///   - Post-processing: đảm bảo Continuous Positioning đúng chỗ (trước/sau G0, chuyển 3↔2 axis)
-        /// </summary>
-        private List<ProcessRow> BuildGcodeProcessRows()
-        {
-            var result = new List<ProcessRow>();
-            if (activeCadDocument?.Primitives == null) return result;
-
-            // Snapshot rapidSpeed để dùng trong background thread
-            string snapRapidSpeed = rapidSpeed;
-
-            // ── Per-line Z detection ──
-            // Mỗi lệnh G0/G1 tự quyết định 2-axis hay 3-axis dựa trên Z của chính lệnh đó:
-            //   - Lệnh có Z (Z thay đổi so với điểm trước, hoặc primitive mang Z khác 0) → 3-axis
-            //   - Lệnh không có Z → 2-axis (Line)
-            //   - G02/G03: LUÔN 2-axis (Arc CW/CCW), bất kể có Z hay không
-            // Khi chuyển 2↔3 axis sẽ được post-process thành Continuous Positioning.
-
-            var paths = GetConnectedPathsFromCad(activeCadDocument.Primitives, isGcode: true);
-
-            for (int pathIdx = 0; pathIdx < paths.Count; pathIdx++)
-            {
-                var path        = paths[pathIdx];
-                bool isLastPath = (pathIdx == paths.Count - 1);
-                bool isFirstPath = (pathIdx == 0);
-                bool pathClosed = IsClosedPath(path, isGcode: true);
-
-                for (int pIdx = 0; pIdx < path.Count; pIdx++)
-                {
-                    var prim = path[pIdx];
-                    if (prim.Points == null || prim.Points.Count < 2) continue;
-
-                    bool isLastInPath = (pIdx == path.Count - 1);
-
-                    // suffix cho điểm cuối của primitive này trong path:
-                    //   - Điểm cuối của path cuối cùng      → (End)                   [Da.1 = 00]
-                    //   - Điểm cuối của path trung gian      → (Continuous Positioning) [Da.1 = 01] dừng có tăng/giảm tốc trước khi nhảy sang path kế
-                    //   - Điểm giữa trong cùng một path      → (Continuous Path)        [Da.1 = 11] chạy không dừng
-                    string suffix = isLastInPath
-                        ? (isLastPath ? " (End)" : " (Continuous Positioning)")
-                        : " (Continuous Path)";
-
-                    // Nếu đây là primitive đầu tiên trong path, tạo lệnh di chuyển đến điểm Start.
-                    //
-                    // ▶ Chế độ di chuyển "lên đầu path":
-                    //   - Path đầu tiên (pathIdx=0) và chỉ có 1 path: Continuous Path (không cần dừng).
-                    //   - Path đầu tiên (pathIdx=0) nhưng có nhiều path: Continuous Positioning
-                    //     (dừng có tăng/giảm tốc tại điểm start trước khi bắt đầu gia công).
-                    //   - Path có đoạn đứt quãng (pathIdx>0): bắt buộc Continuous Positioning
-                    //     để PLC dừng, giảm tốc tại điểm start mới, tránh bị kéo qua đoạn không gia công.
-                    //
-                    // Quy tắc: chỉ dùng Continuous Path nếu đây là path đầu tiên VÀ chỉ có đúng 1 path.
-                    // KHÔNG tạo start row — end points trong vòng lặp for(i=1...) đã đủ.
-                    // Start row trước đây tạo dòng thừa (tọa độ start point) gây lệch buffer.
-
-                    if (prim.SourceType.Contains("Line") || prim.SourceType.Contains("Polyline"))
-                    {
-                        bool primIsRapid = prim.SourceType.Contains("G0") || prim.SourceType.Contains("Rapid");
-
-                        for (int i = 1; i < prim.Points.Count; i++)
-                        {
-                            bool   isLastInPrim  = (i == prim.Points.Count - 1);
-                            string currentSuffix = (isLastInPrim && isLastInPath) ? suffix : " (Continuous Path)";
-                            var    pt            = prim.Points[i];
-                            var    prev          = prim.Points[i - 1];
-
-                            // Tất cả G0/G1 đều dùng 2-axis (Line). Z bị bỏ qua.
-                            string motionPrefix = "Line";
-
-                            var row = new ProcessRow
-                            {
-                                MotionType       = motionPrefix + currentSuffix,
-                                EndCoordinate    = string.Format(CultureInfo.InvariantCulture,
-                                    "{0:0.###};{1:0.###}", pt.X, pt.Y),
-                                EndXMm           = pt.X,
-                                EndYMm           = pt.Y,
-                                CenterCoordinate = string.Empty,
-                                CenterXMm        = 0,
-                                CenterYMm        = 0,
-                                EndZ             = 0
-                            };
-                            ApplyPrimitiveExtraData(row, prim, isGcode: true);
-                            if (primIsRapid && !string.IsNullOrEmpty(snapRapidSpeed))
-                                row.Speed = snapRapidSpeed;
-                            result.Add(row);
-                        }
-                    }
-                    else if (prim.SourceType.Contains("Arc") || prim.SourceType.Contains("Circle"))
-                    {
-                        // G02/G03: LUÔN dùng Arc CW/CCW 2-axis (Da.2=0x0F/0x10).
-                        // Nội suy cung tròn 2 trục X-Y với tâm cung. Z giữ nguyên.
-                        string arcType = prim.IsCw ? "Arc CW" : "Arc CCW";
-                        if (prim.SourceType.Contains("Circle")) arcType = "Circle";
-
-                        var endPt = prim.Points.Last();
-                        var row   = new ProcessRow
-                        {
-                            MotionType    = arcType + suffix,
-                            EndCoordinate = string.Format(CultureInfo.InvariantCulture,
-                                "{0:0.###};{1:0.###}", endPt.X, endPt.Y),
-                            EndXMm        = endPt.X,
-                            EndYMm        = endPt.Y,
-                            CenterXMm     = prim.Center?.X ?? 0,
-                            CenterYMm     = prim.Center?.Y ?? 0,
-                            EndZ          = endPt.Z
-                        };
-                        if (prim.Center != null)
-                            row.CenterCoordinate = string.Format(CultureInfo.InvariantCulture,
-                                "{0:0.###};{1:0.###}", prim.Center.X, prim.Center.Y);
-                        ApplyPrimitiveExtraData(row, prim, isGcode: true);
-                        result.Add(row);
-                    }
-                }
-            }
-
-            // ── Post-process: đảm bảo mã lệnh chạy đúng (theo manual SH-080058) ────
-            //
-            // Tất cả G0/G1/G2/G3 đều là 2-axis. Không có 3-axis → không có lỗi 524.
-            // Quy tắc:
-            //   1. Dòng cuối chương trình → END (Da.1=0)
-            //   2. Chuyển Da.2 (Line↔Arc) → Continuous Positioning (Da.1=1)
-            //   3. Cùng Da.2 liên tiếp → Continuous Path (Da.1=3)
-
-            for (int i = 0; i < result.Count; i++)
-            {
-                string mtLower = result[i].MotionType.ToLowerInvariant();
-
-                // ── Quy tắc 1: Dòng cuối chương trình → END ──
-                if (i == result.Count - 1)
-                {
-                    if (!result[i].MotionType.Contains("(End)") && !result[i].MotionType.Contains(" (End)"))
-                    {
-                        result[i].MotionType = result[i].MotionType
-                            .Replace("(Continuous Path)", " (End)")
-                            .Replace("(Continuous Positioning)", " (End)");
-                    }
-                    continue;
-                }
-
-                // ── Quy tắc 2: Chuyển Line↔Arc → Continuous Positioning ──
-                string nextLower = result[i + 1].MotionType.ToLowerInvariant();
-                bool currIsArc = mtLower.Contains("arc") || mtLower.Contains("circle");
-                bool nextIsArc = nextLower.Contains("arc") || nextLower.Contains("circle");
-
-                if (currIsArc != nextIsArc && result[i].MotionType.Contains("(Continuous Path)"))
-                {
-                    result[i].MotionType = result[i].MotionType
-                        .Replace("(Continuous Path)", "(Continuous Positioning)");
-                }
-            }
-
-            return result;
-        }
-
         // ── Connect CAD primitives into chains ───────────────────────────────────
         /// <summary>
         /// Nối các primitive thành chuỗi path liên tiếp.
@@ -2709,24 +2028,23 @@ namespace DACDT_2026
         /// </summary>
         private List<List<CadDocumentService.CadPrimitiveData>> GetConnectedPathsFromCad(
             List<CadDocumentService.CadPrimitiveData> primitives,
-            bool isGcode = false,
             CancellationToken cancellationToken = default(CancellationToken))
-            => CadPathSelection.GroupConnectedPaths(primitives, isGcode, cancellationToken);
+            => CadPathSelection.GroupConnectedPaths(primitives, false, cancellationToken);
 
-        private bool IsClosedPath(List<CadDocumentService.CadPrimitiveData> path, bool isGcode = false)
+        private bool IsClosedPath(List<CadDocumentService.CadPrimitiveData> path)
         {
-            if (path == null || path.Count == 0) return false;
-
-            var first = path.FirstOrDefault(p => p.Points != null && p.Points.Count > 0);
-            var last = path.LastOrDefault(p => p.Points != null && p.Points.Count > 0);
-            if (first == null || last == null) return false;
-
-            return AreClose(first.Points.First(), last.Points.Last(), isGcode);
+            if (path == null || path.Count == 0)
+                return false;
+            var first = path[0];
+            var last = path[path.Count - 1];
+            return first?.Points?.Count > 0
+                && last?.Points?.Count > 0
+                && AreClose(first.Points[0], last.Points[last.Points.Count - 1]);
         }
 
-        private static void ApplyPrimitiveExtraData(ProcessRow row, CadDocumentService.CadPrimitiveData primitive, bool isGcode = false)
+        private static void ApplyPrimitiveExtraData(ProcessRow row, CadDocumentService.CadPrimitiveData primitive)
         {
-            // M code áp dụng cho cả DXF và GCODE: gửi xuống PLC qua Da.10 (M code register).
+            // M code is sent to the PLC through the Da.10 register.
             // Hỗ trợ M00/M02/M03/M04/M05/M06/M30... — PLC ladder sẽ xử lý từng mã.
             if (!string.IsNullOrWhiteSpace(primitive?.MCodeValue))
                 row.MCodeValue = primitive.MCodeValue;
@@ -2740,17 +2058,13 @@ namespace DACDT_2026
                 row.WcsIndex = primitive.WcsIndex;
         }
 
-        /// <summary>
-        /// So sánh 2 điểm có gần nhau không.
-        /// - DXF (isGcode=false): chỉ check X,Y (Z luôn = 0)
-        /// - GCODE (isGcode=true): check cả X,Y,Z
-        /// </summary>
-        private bool AreClose(CadDocumentService.CadCoordinate a, CadDocumentService.CadCoordinate b, bool isGcode = false)
-        {
-            bool xyClose = Math.Abs(a.X - b.X) < 0.001 && Math.Abs(a.Y - b.Y) < 0.001;
-            if (!isGcode) return xyClose;
-            return xyClose && Math.Abs(a.Z - b.Z) < 0.001;
-        }
+        private bool AreClose(
+            CadDocumentService.CadCoordinate a,
+            CadDocumentService.CadCoordinate b)
+            => a != null
+               && b != null
+               && Math.Abs(a.X - b.X) < 0.001
+               && Math.Abs(a.Y - b.Y) < 0.001;
 
         private static string FormatPoint(CadDocumentService.CadPointData point)
             => string.Format(CultureInfo.InvariantCulture, "{0:0.###}, {1:0.###}", point.X, point.Y);
@@ -2766,7 +2080,7 @@ namespace DACDT_2026
 
         // ── Scan Limits ──────────────────────────────────────────────────────────
         /// <summary>
-        /// Quét toàn bộ toạ độ X/Y từ file DXF/G-code đang load,
+        /// Quét toàn bộ toạ độ X/Y từ file DXF đang load,
         /// so sánh với giới hạn hành trình máy:
         ///   Trục 1 (X) = 170 mm, Trục 2 (Y) = 170 mm, Trục 3 (Z) = 50 mm.
         /// Kết quả push lên UI dưới dạng message "scanResult".
