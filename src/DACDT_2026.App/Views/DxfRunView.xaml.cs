@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Specialized;
+using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -43,10 +45,19 @@ namespace DACDT_2026.Views
         {
             Interval = TimeSpan.FromMilliseconds(150)
         };
+        private WpfUiState observedState;
+        private readonly DispatcherTimer activeProgramScrollTimer;
+        private bool activeProgramScrollPending;
 
         public DxfRunView()
         {
             InitializeComponent();
+            activeProgramScrollTimer = new DispatcherTimer(DispatcherPriority.Background)
+            {
+                Interval = TimeSpan.FromMilliseconds(100)
+            };
+            activeProgramScrollTimer.Tick += ActiveProgramScrollTimer_Tick;
+            DataContextChanged += DxfRunView_DataContextChanged;
             cadWheelIdleTimer.Tick += CadWheelIdleTimer_Tick;
             CadViewport.LostMouseCapture += CadViewport_LostMouseCapture;
         }
@@ -55,6 +66,94 @@ namespace DACDT_2026.Views
         {
             get => (double)GetValue(CadDisplayZoomProperty);
             set => SetValue(CadDisplayZoomProperty, value);
+        }
+
+        private void DxfRunView_DataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
+        {
+            activeProgramScrollTimer.Stop();
+            activeProgramScrollPending = false;
+
+            if (observedState != null)
+            {
+                observedState.PropertyChanged -= ObservedState_PropertyChanged;
+                observedState.ProgramRows.CollectionChanged -= ProgramRows_CollectionChanged;
+            }
+
+            observedState = e.NewValue as WpfUiState;
+            if (observedState != null)
+            {
+                observedState.PropertyChanged += ObservedState_PropertyChanged;
+                observedState.ProgramRows.CollectionChanged += ProgramRows_CollectionChanged;
+            }
+
+            QueueActiveProgramScroll();
+        }
+
+        private void ObservedState_PropertyChanged(object sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == nameof(WpfUiState.ActiveProgramIndex))
+                QueueActiveProgramScroll();
+        }
+
+        private void ProgramRows_CollectionChanged(object sender, NotifyCollectionChangedEventArgs e)
+        {
+            QueueActiveProgramScroll();
+        }
+
+        private void QueueActiveProgramScroll()
+        {
+            activeProgramScrollPending = true;
+            if (!activeProgramScrollTimer.IsEnabled)
+                activeProgramScrollTimer.Start();
+        }
+
+        private void ActiveProgramScrollTimer_Tick(object sender, EventArgs e)
+        {
+            activeProgramScrollTimer.Stop();
+            if (!activeProgramScrollPending)
+                return;
+
+            activeProgramScrollPending = false;
+            ScrollActiveProgramRow();
+        }
+
+        private void ScrollActiveProgramRow()
+        {
+            if (observedState == null
+                || ProgramGrid == null
+                || observedState.ActiveProgramIndex <= 0)
+            {
+                return;
+            }
+
+            observedState.EnsureProcessRowVisible(observedState.ActiveProgramIndex);
+
+            ProcessRowViewModel activeRow = null;
+            foreach (ProcessRowViewModel row in observedState.ProgramRows)
+            {
+                if (row.Index == observedState.ActiveProgramIndex)
+                {
+                    activeRow = row;
+                    break;
+                }
+            }
+
+            if (activeRow != null)
+                ProgramGrid.ScrollIntoView(activeRow);
+        }
+
+        private void ProgramGrid_ScrollChanged(object sender, ScrollChangedEventArgs e)
+        {
+            if (observedState != null && IsNearScrollEnd(e))
+                observedState.LoadMoreProgramRows();
+        }
+
+        private static bool IsNearScrollEnd(ScrollChangedEventArgs e)
+        {
+            if (e.ExtentHeight <= 0.0 || e.ViewportHeight <= 0.0)
+                return false;
+
+            return e.VerticalOffset + e.ViewportHeight >= e.ExtentHeight - 8.0;
         }
 
         private void HoldButton_PreviewMouseDown(object sender, MouseButtonEventArgs e)

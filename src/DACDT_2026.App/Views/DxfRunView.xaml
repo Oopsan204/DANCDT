@@ -9,6 +9,7 @@
                 <ResourceDictionary Source="/DACDT_2026;component/Views/Styles.xaml"/>
             </ResourceDictionary.MergedDictionaries>
             <local:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
+            <local:BoolToStatusBrushConverter x:Key="BoolToStatusBrushConverter"/>
             <local:InverseZoomStrokeThicknessConverter x:Key="InverseZoomStrokeThicknessConverter"/>
             <local:NegativeHalfConverter x:Key="NegativeHalfConverter"/>
             <sys:Double x:Key="BaseStrokeThickness">1.0</sys:Double>
@@ -300,25 +301,91 @@
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
                         <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
-                    <TextBlock Text="G-code Editor" Style="{StaticResource PanelTitleStyle}"/>
-                    <TextBox Grid.Row="1"
-                             Text="{Binding RawGcodeText, UpdateSourceTrigger=PropertyChanged}"
-                             AcceptsReturn="True"
-                             AcceptsTab="True"
-                             FontFamily="Consolas"
-                             FontSize="12"
-                             VerticalScrollBarVisibility="Auto"
-                             HorizontalScrollBarVisibility="Auto"
-                             TextWrapping="NoWrap"
-                             Margin="0,8,0,6"
-                             VerticalContentAlignment="Top"/>
-                    <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right">
-                        <Button Content="Preview" Command="{Binding PreviewGcodeCommand}" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,6,0"/>
-                        <Button Content="Save G-code" Command="{Binding SaveGcodeCommand}" Style="{StaticResource PrimaryButtonStyle}"/>
+
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Text="DXF Point Monitor" Style="{StaticResource PanelTitleStyle}"/>
+                            <TextBlock Text="{Binding ProgramMonitorSubtitle}"
+                                       Style="{StaticResource PanelSubtitleStyle}"
+                                       TextTrimming="CharacterEllipsis"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding ActiveProgramText}"
+                                       Foreground="{DynamicResource MutedBrush}"
+                                       Margin="0,0,8,0"/>
+                            <Ellipse Width="12"
+                                     Height="12"
+                                     Fill="{Binding IsConnected, Converter={StaticResource BoolToStatusBrushConverter}}"/>
+                        </StackPanel>
+                    </Grid>
+
+                    <StackPanel Grid.Row="1" Margin="0,8,0,0">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="{Binding RunProgressText}"
+                                       Foreground="{DynamicResource MutedBrush}"
+                                       Visibility="{Binding RunProgressVisible, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                            <TextBlock Grid.Column="1"
+                                       Text="{Binding ProgressText}"
+                                       Foreground="{DynamicResource MutedBrush}"
+                                       Visibility="{Binding ProgressVisible, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                        </Grid>
+                        <ProgressBar Height="8"
+                                     Maximum="100"
+                                     Value="{Binding RunProgressPercent, Mode=OneWay}"
+                                     Visibility="{Binding RunProgressVisible, Converter={StaticResource BoolToVisibilityConverter}}"
+                                     Margin="0,5,0,0"/>
+                        <ProgressBar Height="5"
+                                     Maximum="100"
+                                     Value="{Binding ProgressPercent}"
+                                     Visibility="{Binding ProgressVisible, Converter={StaticResource BoolToVisibilityConverter}}"
+                                     Margin="0,4,0,0"/>
                     </StackPanel>
+
+                    <DataGrid x:Name="ProgramGrid"
+                              Grid.Row="2"
+                              ItemsSource="{Binding ProgramRows}"
+                              AutoGenerateColumns="False"
+                              IsReadOnly="True"
+                              EnableRowVirtualization="True"
+                              EnableColumnVirtualization="True"
+                              ScrollViewer.CanContentScroll="True"
+                              ScrollViewer.ScrollChanged="ProgramGrid_ScrollChanged"
+                              HorizontalScrollBarVisibility="Auto"
+                              Margin="0,8,0,0"
+                              Background="{DynamicResource PanelAltBrush}">
+                        <DataGrid.RowStyle>
+                            <Style TargetType="{x:Type DataGridRow}">
+                                <Setter Property="MinHeight" Value="28"/>
+                                <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsActive}" Value="True">
+                                        <Setter Property="Background" Value="#1E4E3A"/>
+                                        <Setter Property="Foreground" Value="White"/>
+                                        <Setter Property="FontWeight" Value="Bold"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </DataGrid.RowStyle>
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Run" Binding="{Binding ActiveMarker}" Width="48"/>
+                            <DataGridTextColumn Header="No." Binding="{Binding Index}" Width="58"/>
+                            <DataGridTextColumn Header="DXF Point" Binding="{Binding MotionType}" Width="*"/>
+                            <DataGridTextColumn Header="M" Binding="{Binding MCodeValue}" Width="48"/>
+                            <DataGridTextColumn Header="Speed" Binding="{Binding Speed}" Width="72"/>
+                            <DataGridTextColumn Header="End X;Y" Binding="{Binding EndCoordinate}" Width="135"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
                 </Grid>
             </Border>
 

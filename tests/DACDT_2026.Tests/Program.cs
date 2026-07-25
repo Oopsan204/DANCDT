@@ -122,7 +122,7 @@ namespace DACDT_2026.Tests
                 ViewsDeclareConvertersUsedByXamlDesigner();
                 WpfXamlUsesValidResourceAndGridSyntax();
                 CadPreviewClipsOnlyAtOuterViewport();
-                GeometryDataTableIsRemovedWithoutRemovingCadAndGcodeViews();
+                DxfRunViewShowsVirtualizedPointMonitor();
                 AntigravityUiWorkflowIsGuarded();
                 HelpViewContainsVietnameseOperationalGuide();
                 TelemetryFeatureIsRemoved();
@@ -1458,7 +1458,12 @@ namespace DACDT_2026.Tests
 
         private static void ProgramMonitorAutoScrollIsLatestOnlyAndThrottled()
         {
-            string[] files = { "DashboardView.xaml.cs", "MonitorView.xaml.cs" };
+            string[] files =
+            {
+                "DashboardView.xaml.cs",
+                "MonitorView.xaml.cs",
+                "DxfRunView.xaml.cs"
+            };
             foreach (string file in files)
             {
                 string source = File.ReadAllText(GetRepositoryPath(
@@ -1720,19 +1725,36 @@ namespace DACDT_2026.Tests
                 "CAD surface must not clip content before it reaches the outer viewport.");
         }
 
-        private static void GeometryDataTableIsRemovedWithoutRemovingCadAndGcodeViews()
+        private static void DxfRunViewShowsVirtualizedPointMonitor()
         {
-            string dxfRun = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Views", "DxfRunView.xaml"));
-            string viewCode = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Views", "DxfRunView.xaml.cs"));
-            string publisher = File.ReadAllText(GetRepositoryPath("src", "DACDT_2026.App", "Form1.StatePublisher.cs"));
+            string xaml = File.ReadAllText(GetRepositoryPath(
+                "src", "DACDT_2026.App", "Views", "DxfRunView.xaml"));
+            string code = File.ReadAllText(GetRepositoryPath(
+                "src", "DACDT_2026.App", "Views", "DxfRunView.xaml.cs"));
 
-            AssertTrue(!dxfRun.Contains("Geometry Data"), "DxfRunView must not show the Geometry Data panel.");
-            AssertTrue(!dxfRun.Contains("GeometryDataGrid"), "DxfRunView must not declare the Geometry Data grid.");
-            AssertTrue(!viewCode.Contains("LoadMoreGeometryRows"), "DxfRunView must not lazy-load coordinate rows.");
-            AssertTrue(!publisher.Contains("BuildGeometryRows("), "CAD state publication must not build coordinate rows.");
-            AssertTrue(!publisher.Contains("SetGeometryRows("), "CAD state publication must not publish coordinate rows.");
-            AssertTrue(dxfRun.Contains("CAD Preview"), "DxfRunView must keep CAD Preview.");
-            AssertTrue(dxfRun.Contains("G-code Editor"), "DxfRunView must keep G-code Editor.");
+            AssertTrue(xaml.Contains("Text=\"DXF Point Monitor\""),
+                "The DXF tab must show the DXF Point Monitor title.");
+            AssertTrue(xaml.Contains("ItemsSource=\"{Binding ProgramRows}\""),
+                "The point monitor must reuse the existing ProgramRows window.");
+            AssertTrue(xaml.Contains("Header=\"DXF Point\"")
+                && xaml.Contains("Binding=\"{Binding MotionType}\""),
+                "The table must expose the DXF Point column.");
+            AssertTrue(xaml.Contains("Header=\"End X;Y\"")
+                && xaml.Contains("Binding=\"{Binding EndCoordinate}\""),
+                "The table must expose the endpoint column.");
+            AssertTrue(xaml.Contains("EnableRowVirtualization=\"True\"")
+                && xaml.Contains("EnableColumnVirtualization=\"True\"")
+                && xaml.Contains("ScrollViewer.CanContentScroll=\"True\""),
+                "The DXF point table must virtualize rows and columns.");
+            AssertTrue(xaml.Contains("ScrollViewer.ScrollChanged=\"ProgramGrid_ScrollChanged\""),
+                "The point table must lazy-load its existing row window.");
+            AssertTrue(!xaml.Contains("G-code Editor")
+                && !xaml.Contains("PreviewGcodeCommand")
+                && !xaml.Contains("SaveGcodeCommand"),
+                "The old editor and editor actions must be removed.");
+            AssertTrue(code.Contains("DispatcherTimer activeProgramScrollTimer")
+                && code.Contains("TimeSpan.FromMilliseconds(100)"),
+                "The DXF tab must coalesce auto-scroll requests at 10 Hz.");
         }
 
         private static void TelemetryFeatureIsRemoved()
