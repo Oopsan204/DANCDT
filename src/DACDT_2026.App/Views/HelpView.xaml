@@ -48,7 +48,7 @@
                     1. An toàn trước khi vận hành&#x0a;
                     2. Khởi động và kết nối PLC&#x0a;
                     3. Jog tay, HOME và RESET&#x0a;
-                    4. Mở và kiểm tra file DXF/G-code&#x0a;
+                    4. Mở và kiểm tra file DXF&#x0a;
                     5. Gửi dữ liệu và chạy chương trình&#x0a;
                     6. RUN / PAUSE / CONTINUE / STOP&#x0a;
                     7. Camera, Logs và Settings&#x0a;
@@ -108,7 +108,7 @@
                     Không HOME hoặc jog khi có vật cản trong vùng chuyển động.
                 </TextBlock>
 
-                <TextBlock Text="4. Mở và kiểm tra file DXF/G-code"
+                <TextBlock Text="4. Mở và kiểm tra file DXF"
                            FontSize="18"
                            FontWeight="Bold"
                            Foreground="{DynamicResource TextBrush}"
@@ -116,9 +116,9 @@
                 <TextBlock TextWrapping="Wrap"
                            Foreground="{DynamicResource MutedBrush}"
                            LineHeight="22">
-                    Mở tab DXF / GCODE Run và chọn file cần chạy. Hệ thống chỉ nhận đường thẳng, cung tròn và hình tròn;
+                    Mở tab DXF Run và chọn file DXF cần chạy. Hệ thống chỉ nhận đường thẳng, cung tròn và hình tròn;
                     không sử dụng spline, ellipse hoặc các dạng hình học khác. Kiểm tra bản xem trước, thứ tự đường chạy,
-                    điểm bắt đầu, chiều di chuyển, kích thước vùng làm việc, tốc độ và hệ tọa độ WCS. Nếu hình vẽ, bảng lệnh
+                    điểm bắt đầu, chiều di chuyển, kích thước vùng làm việc, tốc độ và offset X/Y. Nếu hình vẽ, bảng lệnh
                     hoặc thông số không đúng, không gửi dữ liệu xuống PLC.
                 </TextBlock>
 
@@ -173,7 +173,7 @@
                            LineHeight="22">
                     Khi kết thúc, dừng chương trình theo đúng quy trình, xác nhận các trục đã dừng rồi nhấn EXIT APP.
                     Nếu PLC không kết nối, kiểm tra nguồn PLC, dây mạng và thông tin kết nối. Nếu RUN không hoạt động,
-                    kiểm tra dữ liệu đã gửi, bảng lệnh và cảnh báo. Nếu hình chạy sai, kiểm tra lại file, offset, WCS,
+                    kiểm tra dữ liệu đã gửi, bảng lệnh và cảnh báo. Nếu hình chạy sai, kiểm tra lại file, offset X/Y,
                     tốc độ và workspace.
                 </TextBlock>
                 <TextBlock TextWrapping="Wrap"
@@ -185,7 +185,7 @@
                     □ Không có lỗi hoặc cảnh báo nguy hiểm.&#x0a;
                     □ Vùng chạy không có vật cản.&#x0a;
                     □ File và bản xem trước đúng.&#x0a;
-                    □ Tốc độ, workspace và WCS đúng.&#x0a;
+                    □ Tốc độ, workspace và offset X/Y đúng.&#x0a;
                     □ Bảng lệnh có dữ liệu hợp lý.&#x0a;
                     □ Người vận hành đứng ngoài vùng nguy hiểm và biết vị trí EMERGENCY STOP.
                 </TextBlock>

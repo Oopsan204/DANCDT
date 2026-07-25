@@ -181,7 +181,7 @@
                     <DataGrid.Columns>
                         <DataGridTextColumn Header="Run" Binding="{Binding ActiveMarker}" Width="48"/>
                         <DataGridTextColumn Header="No." Binding="{Binding Index}" Width="58"/>
-                        <DataGridTextColumn Header="G-code / Point" Binding="{Binding MotionType}" Width="*"/>
+                        <DataGridTextColumn Header="DXF Point" Binding="{Binding MotionType}" Width="*"/>
                         <DataGridTextColumn Header="M" Binding="{Binding MCodeValue}" Width="48"/>
                         <DataGridTextColumn Header="Speed" Binding="{Binding Speed}" Width="72"/>
                         <DataGridTextColumn Header="End X;Y" Binding="{Binding EndCoordinate}" Width="135"/>

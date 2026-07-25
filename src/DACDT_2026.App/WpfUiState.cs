@@ -777,21 +777,10 @@ namespace DACDT_2026
             }
         }
 
-        public string ProgramMonitorTitle
-        {
-            get
-            {
-                if (string.IsNullOrWhiteSpace(FileKind))
-                    return "Program Monitor";
-
-                return string.Equals(FileKind, "GCODE", StringComparison.OrdinalIgnoreCase)
-                    ? "G-code Monitor"
-                    : "DXF Point Monitor";
-            }
-        }
+        public string ProgramMonitorTitle => "DXF Point Monitor";
 
         public string ProgramMonitorSubtitle => string.IsNullOrWhiteSpace(FileName)
-            ? "Open a G-code or DXF file to populate this list"
+            ? "Open a DXF file to populate this list"
             : FileName + " - highlight follows Axis 1 current data no.";
 
         public void SetCadPointRows(IEnumerable<CadPointViewModel> rows, int activeIndex)

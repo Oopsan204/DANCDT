@@ -123,6 +123,7 @@ namespace DACDT_2026.Tests
                 WpfXamlUsesValidResourceAndGridSyntax();
                 CadPreviewClipsOnlyAtOuterViewport();
                 DxfRunViewShowsVirtualizedPointMonitor();
+                DxfOnlyViewsRemoveGcodeAndWcsControls();
                 AntigravityUiWorkflowIsGuarded();
                 HelpViewContainsVietnameseOperationalGuide();
                 TelemetryFeatureIsRemoved();
@@ -1605,9 +1606,6 @@ namespace DACDT_2026.Tests
                 "Travel Speed (M03 / Home) (mm/min)",
                 "Laser On Delay (M03) (ms)",
                 "Laser Off Delay (M04) (ms)",
-                "G-code Motion",
-                "Laser-On Speed (M03) (mm/min)",
-                "Rapid Travel Speed (G00) (mm/min)",
                 "Workspace Width (mm)",
                 "Workspace Height (mm)"
             };
@@ -1621,7 +1619,10 @@ namespace DACDT_2026.Tests
             {
                 "Single DXF Speed M04",
                 "Apply Speed",
-                "Machine Config &amp; Workspace"
+                "Machine Config &amp; Workspace",
+                "G-code Motion",
+                "Rapid Travel Speed (G00) (mm/min)",
+                "G54-G59 WCS Offsets"
             };
 
             foreach (string label in obsoleteLabels)
@@ -1757,6 +1758,34 @@ namespace DACDT_2026.Tests
                 "The DXF tab must coalesce auto-scroll requests at 10 Hz.");
         }
 
+        private static void DxfOnlyViewsRemoveGcodeAndWcsControls()
+        {
+            string appRoot = GetRepositoryPath("src", "DACDT_2026.App");
+            string dxf = File.ReadAllText(Path.Combine(appRoot, "Views", "DxfRunView.xaml"));
+            string settings = File.ReadAllText(Path.Combine(appRoot, "Views", "SettingsView.xaml"));
+            string sidebar = File.ReadAllText(Path.Combine(appRoot, "Views", "Panels", "SidebarControl.xaml"));
+            string dashboard = File.ReadAllText(Path.Combine(appRoot, "Views", "DashboardView.xaml"));
+            string monitor = File.ReadAllText(Path.Combine(appRoot, "Views", "MonitorView.xaml"));
+            string help = File.ReadAllText(Path.Combine(appRoot, "Views", "HelpView.xaml"));
+
+            AssertTrue(!dxf.Contains("New Gcode"), "The DXF toolbar must not create G-code.");
+            AssertTrue(sidebar.Contains("Content=\"DXF Run\"")
+                && !sidebar.Contains("DXF / GCODE Run"),
+                "Navigation must expose a DXF-only route label.");
+            AssertTrue(!settings.Contains("G-code Motion")
+                && !settings.Contains("G54-G59")
+                && !settings.Contains("WcsGrid"),
+                "Settings must not expose G-code or WCS controls.");
+            AssertTrue(dashboard.Contains("Header=\"DXF Point\"")
+                && monitor.Contains("Header=\"DXF Point\""),
+                "All program tables must use the DXF-only column label.");
+            AssertTrue(help.Contains("Mở và kiểm tra file DXF")
+                && !help.Contains("G-code")
+                && !help.Contains("GCODE")
+                && !help.Contains("WCS"),
+                "The Vietnamese guide must describe DXF-only operation.");
+        }
+
         private static void TelemetryFeatureIsRemoved()
         {
             string appRoot = GetRepositoryPath("src", "DACDT_2026.App");
@@ -1800,7 +1829,7 @@ namespace DACDT_2026.Tests
                 "An toàn trước khi vận hành",
                 "Khởi động và kết nối PLC",
                 "Jog tay, HOME và RESET",
-                "Mở và kiểm tra file DXF/G-code",
+                "Mở và kiểm tra file DXF",
                 "Gửi dữ liệu và chạy chương trình",
                 "RUN / PAUSE / CONTINUE / STOP",
                 "Camera, Logs và Settings",
@@ -1819,7 +1848,10 @@ namespace DACDT_2026.Tests
                 "M2000",
                 "M210",
                 "M213",
-                "App không build được"
+                "App không build được",
+                "G-code",
+                "GCODE",
+                "WCS"
             };
 
             foreach (string phrase in forbiddenContent)

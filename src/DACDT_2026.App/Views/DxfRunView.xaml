@@ -52,7 +52,6 @@
                     <!-- Group: File -->
                     <Border BorderBrush="{DynamicResource BorderSoftBrush}" BorderThickness="0,0,1,0" Padding="0,0,10,0" Margin="0,0,10,0">
                         <StackPanel Orientation="Horizontal">
-                            <Button Content="New Gcode" Command="{Binding NewGcodeCommand}" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,6,0" Width="100"/>
                             <Button Content="Import DXF" Command="{Binding ImportDxfCommand}" Style="{StaticResource PrimaryButtonStyle}" Width="110"/>
                         </StackPanel>
                     </Border>
