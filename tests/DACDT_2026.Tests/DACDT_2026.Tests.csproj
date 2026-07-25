@@ -68,6 +68,9 @@
     <Compile Include="..\..\src\DACDT_2026.App\ZHeightSetting.cs">
       <Link>ZHeightSetting.cs</Link>
     </Compile>
+    <Compile Include="..\..\src\DACDT_2026.App\WorkspaceLimitPolicy.cs">
+      <Link>WorkspaceLimitPolicy.cs</Link>
+    </Compile>
     <Compile Include="..\..\src\DACDT_2026.App\EngraveCutProcessComposer.cs">
       <Link>EngraveCutProcessComposer.cs</Link>
     </Compile>

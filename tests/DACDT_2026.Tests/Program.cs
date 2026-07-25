@@ -50,6 +50,8 @@ namespace DACDT_2026.Tests
                 SettingsUsesOnePortableConfigurationFileWorkflow();
                 ConfigurationSaveDoesNotBlockExitForUnreachableNetworkPaths();
                 ExitShutdownDoesNotBlockOnLostLan();
+                WorkspaceLimitPolicyUsesConfiguredDimensions();
+                WorkspaceSettingsDriveScanAndTestAreaLimits();
                 PlcConnectionStartsMonitoringBeforeStartupClear();
                 PlcConnectionGuardBlocksMissingOrDisconnectedPlc();
                 RunProgressIsLimitedToEngraveAndCutPrograms();
@@ -825,6 +827,43 @@ namespace DACDT_2026.Tests
             int m212OnIndex = plcSource.IndexOf("WriteDeviceValueAsync(StopRunRegister, 1)", d110Index, StringComparison.Ordinal);
             int m212OffIndex = plcSource.IndexOf("WriteDeviceValueAsync(StopRunRegister, 0)", m212OnIndex, StringComparison.Ordinal);
             AssertTrue(d110Index >= 0 && m212OnIndex > d110Index && m212OffIndex > m212OnIndex, "Z height command must write D110 before pulsing M212 on then off.");
+        }
+
+        private static void WorkspaceLimitPolicyUsesConfiguredDimensions()
+        {
+            AssertTrue(WorkspaceLimitPolicy.IsValid(175.0, 175.0),
+                "175 x 175 must be a valid Workspace.");
+            AssertTrue(!WorkspaceLimitPolicy.IsValid(0.0, 175.0),
+                "Zero width must be rejected.");
+            AssertTrue(!WorkspaceLimitPolicy.IsValid(double.NaN, 175.0),
+                "NaN width must be rejected.");
+            AssertTrue(!WorkspaceLimitPolicy.IsValid(175.0, double.PositiveInfinity),
+                "Infinite height must be rejected.");
+            AssertTrue(WorkspaceLimitPolicy.IsRangeWithin(0.0, 171.0, 175.0),
+                "Coordinate 171 must fit a configured 175 mm Workspace.");
+            AssertTrue(!WorkspaceLimitPolicy.IsRangeWithin(0.0, 171.0, 170.0),
+                "Coordinate 171 must exceed a configured 170 mm Workspace.");
+        }
+
+        private static void WorkspaceSettingsDriveScanAndTestAreaLimits()
+        {
+            string form = File.ReadAllText(GetRepositoryPath(
+                "src", "DACDT_2026.App", "Form1.cs"));
+            string handler = File.ReadAllText(GetRepositoryPath(
+                "src", "DACDT_2026.App", "Form1.DxfHandler.cs"));
+
+            AssertTrue(form.Contains("WorkspaceLimitPolicy.IsValid(requestedWidth, requestedHeight)"),
+                "Workspace Apply must validate both configured dimensions.");
+            AssertTrue(form.Contains("workspaceWidth = requestedWidth;")
+                && form.Contains("workspaceHeight = requestedHeight;"),
+                "Workspace Apply must update runtime state before scan and preview.");
+            AssertTrue(handler.Contains("double snapLimitX = workspaceWidth;")
+                && handler.Contains("double snapLimitY = workspaceHeight;"),
+                "Scan Limits must snapshot the configured Workspace.");
+            AssertTrue(!handler.Contains("const double LimitX = 170.0")
+                && !handler.Contains("const double LimitY = 170.0")
+                && !handler.Contains("170x170"),
+                "DXF limit checks must not retain fixed 170 mm constants.");
         }
 
         #if false

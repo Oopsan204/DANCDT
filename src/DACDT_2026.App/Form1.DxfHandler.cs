@@ -1688,12 +1688,15 @@ namespace DACDT_2026
             double adjMinY = minY + offsetY - 2.0;
             double adjMaxY = maxY + offsetY + 2.0;
 
-            // Check machine limits (170x170)
-            const double LimitX = 170.0;
-            const double LimitY = 170.0;
-            if (adjMinX < 0.0 || adjMaxX > LimitX || adjMinY < 0.0 || adjMaxY > LimitY)
+            double snapLimitX = workspaceWidth;
+            double snapLimitY = workspaceHeight;
+            if (!WorkspaceLimitPolicy.IsRangeWithin(adjMinX, adjMaxX, snapLimitX)
+                || !WorkspaceLimitPolicy.IsRangeWithin(adjMinY, adjMaxY, snapLimitY))
             {
-                await NotifyAsync("error", "Test Area", "Engrave area exceeds machine limits (170x170).");
+                await NotifyAsync(
+                    "error",
+                    "Test Area",
+                    $"Engrave area exceeds Workspace ({snapLimitX:0.###} x {snapLimitY:0.###} mm).");
                 return;
             }
 
@@ -1710,7 +1713,7 @@ namespace DACDT_2026
                 MotionType = "Linear (Continuous Positioning)",
                 MCodeValue = "0",
                 Dwell = "0",
-                Speed = rapidSpeed,
+                Speed = globalSpeedM3,
                 EndCoordinate = $"{adjMinX};{adjMinY}",
                 EndXMm = adjMinX,
                 EndYMm = adjMinY
@@ -2770,17 +2773,15 @@ namespace DACDT_2026
         /// </summary>
         private async Task HandleScanLimitsAsync()
         {
-            const double LimitX = 170.0;   // Trục 1 – X
-            const double LimitY = 170.0;   // Trục 2 – Y
-            // LimitZ = 50.0 mm — chưa dùng trong scan hiện tại
-
             var snapDoc = activeCadDocument;
             double snapOffsetX = offsetX;
             double snapOffsetY = offsetY;
+            double snapLimitX = workspaceWidth;
+            double snapLimitY = workspaceHeight;
 
             if (snapDoc == null)
             {
-                await NotifyAsync("info", "Scan Limits", "No DXF or G-code file is loaded.");
+                await NotifyAsync("info", "Scan Limits", "No DXF file is loaded.");
                 return;
             }
 
@@ -2830,15 +2831,19 @@ namespace DACDT_2026
                 double adjMinY = rawMinY + snapOffsetY, adjMaxY = rawMaxY + snapOffsetY;
 
                 // ── Kiểm tra giới hạn ────────────────────────────────────────────────
-                bool xUnder = adjMinX < 0.0;
-                bool xOver = adjMaxX > LimitX;
-                bool yUnder = adjMinY < 0.0;
-                bool yOver = adjMaxY > LimitY;
-                bool anyExceed = xUnder || xOver || yUnder || yOver;
+                bool xWithin = WorkspaceLimitPolicy.IsRangeWithin(
+                    adjMinX,
+                    adjMaxX,
+                    snapLimitX);
+                bool yWithin = WorkspaceLimitPolicy.IsRangeWithin(
+                    adjMinY,
+                    adjMaxY,
+                    snapLimitY);
+                bool anyExceed = !xWithin || !yWithin;
 
                 string summary = anyExceed
-                    ? $"VƯỢT GIỚI HẠN! X:[{adjMinX:0.###}→{adjMaxX:0.###}/{LimitX}mm]  Y:[{adjMinY:0.###}→{adjMaxY:0.###}/{LimitY}mm]"
-                    : $"TRONG GIỚI HẠN – X:[{adjMinX:0.###}→{adjMaxX:0.###}/{LimitX}mm]  Y:[{adjMinY:0.###}→{adjMaxY:0.###}/{LimitY}mm]";
+                    ? $"VƯỢT GIỚI HẠN! X:[{adjMinX:0.###}→{adjMaxX:0.###}/{snapLimitX:0.###}mm]  Y:[{adjMinY:0.###}→{adjMaxY:0.###}/{snapLimitY:0.###}mm]"
+                    : $"TRONG GIỚI HẠN – X:[{adjMinX:0.###}→{adjMaxX:0.###}/{snapLimitX:0.###}mm]  Y:[{adjMinY:0.###}→{adjMaxY:0.###}/{snapLimitY:0.###}mm]";
 
                 return Tuple.Create(true, anyExceed, summary);
             });

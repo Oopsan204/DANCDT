@@ -296,14 +296,7 @@ namespace DACDT_2026
                 await SaveSelectedConfigurationAsync(showSuccess: true);
             });
             ui.BrowseConfigurationFileCommand = new RelayCommand(PromptForConfigurationFileAsync);
-            ui.SetWorkspaceCommand = new RelayCommand(async () =>
-            {
-                workspaceWidth = ui.WorkspaceWidthInput;
-                workspaceHeight = ui.WorkspaceHeightInput;
-                SaveSettingsToFile();
-                await PushDxfStateAsync();
-                await NotifyAsync("success", "Settings", "Updated workspace size.");
-            });
+            ui.SetWorkspaceCommand = new RelayCommand(ApplyWorkspaceSettingsAsync);
             ui.SelectWcsCommand = new RelayCommand(async p =>
             {
                 string selectedWcs = Convert.ToString(p, CultureInfo.InvariantCulture);
@@ -395,8 +388,46 @@ namespace DACDT_2026
             return false;
         }
 
+        private bool TryApplyWorkspaceInputs(out string errorMessage)
+        {
+            double requestedWidth = ui.WorkspaceWidthInput;
+            double requestedHeight = ui.WorkspaceHeightInput;
+            if (!WorkspaceLimitPolicy.IsValid(requestedWidth, requestedHeight))
+            {
+                errorMessage = "Workspace Width and Height must be finite values greater than 0.";
+                ui.WorkspaceWidthInput = workspaceWidth;
+                ui.WorkspaceHeightInput = workspaceHeight;
+                return false;
+            }
+
+            workspaceWidth = requestedWidth;
+            workspaceHeight = requestedHeight;
+            errorMessage = string.Empty;
+            return true;
+        }
+
+        private async Task ApplyWorkspaceSettingsAsync()
+        {
+            if (!TryApplyWorkspaceInputs(out string errorMessage))
+            {
+                await NotifyAsync("error", "Workspace", errorMessage);
+                return;
+            }
+
+            SaveSettingsToFile();
+            await HandleScanLimitsAsync();
+            await PushDxfStateAsync();
+            await NotifyAsync("success", "Settings", "Updated workspace size.");
+        }
+
         private async Task ApplyDxfSettingsAsync()
         {
+            if (!TryApplyWorkspaceInputs(out string workspaceError))
+            {
+                await NotifyAsync("error", "Workspace", workspaceError);
+                return;
+            }
+
             string viewBeforeApply = currentView;
             offsetX = ui.OffsetXInput;
             offsetY = ui.OffsetYInput;
@@ -503,8 +534,18 @@ namespace DACDT_2026
             globalDwellM4 = ui.GlobalDwellM4Input;
             offsetX = ui.OffsetXInput;
             offsetY = ui.OffsetYInput;
-            workspaceWidth = ui.WorkspaceWidthInput;
-            workspaceHeight = ui.WorkspaceHeightInput;
+            double requestedWidth = ui.WorkspaceWidthInput;
+            double requestedHeight = ui.WorkspaceHeightInput;
+            if (WorkspaceLimitPolicy.IsValid(requestedWidth, requestedHeight))
+            {
+                workspaceWidth = requestedWidth;
+                workspaceHeight = requestedHeight;
+            }
+            else
+            {
+                ui.WorkspaceWidthInput = workspaceWidth;
+                ui.WorkspaceHeightInput = workspaceHeight;
+            }
             laserPower = ui.LaserPowerInput;
             currentTheme = WpfThemeManager.Normalize(ui.CurrentTheme);
 
