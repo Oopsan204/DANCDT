@@ -38,3 +38,7 @@ Antigravity owns visual layout and styling only.
 - Keep operator UI text in English, except Help content when the user asks for Vietnamese guidance.
 - Keep the app work-focused and dense; avoid marketing-style layout.
 
+## SVG to DXF view contract
+
+The `SvgToDxfView` may bind to: `SvgInputPath`, `SvgOutputPath`, `SvgConversionStatus`, `BrowseSvgCommand`, `BrowseSvgOutputCommand`, `ConvertSvgToDxfCommand`, `SvgDxfPreviewGeometry`, `HasSvgDxfPreview`, `SvgDxfPreviewBoundsText`, `SvgDxfPreviewPathCount`, `SvgDxfPreviewVertexCount`, and `LoadConvertedDxfToRunCommand`. It must show source selection, output location, conversion status, CAD geometry preview after conversion, and an operator note that output is editable DXF while the source SVG remains unchanged. Use English text and existing dynamic style resources. Do not add code-behind logic.
+

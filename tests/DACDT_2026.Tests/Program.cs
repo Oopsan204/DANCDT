@@ -120,6 +120,8 @@ namespace DACDT_2026.Tests
                 AntigravityUiWorkflowIsGuarded();
                 HelpViewContainsVietnameseOperationalGuide();
                 TelemetryFeatureIsRemoved();
+                SvgToDxfConverterProducesStandardDxfParseableByNetDxfAndSimpleParser();
+                SvgToDxfConverterSupportsCustomOutputPathAndFilename();
                 Console.WriteLine("All tests passed.");
                 return 0;
             }
@@ -2386,6 +2388,72 @@ namespace DACDT_2026.Tests
                 "clearing a loaded file must prevent its stale background result from publishing");
             AssertTrue(close.Contains("CancelCadProgramCompilation()"),
                 "closing the app must cancel delayed or active CAD compilation");
+        }
+
+        private static void SvgToDxfConverterProducesStandardDxfParseableByNetDxfAndSimpleParser()
+        {
+            string tempSvg = Path.Combine(Path.GetTempPath(), "test_" + Guid.NewGuid().ToString("N") + ".svg");
+            string tempDxf = Path.Combine(Path.GetTempPath(), "test_" + Guid.NewGuid().ToString("N") + ".dxf");
+            try
+            {
+                string svgContent = @"<svg xmlns=""http://www.w3.org/2000/svg"" viewBox=""0 0 100 100"">
+                    <rect x=""10"" y=""10"" width=""80"" height=""60""/>
+                    <circle cx=""50"" cy=""50"" r=""25""/>
+                    <line x1=""0"" y1=""0"" x2=""100"" y2=""100""/>
+                    <path d=""M 20 20 L 40 20 L 40 40 Z""/>
+                </svg>";
+                File.WriteAllText(tempSvg, svgContent);
+
+                var converter = new SvgToDxfConverter();
+                var result = converter.ConvertTo(tempSvg, tempDxf);
+
+                AssertTrue(File.Exists(tempDxf), "DXF output file must be created");
+                AssertTrue(result.PathCount >= 4, "Must convert at least 4 paths");
+                AssertTrue(result.VertexCount > 10, "Must contain vertices");
+
+                // Verify netDxf can open it
+                var netDxfDoc = netDxf.DxfDocument.Load(tempDxf);
+                AssertTrue(netDxfDoc != null, "netDxf must parse the generated DXF");
+                AssertTrue(netDxfDoc.Entities.All.Count() >= 4, "DXF must contain generated entities");
+
+                // Verify CadDocumentService can open it
+                var cadService = new CadDocumentService();
+                var cadDoc = cadService.Load(tempDxf);
+                AssertTrue(cadDoc != null && cadDoc.Primitives.Count >= 4, "CadDocumentService must load converted DXF primitives");
+                AssertTrue(cadDoc.Bounds != null && cadDoc.Bounds.Width > 0 && cadDoc.Bounds.Height > 0, "Bounds must be positive");
+
+                // Verify SimpleDxfParser can open it
+                var simpleDoc = SimpleDxfParser.Parse(tempDxf);
+                AssertTrue(simpleDoc != null && simpleDoc.Primitives.Count >= 4, "SimpleDxfParser must parse converted DXF primitives");
+            }
+            finally
+            {
+                if (File.Exists(tempSvg)) File.Delete(tempSvg);
+                if (File.Exists(tempDxf)) File.Delete(tempDxf);
+            }
+        }
+
+        private static void SvgToDxfConverterSupportsCustomOutputPathAndFilename()
+        {
+            string tempDir = Path.Combine(Path.GetTempPath(), "svg_test_" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(tempDir);
+            string tempSvg = Path.Combine(tempDir, "source_drawing.svg");
+            string customDxf = Path.Combine(tempDir, "custom_named_export.dxf");
+            try
+            {
+                string svgContent = @"<svg xmlns=""http://www.w3.org/2000/svg""><line x1=""10"" y1=""20"" x2=""50"" y2=""60""/></svg>";
+                File.WriteAllText(tempSvg, svgContent);
+
+                var converter = new SvgToDxfConverter();
+                var result = converter.ConvertTo(tempSvg, customDxf);
+
+                AssertEqual(Path.GetFullPath(customDxf), result.OutputPath, "Result output path must match custom path");
+                AssertTrue(File.Exists(customDxf), "File must be created at custom output path");
+            }
+            finally
+            {
+                if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+            }
         }
 
         private static CadDocumentService.CadLoadResult NewCadDocumentWithPrimitive(int pointCount)

@@ -58,6 +58,7 @@
             <views:LogsView Visibility="{Binding IsLogsView, Converter={StaticResource BoolToVisibilityConverter}}"/>
             <views:SettingsView Visibility="{Binding IsSettingsView, Converter={StaticResource BoolToVisibilityConverter}}"/>
             <views:HelpView Visibility="{Binding IsHelpView, Converter={StaticResource BoolToVisibilityConverter}}"/>
+            <views:SvgToDxfView Visibility="{Binding IsSvgToDxfView, Converter={StaticResource BoolToVisibilityConverter}}"/>
         </Grid>
     </Grid>
 </Window>

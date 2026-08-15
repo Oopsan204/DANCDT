@@ -301,6 +301,361 @@ namespace DACDT_2026
             ui.BrowseCameraRecordingFolderCommand = new RelayCommand(BrowseCameraRecordingFolderAsync);
             ui.SetCameraRecordingFolderCommand = new RelayCommand(() => SetCameraRecordingFolderAsync(ui.CameraRecordingFolderInput));
             ui.ExportQD75Command = new RelayCommand(() => _ = HandleExportQD75Async());
+            ui.BrowseSvgCommand = new RelayCommand(BrowseSvgAsync);
+            ui.BrowseSvgOutputCommand = new RelayCommand(BrowseSvgOutputAsync);
+            ui.ConvertSvgToDxfCommand = new RelayCommand(ConvertSvgToDxfAsync);
+            ui.LoadConvertedDxfToRunCommand = new RelayCommand(LoadConvertedDxfToRunAsync);
+        }
+
+        private async Task BrowseSvgAsync()
+        {
+            var dialog = new Microsoft.Win32.OpenFileDialog
+            {
+                Filter = "SVG files (*.svg)|*.svg|All files (*.*)|*.*",
+                DefaultExt = "svg",
+                AddExtension = true,
+                Title = "Select an SVG file",
+                CheckFileExists = true,
+                Multiselect = false,
+                RestoreDirectory = true
+            };
+
+            if (dialog.ShowDialog() != true)
+                return;
+
+            string filePath = dialog.FileName;
+            ui.SvgInputPath = filePath;
+            ui.SvgOutputPath = Path.ChangeExtension(filePath, ".dxf");
+            ui.SvgConversionStatus = "Loading SVG preview...";
+
+            try
+            {
+                var previewTuple = await Task.Run(() => BuildSvgVectorPreviewGeometry(filePath));
+                if (previewTuple.Item1 != null)
+                {
+                    ui.SvgDxfPreviewGeometry = previewTuple.Item1;
+                    ui.SvgDxfPreviewBoundsText = previewTuple.Item2;
+                    ui.SvgDxfPreviewPathCount = previewTuple.Item3;
+                    ui.SvgDxfPreviewVertexCount = previewTuple.Item4;
+                    ui.SvgConversionStatus = string.Format(
+                        CultureInfo.InvariantCulture,
+                        "SVG loaded: {0} path(s), {1} vertices. Ready to save DXF.",
+                        previewTuple.Item3, previewTuple.Item4);
+                }
+                else
+                {
+                    ui.SvgConversionStatus = "SVG loaded. Ready to save DXF.";
+                }
+            }
+            catch (Exception ex)
+            {
+                ui.SvgConversionStatus = "SVG loaded with preview warning: " + ex.Message;
+            }
+        }
+
+        private static Tuple<System.Windows.Media.Geometry, string, int, int> BuildSvgVectorPreviewGeometry(string svgPath)
+        {
+            try
+            {
+                var converter = new SvgToDxfConverter();
+                var paths = converter.ExtractPaths(svgPath);
+                if (paths == null || paths.Count == 0)
+                    return Tuple.Create<System.Windows.Media.Geometry, string, int, int>(null, string.Empty, 0, 0);
+
+                double minX = double.MaxValue, minY = double.MaxValue;
+                double maxX = double.MinValue, maxY = double.MinValue;
+                int totalVertices = 0;
+
+                foreach (var path in paths)
+                {
+                    if (path == null) continue;
+                    foreach (var pt in path)
+                    {
+                        totalVertices++;
+                        if (pt.X < minX) minX = pt.X;
+                        if (pt.X > maxX) maxX = pt.X;
+                        if (pt.Y < minY) minY = pt.Y;
+                        if (pt.Y > maxY) maxY = pt.Y;
+                    }
+                }
+
+                if (totalVertices == 0 || minX > maxX || minY > maxY)
+                    return Tuple.Create<System.Windows.Media.Geometry, string, int, int>(null, string.Empty, 0, 0);
+
+                double width = Math.Max(maxX - minX, 1.0);
+                double height = Math.Max(maxY - minY, 1.0);
+                string boundsText = string.Format(CultureInfo.InvariantCulture, "{0:0.##} mm × {1:0.##} mm", width, height);
+
+                const double CanvasWidth = 800.0;
+                const double CanvasHeight = 480.0;
+                const double Padding = 24.0;
+
+                double scale = Math.Min(
+                    (CanvasWidth - Padding * 2.0) / width,
+                    (CanvasHeight - Padding * 2.0) / height);
+                double contentWidth = width * scale;
+                double contentHeight = height * scale;
+                double marginX = (CanvasWidth - contentWidth) / 2.0;
+                double marginY = (CanvasHeight - contentHeight) / 2.0;
+
+                var geometry = new System.Windows.Media.StreamGeometry { FillRule = System.Windows.Media.FillRule.EvenOdd };
+                using (var ctx = geometry.Open())
+                {
+                    foreach (var path in paths)
+                    {
+                        if (path == null || path.Count < 2)
+                            continue;
+
+                        var firstPt = path[0];
+                        double px0 = marginX + (firstPt.X - minX) * scale;
+                        double py0 = marginY + (firstPt.Y - minY) * scale;
+                        var start = new System.Windows.Point(px0, py0);
+
+                        var linePoints = new System.Collections.Generic.List<System.Windows.Point>(path.Count - 1);
+                        for (int i = 1; i < path.Count; i++)
+                        {
+                            var pt = path[i];
+                            double px = marginX + (pt.X - minX) * scale;
+                            double py = marginY + (pt.Y - minY) * scale;
+                            linePoints.Add(new System.Windows.Point(px, py));
+                        }
+
+                        ctx.BeginFigure(start, isFilled: false, isClosed: false);
+                        ctx.PolyLineTo(linePoints, isStroked: true, isSmoothJoin: true);
+                    }
+                }
+                geometry.Freeze();
+                return Tuple.Create<System.Windows.Media.Geometry, string, int, int>(geometry, boundsText, paths.Count, totalVertices);
+            }
+            catch
+            {
+                return Tuple.Create<System.Windows.Media.Geometry, string, int, int>(null, string.Empty, 0, 0);
+            }
+        }
+
+        private async Task BrowseSvgOutputAsync()
+        {
+            var dialog = new Microsoft.Win32.SaveFileDialog
+            {
+                Filter = "DXF files (*.dxf)|*.dxf|All files (*.*)|*.*",
+                DefaultExt = "dxf",
+                AddExtension = true,
+                Title = "Select DXF Output Destination",
+                OverwritePrompt = true,
+                RestoreDirectory = true
+            };
+
+            if (!string.IsNullOrWhiteSpace(ui.SvgOutputPath))
+            {
+                try
+                {
+                    string dir = Path.GetDirectoryName(ui.SvgOutputPath);
+                    string name = Path.GetFileName(ui.SvgOutputPath);
+                    if (!string.IsNullOrWhiteSpace(dir) && Directory.Exists(dir))
+                        dialog.InitialDirectory = dir;
+                    if (!string.IsNullOrWhiteSpace(name))
+                        dialog.FileName = name;
+                }
+                catch { }
+            }
+            else if (!string.IsNullOrWhiteSpace(ui.SvgInputPath))
+            {
+                try
+                {
+                    string dir = Path.GetDirectoryName(ui.SvgInputPath);
+                    string name = Path.GetFileNameWithoutExtension(ui.SvgInputPath) + ".dxf";
+                    if (!string.IsNullOrWhiteSpace(dir) && Directory.Exists(dir))
+                        dialog.InitialDirectory = dir;
+                    dialog.FileName = name;
+                }
+                catch { }
+            }
+
+            if (dialog.ShowDialog() != true)
+                return;
+
+            ui.SvgOutputPath = dialog.FileName;
+        }
+
+        private async Task LoadConvertedDxfToRunAsync()
+        {
+            string output = ui.SvgOutputPath?.Trim();
+            if (string.IsNullOrWhiteSpace(output))
+            {
+                await NotifyAsync("warning", "SVG to DXF", "No converted DXF file found. Convert an SVG file first.");
+                return;
+            }
+
+            // Resolve a relative output (e.g. a bare filename typed in the editor)
+            // against the source SVG directory before checking existence.
+            try
+            {
+                if (!Path.IsPathRooted(output))
+                {
+                    string input = ui.SvgInputPath?.Trim();
+                    string inputDir = string.IsNullOrWhiteSpace(input)
+                        ? null
+                        : Path.GetDirectoryName(input);
+                    output = !string.IsNullOrWhiteSpace(inputDir)
+                        ? Path.Combine(inputDir, output)
+                        : Path.GetFullPath(output);
+                }
+                if (!string.Equals(Path.GetExtension(output), ".dxf", StringComparison.OrdinalIgnoreCase))
+                {
+                    output = Path.ChangeExtension(output, ".dxf");
+                }
+            }
+            catch
+            {
+                // Fall through with the original value; existence check below reports the issue.
+            }
+
+            if (!File.Exists(output))
+            {
+                await NotifyAsync("warning", "SVG to DXF", "No converted DXF file found at the specified output path.");
+                return;
+            }
+
+            await ImportDxfPathAsync(output);
+            await HandleSwitchViewAsync("dxf");
+        }
+
+        private async Task ConvertSvgToDxfAsync()
+        {
+            string input = ui.SvgInputPath?.Trim();
+            if (string.IsNullOrWhiteSpace(input))
+            {
+                ui.SvgConversionStatus = "Select an SVG file first.";
+                await NotifyAsync("warning", "SVG to DXF", "Select an SVG file before converting.");
+                return;
+            }
+
+            string output = ui.SvgOutputPath?.Trim();
+            if (string.IsNullOrWhiteSpace(output))
+            {
+                output = Path.ChangeExtension(input, ".dxf");
+            }
+            else
+            {
+                try
+                {
+                    if (!Path.IsPathRooted(output))
+                    {
+                        string inputDir = Path.GetDirectoryName(input);
+                        output = !string.IsNullOrWhiteSpace(inputDir)
+                            ? Path.Combine(inputDir, output)
+                            : Path.GetFullPath(output);
+                    }
+                    if (!string.Equals(Path.GetExtension(output), ".dxf", StringComparison.OrdinalIgnoreCase))
+                    {
+                        output = Path.ChangeExtension(output, ".dxf");
+                    }
+                }
+                catch
+                {
+                    output = Path.ChangeExtension(input, ".dxf");
+                }
+            }
+
+            try
+            {
+                var converter = new SvgToDxfConverter();
+                SvgToDxfConverter.SvgConversionResult result =
+                    await Task.Run(() => converter.ConvertTo(input, output));
+                ui.SvgOutputPath = result.OutputPath;
+                ui.SvgConversionStatus = string.Format(
+                    CultureInfo.InvariantCulture,
+                    "Successfully converted {0} path(s), {1} vertices -> {2}",
+                    result.PathCount, result.VertexCount, Path.GetFileName(result.OutputPath));
+                ui.SvgDxfPreviewPathCount = result.PathCount;
+                ui.SvgDxfPreviewVertexCount = result.VertexCount;
+
+                // Build a lightweight DXF preview geometry for the converted file
+                string previewPath = result.OutputPath;
+                var previewTuple = await Task.Run(() => BuildSvgDxfPreviewGeometry(previewPath));
+                ui.SvgDxfPreviewGeometry = previewTuple.Item1;
+                ui.SvgDxfPreviewBoundsText = previewTuple.Item2;
+
+                await NotifyAsync("success", "SVG to DXF", "DXF file saved: " + result.OutputPath);
+            }
+            catch (Exception ex)
+            {
+                ui.SvgConversionStatus = "Conversion failed: " + ex.Message;
+                ui.SvgDxfPreviewGeometry = null;
+                ui.SvgDxfPreviewBoundsText = string.Empty;
+                await NotifyAsync("error", "SVG to DXF", ex.Message);
+            }
+        }
+
+        private static Tuple<System.Windows.Media.Geometry, string> BuildSvgDxfPreviewGeometry(string dxfPath)
+        {
+            try
+            {
+                var cadService = new CadDocumentService();
+                CadDocumentService.CadLoadResult doc = cadService.Load(dxfPath);
+                if (doc?.Primitives == null || doc.Primitives.Count == 0)
+                    return Tuple.Create<System.Windows.Media.Geometry, string>(null, string.Empty);
+
+                CadDocumentService.CadBounds bounds = doc.Bounds;
+                if (bounds == null)
+                    return Tuple.Create<System.Windows.Media.Geometry, string>(null, string.Empty);
+
+                double left = bounds.Left;
+                double top = bounds.Top;
+                double right = bounds.Right;
+                double bottom = bounds.Bottom;
+                if (right <= left) right = left + Math.Max(bounds.Width, 1.0);
+                if (bottom <= top) bottom = top + Math.Max(bounds.Height, 1.0);
+
+                string boundsText = string.Format(CultureInfo.InvariantCulture, "{0:0.##} mm × {1:0.##} mm", bounds.Width, bounds.Height);
+
+                const double CanvasWidth = 800.0;
+                const double CanvasHeight = 480.0;
+                const double Padding = 24.0;
+
+                double docWidth = Math.Max(right - left, 0.001);
+                double docHeight = Math.Max(bottom - top, 0.001);
+                double scale = Math.Min(
+                    (CanvasWidth - Padding * 2.0) / docWidth,
+                    (CanvasHeight - Padding * 2.0) / docHeight);
+                double contentWidth = docWidth * scale;
+                double contentHeight = docHeight * scale;
+                double marginX = (CanvasWidth - contentWidth) / 2.0;
+                double marginY = (CanvasHeight - contentHeight) / 2.0;
+
+                var geometry = new System.Windows.Media.StreamGeometry { FillRule = System.Windows.Media.FillRule.EvenOdd };
+                using (var ctx = geometry.Open())
+                {
+                    foreach (var primitive in doc.Primitives)
+                    {
+                        if (primitive?.Points == null || primitive.Points.Count < 2)
+                            continue;
+
+                        var firstPt = primitive.Points[0];
+                        double px0 = marginX + (firstPt.X - left) * scale;
+                        double py0 = marginY + contentHeight - (firstPt.Y - top) * scale;
+                        var start = new System.Windows.Point(px0, py0);
+
+                        var linePoints = new System.Collections.Generic.List<System.Windows.Point>(primitive.Points.Count - 1);
+                        for (int i = 1; i < primitive.Points.Count; i++)
+                        {
+                            var pt = primitive.Points[i];
+                            double px = marginX + (pt.X - left) * scale;
+                            double py = marginY + contentHeight - (pt.Y - top) * scale;
+                            linePoints.Add(new System.Windows.Point(px, py));
+                        }
+
+                        ctx.BeginFigure(start, isFilled: false, isClosed: false);
+                        ctx.PolyLineTo(linePoints, isStroked: true, isSmoothJoin: true);
+                    }
+                }
+                geometry.Freeze();
+                return Tuple.Create<System.Windows.Media.Geometry, string>(geometry, boundsText);
+            }
+            catch
+            {
+                return Tuple.Create<System.Windows.Media.Geometry, string>(null, string.Empty);
+            }
         }
 
         private async Task HandleSwitchViewAsync(object viewPayload)

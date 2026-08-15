@@ -133,6 +133,35 @@ namespace DACDT_2026
                 return;
             }
 
+            cadLoadGate.Release();
+            await ImportDxfPathAsync(selectedPath);
+        }
+
+        public async Task ImportDxfPathAsync(string selectedPath)
+        {
+            if (string.IsNullOrWhiteSpace(selectedPath) || !File.Exists(selectedPath))
+            {
+                await NotifyAsync("error", "DXF", "File not found: " + selectedPath);
+                return;
+            }
+
+            if (!string.Equals(
+                    Path.GetExtension(selectedPath),
+                    ".dxf",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                await NotifyAsync("error", "DXF", "Only DXF files are supported.");
+                return;
+            }
+
+            if (!await cadLoadGate.WaitAsync(0))
+            {
+                await NotifyAsync("info", "DXF", "A file is still loading. Please wait before importing another file.");
+                return;
+            }
+
+            const string title = "Import DXF";
+
             try
             {
                 SyncEngraveCutSettingsFromUi();
