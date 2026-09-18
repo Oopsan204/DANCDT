@@ -107,6 +107,7 @@ namespace DACDT_2026
         private string engravePowerInput = "35";
         private string cutSpeedInput = "500";
         private string cutPowerInput = "80";
+        private string cutPassesInput = "1";
         private string globalDwellM3Input = "100";
         private string globalDwellM4Input = "100";
         private double offsetXInput;
@@ -118,14 +119,6 @@ namespace DACDT_2026
         private int writeValueInput = 12345;
         private string selectedPointKey = "";
         private string activeNotice = "";
-        private string svgInputPath = "";
-        private string svgOutputPath = "";
-        private string svgConversionStatus = "Select an SVG file to begin.";
-        private System.Windows.Media.Geometry svgDxfPreviewGeometry;
-        private bool hasSvgDxfPreview;
-        private string svgDxfPreviewBoundsText = "";
-        private int svgDxfPreviewPathCount;
-        private int svgDxfPreviewVertexCount;
         private int activeProgramIndex;
         private int lastHighlightedProgramIndex;
         private ImageSource cadPreviewImage;
@@ -216,10 +209,6 @@ namespace DACDT_2026
         public ICommand BrowseCameraRecordingFolderCommand { get; set; }
         public ICommand SetCameraRecordingFolderCommand { get; set; }
         public ICommand ExportQD75Command { get; set; }
-        public ICommand BrowseSvgCommand { get; set; }
-        public ICommand BrowseSvgOutputCommand { get; set; }
-        public ICommand ConvertSvgToDxfCommand { get; set; }
-        public ICommand LoadConvertedDxfToRunCommand { get; set; }
 
         public string CurrentView
         {
@@ -234,7 +223,6 @@ namespace DACDT_2026
                     OnPropertyChanged(nameof(IsLogsView));
                     OnPropertyChanged(nameof(IsSettingsView));
                     OnPropertyChanged(nameof(IsHelpView));
-                    OnPropertyChanged(nameof(IsSvgToDxfView));
                 }
             }
         }
@@ -258,7 +246,6 @@ namespace DACDT_2026
         public bool IsLogsView => CurrentView == "logs";
         public bool IsSettingsView => CurrentView == "settings";
         public bool IsHelpView => CurrentView == "help";
-        public bool IsSvgToDxfView => CurrentView == "svg";
         public bool IsDarkTheme => CurrentTheme == "dark";
         public string ThemeToggleText => IsDarkTheme ? "☀ Light" : "🌙 Dark";
 
@@ -470,6 +457,12 @@ namespace DACDT_2026
             set => SetProperty(ref cutPowerInput, value);
         }
 
+        public string CutPassesInput
+        {
+            get => cutPassesInput;
+            set => SetProperty(ref cutPassesInput, value);
+        }
+
         public string GlobalDwellM3Input
         {
             get => globalDwellM3Input;
@@ -534,60 +527,6 @@ namespace DACDT_2026
         {
             get => activeNotice;
             set => SetProperty(ref activeNotice, value);
-        }
-
-        public string SvgInputPath
-        {
-            get => svgInputPath;
-            set => SetProperty(ref svgInputPath, value ?? string.Empty);
-        }
-
-        public string SvgOutputPath
-        {
-            get => svgOutputPath;
-            set => SetProperty(ref svgOutputPath, value ?? string.Empty);
-        }
-
-        public string SvgConversionStatus
-        {
-            get => svgConversionStatus;
-            set => SetProperty(ref svgConversionStatus, value ?? string.Empty);
-        }
-
-        public System.Windows.Media.Geometry SvgDxfPreviewGeometry
-        {
-            get => svgDxfPreviewGeometry;
-            set
-            {
-                if (SetProperty(ref svgDxfPreviewGeometry, value))
-                {
-                    HasSvgDxfPreview = value != null;
-                }
-            }
-        }
-
-        public bool HasSvgDxfPreview
-        {
-            get => hasSvgDxfPreview;
-            set => SetProperty(ref hasSvgDxfPreview, value);
-        }
-
-        public string SvgDxfPreviewBoundsText
-        {
-            get => svgDxfPreviewBoundsText;
-            set => SetProperty(ref svgDxfPreviewBoundsText, value ?? string.Empty);
-        }
-
-        public int SvgDxfPreviewPathCount
-        {
-            get => svgDxfPreviewPathCount;
-            set => SetProperty(ref svgDxfPreviewPathCount, value);
-        }
-
-        public int SvgDxfPreviewVertexCount
-        {
-            get => svgDxfPreviewVertexCount;
-            set => SetProperty(ref svgDxfPreviewVertexCount, value);
         }
 
         public ImageSource CadPreviewImage
@@ -1265,6 +1204,7 @@ namespace DACDT_2026
         public string Speed { get; set; }
         public string ProcessKind { get; set; }
         public string LaserPower { get; set; }
+        public int CutPass { get; set; }
         public string EndCoordinate { get; set; }
         public string CenterCoordinate { get; set; }
         public string EndZ { get; set; }

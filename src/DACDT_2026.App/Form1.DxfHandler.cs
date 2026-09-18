@@ -210,6 +210,7 @@ namespace DACDT_2026
             string previousEngravePower = engravePower;
             string previousCutSpeed = cutSpeed;
             string previousCutPower = cutPower;
+            string previousCutPasses = cutPasses;
 
             if (!string.IsNullOrWhiteSpace(ui.EngraveSpeedInput))
                 engraveSpeed = ui.EngraveSpeedInput;
@@ -219,11 +220,14 @@ namespace DACDT_2026
                 cutSpeed = ui.CutSpeedInput;
             if (!string.IsNullOrWhiteSpace(ui.CutPowerInput))
                 cutPower = ui.CutPowerInput;
+            if (!string.IsNullOrWhiteSpace(ui.CutPassesInput))
+                cutPasses = ui.CutPassesInput;
 
             return !string.Equals(previousEngraveSpeed, engraveSpeed, StringComparison.Ordinal)
                 || !string.Equals(previousEngravePower, engravePower, StringComparison.Ordinal)
                 || !string.Equals(previousCutSpeed, cutSpeed, StringComparison.Ordinal)
-                || !string.Equals(previousCutPower, cutPower, StringComparison.Ordinal);
+                || !string.Equals(previousCutPower, cutPower, StringComparison.Ordinal)
+                || !string.Equals(previousCutPasses, cutPasses, StringComparison.Ordinal);
         }
 
         private void NormalizeCadDocumentPaths(CadDocumentService.CadLoadResult document)
@@ -622,6 +626,7 @@ namespace DACDT_2026
                 cancellationToken);
 
             cancellationToken.ThrowIfCancellationRequested();
+            cutRows = RepeatCutRows(cutRows, ParseCutPasses(cutPasses), cancellationToken);
             DropEngraveHomeRowBeforeCut(engraveRows, cutRows.Count > 0);
             var rows = new List<ProcessRow>(engraveRows.Count + cutRows.Count);
             foreach (var row in engraveRows)
@@ -675,6 +680,55 @@ namespace DACDT_2026
 
             int requestedVersion = cadProgramCompilationState.MarkDirty();
             ScheduleCadProgramCompilation(selectedDocument, requestedVersion);
+        }
+
+        private static int ParseCutPasses(string value)
+        {
+            if (!int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out int passes))
+                return 1;
+
+            return Math.Max(1, Math.Min(99, passes));
+        }
+
+        private static List<ProcessRow> RepeatCutRows(
+            List<ProcessRow> cutRows,
+            int passes,
+            CancellationToken cancellationToken)
+        {
+            if (cutRows == null || cutRows.Count == 0 || passes <= 1)
+                return cutRows;
+
+            var result = new List<ProcessRow>(cutRows.Count * passes);
+            for (int pass = 1; pass <= passes; pass++)
+            {
+                foreach (var row in cutRows)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    if (row == null || (pass < passes && IsHomeRow(row)))
+                        continue;
+
+                    result.Add(new ProcessRow
+                    {
+                        Key = row.Key,
+                        MotionType = row.MotionType,
+                        MCodeValue = row.MCodeValue,
+                        Dwell = row.Dwell,
+                        Speed = row.Speed,
+                        ProcessKind = row.ProcessKind,
+                        LaserPower = row.LaserPower,
+                        CutPass = pass,
+                        EndCoordinate = row.EndCoordinate,
+                        CenterCoordinate = row.CenterCoordinate,
+                        EndXMm = row.EndXMm,
+                        EndYMm = row.EndYMm,
+                        CenterXMm = row.CenterXMm,
+                        CenterYMm = row.CenterYMm,
+                        EndZ = row.EndZ
+                    });
+                }
+            }
+
+            return result;
         }
 
         private static void DropEngraveHomeRowBeforeCut(List<ProcessRow> engraveRows, bool hasCutRows)
@@ -769,6 +823,7 @@ namespace DACDT_2026
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 rows[i].ProcessKind = normalizedKind;
+                rows[i].CutPass = normalizedKind == EngraveCutProcessComposer.CutKind ? 1 : 0;
                 rows[i].Speed = EngraveCutProcessComposer.ResolveMixedRowSpeed(
                     rows[i].MCodeValue,
                     rows[i].EndCoordinate,

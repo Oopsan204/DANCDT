@@ -61,6 +61,10 @@
                                 <TextBlock Text="Cut Power (%)" Foreground="{DynamicResource MutedBrush}"/>
                                 <TextBox Text="{Binding CutPowerInput, UpdateSourceTrigger=PropertyChanged}"/>
                             </StackPanel>
+                            <StackPanel Margin="0,0,6,6">
+                                <TextBlock Text="Cut Passes (red paths)" Foreground="{DynamicResource MutedBrush}"/>
+                                <TextBox Text="{Binding CutPassesInput, UpdateSourceTrigger=PropertyChanged}"/>
+                            </StackPanel>
                         </UniformGrid>
                         <Button Content="Apply DXF Settings" Command="{Binding ApplyDxfSettingsCommand}" Style="{StaticResource PrimaryButtonStyle}"/>
                     </StackPanel>

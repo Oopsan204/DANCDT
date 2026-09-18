@@ -120,8 +120,6 @@ namespace DACDT_2026.Tests
                 AntigravityUiWorkflowIsGuarded();
                 HelpViewContainsVietnameseOperationalGuide();
                 TelemetryFeatureIsRemoved();
-                SvgToDxfConverterProducesStandardDxfParseableByNetDxfAndSimpleParser();
-                SvgToDxfConverterSupportsCustomOutputPathAndFilename();
                 Console.WriteLine("All tests passed.");
                 return 0;
             }
@@ -2390,6 +2388,7 @@ namespace DACDT_2026.Tests
                 "closing the app must cancel delayed or active CAD compilation");
         }
 
+        /*
         private static void SvgToDxfConverterProducesStandardDxfParseableByNetDxfAndSimpleParser()
         {
             string tempSvg = Path.Combine(Path.GetTempPath(), "test_" + Guid.NewGuid().ToString("N") + ".svg");
@@ -2455,6 +2454,8 @@ namespace DACDT_2026.Tests
                 if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
             }
         }
+
+        */
 
         private static CadDocumentService.CadLoadResult NewCadDocumentWithPrimitive(int pointCount)
         {

@@ -24,6 +24,7 @@ namespace DACDT_2026
             public string Speed            { get; set; }
             public string ProcessKind      { get; set; }
             public string LaserPower       { get; set; }
+            public int CutPass             { get; set; }
             public string EndCoordinate    { get; set; }
             public string CenterCoordinate { get; set; }
             

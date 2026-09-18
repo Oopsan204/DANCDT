@@ -990,6 +990,7 @@ namespace DACDT_2026
                     Speed = row.Speed ?? string.Empty,
                     ProcessKind = row.ProcessKind ?? string.Empty,
                     LaserPower = row.LaserPower ?? string.Empty,
+                    CutPass = row.CutPass,
                     EndCoordinate = ApplyOffsetToCoord(row.EndCoordinate, rowOffsetX, rowOffsetY),
                     CenterCoordinate = ApplyOffsetToCoord(row.CenterCoordinate, rowOffsetX, rowOffsetY),
                     EndZ = row.EndZ.ToString("0.###", CultureInfo.InvariantCulture)
